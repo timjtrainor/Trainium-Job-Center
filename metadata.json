@@ -1,0 +1,8 @@
+{
+  "name": "Trainium 0.2",
+  "description": "Go beyond applications. Build relationships, refine your pitch, and stay in control of every step with AI that acts like a catalyst for your career.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "prompt": ""
+}

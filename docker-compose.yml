@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # Defines the PostgreSQL database service
+  db:
+    image: postgres:15-alpine
+    container_name: trainium_db
+    restart: always
+    environment:
+      # These variables are loaded from the .env file
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      # Maps the host port from .env to the container port
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Defines the PostgREST service to create a REST API for the database
+  postgrest:
+    image: postgrest/postgrest
+    container_name: trainium_api
+    restart: always
+    ports:
+      - "${POSTGREST_PORT}:3000"
+    environment:
+      # The connection string is now built using variables from the .env file
+      PGRST_DB_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_ANON_ROLE: ${POSTGRES_USER}
+    depends_on:
+      - db
+
+  # Defines the React front-end service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trainium_frontend
+    restart: always
+    ports:
+      - "${FRONTEND_PORT}:5173"
+    volumes:
+      # Mount the current directory ('.') which is the frontend source code
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - postgrest
+
+volumes:
+  # Defines the named volume for data persistence.
+  postgres_data:
