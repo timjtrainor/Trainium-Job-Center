@@ -6,9 +6,10 @@ import {
     LinkedInEngagementPayload, StandardJobRole, StandardJobRolePayload, Resume, ResumeHeader, DateInfo, Education, Certification,
     StrategicNarrative, StrategicNarrativePayload, Offer, OfferPayload,
     BragBankEntry, BragBankEntryPayload, SkillTrend, SkillTrendPayload,
-    Sprint, SprintAction, CreateSprintPayload, SprintActionPayload
+    Sprint, SprintAction, CreateSprintPayload, SprintActionPayload, ApplicationQuestion
 } from '../types';
-import { API_BASE_URL, USER_ID } from '../constants';
+import { API_BASE_URL, USER_ID, FASTAPI_BASE_URL } from '../constants';
+import { v4 as uuidv4 } from 'uuid';
 
 // --- API Helpers ---
 
@@ -89,22 +90,69 @@ const _parseContact = (contact: any): Contact => {
     };
 };
 
+// --- Health Check ---
+
+// Generic helper for health checks to avoid duplication
+const genericHealthCheck = async (url: string): Promise<{ status: number; statusText: string; data: any; }> => {
+    try {
+        const response = await fetch(url);
+        // Handle non-json responses gracefully
+        const data = await response.json().catch(() => response.text()); 
+        return {
+            status: response.status,
+            statusText: response.statusText,
+            data: data,
+        };
+    } catch (error) {
+        let errorMessage = 'An unknown network error occurred.';
+        let statusText = 'Network Error';
+        if (error instanceof TypeError) {
+             errorMessage = 'Network request failed. Is the API server running and CORS configured?';
+        } else if (error instanceof SyntaxError) {
+             errorMessage = 'Failed to parse JSON response from server.';
+             statusText = 'JSON Parse Error';
+        } else if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+        return {
+            status: 0,
+            statusText: statusText,
+            data: { error: errorMessage },
+        };
+    }
+};
+
+export const checkPostgrestHealth = async (): Promise<{ status: number; statusText: string; data: any; }> => {
+    // PostgREST root returns a service description JSON. A 200 OK is a pass.
+    return genericHealthCheck(API_BASE_URL);
+};
+
+export const checkFastApiHealth = async (): Promise<{ status: number; statusText: string; data: any; }> => {
+    // Assuming the FastAPI health endpoint is at /health
+    return genericHealthCheck(`${FASTAPI_BASE_URL}/health`);
+};
+
+
 // --- Applications --
 
 const _parseApplication = (app: any): JobApplication => {
     const appId = app.job_application_id;
-    const parsedApp = {
+    const parsedApp: any = {
         ...app,
         job_problem_analysis_result: safeParseJson(app.job_problem_analysis_result, 'job_problem_analysis_result', appId),
         keywords: safeParseJson(app.keywords, 'keywords', appId),
         guidance: safeParseJson(app.guidance, 'guidance', appId),
         tailored_resume_json: safeParseJson(app.tailored_resume_json, 'tailored_resume_json', appId),
-        application_questions: safeParseJson(app.application_questions, 'application_questions', appId),
         assumed_requirements: safeParseJson(app.assumed_requirements, 'assumed_requirements', appId),
         initial_interview_prep: safeParseJson(app.initial_interview_prep, 'initial_interview_prep', appId),
         next_steps_plan: safeParseJson(app.next_steps_plan, 'next_steps_plan', appId),
         first_90_day_plan: safeParseJson(app.first_90_day_plan, 'first_90_day_plan', appId),
     };
+
+    const parsedQuestions = safeParseJson(app.application_questions, 'application_questions', appId);
+    parsedApp.application_questions = Array.isArray(parsedQuestions)
+        ? parsedQuestions.map((q: any): ApplicationQuestion => ({ ...q, id: q.id || uuidv4() }))
+        : [];
 
     if (parsedApp.interviews && Array.isArray(parsedApp.interviews)) {
         const mappedInterviews = parsedApp.interviews.map((interview: any) => {

@@ -1,5 +1,6 @@
 import React from 'react';
 import { ApplicationQuestion } from '../types';
+import { v4 as uuidv4 } from 'uuid';
 import { LoadingSpinner, PlusCircleIcon, TrashIcon, DocumentTextIcon, LightBulbIcon } from './IconComponents';
 
 interface AnswerQuestionsStepProps {
@@ -22,7 +23,7 @@ export const AnswerQuestionsStep = ({ questions, setQuestions, onGenerateAllAnsw
     };
 
     const addQuestion = () => {
-        setQuestions([...questions, { question: '', answer: '', user_thoughts: '' }]);
+        setQuestions([...questions, { id: uuidv4(), question: '', answer: '', user_thoughts: '' }]);
     };
     
     const removeQuestion = (index: number) => {
@@ -70,7 +71,7 @@ export const AnswerQuestionsStep = ({ questions, setQuestions, onGenerateAllAnsw
             
             <div className="space-y-4">
                 {questions.map((qa, index) => (
-                    <div key={index} className="relative p-4 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                    <div key={qa.id} className="relative p-4 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-800/50">
                         <div className="absolute top-2 right-2">
                              <button type="button" onClick={() => removeQuestion(index)} className="p-1 text-slate-400 hover:text-red-500 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700">
                                 <TrashIcon className="h-5 w-5" />

@@ -170,6 +170,7 @@ export interface GuidanceResult {
 }
 
 export interface ApplicationQuestion {
+    id: string; // Unique ID for React key prop
     question: string;
     answer: string;
     user_thoughts?: string;

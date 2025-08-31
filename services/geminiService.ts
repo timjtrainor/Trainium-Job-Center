@@ -478,6 +478,25 @@ export async function generateInterviewPrep(context: PromptContext, promptConten
     return cleanAndParseJson(response.text);
 }
 
+export async function generateRecruiterScreenPrep(context: PromptContext, promptContent: string, debugCallbacks?: DebugCallbacks): Promise<InterviewPrep> {
+    const aiClient = getAiClient();
+    const prompt = replacePlaceholders(promptContent, context);
+    if(debugCallbacks?.before) await debugCallbacks.before(prompt);
+    
+    const response: GenerateContentResponse = await aiClient.models.generateContent({
+        model: currentModel,
+        contents: prompt,
+        config: {
+            systemInstruction: "You are an expert career coach creating a quick prep sheet for a recruiter screen.",
+            responseMimeType: "application/json",
+            temperature: 0.4,
+        },
+    });
+    
+    if(debugCallbacks?.after) await debugCallbacks.after(response.text);
+    return cleanAndParseJson(response.text);
+}
+
 export async function generateStrategicHypothesisDraft(context: PromptContext, promptContent: string, debugCallbacks?: DebugCallbacks): Promise<StrategicHypothesisDraft> {
     const aiClient = getAiClient();
     const prompt = replacePlaceholders(promptContent, context);

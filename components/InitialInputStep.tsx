@@ -7,18 +7,18 @@ interface InitialInputStepProps {
   onNext: () => void;
   isLoading: boolean;
   jobLink: string;
-  setJobLink: (link: string) => void;
+  onJobLinkChange: (value: string) => void;
   jobDescription: string;
-  setJobDescription: (desc: string) => void;
+  onJobDescriptionChange: (value: string) => void;
   isMessageOnlyApp: boolean;
-  setIsMessageOnlyApp: (isMessageOnly: boolean) => void;
+  onIsMessageOnlyChange: (value: boolean) => void;
 }
 
 export const InitialInputStep = (props: InitialInputStepProps): React.ReactNode => {
-    const { 
-        onNext, isLoading, jobLink, setJobLink, jobDescription, setJobDescription,
-        isMessageOnlyApp, setIsMessageOnlyApp
+    const {
+        onNext, isLoading, jobLink, onJobLinkChange, jobDescription, onJobDescriptionChange, isMessageOnlyApp, onIsMessageOnlyChange
     } = props;
+
 
     if (isLoading) {
         return (
@@ -45,11 +45,14 @@ export const InitialInputStep = (props: InitialInputStepProps): React.ReactNode 
         if (html) {
             event.preventDefault();
             const markdown = turndownService.turndown(html);
-            setJobDescription(markdown);
-            setActiveTab('preview'); // Switch to preview after paste for immediate feedback
+            onJobDescriptionChange(markdown);
         } else {
             // Let the default paste happen for plain text
         }
+    };
+
+    const handleNextClick = () => {
+        onNext();
     };
     
     const canProceed = jobDescription.trim();
@@ -70,7 +73,7 @@ export const InitialInputStep = (props: InitialInputStepProps): React.ReactNode 
       
       <div>
            <label htmlFor="job-link" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Job Posting Link (Optional)</label>
-            <input type="url" id="job-link" value={jobLink} onChange={(e) => setJobLink(e.target.value)} disabled={isLoading}
+            <input type="url" id="job-link" value={jobLink} onChange={(e) => onJobLinkChange(e.target.value)} disabled={isLoading}
              className={inputClass} placeholder="https://www.company.com/careers/job-id" />
       </div>
 
@@ -81,7 +84,7 @@ export const InitialInputStep = (props: InitialInputStepProps): React.ReactNode 
                     name="message-only-app"
                     type="checkbox"
                     checked={isMessageOnlyApp}
-                    onChange={(e) => setIsMessageOnlyApp(e.target.checked)}
+                    onChange={(e) => onIsMessageOnlyChange(e.target.checked)}
                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
             </div>
@@ -111,7 +114,7 @@ export const InitialInputStep = (props: InitialInputStepProps): React.ReactNode 
                     rows={15}
                     className="w-full p-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg font-mono text-xs text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                     value={jobDescription}
-                    onChange={(e) => setJobDescription(e.target.value)}
+                    onChange={(e) => onJobDescriptionChange(e.target.value)}
                     onPaste={handlePaste}
                     placeholder="Paste the full job description here..."
                     disabled={isLoading}
@@ -126,7 +129,7 @@ export const InitialInputStep = (props: InitialInputStepProps): React.ReactNode 
       
       <div className="flex items-center justify-end pt-4 border-t border-slate-200 dark:border-slate-700">
         <button
-          onClick={onNext}
+          onClick={handleNextClick}
           disabled={isLoading || !canProceed}
           className="inline-flex items-center justify-center px-6 py-2 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
         >

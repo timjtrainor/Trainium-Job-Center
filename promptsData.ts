@@ -555,6 +555,59 @@ Based on ALL the provided context, generate the interview prep data. The content
 `
     },
     {
+      id: "GENERATE_RECRUITER_SCREEN_PREP",
+      name: "Generate Recruiter Screen Quick Prep",
+      description: "Creates a fast, focused prep guide for an initial recruiter screen.",
+      content: `
+You are an expert career coach creating a quick and scannable prep sheet for a candidate's initial recruiter screen. The goal is speed and focus on the most critical talking points.
+
+CONTEXT:
+- Candidate's Positioning Statement: {{POSITIONING_STATEMENT}}
+- Candidate's Signature Capability (Mastery): {{MASTERY}}
+- Job Title: {{JOB_TITLE}}
+- Core Problem This Role Solves (from AI analysis): {{CORE_PROBLEM_ANALYSIS}}
+- Candidate's Compensation Expectation (from Narrative): {{COMPENSATION_EXPECTATION}}
+
+INSTRUCTIONS:
+Generate a concise prep guide. Be direct and use bullet points heavily.
+
+1.  **keyFocusAreas**: Create a 2-3 sentence "elevator pitch" that the candidate can use to introduce themselves. It must connect their positioning statement to the core problem of the role.
+2.  **potentialQuestions**: List the 3 most common questions a recruiter will ask (e.g., "Tell me about yourself", "Why this role?", "What are your salary expectations?"). Provide a very brief, one-sentence strategy for each.
+3.  **questionsToAsk**: List 3-4 critical questions the candidate MUST ask the recruiter to qualify the opportunity and understand the process.
+4.  **redFlags**: List 1-2 potential red flags to listen for during the call.
+5.  **salaryNegotiation**: Provide a simple, direct script for how to answer the salary question, incorporating the candidate's stated expectation.
+
+Return a single, valid JSON object in the InterviewPrep format.
+
+\`\`\`json
+{
+  "keyFocusAreas": [
+    "I'm a {{POSITIONING_STATEMENT}}. My understanding is that the core challenge for the {{JOB_TITLE}} role is {{CORE_PROBLEM_ANALYSIS}}, which is an area I specialize in. My work focuses on using my mastery of {{MASTERY}} to drive measurable results in exactly these types of situations."
+  ],
+  "potentialQuestions": [
+    { "question": "Walk me through your background.", "strategy": "Use your 'elevator pitch' from the Key Focus Areas." },
+    { "question": "Why are you interested in this opportunity?", "strategy": "Connect your interest directly to solving their specific core problem." },
+    { "question": "What are your salary expectations?", "strategy": "Use the script provided in the salary negotiation section." }
+  ],
+  "questionsToAsk": [
+    "What is the budgeted salary range for this role?",
+    "Could you walk me through the full interview process and timeline?",
+    "What are the most important priorities for this role in the first six months?",
+    "What is the team structure like, and who would I be working most closely with?"
+  ],
+  "redFlags": [
+    "Vagueness about the role's budget or seniority level.",
+    "A disorganized or unclear interview process."
+  ],
+  "salaryNegotiation": {
+    "suggestion": "Based on my experience and the market rate for a role of this scope, I'm targeting a base salary in the range of {{COMPENSATION_EXPECTATION}}. However, I'm flexible and open to discussing the total compensation package.",
+    "reasoning": "This provides a clear, confident number while keeping the door open for negotiation on bonus, equity, and other benefits."
+  }
+}
+\`\`\`
+`
+    },
+    {
         id: 'GENERATE_STRATEGIC_HYPOTHESIS_DRAFT',
         name: 'Generate Strategic Hypothesis Draft',
         description: "Generates a first draft for the user's strategic hypothesis in the Interview Strategy Studio.",

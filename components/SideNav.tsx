@@ -31,7 +31,7 @@ const navItems: NavItem[] = [
 ];
 
 const secondaryNavItems = [
-    { path: '/prompt-editor', label: 'Prompt Formulation', icon: AtomGearIcon }
+    { path: '/prompt-editor', label: 'Dev Mode', icon: AtomGearIcon }
 ]
 
 export const SideNav = ({ narratives, activeNarrativeId, onSetNarrative, onOpenProfileModal, onOpenSprintModal }: SideNavProps): React.ReactNode => {

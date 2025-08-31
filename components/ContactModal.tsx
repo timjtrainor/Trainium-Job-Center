@@ -191,7 +191,7 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
                 CONTACT_LINKEDIN_ABOUT: editableContact.linkedin_about,
             };
             const result = await geminiService.scoreContactFit(context, prompt.content, debugCallbacks);
-            setEditableContact(prev => ({...prev, strategic_alignment_score: result.strategic_fit_score }));
+            setEditableContact(prev => ({...prev, strategic_alignment_score: result.strategic_fit_score ? Math.round(result.strategic_fit_score) : undefined }));
         } catch(err) {
             setSaveError(err instanceof Error ? err.message : 'Failed to calculate fit score.');
         } finally {
@@ -433,15 +433,6 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
                                     <h4 className="font-semibold text-slate-800 dark:text-slate-200">AI Composer</h4>
                                     <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg space-y-3 border border-slate-200 dark:border-slate-700">
                                         <div><label className="text-sm font-medium text-slate-600 dark:text-slate-400">Goal</label><select value={composerGoal} onChange={(e) => setComposerGoal(e.target.value as ComposerGoal)} className={`${inputClass} mt-1`}><option>Initial Connection</option><option>Follow-up</option><option>Reply to Interaction</option><option>Comment on Post</option></select></div>
-                                        {composerGoal === 'Comment on Post' && (
-                                            <div>
-                                                <label className={labelClass}>Tone</label>
-                                                <div className="mt-2 flex rounded-md shadow-sm">
-                                                    <button type="button" onClick={() => setCommentTone('Standard')} className={`px-4 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-l-md ${commentTone === 'Standard' ? 'bg-blue-600 text-white z-10' : 'bg-white dark:bg-slate-700 hover:bg-slate-50'}`}>Standard</button>
-                                                    <button type="button" onClick={() => setCommentTone('Expertise-Driven')} className={`-ml-px px-4 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-r-md ${commentTone === 'Expertise-Driven' ? 'bg-blue-600 text-white z-10' : 'bg-white dark:bg-slate-700 hover:bg-slate-50'}`}>Expertise-Driven</button>
-                                                </div>
-                                            </div>
-                                        )}
                                         {(composerGoal === 'Reply to Interaction' || composerGoal === 'Comment on Post') && <div><label className={labelClass}>Their Post/Comment Text</label><textarea value={interactionDetails} onChange={(e) => setInteractionDetails(e.target.value)} rows={2} className={`${inputClass} mt-1`} placeholder="Paste text of their post or comment..."/></div>}
                                         {composerGoal !== 'Comment on Post' && <div><label className={labelClass}>Include Context:</label><div className="flex flex-wrap gap-x-4 gap-y-2 mt-1">{[{label:'Mission', state:includeMission, setter:setIncludeMission}, {label:'Values',state:includeValues,setter:setIncludeValues}, {label:'Problem',state:includeProblem,setter:setIncludeProblem}].map(item => (<div key={item.label} className="flex items-center"><input id={item.label} type="checkbox" checked={item.state} onChange={(e) => item.setter(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/><label htmlFor={item.label} className="ml-2 text-sm text-slate-700 dark:text-slate-300">{item.label}</label></div>))}</div></div>}
                                         {composerGoal !== 'Comment on Post' && <div><label className={labelClass}>Your Notes (optional)</label><textarea value={userNotes} onChange={(e) => setUserNotes(e.target.value)} rows={2} className={`${inputClass} mt-1`} placeholder="Guide the AI's tone or angle..."/></div>}

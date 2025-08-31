@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { JobApplication, Interview, StrategicNarrative, ImpactStory, StorytellingFormat, StarBody, ScopeBody, WinsBody, SpotlightBody, InterviewPayload } from '../types';
-import { CheckIcon, GripVerticalIcon, MicrophoneIcon, ClipboardDocumentCheckIcon } from './IconComponents';
+import { JobApplication, Interview, StrategicNarrative, ImpactStory, StorytellingFormat, StarBody, ScopeBody, WinsBody, SpotlightBody, InterviewPayload, Company } from '../types';
+import { CheckIcon, GripVerticalIcon, MicrophoneIcon, ClipboardDocumentCheckIcon, SparklesIcon, LoadingSpinner } from './IconComponents';
 import { Switch } from './Switch';
 
 interface InterviewCopilotViewProps {
     application: JobApplication;
     interview: Interview;
+    company: Company;
     activeNarrative: StrategicNarrative;
     onBack: () => void;
     onSaveInterview: (payload: InterviewPayload, interviewId: string) => Promise<void>;
+    onGenerateInterviewPrep: (app: JobApplication, interview: Interview) => Promise<void>;
+    onGenerateRecruiterScreenPrep: (app: JobApplication, interview: Interview) => Promise<void>;
 }
 
 const STORY_FORMAT_FIELDS: { [key in StorytellingFormat]: (keyof (StarBody & ScopeBody & WinsBody & SpotlightBody))[] } = {
@@ -62,7 +65,7 @@ const ImpactStoryTrigger = ({ story }: { story: ImpactStory }) => {
     )
 }
 
-export const InterviewCopilotView = ({ application, interview, activeNarrative, onBack, onSaveInterview }: InterviewCopilotViewProps) => {
+export const InterviewCopilotView = ({ application, interview, company, activeNarrative, onBack, onSaveInterview, onGenerateInterviewPrep, onGenerateRecruiterScreenPrep }: InterviewCopilotViewProps) => {
     const [isEditMode, setIsEditMode] = useState(false);
     const [editableOpening, setEditableOpening] = useState('');
     const [editableQuestions, setEditableQuestions] = useState('');
@@ -73,6 +76,7 @@ export const InterviewCopilotView = ({ application, interview, activeNarrative, 
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [isSavingNotes, setIsSavingNotes] = useState(false);
     const [notesSuccess, setNotesSuccess] = useState(false);
+    const [isGeneratingPrep, setIsGeneratingPrep] = useState(false);
 
     useEffect(() => {
         const opening = interview.strategic_opening || `"I'm a product leader who excels at ${activeNarrative.positioning_statement}. My understanding is the core challenge here is ${application.job_problem_analysis_result?.core_problem_analysis.core_problem}. That's a problem I'm familiar with from my time when I ${activeNarrative.impact_story_title}."`;
@@ -124,6 +128,22 @@ export const InterviewCopilotView = ({ application, interview, activeNarrative, 
             return newSet;
         });
     };
+
+    const handleRerunAI = async () => {
+        setIsGeneratingPrep(true);
+        try {
+            const isRecruiterScreen = interview.interview_type === "Step 6.1: Recruiter Screen";
+            if (isRecruiterScreen) {
+                await onGenerateRecruiterScreenPrep(application, interview);
+            } else {
+                await onGenerateInterviewPrep(application, interview);
+            }
+        } catch (error) {
+            console.error("Failed to rerun AI prep", error);
+        } finally {
+            setIsGeneratingPrep(false);
+        }
+    };
     
     const interviewer = interview.interview_contacts?.[0];
 
@@ -133,7 +153,7 @@ export const InterviewCopilotView = ({ application, interview, activeNarrative, 
                 <header className="p-3 border-b border-slate-300 dark:border-slate-700 flex justify-between items-center flex-shrink-0">
                     <div>
                         <h2 className="text-base font-bold text-slate-900 dark:text-white">Interview Co-pilot</h2>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{application.job_title} at {application.company_id}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{application.job_title} at {company.company_name}</p>
                     </div>
                     <div className="flex items-center gap-4">
                          <div className="flex items-center space-x-2">
@@ -141,9 +161,14 @@ export const InterviewCopilotView = ({ application, interview, activeNarrative, 
                             <Switch enabled={isEditMode} onChange={setIsEditMode} />
                             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Edit Mode</span>
                         </div>
-                        {isEditMode && (
+                        {isEditMode ? (
                             <button onClick={handleSave} disabled={isSaving} className={`px-3 py-1.5 text-xs font-semibold rounded-md shadow-sm transition-colors ${saveSuccess ? 'bg-green-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-400'}`}>
                                 {isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save Changes'}
+                            </button>
+                        ) : (
+                             <button onClick={handleRerunAI} disabled={isGeneratingPrep} className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md shadow-sm transition-colors bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-indigo-400">
+                                {isGeneratingPrep ? <LoadingSpinner/> : <SparklesIcon className="h-4 w-4"/>}
+                                Rerun AI Prep
                             </button>
                         )}
                         <button onClick={onBack} className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline">

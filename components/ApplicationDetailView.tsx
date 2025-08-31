@@ -15,6 +15,7 @@ interface ApplicationDetailViewProps {
     onDeleteApplication: (appId: string) => void;
     onResumeApplication: (app: JobApplication) => void;
     onReanalyze: () => void;
+    isReanalyzing: boolean;
     prompts: Prompt[];
     statuses: Status[];
     userProfile: UserProfile | null;
@@ -22,6 +23,7 @@ interface ApplicationDetailViewProps {
     onSaveInterview: (interviewData: InterviewPayload, interviewId?: string) => Promise<void>;
     onDeleteInterview: (interviewId: string) => Promise<void>;
     onGenerateInterviewPrep: (app: JobApplication, interview: Interview) => Promise<void>;
+    onGenerateRecruiterScreenPrep: (app: JobApplication, interview: Interview) => Promise<void>;
     onOpenContactModal: (contact?: Partial<Contact> | null) => void;
     onOpenOfferModal: (app: JobApplication, offer?: Offer) => void;
     onGenerate90DayPlan: (app: JobApplication) => void;
@@ -32,7 +34,7 @@ interface ApplicationDetailViewProps {
     isLoading: boolean;
     onOpenDebriefStudio: (interview: Interview) => void;
     initialTab?: ApplicationDetailTab;
-    onTabChange?: () => void;
+    onTabChange?: (tab: ApplicationDetailTab) => void;
     debugCallbacks?: { before: (p: string) => Promise<void>; after: (r: string) => Promise<void>; };
 }
 
@@ -122,7 +124,7 @@ const ResumeViewer = ({ resume }: { resume: Resume | undefined | null }) => {
 
 
 export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
-    const { application, company, contacts, allCompanies, onBack, onUpdate, onDeleteApplication, onResumeApplication, onReanalyze, prompts, statuses, userProfile, activeNarrative, onSaveInterview, onDeleteInterview, onGenerateInterviewPrep, onOpenContactModal, onOpenOfferModal, onGenerate90DayPlan, onAddQuestionToCommonPrep, onOpenStrategyStudio, onNavigateToStudio, handleLaunchCopilot, isLoading, onOpenDebriefStudio, initialTab, onTabChange, debugCallbacks } = props;
+    const { application, company, contacts, allCompanies, onBack, onUpdate, onDeleteApplication, onResumeApplication, onReanalyze, isReanalyzing, prompts, statuses, userProfile, activeNarrative, onSaveInterview, onDeleteInterview, onGenerateInterviewPrep, onGenerateRecruiterScreenPrep, onOpenContactModal, onOpenOfferModal, onGenerate90DayPlan, onAddQuestionToCommonPrep, onOpenStrategyStudio, onNavigateToStudio, handleLaunchCopilot, isLoading, onOpenDebriefStudio, initialTab, onTabChange, debugCallbacks } = props;
     
     const [activeTab, setActiveTab] = useState<ApplicationDetailTab>(initialTab || 'overview');
     const [isEditing, setIsEditing] = useState(false);
@@ -143,12 +145,6 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
             setActiveTab(initialTab);
         }
     }, [initialTab]);
-    
-    useEffect(() => {
-        if (initialTab && initialTab !== 'overview' && onTabChange) {
-            onTabChange();
-        }
-    }, [initialTab, onTabChange]);
     
     useEffect(() => {
         if (activeTab !== 'interviews') {
@@ -225,10 +221,14 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
         }
     };
     
-    const handleGeneratePrep = async (interview: Interview) => {
+    const handleGeneratePrep = async (interview: Interview, isQuickPrep: boolean) => {
         setIsGeneratingPrep(prev => ({ ...prev, [interview.interview_id]: true }));
         try {
-            await onGenerateInterviewPrep(application, interview);
+            if (isQuickPrep) {
+                await onGenerateRecruiterScreenPrep(application, interview);
+            } else {
+                await onGenerateInterviewPrep(application, interview);
+            }
         } catch (e) {
             console.error("Failed to generate interview prep:", e);
         } finally {
@@ -268,10 +268,10 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
             
             <div className="border-b border-slate-200 dark:border-slate-700">
                 <nav className="-mb-px flex space-x-4" aria-label="Tabs">
-                    <button onClick={() => setActiveTab('overview')} className={tabClass('overview')}>Overview</button>
-                    <button onClick={() => setActiveTab('analysis')} className={tabClass('analysis')}>AI Analysis</button>
-                    <button onClick={() => setActiveTab('resume')} className={tabClass('resume')}>Final Resume</button>
-                    <button onClick={() => setActiveTab('interviews')} className={tabClass('interviews')}>Interviews</button>
+                    <button onClick={() => onTabChange?.('overview')} className={tabClass('overview')}>Overview</button>
+                    <button onClick={() => onTabChange?.('analysis')} className={tabClass('analysis')}>AI Analysis</button>
+                    <button onClick={() => onTabChange?.('resume')} className={tabClass('resume')}>Final Resume</button>
+                    <button onClick={() => onTabChange?.('interviews')} className={tabClass('interviews')}>Interviews</button>
                 </nav>
             </div>
             
@@ -318,21 +318,34 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
                 )}
                 
                 {activeTab === 'analysis' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
-                            <h3 className="font-bold text-slate-800 dark:text-slate-200">Core Problem Analysis</h3>
-                             <p><strong className="text-slate-500 dark:text-slate-400">Context:</strong> {analysis?.core_problem_analysis?.business_context}</p>
-                             <p><strong className="text-slate-500 dark:text-slate-400">Problem:</strong> {analysis?.core_problem_analysis?.core_problem}</p>
-                             <p><strong className="text-slate-500 dark:text-slate-400">Importance:</strong> {analysis?.core_problem_analysis?.strategic_importance}</p>
-                             <div><h4 className="font-semibold text-slate-700 dark:text-slate-300">Key Success Metrics</h4><ul className="list-disc pl-5">{(analysis?.key_success_metrics || []).map((m,i)=><li key={i}>{m}</li>)}</ul></div>
-                             <div><h4 className="font-semibold text-slate-700 dark:text-slate-300">Potential Blockers</h4><ul className="list-disc pl-5">{(analysis?.potential_blockers || []).map((b,i)=><li key={i}>{b}</li>)}</ul></div>
+                     <div className="space-y-6">
+                        <div className="flex justify-between items-center pb-4 border-b border-slate-200 dark:border-slate-700">
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-white">AI Analysis</h3>
+                            <button
+                                onClick={onReanalyze}
+                                disabled={isReanalyzing}
+                                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-md bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 ring-1 ring-inset ring-indigo-200 dark:ring-indigo-500/30 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 disabled:opacity-50"
+                            >
+                                {isReanalyzing ? <LoadingSpinner /> : <SparklesIcon className="h-4 w-4" />}
+                                Rerun Full Analysis
+                            </button>
                         </div>
-                         <div className="space-y-4">
-                            <h3 className="font-bold text-slate-800 dark:text-slate-200">Resume Guidance</h3>
-                            <div><h4 className="font-semibold text-slate-700 dark:text-slate-300">Hard Keywords</h4><div className="flex flex-wrap gap-1 mt-1">{(application.keywords as KeywordsResult)?.hard_keywords?.map(kw => <span key={kw.keyword} className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">{kw.keyword}</span>)}</div></div>
-                            <div><h4 className="font-semibold text-slate-700 dark:text-slate-300">Soft Keywords</h4><div className="flex flex-wrap gap-1 mt-1">{(application.keywords as KeywordsResult)?.soft_keywords?.map(kw => <span key={kw.keyword} className="px-2 py-1 text-xs rounded-full bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-300">{kw.keyword}</span>)}</div></div>
-                            <div><h4 className="font-semibold text-slate-700 dark:text-slate-300">Summary Guidance</h4><p>{(application.guidance as GuidanceResult)?.summary?.join(' ')}</p></div>
-                         </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                                <h4 className="font-semibold text-slate-800 dark:text-slate-200">Core Problem Analysis</h4>
+                                 <p><strong className="text-slate-500 dark:text-slate-400">Context:</strong> {analysis?.core_problem_analysis?.business_context}</p>
+                                 <p><strong className="text-slate-500 dark:text-slate-400">Problem:</strong> {analysis?.core_problem_analysis?.core_problem}</p>
+                                 <p><strong className="text-slate-500 dark:text-slate-400">Importance:</strong> {analysis?.core_problem_analysis?.strategic_importance}</p>
+                                 <div><h4 className="font-semibold text-slate-700 dark:text-slate-300">Key Success Metrics</h4><ul className="list-disc pl-5">{(analysis?.key_success_metrics || []).map((m,i)=><li key={i}>{m}</li>)}</ul></div>
+                                 <div><h4 className="font-semibold text-slate-700 dark:text-slate-300">Potential Blockers</h4><ul className="list-disc pl-5">{(analysis?.potential_blockers || []).map((b,i)=><li key={i}>{b}</li>)}</ul></div>
+                            </div>
+                             <div className="space-y-4">
+                                <h4 className="font-semibold text-slate-800 dark:text-slate-200">Resume Guidance</h4>
+                                <div><h4 className="font-semibold text-slate-700 dark:text-slate-300">Hard Keywords</h4><div className="flex flex-wrap gap-1 mt-1">{(application.keywords as KeywordsResult)?.hard_keywords?.map(kw => <span key={kw.keyword} className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">{kw.keyword}</span>)}</div></div>
+                                <div><h4 className="font-semibold text-slate-700 dark:text-slate-300">Soft Keywords</h4><div className="flex flex-wrap gap-1 mt-1">{(application.keywords as KeywordsResult)?.soft_keywords?.map(kw => <span key={kw.keyword} className="px-2 py-1 text-xs rounded-full bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-300">{kw.keyword}</span>)}</div></div>
+                                <div><h4 className="font-semibold text-slate-700 dark:text-slate-300">Summary Guidance</h4><p>{(application.guidance as GuidanceResult)?.summary?.join(' ')}</p></div>
+                             </div>
+                        </div>
                     </div>
                 )}
 
@@ -346,6 +359,8 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
                             {(application.interviews || []).map(interview => {
                                 const todayString = new Date().toISOString().split('T')[0];
                                 const isPastOrToday = interview.interview_date ? interview.interview_date <= todayString : false;
+                                const isRecruiterScreen = interview.interview_type === "Step 6.1: Recruiter Screen";
+                                const hasPrepData = interview.ai_prep_data && Object.values(interview.ai_prep_data).some(val => Array.isArray(val) ? val.length > 0 : !!val);
 
                                 return (
                                 <div key={interview.interview_id} className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
@@ -357,7 +372,10 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
                                                 {(interview.interview_contacts || []).map(c => {
                                                     const contact = contacts.find(storedContact => storedContact.contact_id === c.contact_id);
                                                     return (
-                                                        <button key={c.contact_id} onClick={() => onOpenContactModal(contact || null)} className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900">
+                                                        <button key={c.contact_id} onClick={() => {
+                                                            setSelectedContextContact(contact || null);
+                                                            setIsContextCompanyView(false);
+                                                        }} className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900">
                                                             {c.first_name} {c.last_name}
                                                         </button>
                                                     );
@@ -370,11 +388,9 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
                                                     Debrief
                                                 </button>
                                             )}
-                                            {interview.strategic_plan && (
-                                                <button onClick={() => handleLaunchCopilot(application, interview)} disabled={isLoading} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-300 ring-1 ring-inset ring-green-200 dark:ring-green-500/30 hover:bg-green-100 dark:hover:bg-green-500/20 disabled:opacity-50" title="Launch Interview Co-pilot">
-                                                    <RocketLaunchIcon className="h-4 w-4"/> Co-pilot
-                                                </button>
-                                            )}
+                                            <button onClick={() => handleLaunchCopilot(application, interview)} disabled={isLoading} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-300 ring-1 ring-inset ring-green-200 dark:ring-green-500/30 hover:bg-green-100 dark:hover:bg-green-500/20 disabled:opacity-50" title="Launch Interview Co-pilot">
+                                                <RocketLaunchIcon className="h-4 w-4"/> Co-pilot
+                                            </button>
                                              <button onClick={() => onOpenStrategyStudio(interview)} disabled={isLoading} className="p-1.5 text-xs font-semibold rounded-md bg-white dark:bg-slate-700 ring-1 ring-inset ring-slate-300 dark:ring-slate-600 inline-flex items-center gap-1.5 hover:bg-slate-50" title="Open Strategy Studio">
                                                 <StrategyIcon className="h-4 w-4"/> Studio
                                              </button>
@@ -382,18 +398,21 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
                                              <button onClick={() => onDeleteInterview(interview.interview_id)} className="p-1 text-red-500 hover:text-red-400" title="Delete Interview"><TrashIcon className="h-5 w-5"/></button>
                                         </div>
                                     </div>
-                                    {interview.ai_prep_data ? (
+                                    {hasPrepData ? (
                                         <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
                                             <details><summary className="text-sm font-semibold cursor-pointer">View AI Prep</summary>
-                                                <div className="text-xs mt-2 space-y-1">
-                                                    <p><strong>Focus:</strong> {(interview.ai_prep_data.keyFocusAreas || []).join(', ')}</p>
+                                                <div className="text-xs mt-2 space-y-2 prose prose-xs dark:prose-invert max-w-none">
+                                                   <p><strong>Focus Areas:</strong> {(interview.ai_prep_data.keyFocusAreas || []).join(', ')}</p>
+                                                   <div><strong>Potential Questions They Might Ask You:</strong><ul>{(interview.ai_prep_data.potentialQuestions || []).map(q => <li key={q.question}><strong>{q.question}</strong><br/><em>Strategy: {q.strategy}</em></li>)}</ul></div>
+                                                   <div><strong>Strategic Questions for You to Ask Them:</strong><ul>{(interview.ai_prep_data.questionsToAsk || []).map((q, i) => <li key={i}>{q}</li>)}</ul></div>
+                                                   <div><strong>Potential Red Flags to Watch For:</strong><ul>{(interview.ai_prep_data.redFlags || []).map((flag, i) => <li key={i}>{flag}</li>)}</ul></div>
                                                 </div>
                                             </details>
                                         </div>
                                     ) : (
                                         <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 text-center">
-                                            <button onClick={() => handleGeneratePrep(interview)} disabled={isGeneratingPrep[interview.interview_id]} className="text-sm font-semibold text-blue-600 hover:underline">
-                                                {isGeneratingPrep[interview.interview_id] ? <LoadingSpinner/> : 'Generate Prep with AI'}
+                                            <button onClick={() => handleGeneratePrep(interview, isRecruiterScreen)} disabled={isGeneratingPrep[interview.interview_id]} className="text-sm font-semibold text-blue-600 hover:underline">
+                                                {isGeneratingPrep[interview.interview_id] ? <LoadingSpinner/> : (isRecruiterScreen ? 'Generate Quick Prep' : 'Generate Prep with AI')}
                                             </button>
                                         </div>
                                     )}
@@ -441,22 +460,28 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
                                         <DetailItem label="Mission" value={company.mission?.text} />
                                         <DetailItem label="Values" value={company.values?.text} />
                                         <DetailItem label="Challenges/Issues" value={company.issues?.text} />
+                                        <DetailItem label="Goals" value={company.goals?.text} />
                                         <DetailItem label="Strategic Initiatives" value={company.strategic_initiatives?.text} />
                                         <DetailItem label="Recent News" value={company.news?.text} />
                                     </div>
-                                ) : selectedContextContact ? (
-                                     <div className="space-y-3 text-xs">
-                                        <p><strong>Name:</strong> {selectedContextContact.first_name} {selectedContextContact.last_name}</p>
-                                        <p><strong>Title:</strong> {selectedContextContact.job_title}</p>
-                                        <p><strong>Persona:</strong> {selectedContextContact.persona}</p>
-                                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
-                                            <p className="font-semibold">LinkedIn "About"</p>
-                                            <p className="mt-1 whitespace-pre-wrap">{selectedContextContact.linkedin_about || 'Not available.'}</p>
-                                        </div>
-                                     </div>
-                                ) : null}
+                                ) : (
+                                    <div className="space-y-3 text-xs">
+                                        {selectedContextContact ? (
+                                            <>
+                                                <DetailItem label="Name" value={`${selectedContextContact.first_name} ${selectedContextContact.last_name}`} />
+                                                <DetailItem label="Title" value={selectedContextContact.job_title} />
+                                                <DetailItem label="Persona" value={selectedContextContact.persona} />
+                                                <DetailItem label="About">
+                                                    <p className="whitespace-pre-wrap max-h-48 overflow-y-auto">{selectedContextContact.linkedin_about || 'N/A'}</p>
+                                                </DetailItem>
+                                            </>
+                                        ) : (
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">Click an interviewer to see their details.</p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
-                         </div>
+                        </div>
                     </div>
                 )}
             </div>

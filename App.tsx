@@ -41,10 +41,20 @@ import { LoadingSpinner } from './components/IconComponents';
 import { InterviewStudioView } from './components/InterviewStudioView';
 import { InterviewCopilotView } from './components/InterviewCopilotView';
 import { PromptEditorView } from './components/PromptEditorView';
-import { TimerDisplay } from './components/TimerDisplay';
 import { StepTracker } from './components/StepTracker';
 import { CraftMessageStep } from './components/CraftMessageStep';
 
+
+type JobDetailsPayload = {
+  companyName: string;
+  isRecruitingFirm: boolean;
+  jobTitle: string;
+  jobLink: string;
+  salary: string;
+  location: string;
+  remoteStatus: 'Remote' | 'Hybrid' | 'On-site' | '';
+  jobDescription: string;
+}
 
 const AppContent = () => {
     // --- Core App State ---
@@ -106,11 +116,8 @@ const AppContent = () => {
     const [applicationQuestions, setApplicationQuestions] = useState<ApplicationQuestion[]>([]);
     const [postSubmissionPlan, setPostSubmissionPlan] = useState<PostSubmissionPlan | null>(null);
     
-    // --- Timer State ---
-    const [timerSeconds, setTimerSeconds] = useState(0);
-    const timerIntervalRef = useRef<number | null>(null);
-
     // --- UI/Modal State ---
+    const [isReanalyzing, setIsReanalyzing] = useState(false);
     const [isContactModalOpen, setIsContactModalOpen] = useState(false);
     const [selectedContact, setSelectedContact] = useState<Partial<Contact> | null>(null);
     const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
@@ -129,6 +136,7 @@ const AppContent = () => {
     const [selectedInterviewForCopilot, setSelectedInterviewForCopilot] = useState<Interview | null>(null);
     const [selectedInterviewForDebrief, setSelectedInterviewForDebrief] = useState<Interview | null>(null);
     const [initialAppForStudio, setInitialAppForStudio] = useState<JobApplication | null>(null);
+    const [isGeneratingDebrief, setIsGeneratingDebrief] = useState(false);
 
     // --- AI & Debug State ---
     const [isDebugMode, setIsDebugMode] = useState(false);
@@ -143,37 +151,6 @@ const AppContent = () => {
         addToast(`${messagePrefix}: ${errorMessage}`, 'error');
         console.error(err);
     };
-    
-    // --- Timer Logic ---
-    const stopTimer = useCallback(() => {
-        if (timerIntervalRef.current) {
-            clearInterval(timerIntervalRef.current);
-            timerIntervalRef.current = null;
-        }
-    }, []);
-
-    const startTimer = useCallback(() => {
-        if (timerIntervalRef.current !== null) return;
-        timerIntervalRef.current = window.setInterval(() => {
-            setTimerSeconds(prev => prev + 1);
-        }, 1000);
-    }, []);
-
-    const resetTimer = useCallback(() => {
-        stopTimer();
-        setTimerSeconds(0);
-    }, [stopTimer]);
-    
-    useEffect(() => {
-        if (location.pathname === '/new-application') {
-            startTimer();
-        } else if (timerIntervalRef.current !== null) { // Check if timer is running
-            stopTimer();
-        }
-    
-        // Cleanup on unmount or path change
-        return () => stopTimer();
-    }, [location.pathname, startTimer, stopTimer]);
     
     // --- Data Fetching ---
     const fetchInitialData = useCallback(async () => {
@@ -229,7 +206,7 @@ const AppContent = () => {
         fetchInitialData();
     }, [fetchInitialData]);
 
-    const handleNavigateToInterviewStudioForApp = (app: JobApplication) => {
+    const handleNavigateToInterviewStudio = (app: JobApplication) => {
         setInitialAppForStudio(app);
         navigate('/interview-studio');
     };
@@ -268,7 +245,6 @@ const AppContent = () => {
         setIsMessageOnlyApp(false);
         setApplicationMessageDrafts([]);
         setFinalApplicationMessage('');
-        resetTimer();
     };
 
     const handleInitialSubmit = async () => {
@@ -280,13 +256,25 @@ const AppContent = () => {
             const context = { JOB_DESCRIPTION: jobDetails.jobDescription };
             const result = await geminiService.extractInitialDetailsFromPaste(context, prompt.content);
 
-            setJobDetails(prev => ({ ...prev, ...result }));
+            // Update state with AI extracted details, preserving original link
+            setJobDetails(prev => ({
+                ...prev,
+                ...result,
+                jobLink: prev.jobLink,
+            }));
             setNewAppStep(NewAppStep.JOB_DETAILS);
         } catch (err) {
             handleError(err, 'Failed to extract details');
         } finally {
             setNewAppLoadingState('idle');
         }
+    };
+
+    const handleJobDetailsSubmit = (payload: JobDetailsPayload & { narrativeId: string }) => {
+        const { narrativeId, ...jobDetailsPayload } = payload;
+        setJobDetails(prev => ({ ...prev, ...jobDetailsPayload }));
+        setActiveNarrativeId(narrativeId);
+        setNewAppStep(NewAppStep.COMPANY_CONFIRMATION);
     };
     
     const handleCompanySelectionAndAnalyze = async (companyId: string) => {
@@ -358,7 +346,7 @@ const AppContent = () => {
 
             const payload = { 
                 job_problem_analysis_result: job_problem_analysis,
-                strategic_fit_score: strategic_fit_score,
+                strategic_fit_score: strategic_fit_score === null ? null : Math.round(strategic_fit_score),
                 assumed_requirements: assumed_requirements,
             };
             await handleUpdateApplication(appToAnalyze.job_application_id, payload);
@@ -515,14 +503,26 @@ const AppContent = () => {
     const handleSaveTailoredResume = async () => {
         if (!currentApplicationId || !finalResume) return;
         setNewAppLoadingState('saving');
+    
+        const resumeToSave = { ...finalResume };
+        resumeToSave.work_experience = resumeToSave.work_experience.map(job => {
+            const visibleAccomplishments = (job.accomplishments || []).filter(acc => {
+                // This logic is simplified; in a real app, we'd check against a visibility flag
+                // For now, we assume all are visible
+                return true; 
+            });
+            return { ...job, accomplishments: visibleAccomplishments };
+        });
+    
         try {
             const resumeCreatedStatusId = statuses.find(s => s.status_name === 'Step-3: Resume created')?.status_id;
             await handleUpdateApplication(currentApplicationId, { 
-                tailored_resume_json: finalResume, 
-                resume_summary: finalResume.summary.paragraph, 
-                resume_summary_bullets: JSON.stringify(finalResume.summary.bullets),
+                tailored_resume_json: resumeToSave, 
+                resume_summary: resumeToSave.summary.paragraph, 
+                resume_summary_bullets: JSON.stringify(resumeToSave.summary.bullets),
                 status_id: resumeCreatedStatusId,
             });
+            setFinalResume(resumeToSave);
             setNewAppStep(NewAppStep.DOWNLOAD_RESUME);
         } catch (err) {
             handleError(err, 'Failed to save resume');
@@ -583,6 +583,16 @@ const AppContent = () => {
         } finally {
             setNewAppLoadingState('idle');
         }
+    };
+
+    const handleFinishApplication = async () => {
+        if (currentApplicationId) {
+            const appliedStatusId = statuses.find(s => s.status_name === 'Step-4: Applied')?.status_id;
+            if (appliedStatusId) {
+                await handleUpdateApplication(currentApplicationId, { status_id: appliedStatusId });
+            }
+        }
+        navigate('/applications');
     };
     
     // --- Generic Handlers ---
@@ -808,12 +818,281 @@ const AppContent = () => {
         }
     };
 
+    const handleResumeApplication = (appToResume: JobApplication) => {
+        resetNewAppFlow();
+    
+        setCurrentApplicationId(appToResume.job_application_id);
+        setActiveNarrativeId(appToResume.narrative_id);
+    
+        const company = companies.find(c => c.company_id === appToResume.company_id);
+        setJobDetails({
+            companyName: company?.company_name || '',
+            isRecruitingFirm: company?.is_recruiting_firm || false,
+            jobTitle: appToResume.job_title,
+            jobDescription: appToResume.job_description,
+            jobLink: appToResume.job_link || '',
+            salary: appToResume.salary || '',
+            location: appToResume.location || '',
+            remoteStatus: appToResume.remote_status || '',
+            mission: company?.mission?.text || '',
+            values: company?.values?.text || '',
+        });
+    
+        setJobProblemAnalysisResult(appToResume.job_problem_analysis_result || null);
+        setStrategicFitScore(appToResume.strategic_fit_score || null);
+        setAssumedRequirements(appToResume.assumed_requirements || []);
+    
+        const parsedKeywords = typeof appToResume.keywords === 'string' ? JSON.parse(appToResume.keywords) : appToResume.keywords;
+        const parsedGuidance = typeof appToResume.guidance === 'string' ? JSON.parse(appToResume.guidance) : appToResume.guidance;
+        setKeywords(parsedKeywords || null);
+        setGuidance(parsedGuidance || null);
+    
+        const wasMessageOnly = !!appToResume.application_message && !appToResume.tailored_resume_json;
+        setIsMessageOnlyApp(wasMessageOnly);
+        
+        setFinalResume(appToResume.tailored_resume_json || null);
+        setApplicationQuestions(appToResume.application_questions || []);
+        setFinalApplicationMessage(appToResume.application_message || '');
+    
+        if (appToResume.why_this_job && appToResume.next_steps_plan) {
+            setPostSubmissionPlan({
+                why_this_job: appToResume.why_this_job,
+                next_steps_plan: appToResume.next_steps_plan,
+            });
+        }
+    
+        let resumeStep: NewAppStep;
+        if (appToResume.why_this_job) {
+            resumeStep = NewAppStep.POST_SUBMIT_PLAN;
+        } else if (appToResume.application_message) {
+            resumeStep = NewAppStep.CRAFT_MESSAGE;
+        } else if (appToResume.application_questions && appToResume.application_questions.length > 0) {
+            resumeStep = NewAppStep.ANSWER_QUESTIONS;
+        } else if (appToResume.tailored_resume_json) {
+            resumeStep = NewAppStep.DOWNLOAD_RESUME;
+        } else if (appToResume.keywords) {
+            resumeStep = NewAppStep.RESUME_SELECT;
+        } else if (appToResume.job_problem_analysis_result) {
+            resumeStep = NewAppStep.AI_PROBLEM_ANALYSIS;
+        } else {
+            resumeStep = NewAppStep.AI_PROBLEM_ANALYSIS;
+        }
+        setNewAppStep(resumeStep);
+    
+        navigate('/new-application');
+    };
+    
+    const handleReanalyzeApplication = async (appToReanalyze: JobApplication) => {
+        setIsReanalyzing(true);
+        addToast('Rerunning full AI analysis...', 'info');
+        try {
+            // Step 1: Re-run Problem Analysis
+            const analysisPrompt = PROMPTS.find(p => p.id === 'INITIAL_JOB_ANALYSIS');
+            const narrative = strategicNarratives.find(n => n.narrative_id === appToReanalyze.narrative_id);
+            if (!analysisPrompt || !narrative) throw new Error("Analysis prompt or narrative not found for re-analysis.");
+    
+            const analysisContext = {
+                NORTH_STAR: narrative.positioning_statement,
+                MASTERY: narrative.signature_capability,
+                DESIRED_TITLE: narrative.desired_title,
+                JOB_TITLE: appToReanalyze.job_title,
+                JOB_DESCRIPTION: appToReanalyze.job_description,
+                STANDARD_ROLES_JSON: JSON.stringify(standardRoles.filter(r => r.narrative_id === narrative.narrative_id))
+            };
+            const analysisResult = await geminiService.performInitialJobAnalysis(analysisContext, analysisPrompt.content);
+            const coreProblem = analysisResult.job_problem_analysis?.core_problem_analysis?.core_problem;
+            if (!coreProblem) {
+                throw new Error("Failed to extract core problem from the new analysis.");
+            }
+    
+            // Step 2: Re-run Keywords & Guidance
+            const keywordsPrompt = PROMPTS.find(p => p.id === 'GENERATE_KEYWORDS_AND_GUIDANCE');
+            if (!keywordsPrompt) throw new Error("Keywords prompt missing.");
+    
+            const keywordsContext = {
+                JOB_DESCRIPTION: appToReanalyze.job_description,
+                AI_SUMMARY: coreProblem
+            };
+            const keywordsResult = await geminiService.generateKeywordsAndGuidance(keywordsContext, keywordsPrompt.content);
+    
+            // Step 3: Update application with all new data
+            const payload: JobApplicationPayload = {
+                job_problem_analysis_result: analysisResult.job_problem_analysis,
+                strategic_fit_score: analysisResult.strategic_fit_score ? Math.round(analysisResult.strategic_fit_score) : null,
+                assumed_requirements: analysisResult.assumed_requirements,
+                keywords: keywordsResult.keywords,
+                guidance: keywordsResult.guidance,
+            };
+    
+            await handleUpdateApplication(appToReanalyze.job_application_id, payload);
+            addToast('AI analysis complete!', 'success');
+    
+        } catch (err) {
+            handleError(err, 'Failed to re-run AI analysis');
+        } finally {
+            setIsReanalyzing(false);
+        }
+    };
+
+    const handleGenerateInterviewPrep = async (app: JobApplication, interview: Interview) => {
+        const prepPrompt = PROMPTS.find(p => p.id === 'GENERATE_INTERVIEW_PREP');
+        if (!prepPrompt) {
+            handleError(new Error("Interview prep prompt not found."), 'AI Prep Error');
+            return;
+        }
+
+        try {
+            const interviewerProfiles = (interview.interview_contacts || [])
+                .map(ic => contacts.find(c => c.contact_id === ic.contact_id))
+                .filter((c): c is Contact => !!c)
+                .map(c => ({
+                    name: `${c.first_name} ${c.last_name}`,
+                    title: c.job_title,
+                    profile: c.linkedin_about || ''
+                }));
+                
+            const context = {
+                FULL_RESUME_JSON: JSON.stringify(app.tailored_resume_json || {}),
+                JOB_DESCRIPTION: app.job_description,
+                INTERVIEW_TYPE: interview.interview_type,
+                INTERVIEWER_PROFILES_JSON: JSON.stringify(interviewerProfiles)
+            };
+
+            const prepData = await geminiService.generateInterviewPrep(context, prepPrompt.content, debugModalState.isOpen ? undefined : undefined);
+
+            await handleSaveInterview({ ai_prep_data: prepData }, interview.interview_id);
+            addToast("AI interview prep generated!", 'success');
+
+        } catch (err) {
+            handleError(err, 'Failed to generate interview prep');
+        }
+    };
+    
+    const handleGenerateRecruiterScreenPrep = async (app: JobApplication, interview: Interview) => {
+        const prepPrompt = PROMPTS.find(p => p.id === 'GENERATE_RECRUITER_SCREEN_PREP');
+        if (!prepPrompt || !activeNarrative) {
+            handleError(new Error("Recruiter prep prompt or active narrative not found."), 'AI Prep Error');
+            return;
+        }
+
+        try {
+            const context = {
+                POSITIONING_STATEMENT: activeNarrative.positioning_statement,
+                MASTERY: activeNarrative.signature_capability,
+                JOB_TITLE: app.job_title,
+                CORE_PROBLEM_ANALYSIS: app.job_problem_analysis_result?.core_problem_analysis.core_problem,
+                COMPENSATION_EXPECTATION: activeNarrative.compensation_expectation,
+            };
+
+            const prepData = await geminiService.generateRecruiterScreenPrep(context, prepPrompt.content, debugModalState.isOpen ? undefined : undefined);
+
+            await handleSaveInterview({ ai_prep_data: prepData }, interview.interview_id);
+            addToast("AI quick prep generated!", 'success');
+
+        } catch (err) {
+            handleError(err, 'Failed to generate recruiter prep');
+        }
+    };
+    
+    const handleGeneratePostInterviewDebrief = async (interview: Interview, notes: { wins: string, fumbles: string, new_intelligence: string }) => {
+        setIsGeneratingDebrief(true);
+        const debriefPrompt = PROMPTS.find(p => p.id === 'GENERATE_POST_INTERVIEW_COUNTER');
+        if (!debriefPrompt || !activeNarrative) {
+            handleError(new Error("Debrief prompt or active narrative not found."), 'AI Debrief Error');
+            setIsGeneratingDebrief(false);
+            return;
+        }
+
+        try {
+            const interviewerContact = interview.interview_contacts?.[0] ? contacts.find(c => c.contact_id === interview.interview_contacts![0].contact_id) : null;
+
+            const context = {
+                INTERVIEWER_FIRST_NAME: interviewerContact?.first_name || 'the interviewer',
+                INTERVIEWER_TITLE: interviewerContact?.job_title || 'Interviewer',
+                NORTH_STAR: activeNarrative.positioning_statement,
+                MASTERY: activeNarrative.signature_capability,
+                NEW_INTELLIGENCE: notes.new_intelligence,
+                WINS: notes.wins,
+                FUMBLES: notes.fumbles,
+            };
+
+            const debriefData = await geminiService.generatePostInterviewCounter(context, debriefPrompt.content, debugModalState.isOpen ? undefined : undefined);
+            
+            await handleSaveInterview({ post_interview_debrief: debriefData }, interview.interview_id);
+            addToast("AI interview debrief generated!", 'success');
+
+        } catch (err) {
+            handleError(err, 'Failed to generate interview debrief');
+        } finally {
+            setIsGeneratingDebrief(false);
+        }
+    };
+
+    const handleGetReframeSuggestion = async (question: string, coreStories: ImpactStory[]): Promise<string> => {
+        const prompt = PROMPTS.find(p => p.id === 'GENERATE_QUESTION_REFRAME_SUGGESTION');
+        if (!prompt) {
+            handleError(new Error("Reframe suggestion prompt not found."), 'AI Studio Error');
+            return "";
+        }
+        
+        try {
+            const context = {
+                INTERVIEW_QUESTION: question,
+                CORE_STORIES_JSON: JSON.stringify((coreStories || []).map(s => ({ story_id: s.story_id, story_title: s.story_title, format: s.format })))
+            };
+
+            const result = await geminiService.generateQuestionReframeSuggestion(context, prompt.content, debugModalState.isOpen ? undefined : undefined);
+            return result.suggestion;
+
+        } catch (err) {
+            handleError(err, 'Failed to get reframe suggestion');
+            return "";
+        }
+    };
+
+    const handleDeconstructQuestion = async (question: string): Promise<{ scope: string[], metrics: string[], constraints: string[] }> => {
+        const prompt = PROMPTS.find(p => p.id === 'DECONSTRUCT_INTERVIEW_QUESTION');
+        if (!prompt) {
+            handleError(new Error("Deconstruct question prompt not found."), 'AI Studio Error');
+            return { scope: [], metrics: [], constraints: [] };
+        }
+        
+        try {
+            const context = {
+                INTERVIEW_QUESTION: question,
+            };
+            const result = await geminiService.deconstructInterviewQuestion(context, prompt.content, debugModalState.isOpen ? undefined : undefined);
+            return result;
+
+        } catch (err) {
+            handleError(err, 'Failed to deconstruct question');
+            return { scope: [], metrics: [], constraints: [] };
+        }
+    };
+
+    const handleNavigateToDebriefStudio = (interview: Interview) => {
+        setSelectedInterviewForDebrief(interview);
+        navigate(`/post-interview-debrief/${interview.interview_id}`);
+    };
+
     // --- Component Wrappers for Routing ---
     const ApplicationDetailWrapper = () => {
         const { appId } = useParams();
+        const location = useLocation();
+        const navigate = useNavigate();
+        
+        const searchParams = new URLSearchParams(location.search);
+        const initialTab = (searchParams.get('tab') as ApplicationDetailTab) || 'overview';
+
+        const handleTabChange = (newTab: ApplicationDetailTab) => {
+            navigate({ pathname: location.pathname, search: `?tab=${newTab}` }, { replace: true });
+        };
+
         const app = applications.find(a => a.job_application_id === appId);
         const company = companies.find(c => c.company_id === app?.company_id);
+        
         if (!app || !company) return <div className="p-8">Loading application...</div>;
+        
         return <ApplicationDetailView 
             application={app} 
             company={company}
@@ -822,24 +1101,28 @@ const AppContent = () => {
             onBack={() => navigate('/applications')}
             onUpdate={(payload) => handleUpdateApplication(app.job_application_id, payload)}
             onDeleteApplication={handleDeleteApplication}
-            onResumeApplication={(appToResume) => navigate('/new-application')} // Placeholder, needs more logic
-            onReanalyze={() => {}}
+            onResumeApplication={(appToResume) => handleResumeApplication(appToResume)}
+            onReanalyze={() => handleReanalyzeApplication(app)}
+            isReanalyzing={isReanalyzing}
             prompts={PROMPTS}
             statuses={statuses}
             userProfile={userProfile}
             activeNarrative={activeNarrative}
             onSaveInterview={handleSaveInterview}
             onDeleteInterview={async (id) => { await apiService.deleteInterview(id); fetchInitialData(); }}
-            onGenerateInterviewPrep={async (app, interview) => {}}
+            onGenerateInterviewPrep={handleGenerateInterviewPrep}
+            onGenerateRecruiterScreenPrep={handleGenerateRecruiterScreenPrep}
             onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }}
             onOpenOfferModal={(app, offer) => {}}
             onGenerate90DayPlan={(app) => {}}
             onAddQuestionToCommonPrep={(q) => {}}
-            onOpenStrategyStudio={(interview) => {}}
-            onNavigateToStudio={handleNavigateToInterviewStudioForApp}
+            onOpenStrategyStudio={(interview) => handleNavigateToInterviewStudio(app)}
+            onNavigateToStudio={handleNavigateToInterviewStudio}
             handleLaunchCopilot={(app, interview) => navigate(`/interview-copilot/${interview.interview_id}`)}
             isLoading={isAppLoading}
-            onOpenDebriefStudio={(interview) => {}}
+            onOpenDebriefStudio={handleNavigateToDebriefStudio}
+            initialTab={initialTab}
+            onTabChange={handleTabChange}
         />;
     };
     
@@ -887,6 +1170,73 @@ const AppContent = () => {
         />
     }
 
+    const InterviewCopilotWrapper = () => {
+        const { interviewId } = useParams();
+        const navigate = useNavigate();
+    
+        const { app, interview, company } = useMemo(() => {
+            if (!applications || !companies) return { app: null, interview: null, company: null };
+            for (const app of applications) {
+                const interview = app.interviews?.find(i => i.interview_id === interviewId);
+                if (interview) {
+                    const company = companies.find(c => c.company_id === app.company_id);
+                    return { app, interview, company };
+                }
+            }
+            return { app: null, interview: null, company: null };
+        }, [applications, interviewId, companies]);
+    
+        if (isAppLoading || !app || !interview || !activeNarrative || !company) {
+            return <div className="flex-1 flex items-center justify-center"><LoadingSpinner /></div>;
+        }
+    
+        return (
+            <InterviewCopilotView
+                application={app}
+                interview={interview}
+                company={company}
+                activeNarrative={activeNarrative}
+                onBack={() => navigate(`/application/${app.job_application_id}?tab=interviews`)}
+                onSaveInterview={handleSaveInterview}
+                onGenerateInterviewPrep={handleGenerateInterviewPrep}
+                onGenerateRecruiterScreenPrep={handleGenerateRecruiterScreenPrep}
+            />
+        );
+    };
+
+    const PostInterviewDebriefWrapper = () => {
+        const { interviewId } = useParams();
+        const navigate = useNavigate();
+
+        const { app, interview, company } = useMemo(() => {
+            if (!applications || !companies) return { app: null, interview: null, company: null };
+            for (const app of applications) {
+                const interview = app.interviews?.find(i => i.interview_id === interviewId);
+                if (interview) {
+                    const company = companies.find(c => c.company_id === app.company_id);
+                    return { app, interview, company };
+                }
+            }
+            return { app: null, interview: null, company: null };
+        }, [applications, interviewId, companies]);
+
+        if (isAppLoading || !app || !interview || !activeNarrative || !company) {
+            return <div className="flex-1 flex items-center justify-center"><LoadingSpinner /></div>;
+        }
+
+        return (
+            <PostInterviewDebriefStudio
+                application={app}
+                interview={interview}
+                company={company}
+                activeNarrative={activeNarrative}
+                onBack={() => navigate(`/application/${app.job_application_id}?tab=interviews`)}
+                onGenerate={handleGeneratePostInterviewDebrief}
+                isLoading={isGeneratingDebrief}
+            />
+        );
+    };
+
     const NewApplicationWrapper = () => (
         <div className="flex flex-col h-full">
              <header className="flex-shrink-0 bg-white dark:bg-slate-800/80 p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
@@ -903,12 +1253,20 @@ const AppContent = () => {
                         applicationMessage: finalApplicationMessage
                     }}
                 />
-                <TimerDisplay elapsedSeconds={timerSeconds} />
             </header>
             <div className="flex-grow p-6 sm:p-8 overflow-y-auto bg-slate-100 dark:bg-slate-900">
                 <div className="max-w-4xl mx-auto bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 sm:p-8 border border-slate-200 dark:border-slate-700">
-                    {newAppStep === NewAppStep.INITIAL_INPUT && <InitialInputStep onNext={handleInitialSubmit} isLoading={newAppLoadingState === 'extracting'} jobLink={jobDetails.jobLink} setJobLink={(v) => setJobDetails(p=>({...p, jobLink: v}))} jobDescription={jobDetails.jobDescription} setJobDescription={(v) => setJobDetails(p=>({...p, jobDescription: v}))} isMessageOnlyApp={isMessageOnlyApp} setIsMessageOnlyApp={setIsMessageOnlyApp} />}
-                    {newAppStep === NewAppStep.JOB_DETAILS && <JobDetailsStep onNext={() => setNewAppStep(NewAppStep.COMPANY_CONFIRMATION)} isLoading={false} companyName={jobDetails.companyName} setCompanyName={(v) => setJobDetails(p=>({...p, companyName: v}))} isRecruitingFirm={jobDetails.isRecruitingFirm} setIsRecruitingFirm={(v) => setJobDetails(p=>({...p, isRecruitingFirm: v}))} jobTitle={jobDetails.jobTitle} setJobTitle={(v) => setJobDetails(p=>({...p, jobTitle: v}))} jobLink={jobDetails.jobLink} setJobLink={(v) => setJobDetails(p=>({...p, jobLink: v}))} salary={jobDetails.salary} setSalary={(v) => setJobDetails(p=>({...p, salary: v}))} location={jobDetails.location} setLocation={(v) => setJobDetails(p=>({...p, location: v}))} remoteStatus={jobDetails.remoteStatus as any} setRemoteStatus={(v) => setJobDetails(p=>({...p, remoteStatus: v}))} jobDescription={jobDetails.jobDescription} setJobDescription={(v) => setJobDetails(p=>({...p, jobDescription: v}))} narratives={strategicNarratives} selectedNarrativeId={activeNarrativeId!} onNarrativeChange={setActiveNarrativeId} />}
+                    {newAppStep === NewAppStep.INITIAL_INPUT && <InitialInputStep 
+                        onNext={handleInitialSubmit} 
+                        isLoading={newAppLoadingState === 'extracting'}
+                        jobLink={jobDetails.jobLink}
+                        onJobLinkChange={(value) => setJobDetails(prev => ({...prev, jobLink: value}))}
+                        jobDescription={jobDetails.jobDescription}
+                        onJobDescriptionChange={(value) => setJobDetails(prev => ({...prev, jobDescription: value}))}
+                        isMessageOnlyApp={isMessageOnlyApp}
+                        onIsMessageOnlyChange={setIsMessageOnlyApp}
+                    />}
+                    {newAppStep === NewAppStep.JOB_DETAILS && <JobDetailsStep onNext={handleJobDetailsSubmit} isLoading={false} initialJobDetails={jobDetails} narratives={strategicNarratives} selectedNarrativeId={activeNarrativeId!} />}
                     {newAppStep === NewAppStep.COMPANY_CONFIRMATION && <CompanyConfirmationStep initialCompanyName={jobDetails.companyName} allCompanies={companies} onConfirm={handleCompanySelectionAndAnalyze} onOpenCreateCompanyModal={() => { setIsCompanyModalForNewApp(true); setInitialCompanyData({ company_name: jobDetails.companyName, company_url: jobDetails.jobLink, is_recruiting_firm: jobDetails.isRecruitingFirm }); setIsCompanyModalOpen(true); }} isLoading={newAppLoadingState === 'analyzing'} />}
                     {newAppStep === NewAppStep.AI_PROBLEM_ANALYSIS && <ProblemAnalysisStep jobProblemAnalysisResult={jobProblemAnalysisResult} strategicFitScore={strategicFitScore} assumedRequirements={assumedRequirements} onConfirm={handleConfirmFit} companyName={jobDetails.companyName} isLoadingAnalysis={!jobProblemAnalysisResult} isConfirming={newAppLoadingState === 'keywords'} />}
                     {newAppStep === NewAppStep.RESUME_SELECT && baseResumes && userProfile && <SelectResumeStep baseResumes={baseResumes} onNext={handleResumeSelect} isLoading={newAppLoadingState === 'tailoring'} prompts={PROMPTS} keywords={keywords} userProfile={userProfile} applicationNarrative={activeNarrative} />}
@@ -916,7 +1274,7 @@ const AppContent = () => {
                     {newAppStep === NewAppStep.CRAFT_MESSAGE && <CraftMessageStep drafts={applicationMessageDrafts} onSelectDraft={setFinalApplicationMessage} finalMessage={finalApplicationMessage} setFinalMessage={setFinalApplicationMessage} onNext={handleSaveMessage} isLoading={newAppLoadingState === 'saving'} />}
                     {newAppStep === NewAppStep.DOWNLOAD_RESUME && finalResume && <DownloadResumeStep finalResume={finalResume} companyName={jobDetails.companyName} onNext={() => setNewAppStep(NewAppStep.ANSWER_QUESTIONS)} isLoading={false} />}
                     {newAppStep === NewAppStep.ANSWER_QUESTIONS && <AnswerQuestionsStep questions={applicationQuestions} setQuestions={setApplicationQuestions} onGenerateAllAnswers={async ()=>{}} onSaveApplication={handleSaveAnswersAndGeneratePlan} onBack={() => setNewAppStep(NewAppStep.DOWNLOAD_RESUME)} isLoading={newAppLoadingState === 'planning'} onOpenJobDetailsModal={() => setIsJdModalOpen(true)} onOpenAiAnalysisModal={() => setIsGuidanceModalOpen(true)} />}
-                    {newAppStep === NewAppStep.POST_SUBMIT_PLAN && postSubmissionPlan && <PostSubmitPlan summary={postSubmissionPlan.why_this_job} plan={postSubmissionPlan.next_steps_plan} onFinish={() => navigate('/applications')} sprint={sprint} onAddActions={async ()=>{}} companyName={jobDetails.companyName} />}
+                    {newAppStep === NewAppStep.POST_SUBMIT_PLAN && postSubmissionPlan && <PostSubmitPlan summary={postSubmissionPlan.why_this_job} plan={postSubmissionPlan.next_steps_plan} onFinish={handleFinishApplication} sprint={sprint} onAddActions={async ()=>{}} companyName={jobDetails.companyName} />}
                 </div>
             </div>
         </div>
@@ -940,10 +1298,10 @@ const AppContent = () => {
                     <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
                         <Routes>
                             <Route path="/" element={<DashboardView applications={applications} contacts={contacts} messages={messages} linkedInPosts={linkedInPosts} engagements={engagements} pendingFollowUps={messages.filter(m => m.follow_up_due_date)} userProfile={userProfile} activeNarrative={activeNarrative || null} strategicNarratives={strategicNarratives} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onScoutForOpportunities={() => {}} onUpdateContactStatus={(contactId, status) => handleSaveContact({ contact_id: contactId, status })} prompts={PROMPTS} baseResumes={baseResumes} onCreateSynthesizedNarrative={handleCreateSynthesizedNarrative} onSaveSkillTrends={handleSaveSkillTrends} sprint={sprint} skillTrends={skillTrends} companies={companies} weeklyProgress={""} onAddActions={async () => {}} />} />
-                            <Route path="/applications" element={<ApplicationsView applications={applications} companies={companies} statuses={statuses} offers={offers} onViewApplication={(appId) => navigate(`/application/${appId}`)} onViewCompany={(companyId) => navigate(`/company/${companyId}`)} onResumeApplication={(app) => {}} onAddNew={handleStartNewApplication} onDeleteApplication={handleDeleteApplication} onDeleteOffer={async (id) => { await apiService.deleteOffer(id); fetchInitialData(); }} resumes={baseResumes} userProfile={userProfile} onAddNewResume={() => navigate('/resume/new')} onEditResume={(res) => navigate(`/resume/${res.resume_id}`)} onDeleteResume={handleDeleteResume} onCopyResume={async (res) => {}} onSetDefaultResume={(id) => handleSaveNarrative({ default_resume_id: id }, activeNarrativeId!)} onToggleLock={async ()=>{}} isLoading={isAppLoading} activeNarrative={activeNarrative} strategicNarratives={strategicNarratives} />} />
+                            <Route path="/applications" element={<ApplicationsView applications={applications} companies={companies} statuses={statuses} offers={offers} onViewApplication={(appId) => navigate(`/application/${appId}`)} onViewCompany={(companyId) => navigate(`/company/${companyId}`)} onResumeApplication={handleResumeApplication} onAddNew={handleStartNewApplication} onDeleteApplication={handleDeleteApplication} onDeleteOffer={async (id) => { await apiService.deleteOffer(id); fetchInitialData(); }} resumes={baseResumes} userProfile={userProfile} onAddNewResume={() => navigate('/resume/new')} onEditResume={(res) => navigate(`/resume/${res.resume_id}`)} onDeleteResume={handleDeleteResume} onCopyResume={async (res) => {}} onSetDefaultResume={(id) => handleSaveNarrative({ default_resume_id: id }, activeNarrativeId!)} onToggleLock={async ()=>{}} isLoading={isAppLoading} activeNarrative={activeNarrative} strategicNarratives={strategicNarratives} />} />
                             <Route path="/positioning" element={<PositioningHub narratives={strategicNarratives} activeNarrative={activeNarrative} activeNarrativeId={activeNarrativeId} onSetNarrative={setActiveNarrativeId} onSaveNarrative={handleSaveNarrative} onUpdateNarrative={handleUpdateNarrative} prompts={PROMPTS} standardRoles={standardRoles} onCreateStandardRole={async (payload, narrativeId) => { await apiService.createStandardJobRole(payload, narrativeId); fetchInitialData(); }} onUpdateStandardRole={async (roleId, payload) => { await apiService.updateStandardJobRole(roleId, payload); fetchInitialData(); }} onDeleteStandardRole={async (roleId) => { await apiService.deleteStandardJobRole(roleId); fetchInitialData(); }} baseResumes={baseResumes} />} />
                             <Route path="/engagement" element={<EngagementHub contacts={contacts} posts={linkedInPosts} engagements={engagements} postResponses={postResponses} applications={applications} allMessages={messages} userProfile={userProfile} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onCreatePostResponse={async ()=>{}} onUpdatePostResponse={handleUpdatePostResponse} onCreateLinkedInEngagement={handleCreateLinkedInEngagement} onCreatePost={handleCreatePost} onImportContacts={async ()=>{}} prompts={PROMPTS} onDeleteContact={handleDeleteContact} companies={companies} onViewCompany={(id)=>navigate(`/company/${id}`)} onAddNewCompany={()=>setIsCompanyModalOpen(true)} baseResumes={baseResumes} strategicNarratives={strategicNarratives} activeNarrative={activeNarrative} onScoreEngagement={()=>{}} />} />
-                            <Route path="/interview-studio" element={<InterviewStudioView applications={applications} companies={companies} contacts={contacts} activeNarrative={activeNarrative} onSaveNarrative={handleSaveNarrative} prompts={PROMPTS} initialApp={initialAppForStudio} onClearInitialApp={()=>setInitialAppForStudio(null)} onGetReframeSuggestion={async ()=>""} onDeconstructQuestion={async ()=>({scope:[], metrics:[], constraints:[]})} onSaveInterviewOpening={async (interviewId, opening)=>{await handleSaveInterview({strategic_opening: opening}, interviewId)}} />} />
+                            <Route path="/interview-studio" element={<InterviewStudioView applications={applications} companies={companies} contacts={contacts} activeNarrative={activeNarrative} onSaveNarrative={handleSaveNarrative} prompts={PROMPTS} initialApp={initialAppForStudio} onClearInitialApp={()=>setInitialAppForStudio(null)} onGetReframeSuggestion={handleGetReframeSuggestion} onDeconstructQuestion={handleDeconstructQuestion} onSaveInterviewOpening={async (interviewId, opening)=>{await handleSaveInterview({strategic_opening: opening}, interviewId)}} />} />
                             <Route path="/brag-bank" element={<BragDocumentView items={bragBankItems} onSave={async (item, id) => { if(id) { await apiService.updateBragBankEntry(id, item); } else { await apiService.createBragBankEntry(item); } fetchInitialData(); }} onDelete={async (id) => { await apiService.deleteBragBankEntry(id); fetchInitialData(); }} strategicNarratives={strategicNarratives} prompts={PROMPTS} />} />
                             <Route path="/prompt-editor" element={<PromptEditorView prompts={PROMPTS} isDebugMode={isDebugMode} onSetIsDebugMode={setIsDebugMode} modelName={modelName} setModelName={setModelName} />} />
                             
@@ -951,6 +1309,8 @@ const AppContent = () => {
                             <Route path="/application/:appId" element={<ApplicationDetailWrapper />} />
                             <Route path="/company/:companyId" element={<CompanyDetailWrapper />} />
                             <Route path="/resume/:resumeId" element={<ResumeEditorWrapper />} />
+                            <Route path="/interview-copilot/:interviewId" element={<InterviewCopilotWrapper />} />
+                            <Route path="/post-interview-debrief/:interviewId" element={<PostInterviewDebriefWrapper />} />
                             
                             {/* Modals are rendered outside Routes */}
                         </Routes>

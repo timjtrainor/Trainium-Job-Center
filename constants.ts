@@ -3,6 +3,7 @@
 // Placeholder for the PostgREST server URL.
 // In a real-world scenario, this would come from an environment variable.
 export const API_BASE_URL = 'http://localhost:3000';
+export const FASTAPI_BASE_URL = 'http://localhost:8000'
 
 // Hardcoded user ID for the single-user version of the app.
 // This allows the data model to be ready for multi-user in the future.
@@ -20,13 +21,12 @@ export const CONTACT_PERSONAS = [
 ] as const;
 
 export const INTERVIEW_TYPES = [
-    "Recruiter Call",
-    "Phone Screen",
-    "Hiring Manager",
-    "Technical Interview",
-    "Behavioral Interview",
-    "Case Study",
-    "Panel Interview",
-    "Final Round",
-    "Informational",
+    "Step 6.1: Recruiter Screen",
+    "Step 6.2: Hiring Manager Screen",
+    "Step 6.3: Technical Interview",
+    "Step 6.4: Behavioral/Cultural Fit",
+    "Step 6.5: Panel Interview",
+    "Step 6.6: Case Study/Take-home",
+    "Step 6.7: Final Round",
+    "Informational Interview",
 ] as const;

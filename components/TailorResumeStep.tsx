@@ -121,37 +121,6 @@ export const TailorResumeStep = (props: TailorResumeStepProps) => {
     const [refiningId, setRefiningId] = useState<string | null>(null);
     const [isRecalculating, setIsRecalculating] = useState(false);
     
-    useEffect(() => {
-        // This effect is critical to ensure every accomplishment has a stable, unique ID.
-        // The bug where editing one bullet updates others is caused by missing or non-unique IDs,
-        // which makes it impossible for React and the update handlers to track items correctly.
-        // This runs once when the component receives the resume data.
-        if (finalResume) {
-            let needsUpdate = false;
-            const updatedWorkExperience = finalResume.work_experience.map(exp => {
-                const updatedAccomplishments = exp.accomplishments.map((acc, index) => {
-                    // If an accomplishment lacks a unique ID, we assign one.
-                    if (!acc.achievement_id) {
-                        needsUpdate = true;
-                        return { ...acc, achievement_id: uuidv4(), order_index: index };
-                    }
-                    // Also ensure order_index is set for sorting.
-                    if (acc.order_index === undefined) {
-                         needsUpdate = true;
-                         return { ...acc, order_index: index };
-                    }
-                    return acc;
-                });
-                updatedAccomplishments.sort((a,b) => (a.order_index || 0) - (b.order_index || 0));
-                return { ...exp, accomplishments: updatedAccomplishments };
-            });
-
-            if (needsUpdate) {
-                setFinalResume(prev => prev ? { ...prev, work_experience: updatedWorkExperience } : null);
-            }
-        }
-    }, [finalResume, setFinalResume]);
-
 
     const handleSummaryParagraphChange = useCallback((newParagraph: string) => {
         setFinalResume(prev => prev ? { ...prev, summary: { ...prev.summary, paragraph: newParagraph, bullets: [] } } : null);
