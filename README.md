@@ -1,14 +1,54 @@
-# Run and deploy your AI Studio app
+# Trainium Job Center
 
-This contains everything you need to run your app locally.
+A full-stack job search assistant that helps manage applications, tailor resumes, track engagement, and support interviews.
 
-## Run Locally
+## Project Structure
 
-**Prerequisites:**  Node.js
+- **Front-end**: React + TypeScript app served with Vite.
+- **python-service**: FastAPI microservice for AI-assisted features.
+- **DB Scripts**: Database helpers and migrations.
 
+## Prerequisites
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env](.env) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- Node.js 18+
+- Python 3.10+
+
+## Run Front-end
+
+```bash
+npm install
+npm run dev
+```
+
+Set `GEMINI_API_KEY` in a `.env` file before starting.
+
+## Run python-service
+
+```bash
+cd python-service
+pip install -r requirements.txt
+export GEMINI_API_KEY=your_api_key
+export POSTGREST_URL=http://localhost:3000
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+API docs are available at `http://localhost:8000/docs`.
+
+## Docker Compose
+
+Run the full stack with Docker:
+
+```bash
+docker-compose up --build
+```
+
+## Checks
+
+Run these commands before committing:
+
+```bash
+npm run build
+python -m py_compile $(git ls-files '*.py')
+```
+
+See `AGENTS.md` for development conventions.
