@@ -1,0 +1,9 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.5
+python-multipart==0.0.17
+loguru==0.7.3
+httpx==0.28.1
+python-json-logger==2.0.7
+# Future Gemini integration dependencies
+google-generativeai==0.8.3

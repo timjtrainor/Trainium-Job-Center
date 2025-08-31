@@ -47,6 +47,35 @@ services:
       - /app/node_modules
     depends_on:
       - postgrest
+      - python-service
+
+  # Defines the Python AI microservice
+  python-service:
+    build:
+      context: ./python-service
+      dockerfile: Dockerfile
+    container_name: trainium_python_service
+    restart: always
+    ports:
+      - "${PYTHON_SERVICE_PORT:-8000}:8000"
+    environment:
+      # Environment configuration for Python service
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DEBUG: ${DEBUG:-false}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      POSTGREST_URL: http://postgrest:3000
+    volumes:
+      # Mount the python service code for development
+      - ./python-service:/app
+    depends_on:
+      - postgrest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
   # Defines the named volume for data persistence.
