@@ -114,3 +114,11 @@ The service includes comprehensive health checks:
 - System capabilities overview
 
 Access health information at `/health` and `/health/detailed` endpoints.
+## Development Checks
+
+Run a basic syntax check before committing:
+
+```bash
+python -m py_compile $(git ls-files '*.py')
+```
+
