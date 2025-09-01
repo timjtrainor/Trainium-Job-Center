@@ -4,7 +4,7 @@ Integrates with the python-jobspy library to fetch job postings.
 """
 from typing import Optional, List, Dict, Any
 import asyncio
-from datetime import datetime
+from datetime import date, datetime
 import pandas as pd
 from loguru import logger
 
@@ -12,7 +12,37 @@ from jobspy import scrape_jobs
 from ..core.config import get_settings
 from ..models.responses import StandardResponse, create_success_response, create_error_response
 from ..models.jobspy import JobSearchRequest, JobSearchResponse, ScrapedJob
+def _to_iso_date_str(value):
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    # pandas.NaT handling
+    if pd.isna(value):
+        return None
+    # pandas.Timestamp -> datetime
+    if isinstance(value, pd.Timestamp):
+        # prefer date-only ISO if no time component
+        if value.hour == 0 and value.minute == 0 and value.second == 0 and value.tz is None:
+            return value.date().isoformat()
+        return value.to_pydatetime().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    # already a string
+    return str(value)
 
+def _to_optional_list(value):
+    # JobSpy sometimes returns emails as list, stringified list, or NaN
+    if value is None or pd.isna(value):
+        return None
+    if isinstance(value, list):
+        return value or None
+    # try to parse stringified list
+    try:
+        import ast
+        parsed = ast.literal_eval(value) if isinstance(value, str) else value
+        return parsed if isinstance(parsed, list) and parsed else None
+    except Exception:
+        return [str(value)]
+# --- end helpers ---
 
 class JobSpyIngestionService:
     """
@@ -157,21 +187,21 @@ class JobSpyIngestionService:
             if not jobs_df.empty:
                 for _, row in jobs_df.iterrows():
                     job = ScrapedJob(
-                        title=row.get('title'),
-                        company=row.get('company'),
-                        location=row.get('location'),
-                        job_type=row.get('job_type'),
-                        date_posted=row.get('date_posted'),
-                        salary_min=row.get('min_amount'),
-                        salary_max=row.get('max_amount'),
-                        salary_source=row.get('salary_source'),
-                        interval=row.get('interval'),
-                        description=row.get('description'),
-                        job_url=row.get('job_url'),
-                        job_url_direct=row.get('job_url_direct'),
-                        site=row.get('site'),
-                        emails=row.get('emails') if pd.notna(row.get('emails')) else None,
-                        is_remote=row.get('is_remote')
+                        title=row.get("title"),
+                        company=row.get("company"),
+                        location=row.get("location"),
+                        job_type=(row.get("job_type") if pd.notna(row.get("job_type")) else None),
+                        date_posted=_to_iso_date_str(row.get("date_posted")),  # <-- normalize here
+                        salary_min=(row.get("min_amount") if pd.notna(row.get("min_amount")) else None),
+                        salary_max=(row.get("max_amount") if pd.notna(row.get("max_amount")) else None),
+                        salary_source=(row.get("salary_source") if pd.notna(row.get("salary_source")) else None),
+                        interval=(row.get("interval") if pd.notna(row.get("interval")) else None),
+                        description=row.get("description"),
+                        job_url=row.get("job_url"),
+                        job_url_direct=row.get("job_url_direct"),
+                        site=row.get("site"),
+                        emails=_to_optional_list(row.get("emails")),
+                        is_remote=bool(row.get("is_remote")) if not pd.isna(row.get("is_remote")) else None,
                     )
                     jobs_list.append(job)
             
