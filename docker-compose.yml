@@ -32,6 +32,16 @@ services:
     depends_on:
       - db
 
+  # Defines the Redis cache service
+  redis:
+    image: redis:7-alpine
+    container_name: trainium_redis
+    restart: always
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+
   # Defines the React front-end service
   frontend:
     build:
@@ -66,11 +76,16 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       POSTGREST_URL: http://postgrest:3000
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
     volumes:
       # Mount the python service code for development
       - ./python-service:/app
     depends_on:
       - postgrest
+      - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -79,5 +94,6 @@ services:
       start_period: 40s
 
 volumes:
-  # Defines the named volume for data persistence.
+  # Defines the named volumes for data persistence.
   postgres_data:
+  redis_data:
