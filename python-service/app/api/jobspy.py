@@ -82,7 +82,7 @@ async def scrape_jobs(request: JobSearchRequest, mode: Optional[str] = Query(Non
             
             return create_success_response(
                 data={
-                    "jobs": [job.dict() for job in result["jobs"]],
+                    "jobs": [job.model_dump() for job in result["jobs"]],
                     "total_found": result["total_found"],
                     "search_metadata": result["search_metadata"],
                     "execution_mode": "sync",
