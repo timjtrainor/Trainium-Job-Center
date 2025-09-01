@@ -95,9 +95,10 @@ class SchedulerService:
                         self.queue_service.release_redis_lock(lock_key, lock_value)
                         continue
                     
-                    # Enqueue the job
+                    # Enqueue the job with site name included in payload
+                    payload = {**schedule["payload"], "site_name": schedule["site_name"]}
                     job_info = self.queue_service.enqueue_scraping_job(
-                        payload=schedule["payload"],
+                        payload=payload,
                         site_schedule_id=schedule_id,
                         trigger="schedule",
                         run_id=run_id
