@@ -15,6 +15,9 @@ from app.api import api_router
 from app.services.gemini import get_gemini_service
 from app.services.postgrest import get_postgrest_service
 from app.services.jobspy_ingestion import get_jobspy_service
+from app.services.database import get_database_service
+from app.services.queue import get_queue_service
+from app.services.scheduler import get_scheduler_service
 from app.models.responses import create_error_response
 
 
@@ -36,16 +39,20 @@ async def lifespan(app: FastAPI):
     gemini_service = get_gemini_service()
     postgrest_service = get_postgrest_service()
     jobspy_service = get_jobspy_service()
+    database_service = get_database_service()
+    queue_service = get_queue_service()
+    scheduler_service = get_scheduler_service()
     
     try:
-        # Initialize Gemini service
+        # Initialize existing services
         await gemini_service.initialize()
-        
-        # Initialize PostgREST service  
         await postgrest_service.initialize()
-        
-        # Initialize JobSpy service
         await jobspy_service.initialize()
+        
+        # Initialize new queue-based services
+        await database_service.initialize()
+        await queue_service.initialize()
+        await scheduler_service.initialize()
         
         logger.info("All services initialized successfully")
         
@@ -58,6 +65,7 @@ async def lifespan(app: FastAPI):
     # Cleanup on shutdown
     logger.info("Shutting down services...")
     await postgrest_service.close()
+    await database_service.close()
     logger.info("Application shutdown complete")
 
 
@@ -70,10 +78,11 @@ app = FastAPI(
     This service provides:
     - AI-powered job application assistance via Gemini AI
     - Job scraping and ingestion from major job boards (Indeed, LinkedIn, Glassdoor, etc.)
+    - Queue-based scheduled job scraping with Redis and RQ
     - Integration with PostgREST backend for data access
     - Health monitoring and system status endpoints
     - Structured logging and error handling
-    - Async processing capabilities for long-running AI tasks
+    - Async processing capabilities for long-running AI and scraping tasks
     
     Built with modularity and extensibility in mind for future AI enhancements.
     """,

@@ -20,19 +20,39 @@ npm install
 npm run dev
 ```
 
-Set `GEMINI_API_KEY` in a `.env` file before starting.
+Copy `.env.example` to `.env` and update the values (like `GEMINI_API_KEY` and database credentials) before starting.
 
 ## Run python-service
 
 ```bash
 cd python-service
 pip install -r requirements.txt
-export GEMINI_API_KEY=your_api_key
-export POSTGREST_URL=http://localhost:3000
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-API docs are available at `http://localhost:8000/docs`.
+The service reads configuration from the `.env` file. API docs are available at `http://localhost:8000/docs`.
+
+### Redis, Worker, and Scheduler
+
+The queue system relies on a running Redis instance plus background worker and scheduler processes.
+
+**Manual start:**
+
+```bash
+# Start Redis
+redis-server
+
+# In another terminal
+cd python-service
+python worker.py        # start job worker
+python scheduler_daemon.py  # start scheduler
+```
+
+**Docker:**
+
+```bash
+docker-compose up redis worker scheduler
+```
 
 ## Docker Compose
 
