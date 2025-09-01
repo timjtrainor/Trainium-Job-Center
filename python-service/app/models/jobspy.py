@@ -35,7 +35,10 @@ class JobSearchRequest(BaseModel):
     distance: Optional[int] = Field(default=50, description="Search radius in miles")
     easy_apply: Optional[bool] = Field(default=None, description="Filter for easy apply jobs")
     hours_old: Optional[int] = Field(default=None, description="Filter jobs posted within X hours")
-
+    # NEW: for Google Jobs
+    google_search_term: Optional[str] = Field(default=None, description="Google search term only used for Google Job Board")
+    # Optional: for Indeed/Glassdoor
+    country_indeed: Optional[str] = Field(default=None, description="Country for Indeed/Glassdoor")
 
 class ScrapedJob(BaseModel):
     """Model for individual scraped job data."""

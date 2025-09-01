@@ -73,20 +73,57 @@ class JobSpyIngestionService:
             logger.info(f"Starting job scrape: {request.search_term} on {request.site_name}")
             
             # Run the potentially blocking JobSpy operation in a thread pool
+            # add to imports if not already present
+            from typing import Optional
+
+            # ... inside JobSpyIngestionService.scrape_jobs_async(...)
             def _scrape_sync():
-                return scrape_jobs(
-                    site_name=request.site_name.value,
-                    search_term=request.search_term,
-                    location=request.location,
-                    is_remote=request.is_remote,
-                    job_type=request.job_type.value if request.job_type else None,
-                    results_wanted=request.results_wanted,
-                    distance=request.distance,
-                    easy_apply=request.easy_apply,
-                    hours_old=request.hours_old,
-                    description_format="markdown",  # Keep consistent with existing app
-                    verbose=1  # Enable some logging
-                )
+                kwargs = {
+                    "site_name": request.site_name.value,
+                    "results_wanted": request.results_wanted,
+                    "description_format": "markdown",
+                    "verbose": 1,
+                }
+
+                if request.site_name.value == "google":
+                    # Prefer explicit google_search_term if provided in your request model
+                    google_q = getattr(request, "google_search_term", None)
+                    if not google_q:
+                        # Fallback: synthesize a decent query string for Google Jobs
+                        parts = []
+                        if request.search_term:
+                            parts.append(request.search_term)
+                        if request.location:
+                            parts.append(f"jobs near {request.location}")
+                        if request.hours_old:
+                            parts.append(f"since last {int(request.hours_old)} hours")
+                        google_q = " ".join(parts).strip() or "software engineer jobs"
+                    kwargs["google_search_term"] = google_q
+                    # Do NOT pass job_type/easy_apply/is_remote/distance/etc. for Google
+                else:
+                    # Non-Google sites keep using structured params
+                    if request.search_term:
+                        kwargs["search_term"] = request.search_term
+                    if request.location:
+                        kwargs["location"] = request.location
+                    if request.is_remote is not None:
+                        kwargs["is_remote"] = request.is_remote
+                    if request.job_type:
+                        kwargs["job_type"] = request.job_type.value
+                    if request.distance:
+                        kwargs["distance"] = request.distance
+                    if request.easy_apply is not None:
+                        kwargs["easy_apply"] = request.easy_apply
+                    if request.hours_old:
+                        kwargs["hours_old"] = request.hours_old
+                    # Optional: pass country for Indeed/Glassdoor if your model/settings has it
+                    if request.site_name.value in {"indeed", "glassdoor"}:
+                        country = getattr(request, "country_indeed", None) or getattr(self.settings, "country_indeed",
+                                                                                      None)
+                        if country:
+                            kwargs["country_indeed"] = country
+
+                return scrape_jobs(**kwargs)
             
             # Run in thread pool to avoid blocking the event loop
             loop = asyncio.get_event_loop()
