@@ -4,12 +4,6 @@ Core application configuration and settings.
 from typing import Optional
 import os
 from loguru import logger
-"""
-Core application configuration and settings.
-"""
-from typing import Optional
-import os
-from loguru import logger
 
 
 class Settings:
@@ -34,6 +28,20 @@ class Settings:
         
         # PostgREST Configuration (for future integration)
         self.postgrest_url: str = os.getenv("POSTGREST_URL", "http://postgrest:3000")
+        
+        # Database Configuration for direct access
+        self.database_url: str = os.getenv("DATABASE_URL", "postgresql://trainium_user:password@localhost:5434/trainium")
+        
+        # Redis Configuration for queue system
+        self.redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        self.redis_host: str = os.getenv("REDIS_HOST", "localhost")
+        self.redis_port: int = int(os.getenv("REDIS_PORT", "6379"))
+        self.redis_db: int = int(os.getenv("REDIS_DB", "0"))
+        
+        # Queue Configuration
+        self.rq_queue_name: str = os.getenv("RQ_QUEUE_NAME", "scraping")
+        self.rq_result_ttl: int = int(os.getenv("RQ_RESULT_TTL", "3600"))  # 1 hour
+        self.rq_job_timeout: int = int(os.getenv("RQ_JOB_TIMEOUT", "900"))  # 15 minutes
         
         # Environment-based configuration
         self.environment: str = os.getenv("ENVIRONMENT", "development")

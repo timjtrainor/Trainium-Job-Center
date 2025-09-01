@@ -11,6 +11,14 @@ google-generativeai==0.8.3
 python-jobspy==1.1.82
 pandas==2.2.3
 
+# Queue and scheduler dependencies
+rq==1.16.2
+rq-scheduler==0.13.1
+redis==5.0.1
+
+# Database connection for direct access
+asyncpg==0.29.0
+
 # Force wheel-friendly versions to avoid compiling from source
 grpcio==1.66.2
 # Must be >=5.26.1 and <6.0dev for grpcio-status

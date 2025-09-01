@@ -7,3 +7,4 @@ prompt1b-migrate-positioning-profiles 2025-07-22T19:53:12Z System Administrator 
 prompt1c-drop-user-positioning-profiles 2025-07-22T19:54:54Z System Administrator <root@FamilyMac-FUP.local> # Drop legacy user_positioning_profiles table after migration
 prompt1d-backfill-narrative-links 2025-07-22T19:56:13Z System Administrator <root@FamilyMac-FUP.local> # Backfill narrative_id on job_applications and linkedin_posts
 prompt1e-enforce-narrative-not-null 2025-07-22T19:58:11Z System Administrator <root@FamilyMac-FUP.local> # Make narrative_id NOT NULL on job_applications and linkedin_posts
+queue-scheduler-tables 2025-01-24T12:00:00Z GitHub Copilot <copilot@github.com> # Add site_schedules and scrape_runs tables for queue-based job scraping
