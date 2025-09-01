@@ -15,6 +15,7 @@ from app.api import api_router
 from app.services.gemini import get_gemini_service
 from app.services.postgrest import get_postgrest_service
 from app.services.jobspy_ingestion import get_jobspy_service
+from app.services.scheduler_service import get_scheduler_service
 from app.models.responses import create_error_response
 
 
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI):
     gemini_service = get_gemini_service()
     postgrest_service = get_postgrest_service()
     jobspy_service = get_jobspy_service()
+    scheduler_service = get_scheduler_service()
     
     try:
         # Initialize Gemini service
@@ -46,6 +48,9 @@ async def lifespan(app: FastAPI):
         
         # Initialize JobSpy service
         await jobspy_service.initialize()
+        
+        # Initialize Scheduler service
+        await scheduler_service.initialize()
         
         logger.info("All services initialized successfully")
         
@@ -71,6 +76,7 @@ app = FastAPI(
     - AI-powered job application assistance via Gemini AI
     - Job scraping and ingestion from major job boards (Indeed, LinkedIn, Glassdoor, etc.)
     - Integration with PostgREST backend for data access
+    - Scheduler service for managing follow-ups, reminders, and due dates
     - Health monitoring and system status endpoints
     - Structured logging and error handling
     - Async processing capabilities for long-running AI tasks
