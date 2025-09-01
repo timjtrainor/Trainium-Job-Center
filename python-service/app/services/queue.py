@@ -28,7 +28,6 @@ class QueueService:
                 host=self.settings.redis_host,
                 port=self.settings.redis_port,
                 db=self.settings.redis_db,
-                decode_responses=True
             )
             
             # Test connection
