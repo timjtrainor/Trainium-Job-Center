@@ -189,7 +189,7 @@ class JobSpyIngestionService:
                     job = ScrapedJob(
                         title=row.get("title"),
                         company=row.get("company"),
-                        location=row.get("location"),
+                        location=row.get("location") if pd.notna(row.get("location")) else None,
                         job_type=(row.get("job_type") if pd.notna(row.get("job_type")) else None),
                         date_posted=_to_iso_date_str(row.get("date_posted")),  # <-- normalize here
                         salary_min=(row.get("min_amount") if pd.notna(row.get("min_amount")) else None),
