@@ -32,6 +32,28 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 The service reads configuration from the `.env` file. API docs are available at `http://localhost:8000/docs`.
 
+### Redis, Worker, and Scheduler
+
+The queue system relies on a running Redis instance plus background worker and scheduler processes.
+
+**Manual start:**
+
+```bash
+# Start Redis
+redis-server
+
+# In another terminal
+cd python-service
+python worker.py        # start job worker
+python scheduler_daemon.py  # start scheduler
+```
+
+**Docker:**
+
+```bash
+docker-compose up redis worker scheduler
+```
+
 ## Docker Compose
 
 Run the full stack with Docker:
