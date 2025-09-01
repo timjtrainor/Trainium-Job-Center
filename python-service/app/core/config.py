@@ -1,15 +1,15 @@
-"""
-Core application configuration and settings.
-"""
+"""Core application configuration and settings."""
 from typing import Optional
 import os
 from loguru import logger
+from dotenv import load_dotenv
 
 
 class Settings:
     """Application settings and configuration."""
     
     def __init__(self):
+        load_dotenv()
         # API Configuration
         self.app_name: str = "Trainium Python AI Service"
         self.app_version: str = "1.0.0"
@@ -30,7 +30,9 @@ class Settings:
         self.postgrest_url: str = os.getenv("POSTGREST_URL", "http://postgrest:3000")
         
         # Database Configuration for direct access
-        self.database_url: str = os.getenv("DATABASE_URL", "postgresql://trainium_user:password@localhost:5434/trainium")
+        self.database_url: str = os.getenv("DATABASE_URL", "")
+        if not self.database_url:
+            raise ValueError("DATABASE_URL is not set")
         
         # Redis Configuration for queue system
         self.redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")

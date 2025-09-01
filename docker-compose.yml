@@ -65,6 +65,7 @@ services:
       DEBUG: ${DEBUG:-false}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       POSTGREST_URL: http://postgrest:3000
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     volumes:
       # Mount the python service code for development
       - ./python-service:/app
