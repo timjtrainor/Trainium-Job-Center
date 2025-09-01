@@ -64,6 +64,7 @@ services:
     build:
       context: ./python-service
       dockerfile: Dockerfile
+    image: python-service
     container_name: trainium_python_service
     restart: always
     ports:
@@ -92,6 +93,24 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # Defines the worker process using the python-service image
+  worker:
+    image: python-service
+    container_name: trainium_worker
+    entrypoint: ["python", "worker.py"]
+    depends_on:
+      - python-service
+      - redis
+
+  # Defines the scheduler daemon using the python-service image
+  scheduler:
+    image: python-service
+    container_name: trainium_scheduler
+    entrypoint: ["python", "scheduler_daemon.py"]
+    depends_on:
+      - python-service
+      - redis
 
 volumes:
   # Defines the named volumes for data persistence.
