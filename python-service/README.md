@@ -26,12 +26,19 @@ FastAPI-based microservice that provides AI capabilities for the Trainium Job Ce
 2. **Configure Environment**:
    Copy `.env.example` from the project root to `.env` and adjust the values as needed.
 
-3. **Run the Service**:
+3. **Start Redis, Worker, and Scheduler**:
+   ```bash
+   redis-server
+   python worker.py            # job worker
+   python scheduler_daemon.py  # periodic scheduler
+   ```
+
+4. **Run the Service**:
    ```bash
    uvicorn main:app --reload --host 0.0.0.0 --port 8000
    ```
 
-4. **View API Documentation**:
+5. **View API Documentation**:
    - Swagger UI: http://localhost:8000/docs
    - ReDoc: http://localhost:8000/redoc
 
@@ -45,6 +52,12 @@ docker-compose up --build
 ```
 
 The Python service will be available at http://localhost:8000
+
+To run just the queue components:
+
+```bash
+docker-compose up redis worker scheduler
+```
 
 ## API Endpoints
 
