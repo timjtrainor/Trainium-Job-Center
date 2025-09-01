@@ -34,6 +34,7 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.venv
 
 # Ignore environment and sensitive config files
 .env

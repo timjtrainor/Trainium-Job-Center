@@ -7,3 +7,13 @@ httpx==0.28.1
 python-json-logger==2.0.7
 # Future Gemini integration dependencies
 google-generativeai==0.8.3
+# JobSpy for job scraping integration
+python-jobspy==1.1.82
+pandas==2.2.3
+
+# Force wheel-friendly versions to avoid compiling from source
+grpcio==1.66.2
+# Must be >=5.26.1 and <6.0dev for grpcio-status
+protobuf==5.28.3
+grpcio-status==1.66.2
+googleapis-common-protos==1.63.2
