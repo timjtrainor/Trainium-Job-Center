@@ -1,9 +1,4 @@
 %syntax-version=1.0.0
 %project=career_trainium
 
-update_schema_to_positioning 2025-07-17T23:10:47Z Tim Trainor <timtrainor@FamilyMac-FUP.local> # Full schema alignment with positioning and PostgREST updates
-prompt-1-strategic-narratives 2025-07-22T19:32:22Z System Administrator <root@FamilyMac-FUP.local> # Refactor user positioning into strategic_narratives table
-prompt1b-migrate-positioning-profiles 2025-07-22T19:53:12Z System Administrator <root@FamilyMac-FUP.local> # Migrate data from user_positioning_profiles to strategic_narratives
-prompt1c-drop-user-positioning-profiles 2025-07-22T19:54:54Z System Administrator <root@FamilyMac-FUP.local> # Drop legacy user_positioning_profiles table after migration
-prompt1d-backfill-narrative-links 2025-07-22T19:56:13Z System Administrator <root@FamilyMac-FUP.local> # Backfill narrative_id on job_applications and linkedin_posts
-prompt1e-enforce-narrative-not-null 2025-07-22T19:58:11Z System Administrator <root@FamilyMac-FUP.local> # Make narrative_id NOT NULL on job_applications and linkedin_posts
+v1 2025-07-24T00:00:00Z System Administrator <root@localhost> # Initial schema baseline
