@@ -3,3 +3,4 @@
 
 v1 2025-07-24T00:00:00Z System Administrator <root@localhost> # Initial schema baseline
 queue-scheduler-tables 2025-01-24T12:00:00Z System Administrator <root@localhost> # Add site_schedules and scrape_runs tables for queue-based job scraping
+jobs_table_init 2025-01-24T18:00:00Z System Administrator <root@localhost> # Create jobs table for persisting scraped job data

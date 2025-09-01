@@ -5,6 +5,12 @@ This directory contains the Sqitch configuration and migration scripts for manag
 ## What is Sqitch?
 [Sqitch](https://sqitch.org/) is a database change management system that uses a VCS-like approach to track, deploy, revert, and verify schema changes. It is designed to work with various databases, including PostgreSQL.
 
+## Current Migrations
+
+- **v1**: Initial schema baseline with core application tables
+- **queue-scheduler-tables**: Site schedules and scrape runs for queue-based job scraping  
+- **jobs_table_init**: Jobs table for persisting scraped job data from various job boards
+
 ## Prerequisites
 - PostgreSQL installed and running
 - Sqitch installed ([installation guide](https://sqitch.org/download/))

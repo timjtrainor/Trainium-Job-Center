@@ -8,6 +8,7 @@ from loguru import logger
 
 from .scraping import scrape_jobs_sync
 from .database import get_database_service
+from .job_persistence import persist_jobs
 
 
 def scrape_jobs_worker(site_schedule_id: Optional[str] = None, 
@@ -68,6 +69,28 @@ def scrape_jobs_worker(site_schedule_id: Optional[str] = None,
         
         # Execute the scraping
         result = scrape_jobs_sync(payload, min_pause, max_pause)
+        
+        # Persist scraped jobs if scraping was successful
+        persistence_summary = None
+        if result.get("jobs") and result.get("status") in ["succeeded", "partial"]:
+            try:
+                site_name = payload.get("site_name", "unknown")
+                persistence_summary = loop.run_until_complete(
+                    persist_jobs(records=result["jobs"], site_name=site_name)
+                )
+                logger.info(f"Run {run_id}: Persisted jobs - {persistence_summary}")
+                
+                # Add persistence info to result for logging
+                result["persistence_summary"] = persistence_summary
+                
+            except Exception as e:
+                logger.error(f"Run {run_id}: Failed to persist jobs: {e}")
+                # Don't fail the entire job for persistence errors
+                result["persistence_summary"] = {
+                    "inserted": 0,
+                    "skipped_duplicates": 0,
+                    "errors": [f"Persistence failed: {str(e)}"]
+                }
         
         # Update final status
         finished_at = datetime.now(timezone.utc)

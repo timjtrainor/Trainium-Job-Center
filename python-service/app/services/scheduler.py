@@ -95,9 +95,10 @@ class SchedulerService:
                         self.queue_service.release_redis_lock(lock_key, lock_value)
                         continue
                     
-                    # Enqueue the job
+                    # Enqueue the job with site name included in payload
+                    payload = {**schedule["payload"], "site_name": schedule["site_name"]}
                     job_info = self.queue_service.enqueue_scraping_job(
-                        payload=schedule["payload"],
+                        payload=payload,
                         site_schedule_id=schedule_id,
                         trigger="schedule",
                         run_id=run_id
@@ -105,11 +106,12 @@ class SchedulerService:
                     
                     if job_info:
                         task_id = job_info["task_id"]
-                        
+
                         # Update scrape run with task_id
                         await self.db_service.update_scrape_run_status(
                             run_id=run_id,
                             status="queued",
+                            task_id=task_id,
                             message=f"Scheduled scrape for {site_name}"
                         )
                         

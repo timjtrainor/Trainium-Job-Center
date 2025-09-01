@@ -12,6 +12,7 @@ from ..services.jobspy_ingestion import get_jobspy_service
 from ..services.queue import get_queue_service
 from ..services.database import get_database_service
 from ..services.scraping import scrape_jobs_async
+from ..services.job_persistence import persist_jobs
 
 router = APIRouter()
 
@@ -62,12 +63,30 @@ async def scrape_jobs(request: JobSearchRequest, mode: Optional[str] = Query(Non
             
             result = await scrape_jobs_async(sync_payload, min_pause=1, max_pause=3)
             
+            # Persist jobs and include persistence summary in response
+            persistence_summary = None
+            if result.get("jobs"):
+                try:
+                    persistence_summary = await persist_jobs(
+                        records=result["jobs"],
+                        site_name=request.site_name.value
+                    )
+                    logger.info(f"Sync scrape persistence: {persistence_summary}")
+                except Exception as e:
+                    logger.error(f"Failed to persist jobs in sync mode: {e}")
+                    persistence_summary = {
+                        "inserted": 0,
+                        "skipped_duplicates": 0,  
+                        "errors": [f"Persistence failed: {str(e)}"]
+                    }
+            
             return create_success_response(
                 data={
-                    "jobs": [job.dict() for job in result["jobs"]],
+                    "jobs": [job.model_dump() for job in result["jobs"]],
                     "total_found": result["total_found"],
                     "search_metadata": result["search_metadata"],
-                    "execution_mode": "sync"
+                    "execution_mode": "sync",
+                    "persistence_summary": persistence_summary
                 },
                 message=result["message"]
             )
