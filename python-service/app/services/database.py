@@ -99,17 +99,18 @@ class DatabaseService:
             logger.error(f"Failed to create scrape run: {str(e)}")
             return None
 
-    async def update_scrape_run_status(self, run_id: str, status: str, 
+    async def update_scrape_run_status(self, run_id: str, status: str,
                                      started_at: Optional[datetime] = None,
                                      finished_at: Optional[datetime] = None,
                                      requested_pages: Optional[int] = None,
                                      completed_pages: Optional[int] = None,
                                      errors_count: Optional[int] = None,
+                                     task_id: Optional[str] = None,
                                      message: Optional[str] = None) -> bool:
-        """Update scrape run status and metrics."""
+        """Update scrape run status, task ID, and metrics."""
         if not self.initialized:
             await self.initialize()
-        
+
         # Build dynamic update query
         updates = ["status = $2", "updated_at = NOW()"]
         params = [run_id, status]
@@ -140,6 +141,11 @@ class DatabaseService:
             params.append(errors_count)
             param_count += 1
             
+        if task_id is not None:
+            updates.append(f"task_id = ${param_count}")
+            params.append(task_id)
+            param_count += 1
+
         if message is not None:
             updates.append(f"message = ${param_count}")
             params.append(message)
