@@ -5,11 +5,21 @@ python-multipart==0.0.17
 loguru==0.7.3
 httpx==0.28.1
 python-json-logger==2.0.7
+# Load environment variables from .env files
+python-dotenv==1.0.1
 # Future Gemini integration dependencies
 google-generativeai==0.8.3
 # JobSpy for job scraping integration
 python-jobspy==1.1.82
 pandas==2.2.3
+
+# Queue and scheduler dependencies
+rq==1.16.2
+rq-scheduler==0.13.1
+redis==5.0.1
+
+# Database connection for direct access
+asyncpg==0.29.0
 
 # Force wheel-friendly versions to avoid compiling from source
 grpcio==1.66.2
