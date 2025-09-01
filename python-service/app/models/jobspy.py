@@ -27,7 +27,7 @@ class JobType(str, Enum):
 class JobSearchRequest(BaseModel):
     """Request model for job scraping."""
     site_name: JobSite = Field(default=JobSite.INDEED, description="Job site to scrape from")
-    search_term: str = Field(..., description="Job search term/keywords")
+    search_term: Optional[str] = Field(..., description="Job search term/keywords")
     location: Optional[str] = Field(default=None, description="Job location")
     is_remote: bool = Field(default=False, description="Search for remote jobs only")
     job_type: Optional[JobType] = Field(default=None, description="Job type filter")
@@ -35,10 +35,11 @@ class JobSearchRequest(BaseModel):
     distance: Optional[int] = Field(default=50, description="Search radius in miles")
     easy_apply: Optional[bool] = Field(default=None, description="Filter for easy apply jobs")
     hours_old: Optional[int] = Field(default=None, description="Filter jobs posted within X hours")
-    # NEW: for Google Jobs
+    # Site-specific
     google_search_term: Optional[str] = Field(default=None, description="Google search term only used for Google Job Board")
-    # Optional: for Indeed/Glassdoor
-    country_indeed: Optional[str] = Field(default=None, description="Country for Indeed/Glassdoor")
+    country_indeed: Optional[str] = Field(default="USA", description="Required for Indeed/Glassdoor and is the country USA")
+    linkedin_fetch_description: Optional[bool] = Field(default=None, description="For LinkedIn gets more info such as description, direct job url (SLOWER)")  # LinkedIn
+    linkedin_company_ids: Optional[List[int]] = Field(default=None, description="List of LinkedIn company IDs to filter by")  # LinkedIn
 
 class ScrapedJob(BaseModel):
     """Model for individual scraped job data."""

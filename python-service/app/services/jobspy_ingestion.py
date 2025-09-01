@@ -78,6 +78,7 @@ class JobSpyIngestionService:
 
             # ... inside JobSpyIngestionService.scrape_jobs_async(...)
             def _scrape_sync():
+                # Base kwargs used everywhere
                 kwargs = {
                     "site_name": request.site_name.value,
                     "results_wanted": request.results_wanted,
@@ -85,23 +86,26 @@ class JobSpyIngestionService:
                     "verbose": 1,
                 }
 
-                if request.site_name.value == "google":
-                    # Prefer explicit google_search_term if provided in your request model
-                    google_q = getattr(request, "google_search_term", None)
+                site = request.site_name.value
+
+                if site == "google":
+                    # Google: only google_search_term is honored
+                    google_q = request.google_search_term
                     if not google_q:
-                        # Fallback: synthesize a decent query string for Google Jobs
+                        # Fallback: synthesize a decent Google query
                         parts = []
                         if request.search_term:
                             parts.append(request.search_term)
                         if request.location:
                             parts.append(f"jobs near {request.location}")
                         if request.hours_old:
-                            parts.append(f"since last {int(request.hours_old)} hours")
+                            parts.append(f"posted last {int(request.hours_old)} hours")
                         google_q = " ".join(parts).strip() or "software engineer jobs"
                     kwargs["google_search_term"] = google_q
-                    # Do NOT pass job_type/easy_apply/is_remote/distance/etc. for Google
+                    # Do NOT pass job_type, easy_apply, is_remote, distance, etc. for Google.  # docs say google_search_term is the only filter
+                    # https://github.com/speedyapply/JobSpy README
                 else:
-                    # Non-Google sites keep using structured params
+                    # Non-Google use structured filters selectively
                     if request.search_term:
                         kwargs["search_term"] = request.search_term
                     if request.location:
@@ -112,16 +116,35 @@ class JobSpyIngestionService:
                         kwargs["job_type"] = request.job_type.value
                     if request.distance:
                         kwargs["distance"] = request.distance
-                    if request.easy_apply is not None:
-                        kwargs["easy_apply"] = request.easy_apply
                     if request.hours_old:
                         kwargs["hours_old"] = request.hours_old
-                    # Optional: pass country for Indeed/Glassdoor if your model/settings has it
-                    if request.site_name.value in {"indeed", "glassdoor"}:
-                        country = getattr(request, "country_indeed", None) or getattr(self.settings, "country_indeed",
-                                                                                      None)
+
+                    # Board-specific toggles and constraints
+                    if site in {"indeed", "glassdoor"}:
+                        # country_indeed is required to target country on these sites
+                        country = request.country_indeed or getattr(self.settings, "country_indeed", None)
                         if country:
                             kwargs["country_indeed"] = country
+                        # Indeed limitation: only one of {hours_old} OR {job_type/is_remote} OR {easy_apply}
+                        # If easy_apply is set, prefer it and drop the others per docs.
+                        if request.easy_apply is not None:
+                            kwargs["easy_apply"] = request.easy_apply
+                            # enforce “only one” by removing conflicting keys
+                            kwargs.pop("hours_old", None)
+                            kwargs.pop("job_type", None)
+                            kwargs.pop("is_remote", None)
+                    elif site == "linkedin":
+                        if request.linkedin_fetch_description is not None:
+                            kwargs["linkedin_fetch_description"] = request.linkedin_fetch_description
+                        if request.linkedin_company_ids:
+                            kwargs["linkedin_company_ids"] = request.linkedin_company_ids
+                        # LinkedIn limitation: only one of {hours_old} OR {easy_apply}
+                        if request.easy_apply is not None:
+                            kwargs["easy_apply"] = request.easy_apply
+                            kwargs.pop("hours_old", None)
+                    elif site == "zip_recruiter":
+                        # no special params beyond the general ones; note hours_old rounds to next day upstream
+                        pass
 
                 return scrape_jobs(**kwargs)
             
