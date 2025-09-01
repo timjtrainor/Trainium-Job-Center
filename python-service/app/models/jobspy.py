@@ -2,7 +2,7 @@
 JobSpy integration models for job scraping and ingestion.
 """
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 
 
@@ -58,6 +58,13 @@ class ScrapedJob(BaseModel):
     site: Optional[str] = None
     emails: Optional[List[str]] = None
     is_remote: Optional[bool] = None
+
+    @field_validator("emails", mode="before")
+    @classmethod
+    def _wrap_emails(cls, value):
+        if value is None or isinstance(value, list):
+            return value
+        return [value]
 
 
 class JobSearchResponse(BaseModel):
