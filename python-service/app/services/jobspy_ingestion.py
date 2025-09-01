@@ -243,33 +243,38 @@ class JobSpyIngestionService:
             sites_info = {
                 "indeed": {
                     "name": "Indeed",
-                    "description": "Popular job board with extensive listings",
                     "supports_remote": True,
-                    "supports_salary_filter": True
-                },
-                "linkedin": {
-                    "name": "LinkedIn",
-                    "description": "Professional networking platform with job listings",
-                    "supports_remote": True,
-                    "supports_salary_filter": False
+                    "supports_salary_filter": True,
+                    "requires": ["country_indeed"],
+                    "limits": ["only one of: hours_old OR (job_type/is_remote) OR easy_apply"],
+                    "notes": ["Best scraper; low rate limiting"]
                 },
                 "glassdoor": {
                     "name": "Glassdoor",
-                    "description": "Job board with company reviews and salary data",
                     "supports_remote": True,
-                    "supports_salary_filter": True
+                    "supports_salary_filter": True,
+                    "requires": ["country_indeed"],
+                    "notes": ["hours_old rounds to next day"]
                 },
-                "ziprecruiter": {
-                    "name": "ZipRecruiter",
-                    "description": "Job board focused on quick applications",
+                "linkedin": {
+                    "name": "LinkedIn",
                     "supports_remote": True,
-                    "supports_salary_filter": True
+                    "supports_salary_filter": False,
+                    "optional": ["linkedin_fetch_description", "linkedin_company_ids"],
+                    "limits": ["only one of: hours_old OR easy_apply"]
+                },
+                "zip_recruiter": {
+                    "name": "ZipRecruiter",
+                    "supports_remote": True,
+                    "supports_salary_filter": True,
+                    "notes": ["hours_old rounds to next day"]
                 },
                 "google": {
                     "name": "Google Jobs",
-                    "description": "Google's job search aggregator",
                     "supports_remote": True,
-                    "supports_salary_filter": False
+                    "supports_salary_filter": False,
+                    "requires": ["google_search_term"],
+                    "notes": ["structured filters are ignored; use full-text query"]
                 }
             }
             
