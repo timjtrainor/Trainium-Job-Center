@@ -106,11 +106,12 @@ class SchedulerService:
                     
                     if job_info:
                         task_id = job_info["task_id"]
-                        
+
                         # Update scrape run with task_id
                         await self.db_service.update_scrape_run_status(
                             run_id=run_id,
                             status="queued",
+                            task_id=task_id,
                             message=f"Scheduled scrape for {site_name}"
                         )
                         
