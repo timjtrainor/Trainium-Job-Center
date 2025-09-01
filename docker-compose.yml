@@ -96,6 +96,9 @@ services:
 
   # Defines the worker process using the python-service image
   worker:
+    build:
+      context: ./python-service
+      dockerfile: Dockerfile
     image: python-service
     container_name: trainium_worker
     entrypoint: ["python", "worker.py"]
@@ -117,6 +120,9 @@ services:
 
   # Defines the scheduler daemon using the python-service image
   scheduler:
+    build:
+      context: ./python-service
+      dockerfile: Dockerfile
     image: python-service
     container_name: trainium_scheduler
     entrypoint: ["python", "scheduler_daemon.py"]
