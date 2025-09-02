@@ -49,11 +49,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    # Ensure llama3.3 model is available before serving
     entrypoint: ["/bin/sh", "-c"]
     command: >
+      ollama serve &
+      sleep 10 &&
       ollama pull llama3.3 &&
-      exec ollama serve
+      wait
 
   # Defines the Redis cache service
   redis:
