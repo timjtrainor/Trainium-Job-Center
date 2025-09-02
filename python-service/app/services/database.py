@@ -212,8 +212,8 @@ class DatabaseService:
             await self.initialize()
 
         query = """
-        INSERT INTO evaluations (job_id, persona_id, vote_bool, confidence, reason_text, provider, latency_ms, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO evaluations (job_id, persona_id, vote_bool, confidence, reason_text, provider, model, latency_ms, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         """
 
         try:
@@ -226,6 +226,7 @@ class DatabaseService:
                     evaluation.confidence,
                     evaluation.reason_text,
                     evaluation.provider,
+                    evaluation.model,
                     evaluation.latency_ms,
                     evaluation.created_at,
                 )

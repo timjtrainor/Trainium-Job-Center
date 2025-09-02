@@ -14,6 +14,7 @@ def test_persona_evaluation_confidence_validation():
             confidence=1.5,
             reason_text="reason",
             provider="provider",
+            model="model",
             latency_ms=10,
         )
     with pytest.raises(ValidationError):
@@ -24,6 +25,7 @@ def test_persona_evaluation_confidence_validation():
             confidence=-0.1,
             reason_text="reason",
             provider="provider",
+            model="model",
             latency_ms=10,
         )
 

@@ -12,6 +12,7 @@ class PersonaEvaluation(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     reason_text: str
     provider: str
+    model: str
     latency_ms: int
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
