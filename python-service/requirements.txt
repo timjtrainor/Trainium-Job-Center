@@ -27,3 +27,6 @@ grpcio==1.66.2
 protobuf==5.28.3
 grpcio-status==1.66.2
 googleapis-common-protos==1.63.2
+
+# Local Llama-4 via Hugging Face
+transformers==4.46.0
