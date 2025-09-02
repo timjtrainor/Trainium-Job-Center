@@ -34,7 +34,7 @@ services:
 
   # Defines the Ollama service for local LLM inference
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.4.5
     container_name: trainium_ollama
     restart: always
     ports:
@@ -49,13 +49,18 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    # Ensure llama3.3 model is available before serving
+      # Start server before pulling so the model downloads successfully
     entrypoint:
       - /bin/sh
       - -c
       - |
-          ollama pull llama3.3 &&
-          exec ollama serve
+          ollama serve &
+          server_pid=$!
+          until curl -sf http://localhost:11434/api/tags >/dev/null; do
+            sleep 1
+          done
+          ollama pull llama3.3
+          wait $server_pid
 
   # Defines the Redis cache service
   redis:
