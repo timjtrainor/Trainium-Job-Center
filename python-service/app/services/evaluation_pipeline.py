@@ -97,6 +97,7 @@ class EvaluationPipeline:
                 confidence=result["confidence"],
                 reason_text=result["reason"],
                 provider=result["provider"],
+                model=result["model"],
                 latency_ms=latency_ms,
             )
             decision_evals.append(evaluation)
@@ -213,6 +214,7 @@ class EvaluationPipeline:
                     confidence=result["confidence"],
                     reason_text=reason,
                     provider=result["provider"],
+                    model=result["model"],
                     latency_ms=latency_ms,
                 )
                 motivator_evals.append(evaluation)
