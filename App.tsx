@@ -5,6 +5,7 @@ import { AppView, NewAppStep, Resume, JobApplication, BaseResume, Status, Compan
 import * as apiService from './services/apiService';
 import * as geminiService from './services/geminiService';
 import { PROMPTS } from './promptsData';
+import { ensureUniqueAchievementIds } from './utils/resume';
 
 import { ToastProvider, useToast } from './hooks/useToast';
 
@@ -396,7 +397,8 @@ const AppContent = () => {
 
     const handleResumeSelect = async (selectedResume: Resume) => {
         setNewAppLoadingState('tailoring');
-        setBaseResume(selectedResume);
+        const sanitizedResume = ensureUniqueAchievementIds(selectedResume);
+        setBaseResume(sanitizedResume);
 
         if (isMessageOnlyApp) {
              try {
@@ -427,47 +429,47 @@ const AppContent = () => {
                 const prompt = PROMPTS.find(p => p.id === 'GENERATE_RESUME_TAILORING_DATA');
                 if (!prompt || !jobProblemAnalysisResult || !activeNarrative) throw new Error("Resume tailoring prompt or context missing.");
                 
-                const context: PromptContext = {
-                    JOB_DESCRIPTION: jobDetails.jobDescription,
-                    CORE_PROBLEM_ANALYSIS: JSON.stringify(jobProblemAnalysisResult.core_problem_analysis),
-                    KEY_SUCCESS_METRICS: jobProblemAnalysisResult.key_success_metrics.join(', '),
-                    FULL_RESUME_JSON: JSON.stringify(selectedResume),
-                    RESUME_SUMMARY: selectedResume.summary.paragraph,
-                    POSITIONING_STATEMENT: activeNarrative.positioning_statement,
-                    MASTERY: activeNarrative.signature_capability,
-                    JOB_CONTEXT_JSON: JSON.stringify({ title: jobDetails.jobTitle, company: jobDetails.companyName, keywords }),
-                    MISSION: jobDetails.mission || '',
-                    VALUES: jobDetails.values || '',
-                };
+                  const context: PromptContext = {
+                      JOB_DESCRIPTION: jobDetails.jobDescription,
+                      CORE_PROBLEM_ANALYSIS: JSON.stringify(jobProblemAnalysisResult.core_problem_analysis),
+                      KEY_SUCCESS_METRICS: jobProblemAnalysisResult.key_success_metrics.join(', '),
+                      FULL_RESUME_JSON: JSON.stringify(sanitizedResume),
+                      RESUME_SUMMARY: sanitizedResume.summary.paragraph,
+                      POSITIONING_STATEMENT: activeNarrative.positioning_statement,
+                      MASTERY: activeNarrative.signature_capability,
+                      JOB_CONTEXT_JSON: JSON.stringify({ title: jobDetails.jobTitle, company: jobDetails.companyName, keywords }),
+                      MISSION: jobDetails.mission || '',
+                      VALUES: jobDetails.values || '',
+                  };
 
                 const result = await geminiService.generateResumeTailoringData(context, prompt.content);
                 
                 setKeywords(result.keywords || null);
                 setGuidance(result.guidance || null);
                 
-                const uniqueSummaries = new Set([selectedResume.summary.paragraph, ...(result.summary_suggestions || [])]);
+                  const uniqueSummaries = new Set([sanitizedResume.summary.paragraph, ...(result.summary_suggestions || [])]);
                 setSummaryParagraphOptions(Array.from(uniqueSummaries));
                 
                 setAllSkillOptions(result.comprehensive_skills || []);
                 setMissingKeywords(result.missing_keywords || []);
                 setResumeAlignmentScore(result.initial_alignment_score || null);
 
-                const tailoredResume: Resume = {
-                    ...selectedResume,
-                    summary: { paragraph: selectedResume.summary.paragraph, bullets: [] },
-                    skills: [{ heading: 'Core Competencies', items: result.ai_selected_skills || [] }],
-                    work_experience: (result.processed_work_experience || []).map((exp, expIndex) => ({
-                        ...selectedResume.work_experience[expIndex],
-                        accomplishments: (exp.accomplishments || []).map((acc, accIndex) => ({
-                            ...(selectedResume.work_experience[expIndex].accomplishments[accIndex] || { achievement_id: uuidv4(), description: '', always_include: false, order_index: 0 }),
-                            description: acc.description,
-                            keyword_suggestions: acc.keyword_suggestions,
-                            relevance_score: acc.relevance_score,
-                            original_score: acc.original_score,
-                        }))
-                    }))
-                };
-                setFinalResume(tailoredResume);
+                  const tailoredResume: Resume = ensureUniqueAchievementIds({
+                      ...sanitizedResume,
+                      summary: { paragraph: sanitizedResume.summary.paragraph, bullets: [] },
+                      skills: [{ heading: 'Core Competencies', items: result.ai_selected_skills || [] }],
+                      work_experience: (result.processed_work_experience || []).map((exp, expIndex) => ({
+                          ...sanitizedResume.work_experience[expIndex],
+                          accomplishments: (exp.accomplishments || []).map((acc, accIndex) => ({
+                              ...(sanitizedResume.work_experience[expIndex].accomplishments[accIndex] || { achievement_id: uuidv4(), description: '', always_include: false, order_index: 0 }),
+                              description: acc.description,
+                              keyword_suggestions: acc.keyword_suggestions,
+                              relevance_score: acc.relevance_score,
+                              original_score: acc.original_score,
+                          }))
+                      }))
+                  });
+                  setFinalResume(tailoredResume);
                 setNewAppStep(NewAppStep.TAILOR_RESUME);
 
             } catch (err) {
