@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, List
+import time
 from loguru import logger
 
 from ..models.evaluations import PersonaEvaluation, Decision, EvaluationSummary
@@ -70,7 +71,13 @@ async def evaluate_decision_personas(
         ]
     }
     for persona in _catalog.get_personas_by_group("decision"):
+        start = time.monotonic()
+        logger.info(f"Starting evaluation for persona {persona.id}")
         result = _llm.evaluate(persona.id, persona.decision_lens, job, context)
+        latency_ms = int((time.monotonic() - start) * 1000)
+        logger.info(
+            f"Completed evaluation for persona {persona.id} in {latency_ms} ms"
+        )
         evaluation = PersonaEvaluation(
             job_id=job_id,
             persona_id=persona.id,
@@ -78,7 +85,7 @@ async def evaluate_decision_personas(
             confidence=result["confidence"],
             reason_text=result["reason"],
             provider=result["provider"],
-            latency_ms=result["latency_ms"],
+            latency_ms=latency_ms,
         )
         decision_evals.append(evaluation)
         all_evals.append(evaluation)
@@ -106,7 +113,13 @@ async def aggregate_decision(
             for e in decision_evals
         ]
     }
+    start = time.monotonic()
+    logger.info(f"Starting evaluation for persona {judge.id}")
     result = _llm.evaluate(judge.id, judge.decision_lens, job, context)
+    latency_ms = int((time.monotonic() - start) * 1000)
+    logger.info(
+        f"Completed evaluation for persona {judge.id} in {latency_ms} ms"
+    )
     decision = Decision(
         job_id=job_id,
         final_decision_bool=result["vote"],
@@ -150,7 +163,13 @@ async def evaluate_job(job_id: str, job: Dict[str, Any], user_id: str) -> Evalua
             for advisor in selected_advisors:
                 note = _llm.advise(advisor.id, job, resume_context)
                 advisor_notes.append(note)
+            start = time.monotonic()
+            logger.info(f"Starting evaluation for persona {persona.id}")
             result = _llm.evaluate(persona.id, persona.decision_lens, job, resume_context)
+            latency_ms = int((time.monotonic() - start) * 1000)
+            logger.info(
+                f"Completed evaluation for persona {persona.id} in {latency_ms} ms"
+            )
             reason = result["reason"]
             if advisor_notes:
                 reason = reason + " | " + "; ".join(advisor_notes)
@@ -161,7 +180,7 @@ async def evaluate_job(job_id: str, job: Dict[str, Any], user_id: str) -> Evalua
                 confidence=result["confidence"],
                 reason_text=reason,
                 provider=result["provider"],
-                latency_ms=result["latency_ms"],
+                latency_ms=latency_ms,
             )
             motivator_evals.append(evaluation)
             all_evals.append(evaluation)
