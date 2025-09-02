@@ -9,7 +9,7 @@ class PersonaEvaluation(BaseModel):
     job_id: str
     persona_id: str
     vote_bool: bool
-    confidence: float
+    confidence: float = Field(ge=0.0, le=1.0)
     reason_text: str
     provider: str
     latency_ms: int
@@ -20,7 +20,7 @@ class Decision(BaseModel):
     """Final decision produced by judge persona."""
     job_id: str
     final_decision_bool: bool
-    confidence: float
+    confidence: float = Field(ge=0.0, le=1.0)
     reason_text: str
     method: str = "judge"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
