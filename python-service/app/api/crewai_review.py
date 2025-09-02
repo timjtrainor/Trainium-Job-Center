@@ -1,0 +1,319 @@
+"""
+API endpoints for CrewAI job review functionality.
+"""
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+from fastapi import APIRouter, HTTPException, Query
+from loguru import logger
+
+from ..models.responses import StandardResponse, create_success_response, create_error_response
+from ..models.jobspy import ScrapedJob
+from ..services.crewai_job_review import get_crewai_job_review_service
+from ..services.database import get_database_service
+
+router = APIRouter(prefix="/jobs", tags=["Job Review"])
+
+
+@router.post("/review", response_model=StandardResponse)
+async def review_single_job(job_data: Dict[str, Any]):
+    """
+    Analyze a single job using CrewAI multi-agent review system.
+    
+    Args:
+        job_data: Dictionary containing job information (title, company, description, etc.)
+    
+    Returns:
+        Comprehensive job analysis with recommendations
+    """
+    try:
+        review_service = get_crewai_job_review_service()
+        
+        if not review_service.initialized:
+            await review_service.initialize()
+        
+        # Perform analysis
+        analysis = await review_service.analyze_job(job_data)
+        
+        return create_success_response(
+            data=review_service.analysis_to_dict(analysis),
+            message="Job analysis completed successfully"
+        )
+    
+    except Exception as e:
+        logger.error(f"Failed to review job: {str(e)}")
+        return create_error_response(
+            message="Failed to analyze job",
+            details=str(e)
+        )
+
+
+@router.post("/review/batch", response_model=StandardResponse)
+async def review_multiple_jobs(jobs_data: List[Dict[str, Any]]):
+    """
+    Analyze multiple jobs using CrewAI multi-agent review system.
+    
+    Args:
+        jobs_data: List of dictionaries containing job information
+    
+    Returns:
+        List of job analyses sorted by recommendation quality
+    """
+    try:
+        if len(jobs_data) > 50:
+            raise HTTPException(
+                status_code=400, 
+                detail="Cannot analyze more than 50 jobs at once"
+            )
+        
+        review_service = get_crewai_job_review_service()
+        
+        if not review_service.initialized:
+            await review_service.initialize()
+        
+        # Perform batch analysis
+        analyses = await review_service.analyze_multiple_jobs(jobs_data)
+        
+        # Convert to dictionary format
+        results = [review_service.analysis_to_dict(analysis) for analysis in analyses]
+        
+        return create_success_response(
+            data={
+                "analyses": results,
+                "total_analyzed": len(results),
+                "highly_recommended": len([a for a in analyses if a.overall_recommendation == "Highly Recommended"]),
+                "recommended": len([a for a in analyses if a.overall_recommendation == "Recommended"])
+            },
+            message=f"Successfully analyzed {len(results)} jobs"
+        )
+    
+    except Exception as e:
+        logger.error(f"Failed to review jobs batch: {str(e)}")
+        return create_error_response(
+            message="Failed to analyze jobs batch",
+            details=str(e)
+        )
+
+
+@router.get("/review/from-db", response_model=StandardResponse)
+async def review_jobs_from_database(
+    limit: int = Query(10, ge=1, le=50, description="Number of jobs to analyze"),
+    site: Optional[str] = Query(None, description="Filter by job site"),
+    company: Optional[str] = Query(None, description="Filter by company name"),
+    title_contains: Optional[str] = Query(None, description="Filter jobs with title containing this text")
+):
+    """
+    Analyze jobs from the database using CrewAI multi-agent review system.
+    
+    Args:
+        limit: Number of jobs to analyze (max 50)
+        site: Optional filter by job site
+        company: Optional filter by company name
+        title_contains: Optional filter by job title content
+    
+    Returns:
+        Job analyses with database job IDs
+    """
+    try:
+        review_service = get_crewai_job_review_service()
+        db_service = get_database_service()
+        
+        if not review_service.initialized:
+            await review_service.initialize()
+        if not db_service.initialized:
+            await db_service.initialize()
+        
+        # Build SQL query with filters
+        query = """
+            SELECT job_id, site, title, company, description, location, 
+                   is_remote, min_amount as salary_min, max_amount as salary_max,
+                   interval, created_at, job_url
+            FROM jobs 
+            WHERE 1=1
+        """
+        params = []
+        
+        if site:
+            query += " AND LOWER(site) = LOWER($%d)" % (len(params) + 1)
+            params.append(site)
+        
+        if company:
+            query += " AND LOWER(company) ILIKE LOWER($%d)" % (len(params) + 1)
+            params.append(f"%{company}%")
+        
+        if title_contains:
+            query += " AND LOWER(title) ILIKE LOWER($%d)" % (len(params) + 1)
+            params.append(f"%{title_contains}%")
+        
+        query += " ORDER BY created_at DESC LIMIT $%d" % (len(params) + 1)
+        params.append(limit)
+        
+        # Fetch jobs from database
+        async with db_service.pool.acquire() as conn:
+            rows = await conn.fetch(query, *params)
+        
+        if not rows:
+            return create_success_response(
+                data={"analyses": [], "total_analyzed": 0},
+                message="No jobs found matching the criteria"
+            )
+        
+        # Convert database rows to job data format
+        jobs_data = []
+        job_ids = []
+        for row in rows:
+            job_data = {
+                "title": row["title"],
+                "company": row["company"],
+                "description": row["description"],
+                "location": row["location"],
+                "is_remote": row["is_remote"],
+                "salary_min": row["salary_min"],
+                "salary_max": row["salary_max"],
+                "interval": row["interval"],
+                "site": row["site"],
+                "job_url": row["job_url"]
+            }
+            jobs_data.append(job_data)
+            job_ids.append(str(row["job_id"]))
+        
+        # Perform analysis
+        analyses = await review_service.analyze_multiple_jobs(jobs_data)
+        
+        # Add database job IDs to results
+        for i, analysis in enumerate(analyses):
+            analysis.job_id = f"db_job_{job_ids[i]}"
+        
+        # Convert to dictionary format
+        results = [review_service.analysis_to_dict(analysis) for analysis in analyses]
+        
+        return create_success_response(
+            data={
+                "analyses": results,
+                "total_analyzed": len(results),
+                "highly_recommended": len([a for a in analyses if a.overall_recommendation == "Highly Recommended"]),
+                "recommended": len([a for a in analyses if a.overall_recommendation == "Recommended"]),
+                "filters_applied": {
+                    "site": site,
+                    "company": company,
+                    "title_contains": title_contains,
+                    "limit": limit
+                }
+            },
+            message=f"Successfully analyzed {len(results)} jobs from database"
+        )
+    
+    except Exception as e:
+        logger.error(f"Failed to review jobs from database: {str(e)}")
+        return create_error_response(
+            message="Failed to analyze jobs from database",
+            details=str(e)
+        )
+
+
+@router.get("/review/agents", response_model=StandardResponse)
+async def get_available_agents():
+    """
+    Get information about available analysis agents.
+    
+    Returns:
+        Information about each agent and their capabilities
+    """
+    try:
+        agents_info = {
+            "agents": [
+                {
+                    "name": "SkillsAnalysisAgent",
+                    "description": "Analyzes job skills, requirements, experience level, and education requirements",
+                    "capabilities": [
+                        "Technical skills extraction",
+                        "Experience level determination",
+                        "Education requirements analysis",
+                        "Skills categorization (required vs preferred)"
+                    ]
+                },
+                {
+                    "name": "CompensationAnalysisAgent", 
+                    "description": "Analyzes compensation data, salary ranges, and benefits",
+                    "capabilities": [
+                        "Salary range analysis",
+                        "Compensation competitiveness assessment",
+                        "Benefits extraction and categorization",
+                        "Salary transparency scoring"
+                    ]
+                },
+                {
+                    "name": "QualityAssessmentAgent",
+                    "description": "Assesses job posting quality and identifies red/green flags",
+                    "capabilities": [
+                        "Job posting quality scoring",
+                        "Description completeness assessment",
+                        "Red flag identification (MLM, unrealistic requirements, etc.)",
+                        "Green flag identification (professional development, benefits, etc.)"
+                    ]
+                }
+            ],
+            "analysis_outputs": [
+                "required_skills",
+                "preferred_skills", 
+                "experience_level",
+                "education_requirements",
+                "salary_analysis",
+                "benefits_mentioned",
+                "job_quality_score",
+                "description_completeness",
+                "red_flags",
+                "green_flags",
+                "company_insights",
+                "overall_recommendation",
+                "confidence_score"
+            ]
+        }
+        
+        return create_success_response(
+            data=agents_info,
+            message="Available agents information retrieved successfully"
+        )
+    
+    except Exception as e:
+        logger.error(f"Failed to get agents info: {str(e)}")
+        return create_error_response(
+            message="Failed to retrieve agents information",
+            details=str(e)
+        )
+
+
+@router.get("/review/health", response_model=StandardResponse)
+async def health_check():
+    """
+    Health check for the CrewAI job review service.
+    
+    Returns:
+        Service health status and initialization state
+    """
+    try:
+        review_service = get_crewai_job_review_service()
+        
+        health_status = {
+            "service": "CrewAI Job Review Service",
+            "initialized": review_service.initialized,
+            "agents_available": ["SkillsAnalysisAgent", "CompensationAnalysisAgent", "QualityAssessmentAgent"],
+            "database_required": True,
+            "timestamp": str(datetime.now())
+        }
+        
+        if not review_service.initialized:
+            initialization_success = await review_service.initialize()
+            health_status["initialization_attempted"] = True
+            health_status["initialization_success"] = initialization_success
+        
+        return create_success_response(
+            data=health_status,
+            message="Service health check completed"
+        )
+    
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return create_error_response(
+            message="Health check failed",
+            details=str(e)
+        )
