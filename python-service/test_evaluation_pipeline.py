@@ -1,10 +1,77 @@
 import asyncio
-from app.services.evaluation_pipeline import evaluate_job
+from dataclasses import dataclass
+from typing import Any, Dict, List
+
+from app.services.evaluation_pipeline import EvaluationPipeline
+
+
+@dataclass
+class FakePersona:
+    id: str
+    decision_lens: str = ""
+
+
+class FakeCatalog:
+    def __init__(self):
+        self.groups = {
+            "motivational": [
+                FakePersona("builder"),
+                FakePersona("maximizer"),
+                FakePersona("harmonizer"),
+                FakePersona("pathfinder"),
+                FakePersona("adventurer"),
+            ],
+            "decision": [
+                FakePersona("visionary"),
+                FakePersona("realist"),
+                FakePersona("guardian"),
+            ],
+            "judge": [FakePersona("judge")],
+            "advisory": [FakePersona("researcher"), FakePersona("headhunter")],
+        }
+
+    def get_personas_by_group(self, group: str) -> List[FakePersona]:
+        return self.groups.get(group, [])
+
+
+class FakeLLM:
+    def advise(self, advisor_id: str, job: Dict[str, Any], context: Dict[str, Any] | None = None) -> str:
+        return f"{advisor_id} notes"
+
+    def evaluate(
+        self,
+        persona_id: str,
+        decision_lens: str,
+        job: Dict[str, Any],
+        context: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        approve = "remote" in job.get("description", "").lower()
+        reason = f"{persona_id} {'approves' if approve else 'rejects'}"
+        return {
+            "vote": approve,
+            "confidence": 0.8 if approve else 0.2,
+            "reason": reason,
+            "provider": "fake",
+        }
+
+
+class FakeDB:
+    initialized = False
+
+    async def insert_persona_evaluation(self, *args, **kwargs):
+        return True
+
+    async def insert_decision(self, *args, **kwargs):
+        return True
+
+    async def get_user_resume_context(self, user_id: str):
+        return {}
 
 
 def test_evaluate_job_pipeline():
     job = {"title": "Remote Engineer", "description": "Great remote role with salary"}
-    summary = asyncio.run(evaluate_job("1", job, user_id="user-1"))
+    pipeline = EvaluationPipeline(FakeCatalog(), FakeLLM(), FakeDB())
+    summary = asyncio.run(pipeline.evaluate_job("1", job, user_id="user-1"))
 
     # judge decision
     assert summary.decision.final_decision_bool is True
