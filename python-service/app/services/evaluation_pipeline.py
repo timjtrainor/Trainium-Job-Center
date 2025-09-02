@@ -77,7 +77,15 @@ class EvaluationPipeline:
         for persona in self.catalog.get_personas_by_group("decision"):
             start = time.monotonic()
             logger.info(f"Starting evaluation for persona {persona.id}")
-            result = self.llm.evaluate(persona.id, persona.decision_lens, job, context)
+            model = self.catalog.get_default_model(persona.id)
+            result = self.llm.evaluate(
+                persona.id,
+                persona.decision_lens,
+                job,
+                context,
+                provider=model["provider"],
+                model=model["model"],
+            )
             latency_ms = int((time.monotonic() - start) * 1000)
             logger.info(
                 f"Completed evaluation for persona {persona.id} in {latency_ms} ms",
@@ -118,7 +126,15 @@ class EvaluationPipeline:
         }
         start = time.monotonic()
         logger.info(f"Starting evaluation for persona {judge.id}")
-        result = self.llm.evaluate(judge.id, judge.decision_lens, job, context)
+        model = self.catalog.get_default_model(judge.id)
+        result = self.llm.evaluate(
+            judge.id,
+            judge.decision_lens,
+            job,
+            context,
+            provider=model["provider"],
+            model=model["model"],
+        )
         latency_ms = int((time.monotonic() - start) * 1000)
         logger.info(
             f"Completed evaluation for persona {judge.id} in {latency_ms} ms",
@@ -163,12 +179,25 @@ class EvaluationPipeline:
             async def _run() -> PersonaEvaluation:
                 advisor_notes: List[str] = []
                 for advisor in selected_advisors:
-                    note = self.llm.advise(advisor.id, job, resume_context)
+                    model = self.catalog.get_default_model(advisor.id)
+                    note = self.llm.advise(
+                        advisor.id,
+                        job,
+                        resume_context,
+                        provider=model["provider"],
+                        model=model["model"],
+                    )
                     advisor_notes.append(note)
                 start = time.monotonic()
                 logger.info(f"Starting evaluation for persona {persona.id}")
+                model = self.catalog.get_default_model(persona.id)
                 result = self.llm.evaluate(
-                    persona.id, persona.decision_lens, job, resume_context
+                    persona.id,
+                    persona.decision_lens,
+                    job,
+                    resume_context,
+                    provider=model["provider"],
+                    model=model["model"],
                 )
                 latency_ms = int((time.monotonic() - start) * 1000)
                 logger.info(
