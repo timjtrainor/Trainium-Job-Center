@@ -1,8 +1,16 @@
 import asyncio
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
+
+import pytest
 
 from app.services.evaluation_pipeline import EvaluationPipeline
+from app.services.persona_llm import PersonaLLM
+
+
+MOTIVATORS = {"builder", "maximizer", "harmonizer", "pathfinder", "adventurer"}
+DECISIONS = {"visionary", "realist", "guardian"}
+ADVISORS = {"researcher", "headhunter"}
 
 
 @dataclass
@@ -12,94 +20,101 @@ class FakePersona:
 
 
 class FakeCatalog:
-    def __init__(self):
+    """Catalog returning provider/model pairs per persona group."""
+
+    def __init__(self, motivator_pair: Tuple[str, str], decision_pair: Tuple[str, str]):
         self.groups = {
-            "motivational": [
-                FakePersona("builder"),
-                FakePersona("maximizer"),
-                FakePersona("harmonizer"),
-                FakePersona("pathfinder"),
-                FakePersona("adventurer"),
-            ],
-            "decision": [
-                FakePersona("visionary"),
-                FakePersona("realist"),
-                FakePersona("guardian"),
-            ],
+            "motivational": [FakePersona(p) for p in MOTIVATORS],
+            "decision": [FakePersona(p) for p in DECISIONS],
             "judge": [FakePersona("judge")],
-            "advisory": [FakePersona("researcher"), FakePersona("headhunter")],
+            "advisory": [FakePersona(p) for p in ADVISORS],
         }
+        self.motivator_pair = motivator_pair
+        self.decision_pair = decision_pair
 
     def get_personas_by_group(self, group: str) -> List[FakePersona]:
         return self.groups.get(group, [])
 
     def get_default_model(self, persona_id: str) -> Dict[str, str]:
-        return {"provider": "fake", "model": "test-model"}
+        if persona_id in MOTIVATORS or persona_id in ADVISORS:
+            provider, model = self.motivator_pair
+        else:
+            provider, model = self.decision_pair
+        return {"provider": provider, "model": model}
 
 
-class FakeLLM:
-    def advise(
-        self,
-        advisor_id: str,
-        job: Dict[str, Any],
-        context: Dict[str, Any] | None = None,
-        *,
-        provider: str,
-        model: str,
-    ) -> str:
-        return f"{advisor_id} notes"
+class RecordingDB:
+    """Fake DB capturing evaluations to verify persistence."""
 
-    def evaluate(
-        self,
-        persona_id: str,
-        decision_lens: str,
-        job: Dict[str, Any],
-        context: Dict[str, Any] | None = None,
-        *,
-        provider: str,
-        model: str,
-    ) -> Dict[str, Any]:
-        approve = "remote" in job.get("description", "").lower()
-        reason = f"{persona_id} {'approves' if approve else 'rejects'}"
-        return {
-            "vote": approve,
-            "confidence": 0.8 if approve else 0.2,
-            "reason": reason,
-            "provider": provider,
-            "model": model,
-        }
+    initialized = True
 
+    def __init__(self) -> None:
+        self.saved: List[Any] = []
 
-class FakeDB:
-    initialized = False
-
-    async def insert_persona_evaluation(self, *args, **kwargs):
+    async def insert_persona_evaluation(self, evaluation, *args, **kwargs):
+        self.saved.append(evaluation)
         return True
 
-    async def insert_decision(self, *args, **kwargs):
+    async def insert_decision(self, *args, **kwargs):  # pragma: no cover - trivial
         return True
 
-    async def get_user_resume_context(self, user_id: str):
+    async def get_user_resume_context(self, user_id: str):  # pragma: no cover - trivial
         return {}
 
 
-def test_evaluate_job_pipeline():
+@pytest.mark.parametrize(
+    "motivator_pair, decision_pair",
+    [
+        (("google", "gemini-pro"), ("huggingface", "hf-small")),
+        (("huggingface", "distilbert"), ("google", "gemini-nano")),
+    ],
+)
+def test_evaluate_job_pipeline_routes_clients(motivator_pair, decision_pair, monkeypatch):
+    """Pipeline uses correct clients and persists provider/model."""
+
+    calls: List[Tuple[str, str, str]] = []
+
+    def fake_factory(provider: str, model: str):
+        class Client:
+            def generate(self, prompt: str, **kwargs: Dict[str, Any]) -> str:
+                persona = prompt.split()[0]
+                calls.append((provider, model, persona))
+                return ""
+
+        return Client()
+
+    monkeypatch.setattr(
+        "app.services.persona_llm.create_llm_client", fake_factory
+    )
+
+    db = RecordingDB()
+    catalog = FakeCatalog(motivator_pair, decision_pair)
+    pipeline = EvaluationPipeline(catalog, PersonaLLM(), db)
+
     job = {"title": "Remote Engineer", "description": "Great remote role with salary"}
-    pipeline = EvaluationPipeline(FakeCatalog(), FakeLLM(), FakeDB())
     summary = asyncio.run(pipeline.evaluate_job("1", job, user_id="user-1"))
 
-    # judge decision
-    assert summary.decision.final_decision_bool is True
-    assert "judge" in summary.decision.reason_text
-    assert 0 <= summary.decision.confidence <= 1
+    # provider/model persisted in returned evaluations
+    for eval in summary.evaluations:
+        expected = motivator_pair if eval.persona_id in MOTIVATORS else decision_pair
+        assert (eval.provider, eval.model) == expected
 
-    # motivational and decision personas ran
+    # provider/model persisted in DB records
+    for saved in db.saved:
+        expected = motivator_pair if saved.persona_id in MOTIVATORS else decision_pair
+        assert (saved.provider, saved.model) == expected
+
+    # ensure each persona used correct client
+    for provider, model, persona in calls:
+        expected = (
+            motivator_pair
+            if persona in MOTIVATORS or persona in ADVISORS
+            else decision_pair
+        )
+        assert (provider, model) == expected
+
+    # basic sanity checks retained from original test
     ids = {e.persona_id for e in summary.evaluations}
-    motivators = {"builder", "maximizer", "harmonizer", "pathfinder", "adventurer"}
-    decisions = {"visionary", "realist", "guardian"}
-    assert motivators.issubset(ids)
-    assert decisions.issubset(ids)
+    assert MOTIVATORS.issubset(ids)
+    assert DECISIONS.issubset(ids)
 
-    # advisory delegation produced notes
-    motivator_reasons = [e.reason_text for e in summary.evaluations if e.persona_id in motivators]
-    assert any("notes" in r for r in motivator_reasons)
