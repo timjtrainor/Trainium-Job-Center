@@ -62,6 +62,28 @@ Run the full stack with Docker:
 docker-compose up --build
 ```
 
+## Use Llama-4 for CrewAI personas
+
+1. **Update persona definitions** – In `python-service/app/services/persona_catalog.yaml` set each persona to the Hugging Face model:
+
+   ```yaml
+   models:
+     - provider: huggingface
+       model: meta-llama/Llama-4
+   ```
+
+2. **Use the Hugging Face client** – `python-service/app/services/llm_clients.py` already includes a minimal `HuggingFaceClient`. Extend it if custom behavior is needed and ensure it's registered in `_CLIENT_FACTORIES`.
+
+3. **Expose credentials** – Set `HUGGING_FACE_API_KEY` in `.env`; this key is forwarded to containers by `docker-compose.yml`.
+
+4. **Make the model available** – The `python-service/Dockerfile` installs Hugging Face dependencies and downloads the `meta-llama/Llama-4` weights during the image build. Rebuild to apply:
+
+   ```bash
+   docker-compose up --build
+   ```
+
+With these steps, the python service will have Llama‑4 locally for CrewAI personas.
+
 ## Checks
 
 Run these commands before committing:

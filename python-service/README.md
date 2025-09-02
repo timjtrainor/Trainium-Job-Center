@@ -103,7 +103,6 @@ The service uses environment variables for configuration:
 - `GEMINI_API_KEY`: Google Gemini AI API key
 - `OPENAI_API_KEY`: OpenAI API key
 - `HUGGING_FACE_API_KEY`: Hugging Face API key
-- `OLLAMA_API_KEY`: Ollama API key
 - `ANTHROPIC_API_KEY`: Anthropic API key
 - `POSTGREST_URL`: PostgREST backend URL
 
