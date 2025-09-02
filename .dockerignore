@@ -1,6 +1,13 @@
 .git
 node_modules
-logs
-*.log
+npm-debug.log
+yarn-debug.log
+Dockerfile
+Dockerfile.dev
 dist
 build
+*.log
+*.tmp
+.env
+.env.local
+
