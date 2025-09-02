@@ -9,7 +9,7 @@ from loguru import logger
 from ..models.evaluations import PersonaEvaluation, Decision, EvaluationSummary
 from .persona_loader import PersonaCatalog
 from .persona_llm import PersonaLLM
-from .crewai_job_review import build_skills_task
+from .crewai_job_review import build_skills_task, build_compensation_task
 try:
     from .database import DatabaseService, get_database_service
 except Exception:  # pragma: no cover - fallback when asyncpg missing
@@ -175,7 +175,8 @@ class EvaluationPipeline:
         others = [a for a in advisors if a.id != "researcher"]
         selected_advisors = ([researcher] if researcher else []) + others[:1]
 
-        tasks: List[Task] = [build_skills_task(job)]
+        pre_tasks: List[Task] = [build_skills_task(job), build_compensation_task(job)]
+        tasks: List[Task] = pre_tasks.copy()
 
         def build_motivator_task(persona):
             async def _run() -> PersonaEvaluation:
@@ -232,7 +233,8 @@ class EvaluationPipeline:
             tasks.append(Task(name=persona.id, coro=build_motivator_task(persona)))
 
         crew = Crew(tasks)
-        await crew.run()
+        results = await crew.run()
+        analysis_results = {task.name: result for task, result in zip(pre_tasks, results)}
 
         decision_evals = await self.evaluate_decision_personas(
             job_id, job, motivator_evals, all_evals
@@ -240,7 +242,10 @@ class EvaluationPipeline:
         final_decision = await self.aggregate_decision(job_id, job, decision_evals)
 
         summary = EvaluationSummary(
-            job_id=job_id, evaluations=all_evals, decision=final_decision
+            job_id=job_id,
+            evaluations=all_evals,
+            decision=final_decision,
+            analysis=analysis_results,
         )
         logger.info(f"Completed evaluation for job {job_id}")
         return summary

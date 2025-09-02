@@ -275,8 +275,22 @@ class CompensationAnalysisAgent:
         for benefit, patterns in benefit_patterns.items():
             if any(pattern in desc_lower for pattern in patterns):
                 found_benefits.append(benefit)
-        
+
         return found_benefits
+
+
+def build_compensation_task(job: Dict[str, Any]) -> "Task":
+    """Create a task that runs the CompensationAnalysisAgent."""
+    from .evaluation_pipeline import Task  # Local import to avoid circular dependency
+
+    async def _run() -> Dict[str, Any]:
+        analysis = CompensationAnalysisAgent().analyze(job)
+        return {
+            "salary_analysis": analysis["salary_analysis"],
+            "benefits_mentioned": analysis["benefits_mentioned"],
+        }
+
+    return Task(name="compensation_analysis", coro=_run)
 
 
 class QualityAssessmentAgent:
