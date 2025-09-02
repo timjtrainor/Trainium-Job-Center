@@ -33,9 +33,20 @@ class FakeCatalog:
     def get_personas_by_group(self, group: str) -> List[FakePersona]:
         return self.groups.get(group, [])
 
+    def get_default_model(self, persona_id: str) -> Dict[str, str]:
+        return {"provider": "fake", "model": "test-model"}
+
 
 class FakeLLM:
-    def advise(self, advisor_id: str, job: Dict[str, Any], context: Dict[str, Any] | None = None) -> str:
+    def advise(
+        self,
+        advisor_id: str,
+        job: Dict[str, Any],
+        context: Dict[str, Any] | None = None,
+        *,
+        provider: str,
+        model: str,
+    ) -> str:
         return f"{advisor_id} notes"
 
     def evaluate(
@@ -44,6 +55,9 @@ class FakeLLM:
         decision_lens: str,
         job: Dict[str, Any],
         context: Dict[str, Any] | None = None,
+        *,
+        provider: str,
+        model: str,
     ) -> Dict[str, Any]:
         approve = "remote" in job.get("description", "").lower()
         reason = f"{persona_id} {'approves' if approve else 'rejects'}"
@@ -51,7 +65,8 @@ class FakeLLM:
             "vote": approve,
             "confidence": 0.8 if approve else 0.2,
             "reason": reason,
-            "provider": "fake",
+            "provider": provider,
+            "model": model,
         }
 
 
