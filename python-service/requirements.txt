@@ -3,7 +3,8 @@ uvicorn[standard]==0.32.1
 pydantic==2.10.5
 python-multipart==0.0.17
 loguru==0.7.3
-httpx==0.28.1
+# Pin httpx below 0.28.0 for compatibility with ollama 0.4.5
+httpx==0.27.2
 python-json-logger==2.0.7
 # Load environment variables from .env files
 python-dotenv==1.0.1

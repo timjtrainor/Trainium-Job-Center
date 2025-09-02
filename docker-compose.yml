@@ -50,13 +50,12 @@ services:
       retries: 3
       start_period: 60s
     # Ensure llama3.3 model is pulled on startup
+    entrypoint: ["/bin/sh", "-c"]
     command: >
-      sh -c "
       ollama serve &
       sleep 10 &&
       ollama pull llama3.3 &&
       wait
-      "
 
   # Defines the Redis cache service
   redis:
