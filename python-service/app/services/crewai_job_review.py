@@ -15,6 +15,10 @@ from dataclasses import dataclass, asdict
 from ..core.config import get_settings
 from ..models.jobspy import ScrapedJob
 from .database import get_database_service
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover - used for type hints only
+    from .evaluation_pipeline import Task
 
 
 @dataclass
@@ -172,6 +176,16 @@ class SkillsAnalysisAgent:
                 required_skills.append(skill)
         
         return required_skills, preferred_skills
+
+
+def build_skills_task(job: Dict[str, Any]) -> "Task":
+    """Create a task that runs the SkillsAnalysisAgent."""
+    from .evaluation_pipeline import Task  # Local import to avoid circular dependency
+
+    async def _run() -> Dict[str, Any]:
+        return SkillsAnalysisAgent().analyze(job)
+
+    return Task(name="skills_analysis", coro=_run)
 
 
 class CompensationAnalysisAgent:
