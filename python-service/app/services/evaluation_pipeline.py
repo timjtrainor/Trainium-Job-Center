@@ -9,6 +9,7 @@ from loguru import logger
 from ..models.evaluations import PersonaEvaluation, Decision, EvaluationSummary
 from .persona_loader import PersonaCatalog
 from .persona_llm import PersonaLLM
+from .crewai_job_review import build_skills_task
 try:
     from .database import DatabaseService, get_database_service
 except Exception:  # pragma: no cover - fallback when asyncpg missing
@@ -174,7 +175,7 @@ class EvaluationPipeline:
         others = [a for a in advisors if a.id != "researcher"]
         selected_advisors = ([researcher] if researcher else []) + others[:1]
 
-        tasks: List[Task] = []
+        tasks: List[Task] = [build_skills_task(job)]
 
         def build_motivator_task(persona):
             async def _run() -> PersonaEvaluation:
