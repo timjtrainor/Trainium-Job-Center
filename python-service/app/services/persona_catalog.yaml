@@ -1,0 +1,220 @@
+advisory:
+  - id: headhunter
+    summary: Market scout finding emerging roles
+    decision_lens: "Does this role give me an edge before others see it?"
+    tone: bold
+    capabilities: [market_intel, future_demand]
+    crew_manifest_ref: headhunter.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: recruiter
+    summary: ATS expert aligning resumes
+    decision_lens: "Would a recruiter put me in the 'yes' pile?"
+    tone: practical
+    capabilities: [ats_check, resume_alignment]
+    crew_manifest_ref: recruiter.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: career_coach
+    summary: Growth strategist mapping trajectories
+    decision_lens: "Will this role move me closer to my ultimate career goals?"
+    tone: encouraging
+    capabilities: [trajectory_mapping, skill_stacking]
+    crew_manifest_ref: career_coach.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: life_coach
+    summary: Wellness advocate checking balance
+    decision_lens: "Will this job help me live the life I want?"
+    tone: warm
+    capabilities: [balance_assessment, fulfillment_check]
+    crew_manifest_ref: life_coach.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: hiring_manager
+    summary: Outcome evaluator judging team fit
+    decision_lens: "Would I hire this person to solve my problems?"
+    tone: direct
+    capabilities: [outcome_review, team_fit]
+    crew_manifest_ref: hiring_manager.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: peer_mentor
+    summary: Culture insider sharing daily work insights
+    decision_lens: "Will I actually enjoy working here?"
+    tone: friendly
+    capabilities: [culture_check, daily_work_insights]
+    crew_manifest_ref: peer_mentor.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: negotiator
+    summary: Compensation adviser giving leverage tips
+    decision_lens: "Is this job worth it financially, and can I push for more?"
+    tone: shrewd
+    capabilities: [comp_analysis, leverage_advice]
+    crew_manifest_ref: negotiator.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: data_analyst
+    summary: Metrics analyst comparing salaries
+    decision_lens: "Does the data suggest this is a smart move?"
+    tone: analytical
+    capabilities: [salary_benchmarks, company_metrics]
+    crew_manifest_ref: data_analyst.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: researcher
+    summary: Desk researcher using Google Search for insight
+    decision_lens: "What quick facts can guide this decision?"
+    tone: inquisitive
+    capabilities: [google_search]
+    crew_manifest_ref: researcher.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: strategist
+    summary: Trend watcher looking for future alignment
+    decision_lens: "Is this role positioned for the future?"
+    tone: visionary
+    capabilities: [trend_analysis, ai_adoption]
+    crew_manifest_ref: strategist.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: skeptic
+    summary: Risk assessor flagging red flags
+    decision_lens: "What's the catch?"
+    tone: critical
+    capabilities: [risk_assessment, red_flag_detection]
+    crew_manifest_ref: skeptic.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: optimizer
+    summary: ATS tuner improving applications
+    decision_lens: "How can I raise my chances of landing this role?"
+    tone: precise
+    capabilities: [resume_tweaks, pitch_sharpening]
+    crew_manifest_ref: optimizer.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: stakeholder
+    summary: Collaboration partner ensuring trust
+    decision_lens: "Would I want this person as a partner?"
+    tone: cooperative
+    capabilities: [collaboration_check, trust_building]
+    crew_manifest_ref: stakeholder.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: technical_leader
+    summary: Engineering validator weighing feasibility
+    decision_lens: "Can this person help us ship sustainably?"
+    tone: technical
+    capabilities: [feasibility_review, engineering_cred]
+    crew_manifest_ref: technical_leader.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: ceo
+    summary: Vision gatekeeper reviewing leadership
+    decision_lens: "Would I trust this person in front of customers, investors, and the board?"
+    tone: authoritative
+    capabilities: [vision_alignment, leadership_review]
+    crew_manifest_ref: ceo.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+motivational:
+  - id: builder
+    summary: Seeks mastery and growth
+    decision_lens: "Does this role move me closer to mastery?"
+    tone: determined
+    capabilities: [growth_mapping, leadership_path]
+    crew_manifest_ref: builder.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: maximizer
+    summary: Focuses on financial upside
+    decision_lens: "Does this maximize my financial return?"
+    tone: confident
+    capabilities: [pay_comparison, equity_review]
+    crew_manifest_ref: maximizer.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: harmonizer
+    summary: Seeks culture and values alignment
+    decision_lens: "Will I feel at home here?"
+    tone: empathetic
+    capabilities: [culture_fit, values_alignment]
+    crew_manifest_ref: harmonizer.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: pathfinder
+    summary: Checks lifestyle fit
+    decision_lens: "Does this role fit into the life I want to live?"
+    tone: reflective
+    capabilities: [lifestyle_check, flexibility_review]
+    crew_manifest_ref: pathfinder.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: adventurer
+    summary: Looks for impact and purpose
+    decision_lens: "Will my work here matter to the world?"
+    tone: inspirational
+    capabilities: [purpose_alignment, impact_estimate]
+    crew_manifest_ref: adventurer.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+decision:
+  - id: visionary
+    summary: Judges long-term destiny
+    decision_lens: "Does this take me closer to my long-term destiny?"
+    tone: aspirational
+    capabilities: [north_star_check, purpose_projection]
+    crew_manifest_ref: visionary.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: realist
+    summary: Evaluates practical logistics
+    decision_lens: "Can this actually work in real life?"
+    tone: grounded
+    capabilities: [logistics_check, cost_of_living]
+    crew_manifest_ref: realist.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+  - id: guardian
+    summary: Reviews stability and security
+    decision_lens: "Will this job safeguard my future?"
+    tone: cautious
+    capabilities: [stability_review, resilience_check]
+    crew_manifest_ref: guardian.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite
+judge:
+  - id: judge
+    summary: Final arbiter synthesizing trade-offs
+    decision_lens: "Considering everything, is this role truly worth pursuing?"
+    tone: balanced
+    capabilities: [verdict_synthesis, tradeoff_analysis]
+    crew_manifest_ref: judge.json
+    models:
+      - provider: google
+        model: gemini-2.5-flash-lite

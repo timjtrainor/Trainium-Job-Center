@@ -206,6 +206,95 @@ class DatabaseService:
             logger.error(f"Failed to check site lock: {str(e)}")
             return True  # Err on the side of caution
 
+    async def insert_persona_evaluation(self, evaluation: "PersonaEvaluation") -> bool:
+        """Persist a persona evaluation result."""
+        if not self.initialized:
+            await self.initialize()
+
+        query = """
+        INSERT INTO evaluations (job_id, persona_id, vote_bool, confidence, reason_text, provider, latency_ms, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute(
+                    query,
+                    evaluation.job_id,
+                    evaluation.persona_id,
+                    evaluation.vote_bool,
+                    evaluation.confidence,
+                    evaluation.reason_text,
+                    evaluation.provider,
+                    evaluation.latency_ms,
+                    evaluation.created_at,
+                )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to insert evaluation: {str(e)}")
+            return False
+
+    async def insert_decision(self, decision: "Decision") -> bool:
+        """Persist final judge decision."""
+        if not self.initialized:
+            await self.initialize()
+
+        query = """
+        INSERT INTO decisions (job_id, final_decision_bool, confidence, reason_text, method, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute(
+                    query,
+                    decision.job_id,
+                    decision.final_decision_bool,
+                    decision.confidence,
+                    decision.reason_text,
+                    decision.method,
+                    decision.created_at,
+                )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to insert decision: {str(e)}")
+            return False
+
+    async def get_user_resume_context(self, user_id: str) -> Dict[str, Any]:
+        """Fetch default resume, standard job roles, and strategic narratives for a user."""
+        if not self.initialized:
+            await self.initialize()
+
+        resume_q = (
+            """
+            SELECT r.resume_id, r.resume_name
+            FROM strategic_narratives sn
+            JOIN resumes r ON sn.default_resume_id = r.resume_id
+            WHERE sn.user_id = $1
+            LIMIT 1
+            """
+        )
+        roles_q = "SELECT role_name FROM standard_job_roles WHERE user_id = $1"
+        narratives_q = "SELECT narrative_summary FROM strategic_narratives WHERE user_id = $1"
+
+        try:
+            async with self.pool.acquire() as conn:
+                resume_row = await conn.fetchrow(resume_q, user_id)
+                roles_rows = await conn.fetch(roles_q, user_id)
+                narratives_rows = await conn.fetch(narratives_q, user_id)
+            return {
+                "default_resume": dict(resume_row) if resume_row else None,
+                "standard_job_roles": [r["role_name"] for r in roles_rows],
+                "strategic_narratives": [n["narrative_summary"] for n in narratives_rows],
+            }
+        except Exception as e:
+            logger.error(f"Failed to fetch resume context: {str(e)}")
+            return {
+                "default_resume": None,
+                "standard_job_roles": [],
+                "strategic_narratives": [],
+            }
+
 
 # Global instance
 _database_service: Optional[DatabaseService] = None
