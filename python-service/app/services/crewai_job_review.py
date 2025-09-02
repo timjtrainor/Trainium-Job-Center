@@ -415,8 +415,18 @@ class QualityAssessmentAgent:
         
         if any(term in desc_lower for term in ['health insurance', 'dental', 'vision', '401k', 'retirement']):
             green_flags.append('Mentions comprehensive benefits')
-        
+
         return green_flags
+
+
+def build_quality_task(job: Dict[str, Any]) -> "Task":
+    """Create a task that runs the QualityAssessmentAgent."""
+    from .evaluation_pipeline import Task  # Local import to avoid circular dependency
+
+    async def _run() -> Dict[str, Any]:
+        return QualityAssessmentAgent().analyze(job)
+
+    return Task(name="quality_assessment", coro=_run)
 
 
 class CrewAIJobReviewService:

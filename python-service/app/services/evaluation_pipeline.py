@@ -9,7 +9,7 @@ from loguru import logger
 from ..models.evaluations import PersonaEvaluation, Decision, EvaluationSummary
 from .persona_loader import PersonaCatalog
 from .persona_llm import PersonaLLM
-from .crewai_job_review import build_skills_task, build_compensation_task
+from .crewai_job_review import build_skills_task, build_compensation_task, build_quality_task
 try:
     from .database import DatabaseService, get_database_service
 except Exception:  # pragma: no cover - fallback when asyncpg missing
@@ -111,7 +111,11 @@ class EvaluationPipeline:
         return decision_evals
 
     async def aggregate_decision(
-        self, job_id: str, job: Dict[str, Any], decision_evals: List[PersonaEvaluation]
+        self,
+        job_id: str,
+        job: Dict[str, Any],
+        decision_evals: List[PersonaEvaluation],
+        analysis: Dict[str, Any],
     ) -> Decision:
         """Have the judge persona synthesize decision persona outcomes."""
         judge = self.catalog.get_personas_by_group("judge")[0]
@@ -124,7 +128,8 @@ class EvaluationPipeline:
                     "reason": e.reason_text,
                 }
                 for e in decision_evals
-            ]
+            ],
+            "analysis": analysis,
         }
         start = time.monotonic()
         logger.info(f"Starting evaluation for persona {judge.id}")
@@ -175,7 +180,11 @@ class EvaluationPipeline:
         others = [a for a in advisors if a.id != "researcher"]
         selected_advisors = ([researcher] if researcher else []) + others[:1]
 
-        pre_tasks: List[Task] = [build_skills_task(job), build_compensation_task(job)]
+        pre_tasks: List[Task] = [
+            build_skills_task(job),
+            build_compensation_task(job),
+            build_quality_task(job),
+        ]
         tasks: List[Task] = pre_tasks.copy()
 
         def build_motivator_task(persona):
@@ -239,7 +248,9 @@ class EvaluationPipeline:
         decision_evals = await self.evaluate_decision_personas(
             job_id, job, motivator_evals, all_evals
         )
-        final_decision = await self.aggregate_decision(job_id, job, decision_evals)
+        final_decision = await self.aggregate_decision(
+            job_id, job, decision_evals, analysis_results
+        )
 
         summary = EvaluationSummary(
             job_id=job_id,
