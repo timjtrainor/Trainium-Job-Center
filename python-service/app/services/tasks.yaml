@@ -1,0 +1,10 @@
+pre_tasks:
+  - id: skills_analysis
+    builder: build_skills_task
+    summary: Analyze job posting to extract required and preferred skills.
+  - id: compensation_analysis
+    builder: build_compensation_task
+    summary: Evaluate salary range and benefits.
+  - id: quality_assessment
+    builder: build_quality_task
+    summary: Determine job quality and potential red flags.

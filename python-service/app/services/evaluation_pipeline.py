@@ -5,11 +5,12 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, List
 import time
 from loguru import logger
+import yaml
 
 from ..models.evaluations import PersonaEvaluation, Decision, EvaluationSummary
 from .persona_loader import PersonaCatalog
 from .persona_llm import PersonaLLM
-from .crewai_job_review import build_skills_task, build_compensation_task, build_quality_task
+from . import crewai_job_review
 try:
     from .database import DatabaseService, get_database_service
 except Exception:  # pragma: no cover - fallback when asyncpg missing
@@ -54,6 +55,12 @@ class EvaluationPipeline:
         self.catalog = catalog
         self.llm = llm
         self.db = db
+        tasks_path = Path(__file__).with_name("tasks.yaml")
+        task_cfg = yaml.safe_load(tasks_path.read_text())
+        self.pre_task_builders: List[Callable[[Dict[str, Any]], Task]] = [
+            getattr(crewai_job_review, t["builder"])
+            for t in task_cfg.get("pre_tasks", [])
+        ]
 
     async def evaluate_decision_personas(
         self,
@@ -180,11 +187,7 @@ class EvaluationPipeline:
         others = [a for a in advisors if a.id != "researcher"]
         selected_advisors = ([researcher] if researcher else []) + others[:1]
 
-        pre_tasks: List[Task] = [
-            build_skills_task(job),
-            build_compensation_task(job),
-            build_quality_task(job),
-        ]
+        pre_tasks: List[Task] = [builder(job) for builder in self.pre_task_builders]
         tasks: List[Task] = pre_tasks.copy()
 
         def build_motivator_task(persona):
