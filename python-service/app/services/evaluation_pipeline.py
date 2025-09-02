@@ -50,6 +50,78 @@ class Crew:
         return results
 
 
+async def evaluate_decision_personas(
+    job_id: str,
+    job: Dict[str, Any],
+    motivator_evals: List[PersonaEvaluation],
+    all_evals: List[PersonaEvaluation],
+) -> List[PersonaEvaluation]:
+    """Run decision personas using LLM, informed by motivational outcomes."""
+    decision_evals: List[PersonaEvaluation] = []
+    context = {
+        "motivator_outcomes": [
+            {
+                "persona_id": e.persona_id,
+                "vote": e.vote_bool,
+                "confidence": e.confidence,
+                "reason": e.reason_text,
+            }
+            for e in motivator_evals
+        ]
+    }
+    for persona in _catalog.get_personas_by_group("decision"):
+        result = _llm.evaluate(persona.id, persona.decision_lens, job, context)
+        evaluation = PersonaEvaluation(
+            job_id=job_id,
+            persona_id=persona.id,
+            vote_bool=result["vote"],
+            confidence=result["confidence"],
+            reason_text=result["reason"],
+            provider=result["provider"],
+            latency_ms=result["latency_ms"],
+        )
+        decision_evals.append(evaluation)
+        all_evals.append(evaluation)
+        if _db.initialized:
+            try:
+                await _db.insert_persona_evaluation(evaluation)
+            except Exception as e:  # pragma: no cover - db optional
+                logger.error(f"Failed to persist decision eval: {e}")
+    return decision_evals
+
+
+async def aggregate_decision(
+    job_id: str, job: Dict[str, Any], decision_evals: List[PersonaEvaluation]
+) -> Decision:
+    """Have the judge persona synthesize decision persona outcomes."""
+    judge = _catalog.get_personas_by_group("judge")[0]
+    context = {
+        "decision_outcomes": [
+            {
+                "persona_id": e.persona_id,
+                "vote": e.vote_bool,
+                "confidence": e.confidence,
+                "reason": e.reason_text,
+            }
+            for e in decision_evals
+        ]
+    }
+    result = _llm.evaluate(judge.id, judge.decision_lens, job, context)
+    decision = Decision(
+        job_id=job_id,
+        final_decision_bool=result["vote"],
+        confidence=result["confidence"],
+        reason_text=result["reason"],
+        created_at=datetime.now(timezone.utc),
+    )
+    if _db.initialized:
+        try:
+            await _db.insert_decision(decision)
+        except Exception as e:  # pragma: no cover - db optional
+            logger.error(f"Failed to persist final decision: {e}")
+    return decision
+
+
 async def evaluate_job(job_id: str, job: Dict[str, Any], user_id: str) -> EvaluationSummary:
     """Evaluate a job using a crew of motivational, decision, and judge personas."""
     logger.info(f"Starting evaluation for job {job_id}")
@@ -104,61 +176,13 @@ async def evaluate_job(job_id: str, job: Dict[str, Any], user_id: str) -> Evalua
     for persona in _catalog.get_personas_by_group("motivational"):
         tasks.append(Task(name=persona.id, coro=build_motivator_task(persona)))
 
-    def build_decision_task(persona):
-        async def _run() -> PersonaEvaluation:
-            approvals = sum(1 for e in motivator_evals if e.vote_bool)
-            total = len(motivator_evals) or 1
-            majority = approvals / total
-            vote = majority >= 0.5
-            reason = f"{approvals}/{total} motivators approve"
-            evaluation = PersonaEvaluation(
-                job_id=job_id,
-                persona_id=persona.id,
-                vote_bool=vote,
-                confidence=majority,
-                reason_text=reason,
-                provider="google",
-                latency_ms=0,
-            )
-            decision_evals.append(evaluation)
-            all_evals.append(evaluation)
-            if _db.initialized:
-                try:
-                    await _db.insert_persona_evaluation(evaluation)
-                except Exception as e:  # pragma: no cover - db optional
-                    logger.error(f"Failed to persist decision eval: {e}")
-            return evaluation
-        return _run
-
-    for persona in _catalog.get_personas_by_group("decision"):
-        tasks.append(Task(name=persona.id, coro=build_decision_task(persona)))
-
-    async def judge_task() -> Decision:
-        nonlocal final_decision
-        approvals = sum(1 for e in decision_evals if e.vote_bool)
-        total = len(decision_evals) or 1
-        final_vote = approvals / total >= 0.5
-        confidence = approvals / total
-        reason = f"{approvals}/{total} decision personas approve"
-        decision = Decision(
-            job_id=job_id,
-            final_decision_bool=final_vote,
-            confidence=confidence,
-            reason_text=reason,
-            created_at=datetime.now(timezone.utc),
-        )
-        final_decision = decision
-        if _db.initialized:
-            try:
-                await _db.insert_decision(decision)
-            except Exception as e:  # pragma: no cover - db optional
-                logger.error(f"Failed to persist final decision: {e}")
-        return decision
-
-    tasks.append(Task(name="judge", coro=judge_task))
-
     crew = Crew(tasks)
     await crew.run()
+
+    decision_evals = await evaluate_decision_personas(
+        job_id, job, motivator_evals, all_evals
+    )
+    final_decision = await aggregate_decision(job_id, job, decision_evals)
 
     summary = EvaluationSummary(job_id=job_id, evaluations=all_evals, decision=final_decision)
     logger.info(f"Completed evaluation for job {job_id}")
