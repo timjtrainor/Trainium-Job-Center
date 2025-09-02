@@ -6,6 +6,7 @@ import { AchievementRefinementPanel } from './AchievementRefinementPanel';
 import { SummaryRefinementPanel } from './SummaryRefinementPanel';
 import { CombineAchievementsModal } from './CombineAchievementsModal';
 import * as geminiService from '../services/geminiService';
+import { ensureUniqueAchievementIds } from '../utils/resume';
 import { DownloadResumeStep } from './DownloadResumeStep';
 
 interface ResumeEditorViewProps {
@@ -95,9 +96,10 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
             if (!deepCopy.content) deepCopy.content = {};
             if (!deepCopy.content.work_experience) deepCopy.content.work_experience = [];
 
+            deepCopy.content = ensureUniqueAchievementIds(deepCopy.content);
+
             (deepCopy.content.work_experience || []).forEach((exp: WorkExperience) => {
                 (exp.accomplishments || []).forEach((acc: ResumeAccomplishment, index: number) => {
-                    if (!acc.achievement_id) acc.achievement_id = uuidv4();
                     if (acc.original_description === undefined) acc.original_description = acc.description;
                     if (acc.order_index === undefined) acc.order_index = index;
                 });

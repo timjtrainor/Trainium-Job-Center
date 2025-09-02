@@ -5,6 +5,7 @@ import { ArrowRightIcon, LoadingSpinner } from './IconComponents';
 import { BaseResume, Resume, Prompt, KeywordsResult, UserProfile, ResumeHeader, StrategicNarrative } from '../types';
 import { BLANK_RESUME_CONTENT } from '../mockData';
 import * as apiService from '../services/apiService';
+import { ensureUniqueAchievementIds } from '../utils/resume';
 
 interface SelectResumeStepProps {
   baseResumes: BaseResume[];
@@ -68,6 +69,7 @@ export const SelectResumeStep = ({ baseResumes, onNext, isLoading, keywords, use
         }
         
         if (resumeToProcess) {
+            resumeToProcess = ensureUniqueAchievementIds(resumeToProcess);
             onNext(resumeToProcess);
         } else {
             setError("Could not find or parse the selected resume.");

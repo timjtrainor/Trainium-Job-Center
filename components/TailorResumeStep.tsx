@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useRef, useLayoutEffect, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import { Resume, KeywordsResult, ResumeAccomplishment, Prompt, UserProfile, StrategicNarrative, KeywordDetail, SkillSection, AchievementScore } from '../types';
 import { ArrowRightIcon, LoadingSpinner, SparklesIcon, XCircleIcon } from './IconComponents';
 import * as geminiService from '../services/geminiService';
+import { ensureUniqueAchievementIds } from '../utils/resume';
 
 interface TailorResumeStepProps {
   finalResume: Resume;
@@ -120,7 +120,15 @@ export const TailorResumeStep = (props: TailorResumeStepProps) => {
     const [newKeywordInput, setNewKeywordInput] = useState('');
     const [refiningId, setRefiningId] = useState<string | null>(null);
     const [isRecalculating, setIsRecalculating] = useState(false);
-    
+
+    useEffect(() => {
+        if (!finalResume) return;
+        const updated = ensureUniqueAchievementIds(finalResume);
+        if (updated !== finalResume) {
+            setFinalResume(updated);
+        }
+    }, [finalResume, setFinalResume]);
+
 
     const handleSummaryParagraphChange = useCallback((newParagraph: string) => {
         setFinalResume(prev => prev ? { ...prev, summary: { ...prev.summary, paragraph: newParagraph, bullets: [] } } : null);

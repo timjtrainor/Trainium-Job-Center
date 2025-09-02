@@ -10,6 +10,7 @@ import {
 } from '../types';
 import { API_BASE_URL, USER_ID, FASTAPI_BASE_URL } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
+import { ensureUniqueAchievementIds } from '../utils/resume';
 
 // --- API Helpers ---
 
@@ -461,7 +462,7 @@ export const getResumeContent = async (resumeId: string): Promise<Resume> => {
     
     // Resume-specific header and summary are assumed to be on the resumes table itself for simplicity now.
     // This aligns with the user's schema feedback.
-    const assembledContent: Resume = {
+      const assembledContent: Resume = {
         header: {
             first_name: userProfile.first_name || '',
             last_name: userProfile.last_name || '',
@@ -495,10 +496,11 @@ export const getResumeContent = async (resumeId: string): Promise<Resume> => {
             heading: sec.heading,
             items: (sec.resume_skill_items || []).map((item: any) => item.item_text)
         }))
-    };
+      };
 
-    return JSON.parse(JSON.stringify(assembledContent));
-};
+      const sanitized = ensureUniqueAchievementIds(assembledContent);
+      return JSON.parse(JSON.stringify(sanitized));
+  };
 
 export const saveResumeContent = async (resumeId: string, content: Resume): Promise<void> => {
     // --- 1. Update User Profile Info (if any) ---
