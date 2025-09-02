@@ -8,7 +8,9 @@ import yaml
 @dataclass
 class Persona:
     id: str
-    summary: str
+    role: str
+    goal: str
+    backstory: str
     decision_lens: str
     tone: str
     capabilities: List[str]
@@ -28,12 +30,14 @@ class PersonaCatalog:
             for item in items:
                 persona = Persona(
                     id=item["id"],
-                    summary=item.get("summary", ""),
+                    role=item.get("role", ""),
+                    goal=item.get("goal", ""),
+                    backstory=item.get("backstory", ""),
                     decision_lens=item.get("decision_lens", ""),
                     tone=item.get("tone", ""),
                     capabilities=item.get("capabilities", []),
                     crew_manifest_ref=item.get("crew_manifest_ref", ""),
-                    models=item.get("models", [])
+                    models=item.get("models", []),
                 )
                 self.personas[persona.id] = persona
                 ids.append(persona.id)
