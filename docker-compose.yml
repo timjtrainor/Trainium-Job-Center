@@ -49,7 +49,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    # Start server before pulling so the model downloads successfully
+      # Start server before pulling so the model downloads successfully
     entrypoint:
       - /bin/sh
       - -c
