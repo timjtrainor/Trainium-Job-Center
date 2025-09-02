@@ -65,8 +65,8 @@ class RecordingDB:
 @pytest.mark.parametrize(
     "motivator_pair, decision_pair",
     [
-        (("google", "gemini-pro"), ("huggingface", "hf-small")),
-        (("huggingface", "distilbert"), ("google", "gemini-nano")),
+        (("gemini", "gemini-pro"), ("ollama", "llama3.3")),
+        (("ollama", "llama3.3"), ("openai", "gpt-4o-mini")),
     ],
 )
 def test_evaluate_job_pipeline_routes_clients(motivator_pair, decision_pair, monkeypatch):

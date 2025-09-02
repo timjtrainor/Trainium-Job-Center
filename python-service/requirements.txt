@@ -28,5 +28,8 @@ protobuf==5.28.3
 grpcio-status==1.66.2
 googleapis-common-protos==1.63.2
 
-# Local Llama-4 via Hugging Face
-transformers==4.46.0
+# LLM Provider clients
+ollama==0.4.5
+openai==1.58.1
+# For web search tool
+tavily-python==0.5.0

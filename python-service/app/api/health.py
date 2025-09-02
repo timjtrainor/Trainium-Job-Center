@@ -8,6 +8,22 @@ from loguru import logger
 from ..models.responses import StandardResponse, HealthStatus, create_success_response
 from ..core.config import get_settings
 
+
+def _get_llm_provider_status():
+    """Get status of available LLM providers."""
+    try:
+        from ..services.llm_clients import LLMRouter
+        settings = get_settings()
+        router = LLMRouter(preferences=settings.llm_preference)
+        return [
+            {"provider": provider, "model": model, "available": available}
+            for provider, model, available in router.get_available_providers()
+        ]
+    except Exception as e:
+        logger.warning(f"Failed to check LLM provider status: {e}")
+        return []
+
+
 router = APIRouter()
 
 
@@ -32,9 +48,10 @@ async def health_check():
                     "url": settings.postgrest_url,
                     "status": "configured"
                 },
-                "gemini_ai": {
-                    "configured": settings.gemini_api_key is not None,
-                    "status": "ready" if settings.gemini_api_key else "not_configured"
+                "llm_providers": {
+                    "preference": settings.llm_preference,
+                    "available": _get_llm_provider_status(),
+                    "status": "configured"
                 }
             }
         )
@@ -94,10 +111,17 @@ async def detailed_health_check():
                     "status": "configured",
                     "description": "PostgREST API for database access"
                 },
-                "gemini_ai": {
-                    "configured": settings.gemini_api_key is not None,
-                    "status": "ready" if settings.gemini_api_key else "not_configured",
-                    "description": "Google Gemini AI service for generative AI capabilities"
+                "llm_providers": {
+                    "preference": settings.llm_preference,
+                    "available": _get_llm_provider_status(),
+                    "ollama_host": settings.ollama_host,
+                    "status": "configured",
+                    "description": "LLM providers with automatic fallback"
+                },
+                "web_search": {
+                    "configured": settings.tavily_api_key is not None,
+                    "status": "ready" if settings.tavily_api_key else "not_configured",
+                    "description": "Tavily web search for agent capabilities"
                 }
             },
             "capabilities": [
@@ -105,7 +129,11 @@ async def detailed_health_check():
                 "structured_logging", 
                 "error_handling",
                 "async_processing_ready",
-                "gemini_ai_integration_ready"
+                "ollama_llm_routing",
+                "openai_integration", 
+                "gemini_integration",
+                "web_search_agents",
+                "provider_fallback"
             ]
         }
         

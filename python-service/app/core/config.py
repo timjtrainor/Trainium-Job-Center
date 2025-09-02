@@ -29,9 +29,16 @@ class Settings:
         # AI Provider API Keys
         self.gemini_api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
         self.openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
-        self.huggingface_api_key: Optional[str] = os.getenv("HUGGING_FACE_API_KEY")
-        self.ollama_api_key: Optional[str] = os.getenv("OLLAMA_API_KEY")
+        self.ollama_api_key: Optional[str] = os.getenv("OLLAMA_API_KEY")  # Optional for local
         self.anthropic_api_key: Optional[str] = os.getenv("ANTHROPIC_API_KEY")
+        self.tavily_api_key: Optional[str] = os.getenv("TAVILY_API_KEY")  # For web search
+        
+        # LLM Configuration
+        self.llm_preference: str = os.getenv(
+            "LLM_PREFERENCE", 
+            "ollama:llama3.3,openai:gpt-4o-mini,gemini:gemini-1.5-flash"
+        )
+        self.ollama_host: str = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 
         # PostgREST Configuration (for future integration)
         self.postgrest_url: str = os.getenv("POSTGREST_URL", "http://postgrest:3000")
@@ -94,10 +101,10 @@ def resolve_api_key(provider: str) -> Optional[str]:
     provider = provider.lower()
     mapping = {
         "openai": settings.openai_api_key,
-        "huggingface": settings.huggingface_api_key,
-        "ollama": settings.ollama_api_key,
+        "ollama": settings.ollama_api_key,  # Optional for local usage
         "gemini": settings.gemini_api_key,
         "anthropic": settings.anthropic_api_key,
+        "tavily": settings.tavily_api_key,
     }
     return mapping.get(provider)
 
