@@ -49,7 +49,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    # Ensure llama3.3 model is pulled on startup
     entrypoint: ["/bin/sh", "-c"]
     command: >
       ollama serve &
