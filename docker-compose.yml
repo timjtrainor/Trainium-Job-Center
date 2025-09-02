@@ -51,10 +51,8 @@ services:
       start_period: 60s
     entrypoint: ["/bin/sh", "-c"]
     command: >
-      ollama serve &
-      sleep 10 &&
       ollama pull llama3.3 &&
-      wait
+      exec ollama serve
 
   # Defines the Redis cache service
   redis:
