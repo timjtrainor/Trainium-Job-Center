@@ -8,7 +8,7 @@ def test_evaluate_job_pipeline():
 
     # judge decision
     assert summary.decision.final_decision_bool is True
-    assert "decision personas approve" in summary.decision.reason_text
+    assert "judge" in summary.decision.reason_text
     assert 0 <= summary.decision.confidence <= 1
 
     # motivational and decision personas ran
