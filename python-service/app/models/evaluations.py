@@ -1,7 +1,7 @@
 from __future__ import annotations
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 
 class PersonaEvaluation(BaseModel):
@@ -32,3 +32,4 @@ class EvaluationSummary(BaseModel):
     job_id: str
     evaluations: List[PersonaEvaluation]
     decision: Optional[Decision] = None
+    analysis: Dict[str, Any] = Field(default_factory=dict)
