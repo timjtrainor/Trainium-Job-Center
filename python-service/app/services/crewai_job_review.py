@@ -61,11 +61,80 @@ class JobAnalysis:
 class SkillsAnalysisAgent:
     """Agent specialized in analyzing job skills and requirements."""
     
+    def __init__(self, llm_router=None, web_search=None):
+        """Initialize agent with optional LLM and web search capabilities."""
+        self.llm_router = llm_router
+        self.web_search = web_search
+    
     def analyze(self, job: Union[ScrapedJob, Dict[str, Any]]) -> Dict[str, Any]:
         """Analyze skills and requirements from job description."""
         description = job.get('description', '') if isinstance(job, dict) else (job.description or '')
         title = job.get('title', '') if isinstance(job, dict) else (job.title or '')
+        company = job.get('company', '') if isinstance(job, dict) else (job.company or '')
         
+        # Use LLM for intelligent skills analysis if available
+        if self.llm_router:
+            try:
+                return self._analyze_with_llm(title, company, description)
+            except Exception as e:
+                logger.warning(f"LLM analysis failed, falling back to rule-based: {e}")
+        
+        # Fallback to rule-based analysis
+        return self._analyze_rule_based(title, description)
+    
+    def _analyze_with_llm(self, title: str, company: str, description: str) -> Dict[str, Any]:
+        """Use LLM for intelligent skills analysis."""
+        prompt = f"""
+Analyze the following job posting and extract information about skills and requirements:
+
+Job Title: {title}
+Company: {company}
+Job Description: {description}
+
+Please provide analysis in the following format:
+1. Required technical skills (list)
+2. Preferred technical skills (list)
+3. Experience level (Entry-Level, Mid-Level, Senior, Executive)
+4. Education requirements (High School, Bachelor's, Master's, PhD, Not Specified)
+5. Soft skills mentioned (list)
+
+Be concise and focus on the most relevant skills mentioned.
+"""
+        
+        response = self.llm_router.generate(prompt, max_tokens=500, temperature=0.3)
+        
+        # Parse LLM response (simplified parsing - in production would be more robust)
+        return self._parse_llm_response(response, description)
+    
+    def _parse_llm_response(self, response: str, description: str) -> Dict[str, Any]:
+        """Parse LLM response and combine with rule-based analysis."""
+        # For now, combine LLM insights with rule-based fallbacks
+        rule_based = self._analyze_rule_based("", description)
+        
+        # Extract insights from LLM response
+        response_lower = response.lower()
+        
+        # Determine experience level from LLM response
+        if any(term in response_lower for term in ['senior', 'lead', 'principal', 'executive']):
+            experience_level = 'Senior'
+        elif any(term in response_lower for term in ['mid-level', 'intermediate', 'experienced']):
+            experience_level = 'Mid-Level'
+        elif any(term in response_lower for term in ['entry', 'junior', 'graduate']):
+            experience_level = 'Entry-Level'
+        else:
+            experience_level = rule_based['experience_level']
+        
+        return {
+            'required_skills': rule_based['required_skills'],  # Combine with LLM parsing in production
+            'preferred_skills': rule_based['preferred_skills'],
+            'experience_level': experience_level,
+            'education_requirements': rule_based['education_requirements'],
+            'all_technical_skills': rule_based['all_technical_skills'],
+            'llm_insights': response[:200]  # Store first 200 chars of LLM analysis
+        }
+    
+    def _analyze_rule_based(self, title: str, description: str) -> Dict[str, Any]:
+        """Fallback rule-based analysis."""
         # Common technical skills patterns
         tech_skills = self._extract_technical_skills(description + ' ' + title)
         
@@ -191,27 +260,97 @@ def build_skills_task(job: Dict[str, Any]) -> "Task":
 class CompensationAnalysisAgent:
     """Agent specialized in analyzing compensation and benefits."""
     
+    def __init__(self, llm_router=None, web_search=None):
+        """Initialize agent with optional LLM and web search capabilities."""
+        self.llm_router = llm_router
+        self.web_search = web_search
+    
     def analyze(self, job: Union[ScrapedJob, Dict[str, Any]]) -> Dict[str, Any]:
         """Analyze compensation data."""
         if isinstance(job, dict):
             salary_min = job.get('salary_min')
             salary_max = job.get('salary_max')
             description = job.get('description', '')
+            title = job.get('title', '')
+            company = job.get('company', '')
         else:
             salary_min = job.salary_min
             salary_max = job.salary_max
             description = job.description or ''
+            title = job.title or ''
+            company = job.company or ''
         
-        # Salary analysis
+        # Basic salary analysis
         salary_analysis = self._analyze_salary_range(salary_min, salary_max)
         
         # Benefits extraction
         benefits = self._extract_benefits(description)
         
-        return {
+        # Enhanced analysis with LLM if available
+        market_insights = {}
+        if self.llm_router and title:
+            try:
+                market_insights = self._get_market_insights(title, company, salary_min, salary_max, description)
+            except Exception as e:
+                logger.warning(f"Failed to get market insights: {e}")
+        
+        result = {
             'salary_analysis': salary_analysis,
             'benefits_mentioned': benefits
         }
+        
+        if market_insights:
+            result['market_insights'] = market_insights
+            
+        return result
+    
+    def _get_market_insights(self, title: str, company: str, salary_min, salary_max, description: str) -> Dict[str, Any]:
+        """Get market insights using LLM and optional web search."""
+        insights = {}
+        
+        # Use web search for market data if available
+        if self.web_search and self.web_search.is_available():
+            try:
+                market_data = self.web_search.search_job_market(title, max_results=3)
+                if market_data:
+                    insights['market_data'] = [
+                        f"{result['title']}: {result['content'][:100]}..."
+                        for result in market_data[:2]
+                    ]
+            except Exception as e:
+                logger.warning(f"Web search failed: {e}")
+        
+        # Use LLM to analyze compensation competitiveness
+        if self.llm_router:
+            salary_info = ""
+            if salary_min and salary_max:
+                salary_info = f"Salary range: ${salary_min:,} - ${salary_max:,}"
+            elif salary_min:
+                salary_info = f"Minimum salary: ${salary_min:,}"
+            elif salary_max:
+                salary_info = f"Maximum salary: ${salary_max:,}"
+            else:
+                salary_info = "Salary not specified"
+            
+            prompt = f"""
+Analyze the compensation package for this job:
+
+Job Title: {title}
+Company: {company}
+{salary_info}
+
+Please provide:
+1. Assessment of salary competitiveness (Below Market, Market Rate, Above Market, Premium)
+2. Key benefits that should be negotiated if not mentioned
+3. Overall compensation package rating (1-10)
+
+Keep response concise (under 200 words).
+"""
+            
+            response = self.llm_router.generate(prompt, max_tokens=300, temperature=0.3)
+            insights['llm_analysis'] = response
+        
+        return insights
     
     def _analyze_salary_range(self, salary_min: Optional[float], salary_max: Optional[float]) -> Dict[str, Any]:
         """Analyze salary range and provide insights."""
@@ -296,28 +435,79 @@ def build_compensation_task(job: Dict[str, Any]) -> "Task":
 class QualityAssessmentAgent:
     """Agent specialized in assessing job posting quality and potential red flags."""
     
+    def __init__(self, llm_router=None, web_search=None):
+        """Initialize agent with optional LLM and web search capabilities."""
+        self.llm_router = llm_router
+        self.web_search = web_search
+    
     def analyze(self, job: Union[ScrapedJob, Dict[str, Any]]) -> Dict[str, Any]:
         """Assess job posting quality."""
         description = job.get('description', '') if isinstance(job, dict) else (job.description or '')
         title = job.get('title', '') if isinstance(job, dict) else (job.title or '')
         company = job.get('company', '') if isinstance(job, dict) else (job.company or '')
         
-        # Quality score based on completeness
+        # Base quality analysis (rule-based)
         quality_score = self._calculate_quality_score(description, title, company)
-        
-        # Description completeness
         completeness = self._assess_completeness(description)
-        
-        # Red and green flags
         red_flags = self._identify_red_flags(description, title)
         green_flags = self._identify_green_flags(description, title)
         
-        return {
+        result = {
             'job_quality_score': quality_score,
             'description_completeness': completeness,
             'red_flags': red_flags,
             'green_flags': green_flags
         }
+        
+        # Enhanced analysis with LLM if available
+        if self.llm_router:
+            try:
+                llm_assessment = self._get_llm_quality_assessment(title, company, description)
+                result['llm_quality_assessment'] = llm_assessment
+                
+                # Adjust quality score based on LLM insights
+                if 'red flags' in llm_assessment.lower() or 'concerning' in llm_assessment.lower():
+                    result['job_quality_score'] = max(0, quality_score - 10)
+                elif 'excellent' in llm_assessment.lower() or 'high quality' in llm_assessment.lower():
+                    result['job_quality_score'] = min(100, quality_score + 10)
+                    
+            except Exception as e:
+                logger.warning(f"LLM quality assessment failed: {e}")
+        
+        # Get company insights if web search available
+        if self.web_search and self.web_search.is_available() and company:
+            try:
+                company_info = self.web_search.search_company(company, max_results=2)
+                if company_info:
+                    result['company_insights'] = [
+                        f"{info['title']}: {info['content'][:150]}..."
+                        for info in company_info[:1]
+                    ]
+            except Exception as e:
+                logger.warning(f"Company search failed: {e}")
+        
+        return result
+    
+    def _get_llm_quality_assessment(self, title: str, company: str, description: str) -> str:
+        """Get LLM-based quality assessment."""
+        prompt = f"""
+Assess the quality of this job posting and identify any red or green flags:
+
+Job Title: {title}
+Company: {company}
+Description: {description[:1000]}...
+
+Please evaluate:
+1. Clarity and completeness of job description
+2. Realistic expectations and requirements
+3. Any potential red flags (unrealistic demands, vague language, etc.)
+4. Positive indicators (clear growth path, good benefits, etc.)
+5. Overall professionalism of the posting
+
+Provide a brief assessment (under 200 words) with an overall quality rating.
+"""
+        
+        return self.llm_router.generate(prompt, max_tokens=300, temperature=0.3)
     
     def _calculate_quality_score(self, description: str, title: str, company: str) -> float:
         """Calculate overall job posting quality score."""
@@ -435,9 +625,18 @@ class CrewAIJobReviewService:
     def __init__(self):
         self.settings = get_settings()
         self.db_service = get_database_service()
-        self.skills_agent = SkillsAnalysisAgent()
-        self.compensation_agent = CompensationAnalysisAgent()
-        self.quality_agent = QualityAssessmentAgent()
+        
+        # Initialize LLM router for agent capabilities
+        from .llm_clients import LLMRouter
+        self.llm_router = LLMRouter(preferences=self.settings.llm_preference)
+        
+        # Initialize web search tool for agents
+        from .web_search import get_web_search_tool
+        self.web_search = get_web_search_tool()
+        
+        self.skills_agent = SkillsAnalysisAgent(self.llm_router, self.web_search)
+        self.compensation_agent = CompensationAnalysisAgent(self.llm_router, self.web_search)
+        self.quality_agent = QualityAssessmentAgent(self.llm_router, self.web_search)
         self.initialized = False
     
     async def initialize(self) -> bool:
