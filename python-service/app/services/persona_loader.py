@@ -13,7 +13,7 @@ class Persona:
     tone: str
     capabilities: List[str]
     crew_manifest_ref: str
-    provider: str
+    models: List[Dict[str, str]]
 
 
 class PersonaCatalog:
@@ -33,7 +33,7 @@ class PersonaCatalog:
                     tone=item.get("tone", ""),
                     capabilities=item.get("capabilities", []),
                     crew_manifest_ref=item.get("crew_manifest_ref", ""),
-                    provider=item.get("models", [{}])[0].get("provider", "")
+                    models=item.get("models", [])
                 )
                 self.personas[persona.id] = persona
                 ids.append(persona.id)
@@ -45,3 +45,12 @@ class PersonaCatalog:
 
     def get(self, persona_id: str) -> Persona:
         return self.personas[persona_id]
+
+    def get_models(self, persona_id: str) -> List[Dict[str, str]]:
+        """Return available models for a persona."""
+        return self.get(persona_id).models
+
+    def get_default_model(self, persona_id: str) -> Dict[str, str]:
+        """Return the default provider/model pair for a persona."""
+        models = self.get_models(persona_id)
+        return models[0] if models else {"provider": "", "model": ""}
