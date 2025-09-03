@@ -6,9 +6,17 @@ specialized "agents" analyze various aspects of job postings to provide
 comprehensive insights and recommendations.
 """
 from typing import Dict, List, Any, Optional, Union
+from pathlib import Path
 from loguru import logger
 from crewai import Crew, Process
-from crewai.crews import CrewBase, crew
+try:  # CrewAI >=0.30 exposes CrewBase and crew at the top level
+    from crewai import CrewBase, crew
+except ImportError:  # pragma: no cover - gracefully handle older versions
+    from crewai.crews import crew  # type: ignore
+
+    def CrewBase(cls):  # type: ignore
+        """Fallback no-op decorator when CrewBase isn't available."""
+        return cls
 
 from ..models.jobspy import ScrapedJob
 from typing import TYPE_CHECKING
@@ -581,15 +589,15 @@ def build_quality_task(job: Dict[str, Any]) -> "Task":
 @CrewBase
 class JobReviewCrew:
     """Crew configuration loading agents and tasks from YAML files."""
-
-    agents_config = "python-service/app/services/persona_catalog.yaml"
-    tasks_config = "python-service/app/services/tasks.yaml"
+    _base_dir = Path(__file__).resolve().parent
+    agents_config = str(_base_dir / "persona_catalog.yaml")
+    tasks_config = str(_base_dir / "tasks.yaml")
 
     @crew
     def job_review(self) -> Crew:
         return Crew(
-            agents=self.agents,
-            tasks=self.tasks,
+            agents=getattr(self, "agents", []),
+            tasks=getattr(self, "tasks", []),
             process=Process.sequential,
         )
 
