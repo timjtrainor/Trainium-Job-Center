@@ -10,7 +10,6 @@ import yaml
 from ..models.evaluations import PersonaEvaluation, Decision, EvaluationSummary
 from .persona_loader import PersonaCatalog
 from .persona_llm import PersonaLLM
-from . import crewai_job_review
 try:
     from .database import DatabaseService, get_database_service
 except Exception:  # pragma: no cover - fallback when asyncpg missing
@@ -58,14 +57,52 @@ class EvaluationPipeline:
         tasks_path = Path(__file__).with_name("tasks.yaml")
         task_cfg = yaml.safe_load(tasks_path.read_text())
         
-        # Load pre-task builders (existing functionality)
-        self.pre_task_builders: List[Callable[[Dict[str, Any]], Task]] = [
-            getattr(crewai_job_review, t["builder"])
-            for t in task_cfg.get("pre_tasks", [])
-        ]
+        # Load pre-task definitions (now persona-based)
+        self.pre_task_definitions = task_cfg.get("pre_tasks", [])
         
         # Load persona review task definitions
         self.persona_review_tasks = task_cfg.get("persona_review_tasks", [])
+
+    def create_pre_task(self, task_def: Dict[str, Any], job: Dict[str, Any], context: Dict[str, Any] = None) -> Task:
+        """Create a pre-task based on YAML definition using persona approach."""
+        agent_id = task_def["agent"]
+        persona = self.catalog.get(agent_id)
+        task_context = context or {}
+        
+        async def _run() -> Dict[str, Any]:
+            start = time.monotonic()
+            logger.info(f"Starting pre-task {task_def['id']} with agent {agent_id}")
+            
+            model = self.catalog.get_default_model(agent_id)
+            result = self.llm.evaluate(
+                persona.id,
+                persona.decision_lens,
+                job,
+                task_context,
+                provider=model["provider"],
+                model=model["model"],
+            )
+            
+            latency_ms = int((time.monotonic() - start) * 1000)
+            logger.info(f"Completed pre-task {task_def['id']} in {latency_ms} ms")
+            
+            # Structure output according to task definition
+            output = {
+                "task_id": task_def["id"],
+                "agent_id": agent_id,
+                "vote": result["vote"],
+                "confidence": result["confidence"],
+                "reason": result["reason"],
+                "provider": result["provider"],
+                "model": result["model"],
+                "latency_ms": latency_ms,
+                "expected_output_format": task_def.get("expected_output", ""),
+                "markdown": task_def.get("markdown", False)
+            }
+            
+            return output
+            
+        return Task(name=task_def["id"], coro=_run)
 
     def create_persona_review_task(self, task_def: Dict[str, Any], job: Dict[str, Any], context: Dict[str, Any] = None) -> Task:
         """Create a persona review task based on YAML definition."""
@@ -237,7 +274,7 @@ class EvaluationPipeline:
         others = [a for a in advisors if a.id != "researcher"]
         selected_advisors = ([researcher] if researcher else []) + others[:1]
 
-        pre_tasks: List[Task] = [builder(job) for builder in self.pre_task_builders]
+        pre_tasks: List[Task] = [self.create_pre_task(task_def, job) for task_def in self.pre_task_definitions]
         tasks: List[Task] = pre_tasks.copy()
 
         def build_motivator_task(persona):
