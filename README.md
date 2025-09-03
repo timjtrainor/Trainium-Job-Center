@@ -62,27 +62,31 @@ Run the full stack with Docker:
 docker-compose up --build
 ```
 
-## Use Llama-4 for CrewAI personas
+## LLM Configuration for CrewAI personas
 
-1. **Update persona definitions** – In `python-service/app/services/persona_catalog.yaml` set each persona to the Hugging Face model:
+The service now supports multiple LLM providers with automatic fallback:
 
-   ```yaml
-   models:
-     - provider: huggingface
-       model: meta-llama/Llama-4
+1. **Configure provider preferences** – Set `LLM_PREFERENCE` in `.env`:
+
+   ```bash
+   LLM_PREFERENCE=ollama:gemma3:1b,openai:gpt-4o-mini,gemini:gemini-1.5-flash
    ```
 
-2. **Use the Hugging Face client** – `python-service/app/services/llm_clients.py` already includes a minimal `HuggingFaceClient`. Extend it if custom behavior is needed and ensure it's registered in `_CLIENT_FACTORIES`.
+2. **Provider setup**:
+   - **Ollama (default)**: Runs locally in Docker, no API key needed
+   - **OpenAI**: Set `OPENAI_API_KEY` in `.env`
+   - **Gemini**: Set `GEMINI_API_KEY` in `.env`
+   - **Web search**: Set `TAVILY_API_KEY` for agent web search capabilities
 
-3. **Expose credentials** – Set `HUGGING_FACE_API_KEY` in `.env`; this key is forwarded to containers by `docker-compose.yml`.
-
-4. **Make the model available** – The `python-service/Dockerfile` installs Hugging Face dependencies and downloads the `meta-llama/Llama-4` weights during the image build. Rebuild to apply:
+3. **Model availability** – The Docker setup includes Ollama service with automatic gemma3:1b model pulling:
 
    ```bash
    docker-compose up --build
    ```
 
-With these steps, the python service will have Llama‑4 locally for CrewAI personas.
+4. **Verify providers** – Check `/health` endpoint to see which providers are available.
+
+The system automatically falls back to the next provider if the primary one fails, ensuring reliable operation.
 
 ## Checks
 

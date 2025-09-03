@@ -42,8 +42,8 @@ async def review_single_job(job_data: Dict[str, Any]):
     except Exception as e:
         logger.error(f"Failed to review job: {str(e)}")
         return create_error_response(
-            message="Failed to analyze job",
-            details=str(e)
+            error="Failed to analyze job",
+            message=str(e)
         )
 
 
@@ -89,8 +89,8 @@ async def review_multiple_jobs(jobs_data: List[Dict[str, Any]]):
     except Exception as e:
         logger.error(f"Failed to review jobs batch: {str(e)}")
         return create_error_response(
-            message="Failed to analyze jobs batch",
-            details=str(e)
+            error="Failed to analyze jobs batch",
+            message=str(e)
         )
 
 
@@ -116,17 +116,19 @@ async def review_jobs_from_database(
     try:
         review_service = get_crewai_job_review_service()
         db_service = get_database_service()
-        
+
         if not review_service.initialized:
             await review_service.initialize()
         if not db_service.initialized:
             await db_service.initialize()
+        if not db_service.pool:
+            raise RuntimeError("Database connection pool is not initialized")
         
         # Build SQL query with filters
         query = """
-            SELECT job_id, site, title, company, description, location, 
+            SELECT id, site, title, company, description, location_state, location_city, 
                    is_remote, min_amount as salary_min, max_amount as salary_max,
-                   interval, created_at, job_url
+                   interval, ingested_at, job_url
             FROM jobs 
             WHERE 1=1
         """
@@ -144,7 +146,7 @@ async def review_jobs_from_database(
             query += " AND LOWER(title) ILIKE LOWER($%d)" % (len(params) + 1)
             params.append(f"%{title_contains}%")
         
-        query += " ORDER BY created_at DESC LIMIT $%d" % (len(params) + 1)
+        query += " ORDER BY ingested_at DESC LIMIT $%d" % (len(params) + 1)
         params.append(limit)
         
         # Fetch jobs from database
@@ -165,7 +167,8 @@ async def review_jobs_from_database(
                 "title": row["title"],
                 "company": row["company"],
                 "description": row["description"],
-                "location": row["location"],
+                "location_state": row["location_state"],
+                "location_city": row["location_city"],
                 "is_remote": row["is_remote"],
                 "salary_min": row["salary_min"],
                 "salary_max": row["salary_max"],
@@ -174,7 +177,7 @@ async def review_jobs_from_database(
                 "job_url": row["job_url"]
             }
             jobs_data.append(job_data)
-            job_ids.append(str(row["job_id"]))
+            job_ids.append(str(row["id"]))
         
         # Perform analysis
         analyses = await review_service.analyze_multiple_jobs(jobs_data)
@@ -205,8 +208,8 @@ async def review_jobs_from_database(
     except Exception as e:
         logger.error(f"Failed to review jobs from database: {str(e)}")
         return create_error_response(
-            message="Failed to analyze jobs from database",
-            details=str(e)
+            error="Failed to analyze jobs from database",
+            message=str(e)
         )
 
 
@@ -277,8 +280,8 @@ async def get_available_agents():
     except Exception as e:
         logger.error(f"Failed to get agents info: {str(e)}")
         return create_error_response(
-            message="Failed to retrieve agents information",
-            details=str(e)
+            error="Failed to retrieve agents information",
+            message=str(e)
         )
 
 
@@ -314,6 +317,7 @@ async def health_check():
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
         return create_error_response(
-            message="Health check failed",
-            details=str(e)
+            error="Health check failed",
+            message=str(e)
         )
+

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Defines the PostgreSQL database service
   db:
@@ -16,6 +14,12 @@ services:
       - "${POSTGRES_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   # Defines the PostgREST service to create a REST API for the database
   postgrest:
@@ -30,7 +34,38 @@ services:
       PGRST_DB_SCHEMA: public
       PGRST_DB_ANON_ROLE: ${POSTGRES_USER}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+
+  # Defines the Ollama service for local LLM inference
+  ollama:
+    image: ollama/ollama:0.11.9-rc0
+    container_name: trainium_ollama
+    restart: always
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # Start server before pulling so the model downloads successfully
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+          ollama serve &
+          server_pid=$$!
+          until ollama list >/dev/null 2>&1; do
+            sleep 1
+          done
+          ollama pull ${LLM_MODEL:-gemma3:1b}
+          wait $$server_pid
 
   # Defines the Redis cache service
   redis:
@@ -41,6 +76,12 @@ services:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Defines the React front-end service
   frontend:
@@ -55,6 +96,12 @@ services:
       # Mount the current directory ('.') which is the frontend source code
       - .:/app
       - /app/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     depends_on:
       - postgrest
       - python-service
@@ -75,7 +122,10 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DEBUG: ${DEBUG:-false}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      HUGGING_FACE_API_KEY: ${HUGGING_FACE_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      LLM_PREFERENCE: "ollama:${LLM_MODEL},openai:gpt-4o-mini,gemini:gemini-1.5-flash"
+      OLLAMA_HOST: http://ollama:11434
       POSTGREST_URL: http://postgrest:3000
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
@@ -86,8 +136,10 @@ services:
       # Mount the python service code for development
       - ./python-service:/app
     depends_on:
-      - postgrest
-      - redis
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -109,7 +161,10 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DEBUG: ${DEBUG:-false}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      HUGGING_FACE_API_KEY: ${HUGGING_FACE_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      LLM_PREFERENCE: "ollama:${LLM_MODEL},openai:gpt-4o-mini,gemini:gemini-1.5-flash"
+      OLLAMA_HOST: http://ollama:11434
       POSTGREST_URL: http://postgrest:3000
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
@@ -117,8 +172,10 @@ services:
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
     depends_on:
-      - python-service
-      - redis
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
 
   # Defines the scheduler daemon using the python-service image
   scheduler:
@@ -134,7 +191,10 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DEBUG: ${DEBUG:-false}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      HUGGING_FACE_API_KEY: ${HUGGING_FACE_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      LLM_PREFERENCE: "ollama:${LLM_MODEL},openai:gpt-4o-mini,gemini:gemini-1.5-flash"
+      OLLAMA_HOST: http://ollama:11434
       POSTGREST_URL: http://postgrest:3000
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
@@ -142,10 +202,13 @@ services:
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
     depends_on:
-      - python-service
-      - redis
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
 
 volumes:
   # Defines the named volumes for data persistence.
   postgres_data:
   redis_data:
+  ollama_data:  # Persistent storage for Ollama models

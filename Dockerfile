@@ -6,12 +6,14 @@ FROM node:18-alpine
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy package.json and package-lock.json to the working directory
-COPY package*.json ./
-COPY package-lock.json ./
+# Install curl for health checks
+RUN apk add --no-cache curl
 
-# Install the project dependencies
-RUN npm install
+# Copy package.json and package-lock.json to the working directory
+COPY package.json package-lock.json ./
+
+# Install the project dependencies using the lockfile for reproducible builds
+RUN npm ci
 
 # Copy the rest of the application's source code from the host to the container
 COPY . .
