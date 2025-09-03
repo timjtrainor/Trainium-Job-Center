@@ -12,8 +12,9 @@ python-jobspy==1.1.82
 pandas==2.3.2
 
 # Queue and scheduler dependencies
-rq==2.5.0
-rq-scheduler==0.14.0
+# Pin to versions available on PyPI to ensure installation succeeds
+rq==1.16.2
+rq-scheduler==0.13.1
 redis==6.1.1
 
 # Database connection for direct access
