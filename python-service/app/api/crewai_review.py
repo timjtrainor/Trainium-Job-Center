@@ -196,33 +196,42 @@ async def get_available_agents():
         agents_info = {
             "agents": [
                 {
-                    "name": "SkillsAnalysisAgent",
-                    "description": "Analyzes job skills, requirements, experience level, and education requirements",
+                    "name": "researcher",
+                    "persona_type": "Advisory",
+                    "description": "Desk researcher using Google Search for job insight and skills analysis",
+                    "decision_lens": "What quick facts can guide this decision?",
                     "capabilities": [
                         "Technical skills extraction",
-                        "Experience level determination",
+                        "Experience level determination", 
                         "Education requirements analysis",
-                        "Skills categorization (required vs preferred)"
+                        "Skills categorization (required vs preferred)",
+                        "Google search for job market data"
                     ]
                 },
                 {
-                    "name": "CompensationAnalysisAgent", 
-                    "description": "Analyzes compensation data, salary ranges, and benefits",
+                    "name": "negotiator",
+                    "persona_type": "Advisory",
+                    "description": "Compensation adviser giving leverage tips and salary analysis",
+                    "decision_lens": "Is this job worth it financially, and can I push for more?",
                     "capabilities": [
                         "Salary range analysis",
                         "Compensation competitiveness assessment",
-                        "Benefits extraction and categorization",
-                        "Salary transparency scoring"
+                        "Benefits extraction and categorization", 
+                        "Market salary insights",
+                        "Negotiation leverage advice"
                     ]
                 },
                 {
-                    "name": "QualityAssessmentAgent",
-                    "description": "Assesses job posting quality and identifies red/green flags",
+                    "name": "skeptic",
+                    "persona_type": "Advisory",
+                    "description": "Risk assessor flagging red flags and quality issues",
+                    "decision_lens": "What's the catch?",
                     "capabilities": [
                         "Job posting quality scoring",
                         "Description completeness assessment",
                         "Red flag identification (MLM, unrealistic requirements, etc.)",
-                        "Green flag identification (professional development, benefits, etc.)"
+                        "Green flag identification (professional development, benefits, etc.)",
+                        "Risk assessment and due diligence"
                     ]
                 }
             ],
