@@ -18,7 +18,7 @@ from app.services.jobspy_ingestion import get_jobspy_service
 from app.services.database import get_database_service
 from app.services.queue import get_queue_service
 from app.services.scheduler import get_scheduler_service
-from app.services.crewai_job_review import get_crewai_job_review_service
+from app.services.crewai_job_review import get_job_review_crew
 from app.models.responses import create_error_response
 
 
@@ -43,7 +43,7 @@ async def lifespan(app: FastAPI):
     database_service = get_database_service()
     queue_service = get_queue_service()
     scheduler_service = get_scheduler_service()
-    crewai_review_service = get_crewai_job_review_service()
+    job_review_crew = get_job_review_crew()
     
     try:
         # Initialize existing services
@@ -55,7 +55,6 @@ async def lifespan(app: FastAPI):
         await database_service.initialize()
         await queue_service.initialize()
         await scheduler_service.initialize()
-        await crewai_review_service.initialize()
         
         logger.info("All services initialized successfully")
         

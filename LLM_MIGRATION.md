@@ -105,10 +105,10 @@ response = router.generate("Analyze this job posting...")
 
 ### CrewAI Enhanced Analysis
 ```python
-from app.services.crewai_job_review import get_crewai_job_review_service
+from app.services.crewai_job_review import get_job_review_crew
 
-service = get_crewai_job_review_service()
-analysis = await service.analyze_job(job_data)
+crew = get_job_review_crew().job_review()
+analysis = crew.kickoff(inputs={"job": job_data})
 
 # Analysis now includes:
 # - LLM-powered skills extraction

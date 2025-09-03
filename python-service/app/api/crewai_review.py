@@ -7,8 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 
 from ..models.responses import StandardResponse, create_success_response, create_error_response
-from ..models.jobspy import ScrapedJob
-from ..services.crewai_job_review import get_crewai_job_review_service
+from ..services.crewai_job_review import get_job_review_crew
 from ..services.database import get_database_service
 
 router = APIRouter(prefix="/jobs", tags=["Job Review"])
@@ -26,16 +25,11 @@ async def review_single_job(job_data: Dict[str, Any]):
         Comprehensive job analysis with recommendations
     """
     try:
-        review_service = get_crewai_job_review_service()
-        
-        if not review_service.initialized:
-            await review_service.initialize()
-        
-        # Perform analysis
-        analysis = await review_service.analyze_job(job_data)
-        
+        crew = get_job_review_crew().job_review()
+        analysis = crew.kickoff(inputs={"job": job_data})
+
         return create_success_response(
-            data=review_service.analysis_to_dict(analysis),
+            data=analysis,
             message="Job analysis completed successfully"
         )
     
@@ -65,25 +59,16 @@ async def review_multiple_jobs(jobs_data: List[Dict[str, Any]]):
                 detail="Cannot analyze more than 50 jobs at once"
             )
         
-        review_service = get_crewai_job_review_service()
-        
-        if not review_service.initialized:
-            await review_service.initialize()
-        
-        # Perform batch analysis
-        analyses = await review_service.analyze_multiple_jobs(jobs_data)
-        
-        # Convert to dictionary format
-        results = [review_service.analysis_to_dict(analysis) for analysis in analyses]
-        
+        review_crew = get_job_review_crew()
+
+        analyses = []
+        for job in jobs_data:
+            result = review_crew.job_review().kickoff(inputs={"job": job})
+            analyses.append(result)
+
         return create_success_response(
-            data={
-                "analyses": results,
-                "total_analyzed": len(results),
-                "highly_recommended": len([a for a in analyses if a.overall_recommendation == "Highly Recommended"]),
-                "recommended": len([a for a in analyses if a.overall_recommendation == "Recommended"])
-            },
-            message=f"Successfully analyzed {len(results)} jobs"
+            data={"analyses": analyses, "total_analyzed": len(analyses)},
+            message=f"Successfully analyzed {len(analyses)} jobs"
         )
     
     except Exception as e:
@@ -114,11 +99,9 @@ async def review_jobs_from_database(
         Job analyses with database job IDs
     """
     try:
-        review_service = get_crewai_job_review_service()
+        review_crew = get_job_review_crew()
         db_service = get_database_service()
 
-        if not review_service.initialized:
-            await review_service.initialize()
         if not db_service.initialized:
             await db_service.initialize()
         if not db_service.pool:
@@ -161,7 +144,6 @@ async def review_jobs_from_database(
         
         # Convert database rows to job data format
         jobs_data = []
-        job_ids = []
         for row in rows:
             job_data = {
                 "title": row["title"],
@@ -177,24 +159,13 @@ async def review_jobs_from_database(
                 "job_url": row["job_url"]
             }
             jobs_data.append(job_data)
-            job_ids.append(str(row["id"]))
-        
-        # Perform analysis
-        analyses = await review_service.analyze_multiple_jobs(jobs_data)
-        
-        # Add database job IDs to results
-        for i, analysis in enumerate(analyses):
-            analysis.job_id = f"db_job_{job_ids[i]}"
-        
-        # Convert to dictionary format
-        results = [review_service.analysis_to_dict(analysis) for analysis in analyses]
-        
+
+        analyses = [review_crew.job_review().kickoff(inputs={"job": job}) for job in jobs_data]
+
         return create_success_response(
             data={
-                "analyses": results,
-                "total_analyzed": len(results),
-                "highly_recommended": len([a for a in analyses if a.overall_recommendation == "Highly Recommended"]),
-                "recommended": len([a for a in analyses if a.overall_recommendation == "Recommended"]),
+                "analyses": analyses,
+                "total_analyzed": len(analyses),
                 "filters_applied": {
                     "site": site,
                     "company": company,
@@ -202,7 +173,7 @@ async def review_jobs_from_database(
                     "limit": limit
                 }
             },
-            message=f"Successfully analyzed {len(results)} jobs from database"
+            message=f"Successfully analyzed {len(analyses)} jobs from database"
         )
     
     except Exception as e:
@@ -294,21 +265,14 @@ async def health_check():
         Service health status and initialization state
     """
     try:
-        review_service = get_crewai_job_review_service()
-        
+        crew = get_job_review_crew()
+
         health_status = {
-            "service": "CrewAI Job Review Service",
-            "initialized": review_service.initialized,
-            "agents_available": ["SkillsAnalysisAgent", "CompensationAnalysisAgent", "QualityAssessmentAgent"],
-            "database_required": True,
+            "service": "JobReviewCrew",
+            "agents_available": list(crew.agents.keys()),
             "timestamp": str(datetime.now())
         }
-        
-        if not review_service.initialized:
-            initialization_success = await review_service.initialize()
-            health_status["initialization_attempted"] = True
-            health_status["initialization_success"] = initialization_success
-        
+
         return create_success_response(
             data=health_status,
             message="Service health check completed"
