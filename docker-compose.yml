@@ -68,12 +68,12 @@ services:
       - -c
       - |
           ollama serve &
-          server_pid=$!
+          server_pid=$$!
           until ollama list >/dev/null 2>&1; do
             sleep 1
           done
           ollama pull ${LLM_MODEL:-llama3.3}
-          wait $server_pid
+          wait $$server_pid
 
   # Defines the Redis cache service
   redis:
