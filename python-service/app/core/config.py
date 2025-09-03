@@ -56,7 +56,6 @@ class Settings:
             logger.warning(
                 "DATABASE_URL may be misconfigured for Docker: %s", self.database_url
             )
-
         # Redis Configuration for queue system
         self.redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
         self.redis_host: str = os.getenv("REDIS_HOST", "localhost")
