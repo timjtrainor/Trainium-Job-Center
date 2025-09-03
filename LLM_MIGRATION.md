@@ -1,5 +1,37 @@
 # LLM Stack Migration Guide
 
+## 🚨 **IMPORTANT: Host-based Ollama Setup (GPU Enabled)**
+
+**UPDATE: Ollama now runs on the host machine to enable GPU acceleration.**
+
+### Quick Setup
+1. **Install Ollama on your host machine**:
+   ```bash
+   curl -fsSL https://ollama.ai/install.sh | sh
+   ```
+
+2. **Pull required model**:
+   ```bash
+   ollama pull gemma3:1b
+   ```
+
+3. **Start Ollama server** (must be running before starting Docker services):
+   ```bash
+   ollama serve  # Runs on localhost:11434
+   ```
+
+4. **Start Docker services**:
+   ```bash
+   docker-compose up --build
+   ```
+
+### Why This Change?
+- **GPU Access**: Docker containers cannot access host GPU, limiting inference performance
+- **Better Performance**: Direct host access enables CUDA/GPU acceleration
+- **Simplified Setup**: No container management for Ollama service
+
+---
+
 This document outlines the migration from Hugging Face to a multi-provider LLM stack (Ollama + OpenAI + Gemini).
 
 ## Changes Made
@@ -39,17 +71,17 @@ All agents now support LLM-powered analysis:
 # Removed
 HUGGING_FACE_API_KEY=your_hugging_face_api_key
 
-# Added
+# Updated for host-based Ollama
 LLM_PREFERENCE=ollama:gemma3:1b,openai:gpt-4o-mini,gemini:gemini-1.5-flash
-OLLAMA_HOST=http://ollama:11434
+OLLAMA_HOST=http://host.docker.internal:11434  # Points to host machine
 OLLAMA_PORT=11434
 TAVILY_API_KEY=your_tavily_api_key
 ```
 
 #### Docker Configuration
-- **Added**: Ollama service with persistent model storage
-- **Removed**: Hugging Face model preloading from Dockerfile
-- **Enhanced**: Automatic gemma3:1b model pulling on startup
+- **Removed**: Ollama Docker service and persistent volume
+- **Updated**: All services now connect to host-based Ollama via `host.docker.internal:11434`
+- **Benefit**: Enables GPU acceleration for inference
 
 ### 4. Files Modified
 
@@ -63,9 +95,9 @@ TAVILY_API_KEY=your_tavily_api_key
 - `app/services/web_search.py` - New web search tool for agents
 
 #### Infrastructure
-- `docker-compose.yml` - Added Ollama service, updated environment variables
-- `Dockerfile` - Removed HuggingFace model download
-- `requirements.txt` - Replaced transformers with ollama, openai, tavily-python
+- `docker-compose.yml` - Removed Ollama service, updated environment variables to point to host
+- `app/core/config.py` - Updated default Ollama host to localhost
+- `.env.example` - Updated OLLAMA_HOST to use host.docker.internal
 
 #### Documentation & Tests
 - `README.md` - Updated with new LLM configuration instructions
@@ -128,10 +160,16 @@ market_trends = search.search_job_market("Software Engineer", "San Francisco")
 
 ## Provider Configuration
 
-### Ollama Setup (Default)
+### Ollama Setup (Default - Host-based)
 ```bash
-# Ollama runs in Docker, no API key needed
-docker-compose up ollama  # Automatically pulls gemma3:1b
+# Install Ollama on host machine (enables GPU access)
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Pull required model
+ollama pull gemma3:1b
+
+# Start Ollama server (must be running before Docker services)
+ollama serve  # Runs on localhost:11434
 ```
 
 ### OpenAI Setup
@@ -174,8 +212,9 @@ Check provider status at `/health` endpoint:
 ### Common Issues
 
 **Ollama Not Available**  
-- Check Docker service: `docker-compose logs ollama`
-- Verify model download: `docker exec trainium_ollama ollama list`
+- Ensure Ollama is installed and running on host: `ollama serve`
+- Check if model is available: `ollama list`
+- Verify host connection from Docker: Test `host.docker.internal:11434` accessibility
 
 **OpenAI API Errors**
 - Verify API key: `echo $OPENAI_API_KEY`
@@ -185,10 +224,14 @@ Check provider status at `/health` endpoint:
 - System falls back to rule-based analysis
 - Check health endpoint for provider status
 
-### Model Caching
-Ollama models are persisted in Docker volume `ollama_data`:
+### Model Storage
+Ollama models are now stored on the host machine (not in Docker volumes):
 ```bash
-docker volume inspect trainium-job-center_ollama_data
+# Models stored in host directory
+~/.ollama/models/
+
+# View available models on host
+ollama list
 ```
 
 ## Backward Compatibility

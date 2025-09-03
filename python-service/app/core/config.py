@@ -39,7 +39,7 @@ class Settings:
             "LLM_PREFERENCE", 
             "ollama:gemma3:1b,openai:gpt-4o-mini,gemini:gemini-1.5-flash"
         )
-        self.ollama_host: str = os.getenv("OLLAMA_HOST", "http://ollama:11434")
+        self.ollama_host: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
         # PostgREST Configuration (for future integration)
         self.postgrest_url: str = os.getenv("POSTGREST_URL", "http://postgrest:3000")

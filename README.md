@@ -12,6 +12,7 @@ A full-stack job search assistant that helps manage applications, tailor resumes
 
 - Node.js 18+
 - Python 3.10+
+- **Ollama** installed and running on host machine (for AI features)
 
 ## Run Front-end
 
@@ -73,18 +74,31 @@ The service now supports multiple LLM providers with automatic fallback:
    ```
 
 2. **Provider setup**:
-   - **Ollama (default)**: Runs locally in Docker, no API key needed
+   - **Ollama (default)**: Must be running locally on host machine at port 11434
    - **OpenAI**: Set `OPENAI_API_KEY` in `.env`
    - **Gemini**: Set `GEMINI_API_KEY` in `.env`
    - **Web search**: Set `TAVILY_API_KEY` for agent web search capabilities
 
-3. **Model availability** – The Docker setup includes Ollama service with automatic gemma3:1b model pulling:
+3. **Ollama Setup** – Install and run Ollama on the host machine:
+
+   ```bash
+   # Install Ollama on your host machine
+   curl -fsSL https://ollama.ai/install.sh | sh
+   
+   # Pull the required model
+   ollama pull gemma3:1b
+   
+   # Start Ollama server (runs on localhost:11434 by default)
+   ollama serve
+   ```
+
+4. **Docker Setup** – Start the services:
 
    ```bash
    docker-compose up --build
    ```
 
-4. **Verify providers** – Check `/health` endpoint to see which providers are available.
+5. **Verify providers** – Check `/health` endpoint to see which providers are available.
 
 The system automatically falls back to the next provider if the primary one fails, ensuring reliable operation.
 
