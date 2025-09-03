@@ -238,7 +238,7 @@ Be concise and focus on the most relevant skills mentioned.
             # Look for required indicators around the skill
             if any(req in desc_lower for req in [f'required {skill_lower}', f'{skill_lower} required', 'must have', 'essential']):
                 required_skills.append(skill)
-            elif any(pref in desc_lower for req in [f'preferred {skill_lower}', f'{skill_lower} preferred', 'nice to have', 'bonus']):
+            elif any(pref in desc_lower for pref in [f'preferred {skill_lower}', f'{skill_lower} preferred', 'nice to have', 'bonus']):
                 preferred_skills.append(skill)
             else:
                 # Default to required if not clearly categorized
