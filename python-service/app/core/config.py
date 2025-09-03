@@ -2,6 +2,7 @@
 
 from typing import Optional
 import os
+from urllib.parse import urlparse
 from loguru import logger
 from dotenv import load_dotenv
 
@@ -47,6 +48,14 @@ class Settings:
         self.database_url: str = os.getenv("DATABASE_URL", "")
         if not self.database_url:
             raise ValueError("DATABASE_URL is not set")
+
+        parsed_db = urlparse(self.database_url)
+        if parsed_db.hostname in {"localhost", "127.0.0.1"} or (
+            parsed_db.port and parsed_db.port != 5432
+        ):
+            logger.warning(
+                "DATABASE_URL may be misconfigured for Docker: %s", self.database_url
+            )
 
         # Redis Configuration for queue system
         self.redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
