@@ -8,15 +8,7 @@ comprehensive insights and recommendations.
 from typing import Dict, List, Any, Optional, Union
 from pathlib import Path
 from loguru import logger
-from crewai import Crew, Process
-try:  # CrewAI >=0.30 exposes CrewBase and crew at the top level
-    from crewai import CrewBase, crew
-except ImportError:  # pragma: no cover - gracefully handle older versions
-    from crewai.crews import crew  # type: ignore
-
-    def CrewBase(cls):  # type: ignore
-        """Fallback no-op decorator when CrewBase isn't available."""
-        return cls
+from crewai import Crew, Process, CrewBase, crew
 
 from ..models.jobspy import ScrapedJob
 from typing import TYPE_CHECKING
