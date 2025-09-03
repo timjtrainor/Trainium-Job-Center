@@ -8,7 +8,8 @@ comprehensive insights and recommendations.
 from typing import Dict, List, Any, Optional, Union
 from pathlib import Path
 from loguru import logger
-from crewai import Crew, Process, CrewBase, crew
+from crewai import Crew, Process
+from crewai.crews import crew
 
 from ..models.jobspy import ScrapedJob
 from typing import TYPE_CHECKING
@@ -578,7 +579,6 @@ def build_quality_task(job: Dict[str, Any]) -> "Task":
     return Task(name="quality_assessment", coro=_run)
 
 
-@CrewBase
 class JobReviewCrew:
     """Crew configuration loading agents and tasks from YAML files."""
     _base_dir = Path(__file__).resolve().parent
