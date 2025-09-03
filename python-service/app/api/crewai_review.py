@@ -126,9 +126,9 @@ async def review_jobs_from_database(
         
         # Build SQL query with filters
         query = """
-            SELECT job_id, site, title, company, description, location, 
+            SELECT id, site, title, company, description, location_state, location_city, 
                    is_remote, min_amount as salary_min, max_amount as salary_max,
-                   interval, created_at, job_url
+                   interval, ingested_at, job_url
             FROM jobs 
             WHERE 1=1
         """
@@ -146,7 +146,7 @@ async def review_jobs_from_database(
             query += " AND LOWER(title) ILIKE LOWER($%d)" % (len(params) + 1)
             params.append(f"%{title_contains}%")
         
-        query += " ORDER BY created_at DESC LIMIT $%d" % (len(params) + 1)
+        query += " ORDER BY ingested_at DESC LIMIT $%d" % (len(params) + 1)
         params.append(limit)
         
         # Fetch jobs from database
@@ -167,7 +167,8 @@ async def review_jobs_from_database(
                 "title": row["title"],
                 "company": row["company"],
                 "description": row["description"],
-                "location": row["location"],
+                "location_state": row["location_state"],
+                "location_city": row["location_city"],
                 "is_remote": row["is_remote"],
                 "salary_min": row["salary_min"],
                 "salary_max": row["salary_max"],
@@ -176,7 +177,7 @@ async def review_jobs_from_database(
                 "job_url": row["job_url"]
             }
             jobs_data.append(job_data)
-            job_ids.append(str(row["job_id"]))
+            job_ids.append(str(row["id"]))
         
         # Perform analysis
         analyses = await review_service.analyze_multiple_jobs(jobs_data)

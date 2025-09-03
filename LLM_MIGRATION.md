@@ -9,7 +9,7 @@ This document outlines the migration from Hugging Face to a multi-provider LLM s
 **Replaced**: Single HuggingFace provider  
 **With**: Multi-provider system with automatic fallback
 
-- **Ollama (Default)**: Local llama3.3 model for privacy and cost efficiency
+- **Ollama (Default)**: Local gemma3:1b model for privacy and cost efficiency
 - **OpenAI**: Cloud-based GPT models for high-quality responses
 - **Gemini**: Google's AI models with integrated web search capabilities
 
@@ -40,7 +40,7 @@ All agents now support LLM-powered analysis:
 HUGGING_FACE_API_KEY=your_hugging_face_api_key
 
 # Added
-LLM_PREFERENCE=ollama:llama3.3,openai:gpt-4o-mini,gemini:gemini-1.5-flash
+LLM_PREFERENCE=ollama:gemma3:1b,openai:gpt-4o-mini,gemini:gemini-1.5-flash
 OLLAMA_HOST=http://ollama:11434
 OLLAMA_PORT=11434
 TAVILY_API_KEY=your_tavily_api_key
@@ -49,7 +49,7 @@ TAVILY_API_KEY=your_tavily_api_key
 #### Docker Configuration
 - **Added**: Ollama service with persistent model storage
 - **Removed**: Hugging Face model preloading from Dockerfile
-- **Enhanced**: Automatic llama3.3 model pulling on startup
+- **Enhanced**: Automatic gemma3:1b model pulling on startup
 
 ### 4. Files Modified
 
@@ -131,7 +131,7 @@ market_trends = search.search_job_market("Software Engineer", "San Francisco")
 ### Ollama Setup (Default)
 ```bash
 # Ollama runs in Docker, no API key needed
-docker-compose up ollama  # Automatically pulls llama3.3
+docker-compose up ollama  # Automatically pulls gemma3:1b
 ```
 
 ### OpenAI Setup
@@ -157,9 +157,9 @@ Check provider status at `/health` endpoint:
   "data": {
     "dependencies": {
       "llm_providers": {
-        "preference": "ollama:llama3.3,openai:gpt-4o-mini,gemini:gemini-1.5-flash",
+        "preference": "ollama:gemma3:1b,openai:gpt-4o-mini,gemini:gemini-1.5-flash",
         "available": [
-          {"provider": "ollama", "model": "llama3.3", "available": true},
+          {"provider": "ollama", "model": "gemma3:1b", "available": true},
           {"provider": "openai", "model": "gpt-4o-mini", "available": true},
           {"provider": "gemini", "model": "gemini-1.5-flash", "available": false}
         ]
@@ -199,8 +199,8 @@ docker volume inspect trainium-job-center_ollama_data
 
 ## Performance Considerations
 
-- **First Run**: Ollama downloads llama3.3 (~2GB) on initial startup
-- **Memory Usage**: Ollama requires ~4GB RAM for llama3.3
+- **First Run**: Ollama downloads gemma3:1b (~2GB) on initial startup
+- **Memory Usage**: Ollama requires ~4GB RAM for gemma3:1b
 - **Startup Time**: Allow 60-120 seconds for Ollama service to be ready
 
 ## Security Notes

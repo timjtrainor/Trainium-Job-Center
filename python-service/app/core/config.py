@@ -37,7 +37,7 @@ class Settings:
         # LLM Configuration
         self.llm_preference: str = os.getenv(
             "LLM_PREFERENCE", 
-            "ollama:llama3.3,openai:gpt-4o-mini,gemini:gemini-1.5-flash"
+            "ollama:gemma3:1b,openai:gpt-4o-mini,gemini:gemini-1.5-flash"
         )
         self.ollama_host: str = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 
