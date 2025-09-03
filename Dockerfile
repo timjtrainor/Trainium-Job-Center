@@ -7,10 +7,10 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Copy package.json and package-lock.json to the working directory
-COPY package*.json ./
+COPY package.json package-lock.json ./
 
-# Install the project dependencies
-RUN npm install
+# Install the project dependencies using the lockfile for reproducible builds
+RUN npm ci
 
 # Copy the rest of the application's source code from the host to the container
 COPY . .
