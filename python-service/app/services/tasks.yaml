@@ -21,11 +21,13 @@ pre_tasks:
     async_execution: false
     markdown: false
 
+persona_review_expected_output: &persona_review_output "{overall_recommendation, confidence_score, reasoning}"
+
 persona_review_tasks:
   - id: advisory_review
     agent: headhunter  # Example: can be any advisory persona
     description: "Analyze job opportunity from advisory perspective"
-    expected_output: "A structured evaluation with vote, confidence, and reasoning"
+    expected_output: *persona_review_output
     context: "Job posting data and user resume context"
     async_execution: false
     markdown: true
@@ -33,15 +35,15 @@ persona_review_tasks:
   - id: motivational_review
     agent: builder  # Example: can be any motivational persona
     description: "Evaluate job alignment with personal motivations and career goals"
-    expected_output: "Assessment of role fit with personal drivers and career trajectory"
+    expected_output: *persona_review_output
     context: "Job posting and motivational criteria"
     async_execution: false
     markdown: true
     
   - id: decision_review
-    agent: visionary  # Example: can be any decision persona  
+    agent: visionary  # Example: can be any decision persona
     description: "Make strategic decision on job opportunity"
-    expected_output: "Strategic decision with reasoning and confidence score"
+    expected_output: *persona_review_output
     context: "Job analysis results and previous persona evaluations"
     async_execution: false
     markdown: true
@@ -49,7 +51,7 @@ persona_review_tasks:
   - id: judge_synthesis
     agent: judge
     description: "Synthesize all evaluations into final recommendation"
-    expected_output: "Final verdict with comprehensive reasoning and trade-off analysis"
+    expected_output: *persona_review_output
     context: "All previous persona evaluations and job analysis"
     async_execution: false
     markdown: true
