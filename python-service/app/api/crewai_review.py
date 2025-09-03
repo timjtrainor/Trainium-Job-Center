@@ -42,8 +42,8 @@ async def review_single_job(job_data: Dict[str, Any]):
     except Exception as e:
         logger.error(f"Failed to review job: {str(e)}")
         return create_error_response(
-            message="Failed to analyze job",
-            details=str(e)
+            error="Failed to analyze job",
+            message=str(e)
         )
 
 
@@ -89,8 +89,8 @@ async def review_multiple_jobs(jobs_data: List[Dict[str, Any]]):
     except Exception as e:
         logger.error(f"Failed to review jobs batch: {str(e)}")
         return create_error_response(
-            message="Failed to analyze jobs batch",
-            details=str(e)
+            error="Failed to analyze jobs batch",
+            message=str(e)
         )
 
 
@@ -116,11 +116,13 @@ async def review_jobs_from_database(
     try:
         review_service = get_crewai_job_review_service()
         db_service = get_database_service()
-        
+
         if not review_service.initialized:
             await review_service.initialize()
         if not db_service.initialized:
             await db_service.initialize()
+        if not db_service.pool:
+            raise RuntimeError("Database connection pool is not initialized")
         
         # Build SQL query with filters
         query = """
@@ -205,8 +207,8 @@ async def review_jobs_from_database(
     except Exception as e:
         logger.error(f"Failed to review jobs from database: {str(e)}")
         return create_error_response(
-            message="Failed to analyze jobs from database",
-            details=str(e)
+            error="Failed to analyze jobs from database",
+            message=str(e)
         )
 
 
@@ -277,8 +279,8 @@ async def get_available_agents():
     except Exception as e:
         logger.error(f"Failed to get agents info: {str(e)}")
         return create_error_response(
-            message="Failed to retrieve agents information",
-            details=str(e)
+            error="Failed to retrieve agents information",
+            message=str(e)
         )
 
 
@@ -314,6 +316,7 @@ async def health_check():
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
         return create_error_response(
-            message="Health check failed",
-            details=str(e)
+            error="Health check failed",
+            message=str(e)
         )
+
