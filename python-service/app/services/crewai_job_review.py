@@ -8,7 +8,8 @@ comprehensive insights and recommendations.
 from typing import Dict, List, Any, Optional, Union
 from pathlib import Path
 from loguru import logger
-from crewai import Crew, Process, crew
+from crewai import Crew, Process
+from crewai.crews import crew
 
 from ..models.jobspy import ScrapedJob
 from typing import TYPE_CHECKING
