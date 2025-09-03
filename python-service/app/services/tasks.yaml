@@ -8,3 +8,37 @@ pre_tasks:
   - id: quality_assessment
     builder: build_quality_task
     summary: Determine job quality and potential red flags.
+
+persona_review_tasks:
+  - id: advisory_review
+    agent: headhunter  # Example: can be any advisory persona
+    description: "Analyze job opportunity from advisory perspective"
+    expected_output: "A structured evaluation with vote, confidence, and reasoning"
+    context: "Job posting data and user resume context"
+    async_execution: false
+    markdown: true
+    
+  - id: motivational_review
+    agent: builder  # Example: can be any motivational persona
+    description: "Evaluate job alignment with personal motivations and career goals"
+    expected_output: "Assessment of role fit with personal drivers and career trajectory"
+    context: "Job posting and motivational criteria"
+    async_execution: false
+    markdown: true
+    
+  - id: decision_review
+    agent: visionary  # Example: can be any decision persona  
+    description: "Make strategic decision on job opportunity"
+    expected_output: "Strategic decision with reasoning and confidence score"
+    context: "Job analysis results and previous persona evaluations"
+    async_execution: false
+    markdown: true
+    
+  - id: judge_synthesis
+    agent: judge
+    description: "Synthesize all evaluations into final recommendation"
+    expected_output: "Final verdict with comprehensive reasoning and trade-off analysis"
+    context: "All previous persona evaluations and job analysis"
+    async_execution: false
+    markdown: true
+    output_file: "final_decision.md"

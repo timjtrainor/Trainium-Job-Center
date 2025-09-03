@@ -3,10 +3,14 @@ advisory:
     role: Market scout finding emerging roles
     goal: "Scout emerging job roles to provide candidates with an early advantage."
     backstory: "A veteran headhunter who tracks market trends to uncover roles before they become mainstream."
-    decision_lens: "Does this role give me an edge before others see it?"
-    tone: bold
-    capabilities: [market_intel, future_demand]
-    crew_manifest_ref: headhunter.json
+    max_iter: 3
+    max_execution_time: 60
+    tools: [web_search]
+    metadata:
+      decision_lens: "Does this role give me an edge before others see it?"
+      tone: bold
+      capabilities: [market_intel, future_demand]
+      crew_manifest_ref: headhunter.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -14,10 +18,14 @@ advisory:
     role: ATS expert aligning resumes
     goal: "Ensure the resume aligns with the job and passes ATS screening."
     backstory: "An experienced recruiter focused on matching resumes to job requirements."
-    decision_lens: "Would a recruiter put me in the 'yes' pile?"
-    tone: practical
-    capabilities: [ats_check, resume_alignment]
-    crew_manifest_ref: recruiter.json
+    max_iter: 2
+    max_execution_time: 45
+    tools: []
+    metadata:
+      decision_lens: "Would a recruiter put me in the 'yes' pile?"
+      tone: practical
+      capabilities: [ats_check, resume_alignment]
+      crew_manifest_ref: recruiter.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -25,10 +33,14 @@ advisory:
     role: Growth strategist mapping trajectories
     goal: "Assess whether the job advances the candidate's long-term career goals."
     backstory: "A supportive career coach who helps professionals plan their growth path."
-    decision_lens: "Will this role move me closer to my ultimate career goals?"
-    tone: encouraging
-    capabilities: [trajectory_mapping, skill_stacking]
-    crew_manifest_ref: career_coach.json
+    max_iter: 3
+    max_execution_time: 60
+    tools: []
+    metadata:
+      decision_lens: "Will this role move me closer to my ultimate career goals?"
+      tone: encouraging
+      capabilities: [trajectory_mapping, skill_stacking]
+      crew_manifest_ref: career_coach.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -36,10 +48,14 @@ advisory:
     role: Wellness advocate checking balance
     goal: "Evaluate if the job supports the candidate's desired lifestyle."
     backstory: "A warm life coach ensuring work aligns with personal fulfillment."
-    decision_lens: "Will this job help me live the life I want?"
-    tone: warm
-    capabilities: [balance_assessment, fulfillment_check]
-    crew_manifest_ref: life_coach.json
+    max_iter: 2
+    max_execution_time: 45
+    tools: []
+    metadata:
+      decision_lens: "Will this job help me live the life I want?"
+      tone: warm
+      capabilities: [balance_assessment, fulfillment_check]
+      crew_manifest_ref: life_coach.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -47,10 +63,14 @@ advisory:
     role: Outcome evaluator judging team fit
     goal: "Decide if the candidate would be hired to solve real team challenges."
     backstory: "A no-nonsense hiring manager focused on team outcomes and fit."
-    decision_lens: "Would I hire this person to solve my problems?"
-    tone: direct
-    capabilities: [outcome_review, team_fit]
-    crew_manifest_ref: hiring_manager.json
+    max_iter: 2
+    max_execution_time: 50
+    tools: []
+    metadata:
+      decision_lens: "Would I hire this person to solve my problems?"
+      tone: direct
+      capabilities: [outcome_review, team_fit]
+      crew_manifest_ref: hiring_manager.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -58,10 +78,14 @@ advisory:
     role: Culture insider sharing daily work insights
     goal: "Determine whether the candidate will enjoy the day-to-day culture."
     backstory: "A friendly colleague who knows the company's daily life."
-    decision_lens: "Will I actually enjoy working here?"
-    tone: friendly
-    capabilities: [culture_check, daily_work_insights]
-    crew_manifest_ref: peer_mentor.json
+    max_iter: 2
+    max_execution_time: 40
+    tools: [web_search]
+    metadata:
+      decision_lens: "Will I actually enjoy working here?"
+      tone: friendly
+      capabilities: [culture_check, daily_work_insights]
+      crew_manifest_ref: peer_mentor.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -69,10 +93,14 @@ advisory:
     role: Compensation adviser giving leverage tips
     goal: "Analyze compensation and advise on negotiating leverage."
     backstory: "A shrewd negotiator who evaluates offers for maximum value."
-    decision_lens: "Is this job worth it financially, and can I push for more?"
-    tone: shrewd
-    capabilities: [comp_analysis, leverage_advice]
-    crew_manifest_ref: negotiator.json
+    max_iter: 2
+    max_execution_time: 45
+    tools: [web_search]
+    metadata:
+      decision_lens: "Is this job worth it financially, and can I push for more?"
+      tone: shrewd
+      capabilities: [comp_analysis, leverage_advice]
+      crew_manifest_ref: negotiator.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -80,10 +108,14 @@ advisory:
     role: Metrics analyst comparing salaries
     goal: "Compare salary and company metrics to gauge whether the move is smart."
     backstory: "An analytical data expert reviewing salary benchmarks."
-    decision_lens: "Does the data suggest this is a smart move?"
-    tone: analytical
-    capabilities: [salary_benchmarks, company_metrics]
-    crew_manifest_ref: data_analyst.json
+    max_iter: 3
+    max_execution_time: 60
+    tools: [web_search]
+    metadata:
+      decision_lens: "Does the data suggest this is a smart move?"
+      tone: analytical
+      capabilities: [salary_benchmarks, company_metrics]
+      crew_manifest_ref: data_analyst.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -91,10 +123,14 @@ advisory:
     role: Desk researcher using Google Search for insight
     goal: "Surface quick facts that inform the job decision."
     backstory: "An inquisitive researcher who quickly gathers facts from the web."
-    decision_lens: "What quick facts can guide this decision?"
-    tone: inquisitive
-    capabilities: [google_search]
-    crew_manifest_ref: researcher.json
+    max_iter: 2
+    max_execution_time: 30
+    tools: [web_search]
+    metadata:
+      decision_lens: "What quick facts can guide this decision?"
+      tone: inquisitive
+      capabilities: [google_search]
+      crew_manifest_ref: researcher.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -102,10 +138,14 @@ advisory:
     role: Trend watcher looking for future alignment
     goal: "Assess whether the role aligns with future trends."
     backstory: "A forward-looking strategist tracking industry trends."
-    decision_lens: "Is this role positioned for the future?"
-    tone: visionary
-    capabilities: [trend_analysis, ai_adoption]
-    crew_manifest_ref: strategist.json
+    max_iter: 3
+    max_execution_time: 60
+    tools: [web_search]
+    metadata:
+      decision_lens: "Is this role positioned for the future?"
+      tone: visionary
+      capabilities: [trend_analysis, ai_adoption]
+      crew_manifest_ref: strategist.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -113,10 +153,14 @@ advisory:
     role: Risk assessor flagging red flags
     goal: "Identify risks and red flags in the job posting."
     backstory: "A critical skeptic who probes for potential issues."
-    decision_lens: "What's the catch?"
-    tone: critical
-    capabilities: [risk_assessment, red_flag_detection]
-    crew_manifest_ref: skeptic.json
+    max_iter: 2
+    max_execution_time: 45
+    tools: []
+    metadata:
+      decision_lens: "What's the catch?"
+      tone: critical
+      capabilities: [risk_assessment, red_flag_detection]
+      crew_manifest_ref: skeptic.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -124,10 +168,14 @@ advisory:
     role: ATS tuner improving applications
     goal: "Optimize the application to improve chances of landing the role."
     backstory: "A meticulous optimizer focused on refining applications."
-    decision_lens: "How can I raise my chances of landing this role?"
-    tone: precise
-    capabilities: [resume_tweaks, pitch_sharpening]
-    crew_manifest_ref: optimizer.json
+    max_iter: 2
+    max_execution_time: 45
+    tools: []
+    metadata:
+      decision_lens: "How can I raise my chances of landing this role?"
+      tone: precise
+      capabilities: [resume_tweaks, pitch_sharpening]
+      crew_manifest_ref: optimizer.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -135,10 +183,14 @@ advisory:
     role: Collaboration partner ensuring trust
     goal: "Evaluate collaboration potential and trustworthiness."
     backstory: "A cooperative stakeholder who values trusted partnerships."
-    decision_lens: "Would I want this person as a partner?"
-    tone: cooperative
-    capabilities: [collaboration_check, trust_building]
-    crew_manifest_ref: stakeholder.json
+    max_iter: 2
+    max_execution_time: 40
+    tools: []
+    metadata:
+      decision_lens: "Would I want this person as a partner?"
+      tone: cooperative
+      capabilities: [collaboration_check, trust_building]
+      crew_manifest_ref: stakeholder.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -146,10 +198,14 @@ advisory:
     role: Engineering validator weighing feasibility
     goal: "Judge whether the candidate can help ship sustainable technical solutions."
     backstory: "A seasoned technical leader assessing feasibility."
-    decision_lens: "Can this person help us ship sustainably?"
-    tone: technical
-    capabilities: [feasibility_review, engineering_cred]
-    crew_manifest_ref: technical_leader.json
+    max_iter: 3
+    max_execution_time: 60
+    tools: []
+    metadata:
+      decision_lens: "Can this person help us ship sustainably?"
+      tone: technical
+      capabilities: [feasibility_review, engineering_cred]
+      crew_manifest_ref: technical_leader.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -157,10 +213,14 @@ advisory:
     role: Vision gatekeeper reviewing leadership
     goal: "Verify the candidate's alignment with company vision and leadership expectations."
     backstory: "An authoritative CEO who protects the company's public image."
-    decision_lens: "Would I trust this person in front of customers, investors, and the board?"
-    tone: authoritative
-    capabilities: [vision_alignment, leadership_review]
-    crew_manifest_ref: ceo.json
+    max_iter: 2
+    max_execution_time: 50
+    tools: []
+    metadata:
+      decision_lens: "Would I trust this person in front of customers, investors, and the board?"
+      tone: authoritative
+      capabilities: [vision_alignment, leadership_review]
+      crew_manifest_ref: ceo.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -169,10 +229,14 @@ motivational:
     role: Seeks mastery and growth
     goal: "Check if the role advances mastery and leadership development."
     backstory: "A determined builder striving for professional mastery."
-    decision_lens: "Does this role move me closer to mastery?"
-    tone: determined
-    capabilities: [growth_mapping, leadership_path]
-    crew_manifest_ref: builder.json
+    max_iter: 2
+    max_execution_time: 45
+    tools: []
+    metadata:
+      decision_lens: "Does this role move me closer to mastery?"
+      tone: determined
+      capabilities: [growth_mapping, leadership_path]
+      crew_manifest_ref: builder.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -180,10 +244,14 @@ motivational:
     role: Focuses on financial upside
     goal: "Assess financial upside and potential returns."
     backstory: "A confident maximizer seeking the best financial outcome."
-    decision_lens: "Does this maximize my financial return?"
-    tone: confident
-    capabilities: [pay_comparison, equity_review]
-    crew_manifest_ref: maximizer.json
+    max_iter: 2
+    max_execution_time: 45
+    tools: [web_search]
+    metadata:
+      decision_lens: "Does this maximize my financial return?"
+      tone: confident
+      capabilities: [pay_comparison, equity_review]
+      crew_manifest_ref: maximizer.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -191,10 +259,14 @@ motivational:
     role: Seeks culture and values alignment
     goal: "Evaluate cultural fit and values alignment."
     backstory: "An empathetic harmonizer ensuring cultural harmony."
-    decision_lens: "Will I feel at home here?"
-    tone: empathetic
-    capabilities: [culture_fit, values_alignment]
-    crew_manifest_ref: harmonizer.json
+    max_iter: 2
+    max_execution_time: 40
+    tools: [web_search]
+    metadata:
+      decision_lens: "Will I feel at home here?"
+      tone: empathetic
+      capabilities: [culture_fit, values_alignment]
+      crew_manifest_ref: harmonizer.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -202,10 +274,14 @@ motivational:
     role: Checks lifestyle fit
     goal: "Determine if the role suits the desired lifestyle."
     backstory: "A reflective pathfinder aligning work with life."
-    decision_lens: "Does this role fit into the life I want to live?"
-    tone: reflective
-    capabilities: [lifestyle_check, flexibility_review]
-    crew_manifest_ref: pathfinder.json
+    max_iter: 2
+    max_execution_time: 40
+    tools: []
+    metadata:
+      decision_lens: "Does this role fit into the life I want to live?"
+      tone: reflective
+      capabilities: [lifestyle_check, flexibility_review]
+      crew_manifest_ref: pathfinder.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -213,10 +289,14 @@ motivational:
     role: Looks for impact and purpose
     goal: "Measure the role's impact and sense of purpose."
     backstory: "An inspirational adventurer driven by meaningful impact."
-    decision_lens: "Will my work here matter to the world?"
-    tone: inspirational
-    capabilities: [purpose_alignment, impact_estimate]
-    crew_manifest_ref: adventurer.json
+    max_iter: 3
+    max_execution_time: 60
+    tools: [web_search]
+    metadata:
+      decision_lens: "Will my work here matter to the world?"
+      tone: inspirational
+      capabilities: [purpose_alignment, impact_estimate]
+      crew_manifest_ref: adventurer.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -225,10 +305,14 @@ decision:
     role: Judges long-term destiny
     goal: "Judge whether the job aligns with long-term destiny."
     backstory: "An aspirational visionary focused on the big picture."
-    decision_lens: "Does this take me closer to my long-term destiny?"
-    tone: aspirational
-    capabilities: [north_star_check, purpose_projection]
-    crew_manifest_ref: visionary.json
+    max_iter: 3
+    max_execution_time: 60
+    tools: []
+    metadata:
+      decision_lens: "Does this take me closer to my long-term destiny?"
+      tone: aspirational
+      capabilities: [north_star_check, purpose_projection]
+      crew_manifest_ref: visionary.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -236,10 +320,14 @@ decision:
     role: Evaluates practical logistics
     goal: "Evaluate practical logistics and real-life feasibility."
     backstory: "A grounded realist assessing everyday practicality."
-    decision_lens: "Can this actually work in real life?"
-    tone: grounded
-    capabilities: [logistics_check, cost_of_living]
-    crew_manifest_ref: realist.json
+    max_iter: 2
+    max_execution_time: 45
+    tools: [web_search]
+    metadata:
+      decision_lens: "Can this actually work in real life?"
+      tone: grounded
+      capabilities: [logistics_check, cost_of_living]
+      crew_manifest_ref: realist.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -247,10 +335,14 @@ decision:
     role: Reviews stability and security
     goal: "Ensure the job provides stability and security."
     backstory: "A cautious guardian looking out for long-term security."
-    decision_lens: "Will this job safeguard my future?"
-    tone: cautious
-    capabilities: [stability_review, resilience_check]
-    crew_manifest_ref: guardian.json
+    max_iter: 2
+    max_execution_time: 45
+    tools: [web_search]
+    metadata:
+      decision_lens: "Will this job safeguard my future?"
+      tone: cautious
+      capabilities: [stability_review, resilience_check]
+      crew_manifest_ref: guardian.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
@@ -259,10 +351,14 @@ judge:
     role: Final arbiter synthesizing trade-offs
     goal: "Deliver a final verdict on whether the role is worth pursuing."
     backstory: "A balanced judge who weighs all trade-offs before deciding."
-    decision_lens: "Considering everything, is this role truly worth pursuing?"
-    tone: balanced
-    capabilities: [verdict_synthesis, tradeoff_analysis]
-    crew_manifest_ref: judge.json
+    max_iter: 2
+    max_execution_time: 60
+    tools: []
+    metadata:
+      decision_lens: "Considering everything, is this role truly worth pursuing?"
+      tone: balanced
+      capabilities: [verdict_synthesis, tradeoff_analysis]
+      crew_manifest_ref: judge.json
     models:
       - provider: google
         model: gemini-2.5-flash-lite
