@@ -269,10 +269,9 @@ ORDER BY created_at DESC
 
 ### Analyze a Single Job
 ```python
-from app.services.crewai_job_review import get_crewai_job_review_service
+from app.services.crewai_job_review import get_job_review_crew
 
-service = get_crewai_job_review_service()
-await service.initialize()
+crew = get_job_review_crew().job_review()
 
 job_data = {
     "title": "Software Engineer",
@@ -281,7 +280,7 @@ job_data = {
     # ... other fields
 }
 
-analysis = await service.analyze_job(job_data)
+analysis = crew.kickoff(inputs={"job": job_data})
 print(f"Recommendation: {analysis.overall_recommendation}")
 print(f"Quality Score: {analysis.job_quality_score}")
 ```
