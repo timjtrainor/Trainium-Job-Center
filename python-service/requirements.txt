@@ -1,36 +1,39 @@
-fastapi==0.115.5
-uvicorn[standard]==0.32.1
-pydantic==2.10.5
-python-multipart==0.0.17
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+pydantic==2.11.7
+python-multipart==0.0.20
 loguru==0.7.3
-# Pin httpx below 0.28.0 for compatibility with ollama 0.4.5
-httpx==0.27.2
+httpx==0.28.1
 python-json-logger==2.0.7
-# Load environment variables from .env files
 python-dotenv==1.0.1
-# Future Gemini integration dependencies
-google-generativeai==0.8.3
+
 # JobSpy for job scraping integration
 python-jobspy==1.1.82
-pandas==2.2.3
+pandas==2.3.2
 
 # Queue and scheduler dependencies
+# Pin to versions available on PyPI to ensure installation succeeds
 rq==1.16.2
 rq-scheduler==0.13.1
-redis==5.0.1
+redis==6.1.1
 
 # Database connection for direct access
-asyncpg==0.29.0
+asyncpg==0.30.0
 
 # Force wheel-friendly versions to avoid compiling from source
-grpcio==1.66.2
+grpcio==1.74.0
 # Must be >=5.26.1 and <6.0dev for grpcio-status
-protobuf==5.28.3
-grpcio-status==1.66.2
-googleapis-common-protos==1.63.2
+protobuf==6.32.0
+grpcio-status==1.74.0
+googleapis-common-protos==1.70.0
+google-genai==1.32.0
 
 # LLM Provider clients
-ollama==0.4.5
-openai==1.58.1
+ollama==0.5.3
+openai==1.104.2
+# Crew orchestration
+crewai==0.175.0
 # For web search tool
-tavily-python==0.5.0
+tavily-python==0.7.11
+
+

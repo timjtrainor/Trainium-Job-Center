@@ -57,10 +57,60 @@ class EvaluationPipeline:
         self.db = db
         tasks_path = Path(__file__).with_name("tasks.yaml")
         task_cfg = yaml.safe_load(tasks_path.read_text())
+        
+        # Load pre-task builders (existing functionality)
         self.pre_task_builders: List[Callable[[Dict[str, Any]], Task]] = [
             getattr(crewai_job_review, t["builder"])
             for t in task_cfg.get("pre_tasks", [])
         ]
+        
+        # Load persona review task definitions
+        self.persona_review_tasks = task_cfg.get("persona_review_tasks", [])
+
+    def create_persona_review_task(self, task_def: Dict[str, Any], job: Dict[str, Any], context: Dict[str, Any] = None) -> Task:
+        """Create a persona review task based on YAML definition."""
+        agent_id = task_def["agent"]
+        persona = self.catalog.get(agent_id)
+        task_context = context or {}
+        
+        async def _run() -> Dict[str, Any]:
+            start = time.monotonic()
+            logger.info(f"Starting persona review task {task_def['id']} with agent {agent_id}")
+            
+            model = self.catalog.get_default_model(agent_id)
+            result = self.llm.evaluate(
+                persona.id,
+                persona.decision_lens,
+                job,
+                task_context,
+                provider=model["provider"],
+                model=model["model"],
+            )
+            
+            latency_ms = int((time.monotonic() - start) * 1000)
+            logger.info(f"Completed persona review task {task_def['id']} in {latency_ms} ms")
+            
+            # Structure output according to task definition
+            output = {
+                "task_id": task_def["id"],
+                "agent_id": agent_id,
+                "vote": result["vote"],
+                "confidence": result["confidence"],
+                "reason": result["reason"],
+                "provider": result["provider"],
+                "model": result["model"],
+                "latency_ms": latency_ms,
+                "expected_output_format": task_def.get("expected_output", ""),
+                "markdown": task_def.get("markdown", False)
+            }
+            
+            # Save to file if specified
+            if task_def.get("output_file"):
+                output["output_file"] = task_def["output_file"]
+                
+            return output
+            
+        return Task(name=task_def["id"], coro=_run)
 
     async def evaluate_decision_personas(
         self,

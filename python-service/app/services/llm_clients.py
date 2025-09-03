@@ -25,7 +25,7 @@ except ImportError:
     openai = None
 
 try:
-    import google.generativeai as genai
+    from google import genai
 except ImportError:
     genai = None
 
@@ -59,13 +59,13 @@ class OllamaClient(BaseLLMClient):
     def __init__(self, model: str, host: str = "http://localhost:11434") -> None:
         super().__init__(model)
         self.host = host
-        
+
     def is_available(self) -> bool:
         """Check if Ollama service is available."""
         if ollama is None:
             logger.warning("Ollama client not available - package not installed")
             return False
-        
+
         try:
             # Quick health check
             response = httpx.get(f"{self.host}/api/tags", timeout=5)
@@ -78,7 +78,7 @@ class OllamaClient(BaseLLMClient):
         """Generate text using Ollama."""
         if not self.is_available():
             raise ConnectionError(f"Ollama service not available at {self.host}")
-        
+
         try:
             # Use ollama client
             client = ollama.Client(host=self.host)
@@ -143,8 +143,7 @@ class GeminiClient(BaseLLMClient):
         super().__init__(model)
         self.api_key = resolve_api_key("gemini")
         if genai and self.api_key:
-            genai.configure(api_key=self.api_key)
-            self.client = genai.GenerativeModel(model)
+            self.client = genai.Client(api_key=self.api_key)
         else:
             self.client = None
 
@@ -164,7 +163,10 @@ class GeminiClient(BaseLLMClient):
             raise ValueError("Gemini client not properly configured")
             
         try:
-            response = self.client.generate_content(prompt)
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+            )
             return response.text
         except Exception as e:
             logger.error(f"Gemini generation failed: {e}")
@@ -195,10 +197,10 @@ def create_llm_client(provider: str, model: str, **kwargs) -> BaseLLMClient:
 
 class LLMRouter:
     """Routes LLM requests with automatic fallback between providers."""
-    
+
     def __init__(self, preferences: str = "ollama:gemma3:1b,openai:gpt-4o-mini,gemini:gemini-1.5-flash"):
         """Initialize router with provider preferences.
-        
+
         Args:
             preferences: Comma-separated list of provider:model pairs in preference order.
                         e.g. "ollama:gemma3:1b,openai:gpt-4o-mini,gemini:gemini-1.5-flash"
@@ -206,7 +208,7 @@ class LLMRouter:
         self.providers = self._parse_preferences(preferences)
         self._clients = {}
         logger.info(f"LLM Router initialized with providers: {[p[0] for p in self.providers]}")
-    
+
     def _parse_preferences(self, preferences: str) -> list[Tuple[str, str]]:
         """Parse preference string into list of (provider, model) tuples."""
         providers = []
@@ -218,7 +220,7 @@ class LLMRouter:
             else:
                 logger.warning(f"Invalid preference format: {pref}, expected 'provider:model'")
         return providers
-    
+
     def _get_client(self, provider: str, model: str) -> BaseLLMClient:
         """Get or create client for provider/model pair."""
         key = (provider, model)
@@ -230,14 +232,14 @@ class LLMRouter:
                 settings = get_settings()
                 ollama_host = getattr(settings, 'ollama_host', 'http://localhost:11434')
                 kwargs['host'] = ollama_host
-            
+
             self._clients[key] = create_llm_client(provider, model, **kwargs)
         return self._clients[key]
-    
+
     def generate(self, prompt: str, **kwargs) -> str:
         """Generate text with fallback through provider list."""
         last_error = None
-        
+
         for provider, model in self.providers:
             try:
                 client = self._get_client(provider, model)
@@ -251,12 +253,12 @@ class LLMRouter:
                 logger.warning(f"Provider {provider}:{model} failed: {e}, trying next")
                 last_error = e
                 continue
-        
+
         # All providers failed
         error_msg = f"All LLM providers failed. Last error: {last_error}"
         logger.error(error_msg)
         raise ConnectionError(error_msg)
-    
+
     def get_available_providers(self) -> list[Tuple[str, str, bool]]:
         """Get list of configured providers and their availability status."""
         results = []

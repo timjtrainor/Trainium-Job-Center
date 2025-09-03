@@ -6,56 +6,16 @@ specialized "agents" analyze various aspects of job postings to provide
 comprehensive insights and recommendations.
 """
 from typing import Dict, List, Any, Optional, Union
-from datetime import datetime, timezone
-import json
-import re
+from pathlib import Path
 from loguru import logger
-from dataclasses import dataclass, asdict
+from crewai import Crew, Process
+from crewai.crews import crew
 
-from ..core.config import get_settings
 from ..models.jobspy import ScrapedJob
-from .database import get_database_service
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - used for type hints only
     from .evaluation_pipeline import Task
-
-
-@dataclass
-class JobAnalysis:
-    """Result of job analysis by various agents."""
-    job_id: str
-    title: str
-    company: str
-    
-    # Skills and Requirements Analysis
-    required_skills: List[str]
-    preferred_skills: List[str]
-    experience_level: str
-    education_requirements: str
-    
-    # Compensation Analysis
-    salary_analysis: Dict[str, Any]
-    benefits_mentioned: List[str]
-    
-    # Quality and Fit Analysis
-    job_quality_score: float  # 0-100
-    description_completeness: float  # 0-100
-    red_flags: List[str]
-    green_flags: List[str]
-    
-    # Market and Company Analysis
-    company_insights: Dict[str, Any]
-    industry_category: str
-    remote_work_options: str
-    
-    # Overall Assessment
-    overall_recommendation: str
-    confidence_score: float  # 0-100
-    
-    # Metadata
-    analysis_timestamp: datetime
-    agents_used: List[str]
 
 
 class SkillsAnalysisAgent:
@@ -238,7 +198,7 @@ Be concise and focus on the most relevant skills mentioned.
             # Look for required indicators around the skill
             if any(req in desc_lower for req in [f'required {skill_lower}', f'{skill_lower} required', 'must have', 'essential']):
                 required_skills.append(skill)
-            elif any(pref in desc_lower for req in [f'preferred {skill_lower}', f'{skill_lower} preferred', 'nice to have', 'bonus']):
+            elif any(pref in desc_lower for pref in [f'preferred {skill_lower}', f'{skill_lower} preferred', 'nice to have', 'bonus']):
                 preferred_skills.append(skill)
             else:
                 # Default to required if not clearly categorized
@@ -619,226 +579,29 @@ def build_quality_task(job: Dict[str, Any]) -> "Task":
     return Task(name="quality_assessment", coro=_run)
 
 
-class CrewAIJobReviewService:
-    """Main service orchestrating multiple agents for comprehensive job review."""
-    
-    def __init__(self):
-        self.settings = get_settings()
-        self.db_service = get_database_service()
-        
-        # Initialize LLM router for agent capabilities
-        from .llm_clients import LLMRouter
-        self.llm_router = LLMRouter(preferences=self.settings.llm_preference)
-        
-        # Initialize web search tool for agents
-        from .web_search import get_web_search_tool
-        self.web_search = get_web_search_tool()
-        
-        self.skills_agent = SkillsAnalysisAgent(self.llm_router, self.web_search)
-        self.compensation_agent = CompensationAnalysisAgent(self.llm_router, self.web_search)
-        self.quality_agent = QualityAssessmentAgent(self.llm_router, self.web_search)
-        self.initialized = False
-    
-    async def initialize(self) -> bool:
-        """Initialize the job review service."""
-        try:
-            if not self.db_service.initialized:
-                await self.db_service.initialize()
-            
-            self.initialized = True
-            logger.info("CrewAI Job Review Service initialized successfully")
-            return True
-        
-        except Exception as e:
-            logger.error(f"Failed to initialize CrewAI Job Review Service: {str(e)}")
-            return False
-    
-    async def analyze_job(self, job: Union[ScrapedJob, Dict[str, Any]], job_id: Optional[str] = None) -> JobAnalysis:
-        """
-        Perform comprehensive job analysis using multiple agents.
-        
-        Args:
-            job: ScrapedJob object or dictionary with job data
-            job_id: Optional job identifier
-            
-        Returns:
-            JobAnalysis object with comprehensive analysis results
-        """
-        if not self.initialized:
-            await self.initialize()
-        
-        logger.info(f"Starting comprehensive job analysis for job: {job_id}")
-        
-        # Extract basic job info
-        if isinstance(job, dict):
-            title = job.get('title', 'Unknown')
-            company = job.get('company', 'Unknown')
-        else:
-            title = job.title or 'Unknown'
-            company = job.company or 'Unknown'
-        
-        # Run agents in parallel conceptually (for now, sequentially)
-        skills_analysis = self.skills_agent.analyze(job)
-        compensation_analysis = self.compensation_agent.analyze(job)
-        quality_analysis = self.quality_agent.analyze(job)
-        
-        # Company and market analysis (simplified)
-        company_insights = self._analyze_company_and_market(job)
-        
-        # Calculate overall recommendation
-        overall_recommendation, confidence_score = self._calculate_overall_assessment(
-            skills_analysis, compensation_analysis, quality_analysis
+class JobReviewCrew:
+    """Crew configuration loading agents and tasks from YAML files."""
+    _base_dir = Path(__file__).resolve().parent
+    agents_config = str(_base_dir / "persona_catalog.yaml")
+    tasks_config = str(_base_dir / "tasks.yaml")
+
+    @crew
+    def job_review(self) -> Crew:
+        return Crew(
+            agents=getattr(self, "agents", []),
+            tasks=getattr(self, "tasks", []),
+            process=Process.sequential,
         )
-        
-        # Create analysis result
-        analysis = JobAnalysis(
-            job_id=job_id or f"job_{datetime.now().timestamp()}",
-            title=title,
-            company=company,
-            required_skills=skills_analysis['required_skills'],
-            preferred_skills=skills_analysis['preferred_skills'],
-            experience_level=skills_analysis['experience_level'],
-            education_requirements=skills_analysis['education_requirements'],
-            salary_analysis=compensation_analysis['salary_analysis'],
-            benefits_mentioned=compensation_analysis['benefits_mentioned'],
-            job_quality_score=quality_analysis['job_quality_score'],
-            description_completeness=quality_analysis['description_completeness'],
-            red_flags=quality_analysis['red_flags'],
-            green_flags=quality_analysis['green_flags'],
-            company_insights=company_insights,
-            industry_category=company_insights.get('industry', 'Unknown'),
-            remote_work_options=company_insights.get('remote_options', 'Not specified'),
-            overall_recommendation=overall_recommendation,
-            confidence_score=confidence_score,
-            analysis_timestamp=datetime.now(timezone.utc),
-            agents_used=['SkillsAnalysisAgent', 'CompensationAnalysisAgent', 'QualityAssessmentAgent']
-        )
-        
-        logger.info(f"Job analysis completed for {job_id}: {overall_recommendation} (confidence: {confidence_score:.1f}%)")
-        return analysis
-    
-    def _analyze_company_and_market(self, job: Union[ScrapedJob, Dict[str, Any]]) -> Dict[str, Any]:
-        """Analyze company and market context (simplified implementation)."""
-        description = job.get('description', '') if isinstance(job, dict) else (job.description or '')
-        location = job.get('location', '') if isinstance(job, dict) else (job.location or '')
-        is_remote = job.get('is_remote', False) if isinstance(job, dict) else (job.is_remote or False)
-        
-        # Simple industry categorization
-        industry = self._categorize_industry(description)
-        
-        # Remote work analysis
-        remote_options = 'Full Remote' if is_remote else self._analyze_remote_options(description)
-        
-        return {
-            'industry': industry,
-            'remote_options': remote_options,
-            'location': location
-        }
-    
-    def _categorize_industry(self, description: str) -> str:
-        """Simple industry categorization based on job description."""
-        desc_lower = description.lower()
-        
-        industry_keywords = {
-            'Technology': ['software', 'tech', 'developer', 'engineer', 'programming', 'coding'],
-            'Finance': ['finance', 'banking', 'investment', 'fintech', 'trading'],
-            'Healthcare': ['healthcare', 'medical', 'hospital', 'health', 'pharmaceutical'],
-            'Education': ['education', 'teaching', 'school', 'university', 'learning'],
-            'Marketing': ['marketing', 'advertising', 'brand', 'campaign', 'digital marketing'],
-            'Sales': ['sales', 'business development', 'account manager', 'revenue'],
-            'Consulting': ['consulting', 'consultant', 'advisory', 'strategy']
-        }
-        
-        for industry, keywords in industry_keywords.items():
-            if any(keyword in desc_lower for keyword in keywords):
-                return industry
-        
-        return 'Other'
-    
-    def _analyze_remote_options(self, description: str) -> str:
-        """Analyze remote work options from description."""
-        desc_lower = description.lower()
-        
-        if 'full remote' in desc_lower or 'fully remote' in desc_lower:
-            return 'Full Remote'
-        elif 'hybrid' in desc_lower or 'remote option' in desc_lower:
-            return 'Hybrid/Optional Remote'
-        elif 'on-site' in desc_lower or 'office' in desc_lower:
-            return 'On-site'
-        else:
-            return 'Not specified'
-    
-    def _calculate_overall_assessment(self, skills_analysis: Dict, compensation_analysis: Dict, quality_analysis: Dict) -> tuple:
-        """Calculate overall recommendation and confidence score."""
-        # Weight different factors
-        quality_score = quality_analysis['job_quality_score']
-        completeness_score = quality_analysis['description_completeness']
-        has_salary = compensation_analysis['salary_analysis'].get('has_salary_info', False)
-        red_flags_count = len(quality_analysis['red_flags'])
-        green_flags_count = len(quality_analysis['green_flags'])
-        
-        # Calculate weighted score
-        weighted_score = (
-            quality_score * 0.4 +
-            completeness_score * 0.3 +
-            (20 if has_salary else 0) * 0.1 +
-            max(0, (green_flags_count - red_flags_count)) * 5 * 0.2
-        )
-        
-        # Determine recommendation
-        if weighted_score >= 80 and red_flags_count == 0:
-            recommendation = 'Highly Recommended'
-        elif weighted_score >= 65 and red_flags_count <= 1:
-            recommendation = 'Recommended'
-        elif weighted_score >= 45:
-            recommendation = 'Consider with Caution'
-        else:
-            recommendation = 'Not Recommended'
-        
-        # Confidence based on data quality
-        confidence = min(95, max(20, weighted_score * 0.8 + (completeness_score * 0.2)))
-        
-        return recommendation, confidence
-    
-    async def analyze_multiple_jobs(self, jobs: List[Union[ScrapedJob, Dict[str, Any]]]) -> List[JobAnalysis]:
-        """Analyze multiple jobs and return sorted results."""
-        analyses = []
-        
-        for i, job in enumerate(jobs):
-            try:
-                job_id = f"batch_job_{i}"
-                analysis = await self.analyze_job(job, job_id)
-                analyses.append(analysis)
-            except Exception as e:
-                logger.error(f"Failed to analyze job {i}: {str(e)}")
-        
-        # Sort by overall recommendation quality
-        recommendation_order = {
-            'Highly Recommended': 4,
-            'Recommended': 3,
-            'Consider with Caution': 2,
-            'Not Recommended': 1
-        }
-        
-        analyses.sort(
-            key=lambda x: (recommendation_order.get(x.overall_recommendation, 0), x.confidence_score),
-            reverse=True
-        )
-        
-        return analyses
-    
-    def analysis_to_dict(self, analysis: JobAnalysis) -> Dict[str, Any]:
-        """Convert JobAnalysis to dictionary for API responses."""
-        return asdict(analysis)
 
 
-# Service singleton
-_job_review_service = None
+
+# Crew singleton
+_job_review_crew: Optional[JobReviewCrew] = None
 
 
-def get_crewai_job_review_service() -> CrewAIJobReviewService:
-    """Get the singleton CrewAI job review service instance."""
-    global _job_review_service
-    if _job_review_service is None:
-        _job_review_service = CrewAIJobReviewService()
-    return _job_review_service
+def get_job_review_crew() -> JobReviewCrew:
+    """Get the singleton JobReviewCrew instance."""
+    global _job_review_crew
+    if _job_review_crew is None:
+        _job_review_crew = JobReviewCrew()
+    return _job_review_crew
