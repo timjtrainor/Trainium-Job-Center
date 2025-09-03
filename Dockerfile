@@ -6,6 +6,9 @@ FROM node:18-alpine
 # Set the working directory in the container
 WORKDIR /app
 
+# Install curl for health checks
+RUN apk add --no-cache curl
+
 # Copy package.json and package-lock.json to the working directory
 COPY package.json package-lock.json ./
 
