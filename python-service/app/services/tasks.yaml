@@ -1,19 +1,33 @@
 pre_tasks:
   - id: skills_analysis
     builder: build_skills_task
-    summary: Analyze job posting to extract required and preferred skills.
+    description: Analyze job posting to extract required and preferred skills along with experience and education insights.
+    expected_output: "{required_skills, preferred_skills, experience_level, education_requirements, all_technical_skills}"
+    context: "Raw job posting text and metadata"
+    async_execution: false
+    markdown: false
   - id: compensation_analysis
     builder: build_compensation_task
-    summary: Evaluate salary range and benefits.
+    description: Evaluate salary range, listed benefits, and any market insights.
+    expected_output: "{salary_analysis, benefits_mentioned}"
+    context: "Job salary information and description"
+    async_execution: false
+    markdown: false
   - id: quality_assessment
     builder: build_quality_task
-    summary: Determine job quality and potential red flags.
+    description: Determine job quality, completeness, and potential red or green flags.
+    expected_output: "{job_quality_score, description_completeness, red_flags, green_flags}"
+    context: "Job description, title, and company details"
+    async_execution: false
+    markdown: false
+
+persona_review_expected_output: &persona_review_output "{overall_recommendation, confidence_score, reasoning}"
 
 persona_review_tasks:
   - id: advisory_review
     agent: headhunter  # Example: can be any advisory persona
     description: "Analyze job opportunity from advisory perspective"
-    expected_output: "A structured evaluation with vote, confidence, and reasoning"
+    expected_output: *persona_review_output
     context: "Job posting data and user resume context"
     async_execution: false
     markdown: true
@@ -21,15 +35,15 @@ persona_review_tasks:
   - id: motivational_review
     agent: builder  # Example: can be any motivational persona
     description: "Evaluate job alignment with personal motivations and career goals"
-    expected_output: "Assessment of role fit with personal drivers and career trajectory"
+    expected_output: *persona_review_output
     context: "Job posting and motivational criteria"
     async_execution: false
     markdown: true
     
   - id: decision_review
-    agent: visionary  # Example: can be any decision persona  
+    agent: visionary  # Example: can be any decision persona
     description: "Make strategic decision on job opportunity"
-    expected_output: "Strategic decision with reasoning and confidence score"
+    expected_output: *persona_review_output
     context: "Job analysis results and previous persona evaluations"
     async_execution: false
     markdown: true
@@ -37,7 +51,7 @@ persona_review_tasks:
   - id: judge_synthesis
     agent: judge
     description: "Synthesize all evaluations into final recommendation"
-    expected_output: "Final verdict with comprehensive reasoning and trade-off analysis"
+    expected_output: *persona_review_output
     context: "All previous persona evaluations and job analysis"
     async_execution: false
     markdown: true
