@@ -50,6 +50,7 @@ class Settings:
             raise ValueError("DATABASE_URL is not set")
 
         parsed_db = urlparse(self.database_url)
+
         if os.path.exists("/.dockerenv"):
             if parsed_db.hostname == "localhost":
                 logger.warning(
@@ -60,6 +61,7 @@ class Settings:
                 raise ValueError(
                     "DATABASE_URL port must be 5432 when running inside Docker"
                 )
+
 
         # Redis Configuration for queue system
         self.redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")

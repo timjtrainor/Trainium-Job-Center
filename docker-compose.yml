@@ -220,8 +220,6 @@ services:
         condition: service_healthy
       ollama:
         condition: service_healthy
-      frontend:
-        condition: service_healthy
 
 volumes:
   # Defines the named volumes for data persistence.
