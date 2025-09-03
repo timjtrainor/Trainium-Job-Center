@@ -100,6 +100,13 @@ The service now supports multiple LLM providers with automatic fallback:
 
 5. **Verify providers** – Check `/health` endpoint to see which providers are available.
 
+6. **GPU Setup Verification** – Use the provided script to verify your setup:
+
+   ```bash
+   cd python-service
+   python gpu_setup_check.py
+   ```
+
 The system automatically falls back to the next provider if the primary one fails, ensuring reliable operation.
 
 ## Checks
