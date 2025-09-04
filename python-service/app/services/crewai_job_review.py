@@ -21,14 +21,15 @@ if TYPE_CHECKING:  # pragma: no cover - used for type hints only
 class JobReviewCrew(CrewBase):
     """Crew configuration loading agents and tasks from YAML files."""
     _base_dir = Path(__file__).resolve().parent
-    agents_config = str(_base_dir / "persona_catalog.yaml")
-    tasks_config = str(_base_dir / "tasks.yaml")
+    agents_config = str(_base_dir / "crewai_agents")
+    tasks_config = str(_base_dir / "crewai_tasks")
 
     @agent
     def researcher_agent(self) -> Agent:
         """Create researcher agent from YAML configuration."""
         return Agent(
             config=self.agents_config,
+            name="researcher",
             verbose=True
         )
 
@@ -37,6 +38,7 @@ class JobReviewCrew(CrewBase):
         """Create negotiator agent from YAML configuration."""
         return Agent(
             config=self.agents_config,
+            name="negotiator",
             verbose=True
         )
 
@@ -45,6 +47,7 @@ class JobReviewCrew(CrewBase):
         """Create skeptic agent from YAML configuration."""
         return Agent(
             config=self.agents_config,
+            name="skeptic",
             verbose=True
         )
 
@@ -53,6 +56,7 @@ class JobReviewCrew(CrewBase):
         """Create skills analysis task from YAML configuration."""
         return Task(
             config=self.tasks_config,
+            name="skills_analysis",
             agent=self.researcher_agent()
         )
 
@@ -61,6 +65,7 @@ class JobReviewCrew(CrewBase):
         """Create compensation analysis task from YAML configuration."""
         return Task(
             config=self.tasks_config,
+            name="compensation_analysis",
             agent=self.negotiator_agent()
         )
 
@@ -69,6 +74,7 @@ class JobReviewCrew(CrewBase):
         """Create quality assessment task from YAML configuration."""
         return Task(
             config=self.tasks_config,
+            name="quality_assessment",
             agent=self.skeptic_agent()
         )
 
