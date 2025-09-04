@@ -1,3 +1,0 @@
-description: "Research and analyze job posting to extract required and preferred skills along with experience and education insights"
-expected_output: "Structured analysis of required skills, preferred skills, experience level, education requirements, and all technical skills mentioned"
-agent: researcher

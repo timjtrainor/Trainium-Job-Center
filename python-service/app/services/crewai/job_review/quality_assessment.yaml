@@ -1,3 +1,0 @@
-description: "Assess job posting quality, completeness, and identify potential red flags or positive indicators"
-expected_output: "Job quality score, completeness rating, identified red flags, and green flags with risk assessment"
-agent: skeptic
