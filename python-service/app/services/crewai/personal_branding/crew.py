@@ -14,7 +14,7 @@ from .. import base
 from ...llm_clients import LLMRouter
 from ....core.config import get_settings
 from ....models.jobspy import ScrapedJob
-from app.services.crewai.tools.pg_search import pg_search_tool
+from ..tools.pg_search import pg_search_tool
 
 
 @CrewBase
