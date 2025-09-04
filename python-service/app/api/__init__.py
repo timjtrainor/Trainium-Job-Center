@@ -6,6 +6,7 @@ from .health import router as health_router
 from .jobspy import router as jobspy_router
 from .scheduler import router as scheduler_router
 from .crewai_review import router as crewai_review_router
+from .crewai_personal_brand import router as crewai_personal_brand_router
 
 # Create main API router
 api_router = APIRouter()
@@ -15,6 +16,7 @@ api_router.include_router(health_router, tags=["health"])
 api_router.include_router(jobspy_router, prefix="/jobs", tags=["jobs", "scraping"])
 api_router.include_router(scheduler_router, prefix="/scheduler", tags=["scheduler"])
 api_router.include_router(crewai_review_router, tags=["job-review", "crewai"])
+api_router.include_router(crewai_personal_brand_router, tags=["job-review", "crewai"])
 
 # Future: Add other routers here
 # api_router.include_router(gemini_router, prefix="/ai", tags=["ai"])

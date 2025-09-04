@@ -33,6 +33,7 @@ ollama==0.5.3
 openai==1.104.2
 # Crew orchestration
 crewai==0.175.0
+crewai-tools==0.69.0
 # For web search tool
 tavily-python==0.7.11
 
