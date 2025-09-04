@@ -37,6 +37,7 @@ class JobReviewCrew:
         settings = get_settings()
         self._router = LLMRouter(preferences=settings.llm_preference)
         self._agent_llms: Dict[str, BaseLLM] = {}
+        self.tasks_config = base.load_tasks_config(self.base_dir, "job_review/config")
 
     def _parse_model_config(self, models: List[Dict[str, Any]] | None) -> List[Tuple[str, str]]:
         """Convert agent model configs to provider/model tuples."""
@@ -160,14 +161,16 @@ class JobReviewCrew:
     def skills_analysis_task(self) -> Task:
         """
         Create task for analyzing job skills and requirements.
-        
+
         Returns:
             Task for skills analysis using researcher agent
         """
+        config = self.tasks_config["skills_analysis"]
+        agent_method = getattr(self, config["agent"])
         return Task(
-            description="Research and analyze job posting to extract required and preferred skills along with experience and education insights",
-            expected_output="Structured analysis of required skills, preferred skills, experience level, education requirements, and all technical skills mentioned",
-            agent=self.researcher_agent(),
+            description=config["description"],
+            expected_output=config["expected_output"],
+            agent=agent_method(),
             async_execution=False
         )
     
@@ -175,14 +178,16 @@ class JobReviewCrew:
     def compensation_analysis_task(self) -> Task:
         """
         Create task for analyzing compensation and benefits.
-        
+
         Returns:
             Task for compensation analysis using negotiator agent
         """
+        config = self.tasks_config["compensation_analysis"]
+        agent_method = getattr(self, config["agent"])
         return Task(
-            description="Evaluate salary range, listed benefits, and provide market compensation insights",
-            expected_output="Comprehensive salary analysis and benefits breakdown with negotiation guidance",
-            agent=self.negotiator_agent(),
+            description=config["description"],
+            expected_output=config["expected_output"],
+            agent=agent_method(),
             async_execution=False
         )
     
@@ -190,14 +195,16 @@ class JobReviewCrew:
     def quality_assessment_task(self) -> Task:
         """
         Create task for quality assessment and red flag detection.
-        
+
         Returns:
             Task for quality assessment using skeptic agent
         """
+        config = self.tasks_config["quality_assessment"]
+        agent_method = getattr(self, config["agent"])
         return Task(
-            description="Assess job posting quality, completeness, and identify potential red flags or positive indicators",
-            expected_output="Job quality score, completeness rating, identified red flags, and green flags with risk assessment",
-            agent=self.skeptic_agent(),
+            description=config["description"],
+            expected_output=config["expected_output"],
+            agent=agent_method(),
             async_execution=False
         )
     
