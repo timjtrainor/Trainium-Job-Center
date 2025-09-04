@@ -3,6 +3,7 @@ API endpoints for CrewAI job review functionality.
 """
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 import yaml
 from fastapi import APIRouter, HTTPException, Query
@@ -160,6 +161,7 @@ async def review_jobs_from_database(
                 "site": row["site"],
                 "job_url": row["job_url"]
             }
+            job_data = {k: (float(v) if isinstance(v, Decimal) else v) for k, v in job_data.items()}
             jobs_data.append(job_data)
 
         analyses = [review_crew.job_review().kickoff(inputs={"job": job}) for job in jobs_data]
