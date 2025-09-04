@@ -18,7 +18,7 @@ from app.services.jobspy_ingestion import get_jobspy_service
 from app.services.database import get_database_service
 from app.services.queue import get_queue_service
 from app.services.scheduler import get_scheduler_service
-from app.services.crewai_job_review import get_job_review_crew
+from app.services.crewai import get_job_review_crew
 from app.models.responses import create_error_response
 
 
