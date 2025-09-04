@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 
 from ..models.responses import StandardResponse, create_success_response, create_error_response
-from ..services.crewai_job_review import get_job_review_crew
+from ..services.crewai import get_job_review_crew
 from ..services.database import get_database_service
 
 router = APIRouter(prefix="/jobs", tags=["Job Review"])
@@ -190,7 +190,7 @@ async def review_jobs_from_database(
 async def get_available_agents():
     """Get information about available analysis agents."""
     try:
-        base_dir = Path(__file__).resolve().parent.parent / "services" / "crewai_agents"
+        base_dir = Path(__file__).resolve().parent.parent / "services" / "crewai" / "agents"
         agents = []
         for path in base_dir.glob("*.yaml"):
             with open(path, "r", encoding="utf-8") as f:
