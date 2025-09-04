@@ -3,6 +3,8 @@ API endpoints for CrewAI job review functionality.
 """
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+from pathlib import Path
+import yaml
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 
@@ -186,58 +188,25 @@ async def review_jobs_from_database(
 
 @router.get("/review/agents", response_model=StandardResponse)
 async def get_available_agents():
-    """
-    Get information about available analysis agents.
-    
-    Returns:
-        Information about each agent and their capabilities
-    """
+    """Get information about available analysis agents."""
     try:
+        base_dir = Path(__file__).resolve().parent.parent / "services" / "crewai_agents"
+        agents = []
+        for path in base_dir.glob("*.yaml"):
+            with open(path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            agents.append({
+                "name": data.get("id"),
+                "persona_type": data.get("persona_type"),
+                "description": data.get("role"),
+                "decision_lens": data.get("metadata", {}).get("decision_lens"),
+                "capabilities": data.get("metadata", {}).get("capabilities", []),
+            })
         agents_info = {
-            "agents": [
-                {
-                    "name": "researcher",
-                    "persona_type": "Advisory",
-                    "description": "Desk researcher using Google Search for job insight and skills analysis",
-                    "decision_lens": "What quick facts can guide this decision?",
-                    "capabilities": [
-                        "Technical skills extraction",
-                        "Experience level determination", 
-                        "Education requirements analysis",
-                        "Skills categorization (required vs preferred)",
-                        "Google search for job market data"
-                    ]
-                },
-                {
-                    "name": "negotiator",
-                    "persona_type": "Advisory",
-                    "description": "Compensation adviser giving leverage tips and salary analysis",
-                    "decision_lens": "Is this job worth it financially, and can I push for more?",
-                    "capabilities": [
-                        "Salary range analysis",
-                        "Compensation competitiveness assessment",
-                        "Benefits extraction and categorization", 
-                        "Market salary insights",
-                        "Negotiation leverage advice"
-                    ]
-                },
-                {
-                    "name": "skeptic",
-                    "persona_type": "Advisory",
-                    "description": "Risk assessor flagging red flags and quality issues",
-                    "decision_lens": "What's the catch?",
-                    "capabilities": [
-                        "Job posting quality scoring",
-                        "Description completeness assessment",
-                        "Red flag identification (MLM, unrealistic requirements, etc.)",
-                        "Green flag identification (professional development, benefits, etc.)",
-                        "Risk assessment and due diligence"
-                    ]
-                }
-            ],
+            "agents": agents,
             "analysis_outputs": [
                 "required_skills",
-                "preferred_skills", 
+                "preferred_skills",
                 "experience_level",
                 "education_requirements",
                 "salary_analysis",
@@ -248,22 +217,19 @@ async def get_available_agents():
                 "green_flags",
                 "company_insights",
                 "overall_recommendation",
-                "confidence_score"
-            ]
+                "confidence_score",
+            ],
         }
-        
         return create_success_response(
             data=agents_info,
-            message="Available agents information retrieved successfully"
+            message="Available agents information retrieved successfully",
         )
-    
     except Exception as e:
         logger.error(f"Failed to get agents info: {str(e)}")
         return create_error_response(
             error="Failed to retrieve agents information",
             message=str(e)
         )
-
 
 @router.get("/review/health", response_model=StandardResponse)
 async def health_check():
