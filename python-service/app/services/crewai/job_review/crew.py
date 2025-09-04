@@ -97,14 +97,11 @@ class JobReviewCrew:
         Returns:
             Task for skills analysis using researcher agent
         """
-        tasks_config = base.load_tasks_config(self.base_dir, self.crew_name)
-        task_config = tasks_config["tasks"]["skills_analysis"]
-        
         return Task(
-            description=task_config["description"],
-            expected_output=task_config["expected_output"],
+            description="Research and analyze job posting to extract required and preferred skills along with experience and education insights",
+            expected_output="Structured analysis of required skills, preferred skills, experience level, education requirements, and all technical skills mentioned",
             agent=self.researcher_agent(),
-            async_execution=task_config.get("async_execution", False)
+            async_execution=False
         )
     
     @task
@@ -115,14 +112,11 @@ class JobReviewCrew:
         Returns:
             Task for compensation analysis using negotiator agent
         """
-        tasks_config = base.load_tasks_config(self.base_dir, self.crew_name)
-        task_config = tasks_config["tasks"]["compensation_analysis"]
-        
         return Task(
-            description=task_config["description"],
-            expected_output=task_config["expected_output"],
+            description="Evaluate salary range, listed benefits, and provide market compensation insights",
+            expected_output="Comprehensive salary analysis and benefits breakdown with negotiation guidance",
             agent=self.negotiator_agent(),
-            async_execution=task_config.get("async_execution", False)
+            async_execution=False
         )
     
     @task
@@ -133,14 +127,11 @@ class JobReviewCrew:
         Returns:
             Task for quality assessment using skeptic agent
         """
-        tasks_config = base.load_tasks_config(self.base_dir, self.crew_name)
-        task_config = tasks_config["tasks"]["quality_assessment"]
-        
         return Task(
-            description=task_config["description"],
-            expected_output=task_config["expected_output"],
+            description="Assess job posting quality, completeness, and identify potential red flags or positive indicators",
+            expected_output="Job quality score, completeness rating, identified red flags, and green flags with risk assessment",
             agent=self.skeptic_agent(),
-            async_execution=task_config.get("async_execution", False)
+            async_execution=False
         )
     
     @crew
@@ -156,7 +147,7 @@ class JobReviewCrew:
             tasks=self.tasks,
             process=Process.sequential,
             verbose=True,
-            memory=True
+            memory=False  # Disable memory to avoid API key requirements
         )
     
     @before_kickoff

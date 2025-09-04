@@ -6,8 +6,6 @@ goal: "Surface quick facts that inform the job decision."
 backstory: "An inquisitive researcher who quickly gathers facts from the web."
 max_iter: 2
 max_execution_time: 30
-tools:
-  - web_search
 metadata:
   decision_lens: "What quick facts can guide this decision?"
   tone: inquisitive
