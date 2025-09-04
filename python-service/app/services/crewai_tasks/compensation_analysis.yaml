@@ -1,7 +1,0 @@
-id: compensation_analysis
-description: "Evaluate salary range, listed benefits, and provide market compensation insights"
-expected_output: "Comprehensive salary analysis and benefits breakdown with negotiation guidance"
-agent: negotiator
-context: "Job salary information and description"
-async_execution: false
-markdown: false

@@ -1,3 +1,4 @@
+version: "1.0"
 id: skeptic
 persona_type: Advisory
 role: Risk assessor flagging red flags
