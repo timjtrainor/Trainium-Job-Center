@@ -116,12 +116,20 @@ class PersonalBrandCrew:
         """
         config = self.tasks_config["personal_branding_review"]
         agent_method = getattr(self, config["agent"])
-        return Task(
+
+        task = Task(
             description=config["description"],
             expected_output=config["expected_output"],
             agent=agent_method(),
-            async_execution=False
+            async_execution=False,
+            metadata=config.get("metadata", {}),
         )
+
+        narrative_name = task.metadata.get("narrative_name") if task.metadata else None
+        if narrative_name:
+            task.agent.tools = [pg_search_tool(narrative_name)]
+
+        return task
 
     @crew
     def branding_crew(self) -> Crew:
