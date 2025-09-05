@@ -10,8 +10,8 @@ import pandas as pd
 from loguru import logger
 
 from jobspy import scrape_jobs
-from ..models.jobspy import JobSearchRequest, ScrapedJob
-from ..models.responses import StandardResponse, create_success_response, create_error_response
+from ...models.jobspy import JobSearchRequest, ScrapedJob
+from ...models.responses import StandardResponse, create_success_response, create_error_response
 
 
 def _to_iso_date_str(date_value) -> Optional[str]:

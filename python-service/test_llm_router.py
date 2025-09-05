@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import Mock, patch
 import os
 
-from app.services.llm_clients import (
+from app.services.ai.llm_clients import (
     LLMRouter, 
     OllamaClient, 
     OpenAIClient, 
@@ -39,7 +39,7 @@ class TestLLMRouter:
         providers = router._parse_preferences(" ollama : gemma3:1b , openai : gpt-4 ")
         assert providers == [("ollama", "gemma3:1b"), ("openai", "gpt-4")]
     
-    @patch('app.services.llm_clients.create_llm_client')
+    @patch('app.services.ai.llm_clients.create_llm_client')
     def test_client_creation(self, mock_create_client):
         """Test client creation and caching."""
         mock_client = Mock()
@@ -60,7 +60,7 @@ class TestLLMRouter:
         assert client2 == mock_client
         mock_create_client.assert_not_called()
     
-    @patch('app.services.llm_clients.create_llm_client')
+    @patch('app.services.ai.llm_clients.create_llm_client')
     def test_generate_with_fallback(self, mock_create_client):
         """Test generation with provider fallback."""
         # First provider fails
@@ -80,7 +80,7 @@ class TestLLMRouter:
         assert response == "success response"
         working_client.generate.assert_called_once_with("test prompt")
     
-    @patch('app.services.llm_clients.create_llm_client')
+    @patch('app.services.ai.llm_clients.create_llm_client')
     def test_all_providers_fail(self, mock_create_client):
         """Test error handling when all providers fail."""
         failing_client = Mock()
@@ -128,19 +128,19 @@ class TestClientAvailability:
     
     def test_ollama_availability_no_package(self):
         """Test Ollama availability when package not installed."""
-        with patch('app.services.llm_clients.ollama', None):
+        with patch('app.services.ai.llm_clients.ollama', None):
             client = OllamaClient("gemma3:1b")
             assert not client.is_available()
     
     def test_openai_availability_no_api_key(self):
         """Test OpenAI availability when API key missing."""
-        with patch('app.services.llm_clients.resolve_api_key', return_value=None):
+        with patch('app.services.ai.llm_clients.resolve_api_key', return_value=None):
             client = OpenAIClient("gpt-4")
             assert not client.is_available()
     
     def test_gemini_availability_no_api_key(self):
         """Test Gemini availability when API key missing."""
-        with patch('app.services.llm_clients.resolve_api_key', return_value=None):
+        with patch('app.services.ai.llm_clients.resolve_api_key', return_value=None):
             client = GeminiClient("gemini-1.5-flash")
             assert not client.is_available()
 

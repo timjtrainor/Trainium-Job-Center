@@ -269,7 +269,7 @@ ORDER BY created_at DESC
 
 ### Analyze a Single Job
 ```python
-from app.services.crewai_job_review import get_job_review_crew
+from app.services.crewai import get_job_review_crew
 
 crew = get_job_review_crew().job_review()
 

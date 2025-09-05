@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 from loguru import logger
 
 from app.models.responses import StandardResponse, create_success_response
-from app.services.scheduler import get_scheduler_service
+from app.services.infrastructure.scheduler import get_scheduler_service
 
 router = APIRouter()
 

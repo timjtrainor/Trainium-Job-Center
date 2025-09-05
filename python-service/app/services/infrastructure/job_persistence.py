@@ -9,8 +9,8 @@ import asyncpg
 import json
 from loguru import logger
 
-from ..core.config import get_settings
-from ..models.jobspy import ScrapedJob
+from ...core.config import get_settings
+from ...models.jobspy import ScrapedJob
 from .database import get_database_service
 
 

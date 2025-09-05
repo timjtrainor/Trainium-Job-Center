@@ -8,17 +8,17 @@ The system implements a queue + worker model using **RQ (Redis Queue)** for sche
 
 ### Components
 
-1. **Shared Scraping Function** (`app/services/scraping.py`)
+1. **Shared Scraping Function** (`app/services/jobspy/scraping.py`)
    - Single source of truth for job scraping logic
    - Used by both workers and sync endpoints
    - Implements randomized human-like pauses
 
-2. **Queue System** (`app/services/queue.py`)
+2. **Queue System** (`app/services/infrastructure/queue.py`)
    - RQ-based job queuing with Redis backend
    - Task management and status tracking
    - Redis-based locking for preventing duplicate runs
 
-3. **Worker Processes** (`worker.py`)
+3. **Worker Processes** (`app/services/infrastructure/worker.py`)
    - Consume jobs from Redis queue
    - Execute scraping with error handling and retries
    - Update run status in database

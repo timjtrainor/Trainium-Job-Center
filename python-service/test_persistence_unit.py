@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Mock dependencies before importing
 sys.modules['app.core.config'] = Mock()
-sys.modules['app.services.database'] = Mock()
+sys.modules['app.services.infrastructure.database'] = Mock()
 
 # Mock get_settings to return fake config
 mock_settings = Mock()
@@ -26,7 +26,7 @@ sys.modules['app.core.config'].get_settings = mock_get_settings
 
 # Mock get_database_service
 mock_db_service = Mock()
-sys.modules['app.services.database'].get_database_service = lambda: mock_db_service
+sys.modules['app.services.infrastructure.database'].get_database_service = lambda: mock_db_service
 
 # Now we can import the actual modules
 from app.models.jobspy import ScrapedJob
@@ -72,7 +72,7 @@ def test_job_field_mapping_logic():
     print("🧪 Testing job field mapping logic...")
     
     # Import after mocking
-    from app.services.job_persistence import JobPersistenceService
+    from app.services.infrastructure.job_persistence import JobPersistenceService
     
     service = JobPersistenceService()
     
@@ -141,7 +141,7 @@ def test_date_parsing():
     """Test date parsing functionality."""
     print("🧪 Testing date parsing...")
     
-    from app.services.job_persistence import JobPersistenceService
+    from app.services.infrastructure.job_persistence import JobPersistenceService
     service = JobPersistenceService()
     
     # Test various date formats

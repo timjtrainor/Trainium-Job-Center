@@ -4,7 +4,7 @@ from typing import Dict, Any
 from crewai import Crew, Process, Task
 from crewai.project import CrewBase, agent, task, crew
 
-from .pg_search import get_pg_search_tool
+from ..infrastructure.pg_search import get_pg_search_tool
 
 
 class PersonalBrandCrew(CrewBase):

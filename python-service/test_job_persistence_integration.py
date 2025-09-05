@@ -14,7 +14,7 @@ async def test_persist_jobs_inserts_row():
 
         # Import after setting DATABASE_URL so services pick it up
         from app.models.jobspy import ScrapedJob
-        from app.services.job_persistence import persist_jobs
+        from app.services.infrastructure.job_persistence import persist_jobs
 
         # Create jobs table schema
         conn = await asyncpg.connect(pg.url())

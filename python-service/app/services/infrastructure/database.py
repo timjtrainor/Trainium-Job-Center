@@ -8,7 +8,7 @@ from loguru import logger
 from datetime import datetime, timezone
 import json
 
-from ..core.config import get_settings
+from ...core.config import get_settings
 
 
 class DatabaseService:

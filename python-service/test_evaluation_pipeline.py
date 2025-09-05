@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Tuple
 
 import pytest
 
-from app.services.evaluation_pipeline import EvaluationPipeline
-from app.services.persona_llm import PersonaLLM
+from app.services.ai.evaluation_pipeline import EvaluationPipeline
+from app.services.ai.persona_llm import PersonaLLM
 
 
 MOTIVATORS = {"builder", "maximizer", "harmonizer", "pathfinder", "adventurer"}
@@ -84,7 +84,7 @@ def test_evaluate_job_pipeline_routes_clients(motivator_pair, decision_pair, mon
         return Client()
 
     monkeypatch.setattr(
-        "app.services.persona_llm.create_llm_client", fake_factory
+        "app.services.ai.persona_llm.create_llm_client", fake_factory
     )
 
     db = RecordingDB()

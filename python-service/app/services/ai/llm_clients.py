@@ -29,7 +29,7 @@ try:
 except ImportError:
     genai = None
 
-from ..core.config import resolve_api_key
+from ...core.config import resolve_api_key
 
 
 class BaseLLMClient(ABC):
@@ -228,7 +228,7 @@ class LLMRouter:
             kwargs = {}
             if provider == "ollama":
                 # Allow configurable Ollama host
-                from ..core.config import get_settings
+                from ...core.config import get_settings
                 settings = get_settings()
                 ollama_host = getattr(settings, 'ollama_host', 'http://localhost:11434')
                 kwargs['host'] = ollama_host

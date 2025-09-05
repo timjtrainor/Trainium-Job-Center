@@ -15,12 +15,12 @@ This document outlines the migration from Hugging Face to a multi-provider LLM s
 
 ### 2. Key Components Added
 
-#### LLM Router (`app/services/llm_clients.py`)
+#### LLM Router (`app/services/ai/llm_clients.py`)
 - Automatic provider selection based on availability
 - Graceful fallback to next provider if primary fails
 - Centralized configuration via `LLM_PREFERENCE` environment variable
 
-#### Web Search Tool (`app/services/web_search.py`)
+#### Web Search Tool (`app/services/ai/web_search.py`)
 - Tavily-powered web search for real-time information
 - Company research capabilities
 - Industry trend analysis
@@ -54,13 +54,13 @@ TAVILY_API_KEY=your_tavily_api_key
 ### 4. Files Modified
 
 #### Core LLM System
-- `app/services/llm_clients.py` - Completely rewritten with new providers
-- `app/services/persona_llm.py` - Updated to use LLM router
+- `app/services/ai/llm_clients.py` - Completely rewritten with new providers
+- `app/services/ai/persona_llm.py` - Updated to use LLM router
 - `app/core/config.py` - Removed HF config, added LLM routing config
 
 #### CrewAI Integration  
-- `app/services/crewai_job_review.py` - Enhanced agents with LLM capabilities
-- `app/services/web_search.py` - New web search tool for agents
+- `app/services/crewai/job_review/crew.py` - Enhanced agents with LLM capabilities
+- `app/services/ai/web_search.py` - New web search tool for agents
 
 #### Infrastructure
 - `docker-compose.yml` - Added Ollama service, updated environment variables
@@ -97,7 +97,7 @@ TAVILY_API_KEY=your_tavily_api_key
 
 ### Basic LLM Usage
 ```python
-from app.services.llm_clients import LLMRouter
+from app.services.ai.llm_clients import LLMRouter
 
 router = LLMRouter()  # Uses default preferences
 response = router.generate("Analyze this job posting...")
@@ -105,7 +105,7 @@ response = router.generate("Analyze this job posting...")
 
 ### CrewAI Enhanced Analysis
 ```python
-from app.services.crewai_job_review import get_job_review_crew
+from app.services.crewai import get_job_review_crew
 
 crew = get_job_review_crew().job_review()
 analysis = crew.kickoff(inputs={"job": job_data})
@@ -119,7 +119,7 @@ analysis = crew.kickoff(inputs={"job": job_data})
 
 ### Web Search for Agents
 ```python
-from app.services.web_search import get_web_search_tool
+from app.services.ai.web_search import get_web_search_tool
 
 search = get_web_search_tool()
 company_info = search.search_company("OpenAI")

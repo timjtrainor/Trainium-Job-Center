@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from loguru import logger
 
-from app.services.scraping import scrape_jobs_sync
+from app.services.jobspy.scraping import scrape_jobs_sync
 from app.models.jobspy import JobSite
 
 
@@ -33,7 +33,7 @@ def test_shared_scraping_function():
     }
     
     # Mock the actual jobspy.scrape_jobs function
-    with patch('app.services.scraping.scrape_jobs') as mock_scrape:
+    with patch('app.services.jobspy.scraping.scrape_jobs') as mock_scrape:
         # Create mock pandas DataFrame
         mock_df = Mock()
         mock_df.empty = False
@@ -113,9 +113,9 @@ def test_service_initialization():
     
     print("🧪 Testing service initialization...")
     
-    from app.services.database import get_database_service
-    from app.services.queue import get_queue_service
-    from app.services.scheduler import get_scheduler_service
+    from app.services.infrastructure.database import get_database_service
+    from app.services.infrastructure.queue import get_queue_service
+    from app.services.infrastructure.scheduler import get_scheduler_service
     
     # Test service instance creation
     db_service = get_database_service()
