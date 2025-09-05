@@ -14,10 +14,7 @@ from .. import base
 from ...llm_clients import LLMRouter
 from ....core.config import get_settings
 from ....models.jobspy import ScrapedJob
-from crewai_tools import PGSearchTool
-from app.services.crewai.tools.pg_search import (
-    pg_search_tool as pg_search_tool_factory,
-)
+from app.services.crewai.tools.pg_search import pg_search
 
 
 @CrewBase
@@ -94,9 +91,10 @@ class PersonalBrandCrew:
         return llm
 
     @tool
-    def pg_search_tool(self) -> PGSearchTool:
-        """Provide PGSearchTool for querying strategic narratives."""
-        return pg_search_tool_factory()
+    def pg_search_tool(self) -> str:
+        """Fetch strategic narratives from Postgres."""
+        return pg_search(getattr(self, "_narrative_name", None))
+
         
     @agent
     def branding_agent(self) -> Agent:
@@ -136,7 +134,9 @@ class PersonalBrandCrew:
 
         narrative_name = task.metadata.get("narrative_name") if task.metadata else None
         if narrative_name:
-            task.agent.tools = [pg_search_tool_factory(narrative_name)]
+      
+            self._narrative_name = narrative_name
+
 
         return task
 
