@@ -247,7 +247,10 @@ class LLMRouter:
                     logger.debug(f"Using LLM provider: {provider}:{model}")
                     return client.generate(prompt, **kwargs)
                 else:
-                    logger.warning(f"Provider {provider}:{model} not available, trying next")
+                    msg = f"Provider {provider}:{model} not available"
+                    logger.warning(f"{msg}, trying next")
+                    if last_error is None:
+                        last_error = RuntimeError(msg)
                     continue
             except Exception as e:
                 logger.warning(f"Provider {provider}:{model} failed: {e}, trying next")
@@ -255,7 +258,10 @@ class LLMRouter:
                 continue
 
         # All providers failed
-        error_msg = f"All LLM providers failed. Last error: {last_error}"
+        if last_error is None:
+            error_msg = "All LLM providers failed. No providers were available"
+        else:
+            error_msg = f"All LLM providers failed. Last error: {last_error}"
         logger.error(error_msg)
         raise ConnectionError(error_msg)
 
