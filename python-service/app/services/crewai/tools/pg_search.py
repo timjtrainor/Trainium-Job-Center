@@ -1,12 +1,11 @@
-from crewai_tools import PGSearchTool
 import os
+from crewai_tools import PGSearchTool
 
-PG_URL = os.getenv("DATABASE_URL")
 
 def pg_search_tool():
     return PGSearchTool(
-        db_url=os.getenv("PG_URL"),
+        db_url=os.getenv("DATABASE_URL"),
         table_name="strategic_narratives",
         content_column="narrative_text",
-        metadata_columns=["narrative_name"]
+        metadata_columns=["narrative_name"],
     )
