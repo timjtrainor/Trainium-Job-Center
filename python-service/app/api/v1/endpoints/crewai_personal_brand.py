@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from ..services.crewai import get_personal_brand_crew
+from app.services.crewai import get_personal_brand_crew
 
 
 router = APIRouter(tags=["Personal Branding"])

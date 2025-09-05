@@ -11,7 +11,7 @@ from loguru import logger
 import traceback
 
 from app.core.config import configure_logging, get_settings
-from app.api import api_router
+from app.api.router import api_router
 from app.services.gemini import get_gemini_service
 from app.services.postgrest import get_postgrest_service
 from app.services.jobspy_ingestion import get_jobspy_service

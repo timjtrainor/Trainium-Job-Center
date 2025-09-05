@@ -87,9 +87,9 @@ async def test_api_endpoints():
     
     print("🧪 Testing API endpoint imports...")
     
-    from app.api.jobspy import router as jobspy_router
-    from app.api.scheduler import router as scheduler_router
-    from app.api import api_router
+    from app.api.v1.endpoints.jobspy import router as jobspy_router
+    from app.api.v1.endpoints.scheduler import router as scheduler_router
+    from app.api.router import api_router
     
     # Check that routers have the expected endpoints
     jobspy_routes = [route.path for route in jobspy_router.routes]
