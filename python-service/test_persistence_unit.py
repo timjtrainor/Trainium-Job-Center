@@ -29,7 +29,7 @@ mock_db_service = Mock()
 sys.modules['app.services.infrastructure.database'].get_database_service = lambda: mock_db_service
 
 # Now we can import the actual modules
-from app.models.jobspy import ScrapedJob
+from app.schemas.jobspy import ScrapedJob
 
 
 def test_scraped_job_model():

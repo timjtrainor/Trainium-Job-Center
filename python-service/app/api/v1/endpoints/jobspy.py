@@ -6,8 +6,8 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 
-from app.models.responses import StandardResponse, create_success_response, create_error_response
-from app.models.jobspy import JobSearchRequest
+from app.schemas.responses import StandardResponse, create_success_response, create_error_response
+from app.schemas.jobspy import JobSearchRequest
 from app.services.jobspy.ingestion import get_jobspy_service
 from app.services.infrastructure.queue import get_queue_service
 from app.services.infrastructure.database import get_database_service
@@ -280,7 +280,7 @@ async def jobspy_health_check():
             }
         }
         
-        from app.models.responses import create_success_response
+        from app.schemas.responses import create_success_response
         return create_success_response(
             data=health_data,
             message="JobSpy service health check completed"

@@ -20,7 +20,7 @@ def test_persistence_integration():
     print("🧪 Testing jobs persistence integration workflow...")
     
     # Import after environment setup
-    from app.models.jobspy import ScrapedJob
+    from app.schemas.jobspy import ScrapedJob
     from app.services.infrastructure.job_persistence import JobPersistenceService
     
     # Create realistic test data similar to what JobSpy would return

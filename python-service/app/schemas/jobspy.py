@@ -1,5 +1,5 @@
 """
-JobSpy integration models for job scraping and ingestion.
+JobSpy integration schemas for job scraping and ingestion.
 """
 from typing import Optional, List
 from pydantic import BaseModel, Field, field_validator

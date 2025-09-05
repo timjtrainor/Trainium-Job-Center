@@ -84,9 +84,9 @@ python-service/
     ├── core/              # Core configuration
     │   ├── __init__.py
     │   └── config.py      # Application settings
-    ├── models/            # Data models
+    ├── schemas/           # Pydantic schemas for requests and responses
     │   ├── __init__.py
-    │   └── responses.py   # API response models
+    │   └── responses.py   # API response schemas
     └── services/          # Business logic services
         ├── __init__.py
         ├── gemini.py      # Gemini AI integration

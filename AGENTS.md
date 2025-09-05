@@ -15,4 +15,5 @@
 
 ## Python Service
 - Build FastAPI endpoints with async functions.
-- Keep modules organized under `app/api`, `app/models`, and `app/services`.
+- Keep modules organized under `app/api`, `app/schemas`, and `app/services`.
+- Reserve `app/models` for future ORM models.

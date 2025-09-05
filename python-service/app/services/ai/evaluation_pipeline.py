@@ -7,7 +7,7 @@ import time
 from loguru import logger
 import yaml
 
-from ...models.evaluations import PersonaEvaluation, Decision, EvaluationSummary
+from ...schemas.evaluations import PersonaEvaluation, Decision, EvaluationSummary
 from ..persona_loader import PersonaCatalog
 from .persona_llm import PersonaLLM
 try:

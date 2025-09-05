@@ -16,7 +16,7 @@ from crewai.llm import BaseLLM
 from .. import base
 from app.services.ai.llm_clients import LLMRouter
 from ....core.config import get_settings
-from ....models.jobspy import ScrapedJob
+from ....schemas.jobspy import ScrapedJob
 
 
 @CrewBase

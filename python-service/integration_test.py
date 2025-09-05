@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from loguru import logger
 
 from app.services.jobspy.scraping import scrape_jobs_sync
-from app.models.jobspy import JobSite
+from app.schemas.jobspy import JobSite
 
 
 def test_shared_scraping_function():
