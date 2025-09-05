@@ -3,30 +3,27 @@
 Simple integration test demonstrating the complete persistence workflow.
 Focuses on the business logic without complex async mocking.
 """
-import sys
-import os
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-# Set up environment  
-os.environ['DATABASE_URL'] = 'postgresql://fake:fake@fake:5432/fake'
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Mock configuration first
-sys.modules['app.core.config'] = Mock()
-sys.modules['app.services.infrastructure.database'] = Mock()
-
-mock_settings = Mock()
-mock_settings.database_url = "fake://connection"
-
-def mock_get_settings():
-    return mock_settings
-
-sys.modules['app.core.config'].get_settings = mock_get_settings
-sys.modules['app.services.infrastructure.database'].get_database_service = lambda: Mock()
-
-# Now import our modules
 from app.schemas.jobspy import ScrapedJob
+
+# Mock configuration during import and then restore to avoid side effects
+import importlib, sys
+
+_original_config = importlib.import_module("app.core.config")
+_original_db = importlib.import_module("app.services.infrastructure.database")
+
+sys.modules["app.core.config"] = Mock()
+sys.modules["app.services.infrastructure.database"] = Mock()
+
+sys.modules["app.core.config"].get_settings = lambda: Mock(database_url="fake://connection")
+sys.modules["app.services.infrastructure.database"].get_database_service = lambda: Mock()
+
 from app.services.infrastructure.job_persistence import JobPersistenceService
+
+# Restore modules for other tests
+sys.modules["app.core.config"] = _original_config
+sys.modules["app.services.infrastructure.database"] = _original_db
 
 
 def test_end_to_end_workflow_simulation():

@@ -10,7 +10,7 @@ from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime
 
 # Add the project root to Python path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "python-service")))
 
 # Mock the configuration before importing modules
 os.environ['DATABASE_URL'] = 'postgresql://fake:fake@fake:5432/fake'
@@ -77,32 +77,36 @@ def test_persistence_integration():
     
     # Mock the database service and connection properly for async context
     service = JobPersistenceService()
-    mock_db_service = Mock()
-    mock_db_service.initialized = True
-    
-    # Create async context manager mocks
-    async def mock_acquire():
-        return mock_conn
-    
-    async def mock_transaction():
-        pass
-    
-    mock_conn = AsyncMock()
-    mock_pool = Mock()
-    
-    # Set up proper async context manager behavior
-    mock_acquire_cm = Mock()
-    mock_acquire_cm.__aenter__ = AsyncMock(return_value=mock_conn)
-    mock_acquire_cm.__aexit__ = AsyncMock(return_value=None)
-    mock_pool.acquire.return_value = mock_acquire_cm
-    
-    mock_transaction_cm = Mock()
-    mock_transaction_cm.__aenter__ = AsyncMock(return_value=None)
-    mock_transaction_cm.__aexit__ = AsyncMock(return_value=None)
-    mock_conn.transaction.return_value = mock_transaction_cm
-    
-    mock_db_service.pool = mock_pool
-    service.db_service = mock_db_service
+
+    class DummyTx:
+        async def __aenter__(self):
+            return None
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    class DummyConn:
+        def transaction(self):
+            return DummyTx()
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    class DummyAcquire:
+        def __init__(self, conn):
+            self.conn = conn
+        async def __aenter__(self):
+            return self.conn
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    class DummyPool:
+        def __init__(self):
+            self.conn = DummyConn()
+        def acquire(self):
+            return DummyAcquire(self.conn)
+
+    service.db_service = Mock(initialized=True, pool=DummyPool())
     
     # Mock the _upsert_job method to simulate database behavior
     # First job: inserted, Second job: inserted, Third job: duplicate

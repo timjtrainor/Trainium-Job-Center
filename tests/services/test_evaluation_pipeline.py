@@ -10,7 +10,7 @@ from app.services.ai.persona_llm import PersonaLLM
 
 MOTIVATORS = {"builder", "maximizer", "harmonizer", "pathfinder", "adventurer"}
 DECISIONS = {"visionary", "realist", "guardian"}
-ADVISORS = {"researcher", "headhunter"}
+ADVISORS = {"researcher", "headhunter", "negotiator", "skeptic"}
 
 
 @dataclass
@@ -31,6 +31,13 @@ class FakeCatalog:
         }
         self.motivator_pair = motivator_pair
         self.decision_pair = decision_pair
+
+    def get(self, persona_id: str) -> FakePersona:
+        for group in self.groups.values():
+            for persona in group:
+                if persona.id == persona_id:
+                    return persona
+        raise KeyError(persona_id)
 
     def get_personas_by_group(self, group: str) -> List[FakePersona]:
         return self.groups.get(group, [])
