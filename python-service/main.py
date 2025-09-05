@@ -12,13 +12,13 @@ import traceback
 
 from app.core.config import configure_logging, get_settings
 from app.api.router import api_router
-from app.services.ai.gemini import get_gemini_service
-from app.services.infrastructure.postgrest import get_postgrest_service
-from app.services.jobspy.ingestion import get_jobspy_service
-from app.services.infrastructure.database import get_database_service
-from app.services.infrastructure.queue import get_queue_service
-from app.services.infrastructure.scheduler import get_scheduler_service
-from app.services.crewai import get_job_review_crew
+from app.services.ai.gemini import GeminiService
+from app.services.infrastructure.postgrest import PostgRESTService
+from app.services.jobspy.ingestion import JobSpyIngestionService
+from app.services.infrastructure.database import DatabaseService
+from app.services.infrastructure.queue import QueueService
+from app.services.infrastructure.scheduler import SchedulerService
+from app.services.crewai import JobReviewCrew
 from app.schemas.responses import create_error_response
 
 
@@ -36,25 +36,25 @@ async def lifespan(app: FastAPI):
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"Debug mode: {settings.debug}")
     
-    # Initialize services
-    gemini_service = get_gemini_service()
-    postgrest_service = get_postgrest_service()
-    jobspy_service = get_jobspy_service()
-    database_service = get_database_service()
-    queue_service = get_queue_service()
-    scheduler_service = get_scheduler_service()
-    job_review_crew = get_job_review_crew()
+    # Initialize services and store on application state
+    app.state.gemini_service = GeminiService()
+    app.state.postgrest_service = PostgRESTService()
+    app.state.jobspy_service = JobSpyIngestionService()
+    app.state.database_service = DatabaseService()
+    app.state.queue_service = QueueService()
+    app.state.scheduler_service = SchedulerService()
+    app.state.job_review_crew = JobReviewCrew()
     
     try:
         # Initialize existing services
-        await gemini_service.initialize()
-        await postgrest_service.initialize()
-        await jobspy_service.initialize()
-        
+        await app.state.gemini_service.initialize()
+        await app.state.postgrest_service.initialize()
+        await app.state.jobspy_service.initialize()
+
         # Initialize new queue-based services
-        await database_service.initialize()
-        await queue_service.initialize()
-        await scheduler_service.initialize()
+        await app.state.database_service.initialize()
+        await app.state.queue_service.initialize()
+        await app.state.scheduler_service.initialize()
         
         logger.info("All services initialized successfully")
         
@@ -66,8 +66,8 @@ async def lifespan(app: FastAPI):
     
     # Cleanup on shutdown
     logger.info("Shutting down services...")
-    await postgrest_service.close()
-    await database_service.close()
+    await app.state.postgrest_service.close()
+    await app.state.database_service.close()
     logger.info("Application shutdown complete")
 
 

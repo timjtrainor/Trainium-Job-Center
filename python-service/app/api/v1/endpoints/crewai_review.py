@@ -6,18 +6,26 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 import yaml
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from loguru import logger
 
-from app.schemas.responses import StandardResponse, create_success_response, create_error_response
-from app.services.crewai import get_job_review_crew
-from app.services.infrastructure.database import get_database_service
+from ....schemas.responses import (
+    StandardResponse,
+    create_success_response,
+    create_error_response,
+)
+from ....dependencies import get_job_review_crew, get_database_service
+from ....services.crewai import JobReviewCrew
+from ....services.infrastructure.database import DatabaseService
 
 router = APIRouter(prefix="/jobs", tags=["Job Review"])
 
 
 @router.post("/review", response_model=StandardResponse)
-async def review_single_job(job_data: Dict[str, Any]):
+async def review_single_job(
+    job_data: Dict[str, Any],
+    job_review_crew: JobReviewCrew = Depends(get_job_review_crew),
+):
     """
     Analyze a single job using CrewAI multi-agent review system.
     
@@ -28,7 +36,7 @@ async def review_single_job(job_data: Dict[str, Any]):
         Comprehensive job analysis with recommendations
     """
     try:
-        crew = get_job_review_crew().job_review()
+        crew = job_review_crew.job_review()
         analysis = crew.kickoff(inputs={"job": job_data})
 
         return create_success_response(
@@ -45,7 +53,10 @@ async def review_single_job(job_data: Dict[str, Any]):
 
 
 @router.post("/review/batch", response_model=StandardResponse)
-async def review_multiple_jobs(jobs_data: List[Dict[str, Any]]):
+async def review_multiple_jobs(
+    jobs_data: List[Dict[str, Any]],
+    job_review_crew: JobReviewCrew = Depends(get_job_review_crew),
+):
     """
     Analyze multiple jobs using CrewAI multi-agent review system.
     
@@ -62,7 +73,7 @@ async def review_multiple_jobs(jobs_data: List[Dict[str, Any]]):
                 detail="Cannot analyze more than 50 jobs at once"
             )
         
-        review_crew = get_job_review_crew()
+        review_crew = job_review_crew
 
         analyses = []
         for job in jobs_data:
@@ -87,7 +98,9 @@ async def review_jobs_from_database(
     limit: int = Query(10, ge=1, le=50, description="Number of jobs to analyze"),
     site: Optional[str] = Query(None, description="Filter by job site"),
     company: Optional[str] = Query(None, description="Filter by company name"),
-    title_contains: Optional[str] = Query(None, description="Filter jobs with title containing this text")
+    title_contains: Optional[str] = Query(None, description="Filter jobs with title containing this text"),
+    job_review_crew: JobReviewCrew = Depends(get_job_review_crew),
+    db_service: DatabaseService = Depends(get_database_service),
 ):
     """
     Analyze jobs from the database using CrewAI multi-agent review system.
@@ -102,8 +115,7 @@ async def review_jobs_from_database(
         Job analyses with database job IDs
     """
     try:
-        review_crew = get_job_review_crew()
-        db_service = get_database_service()
+        review_crew = job_review_crew
 
         if not db_service.initialized:
             await db_service.initialize()
