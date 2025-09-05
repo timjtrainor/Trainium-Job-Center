@@ -4,4 +4,6 @@ branding_agent:
   backstory: "A branding expert skilled in positioning professionals for career success, able to synthesize compelling narratives from raw text and achievements."
   verbose: true
   memory: false
-  model: "gemma3:1b"
+  models:
+    - provider: ollama
+      model: gemma3:1b
