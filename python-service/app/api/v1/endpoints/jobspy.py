@@ -6,18 +6,22 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, Depends
 from loguru import logger
 
-from app.schemas.responses import StandardResponse, create_success_response, create_error_response
-from app.schemas.jobspy import JobSearchRequest
-from app.dependencies import (
+from ....schemas.responses import (
+    StandardResponse,
+    create_success_response,
+    create_error_response,
+)
+from ....schemas.jobspy import JobSearchRequest
+from ....dependencies import (
     get_jobspy_service,
     get_queue_service,
     get_database_service,
 )
-from app.services.jobspy.ingestion import JobSpyIngestionService
-from app.services.infrastructure.queue import QueueService
-from app.services.infrastructure.database import DatabaseService
-from app.services.jobspy.scraping import scrape_jobs_async
-from app.services.infrastructure.job_persistence import persist_jobs
+from ....services.jobspy.ingestion import JobSpyIngestionService
+from ....services.infrastructure.queue import QueueService
+from ....services.infrastructure.database import DatabaseService
+from ....services.jobspy.scraping import scrape_jobs_async
+from ....services.infrastructure.job_persistence import persist_jobs
 
 router = APIRouter()
 
@@ -292,7 +296,7 @@ async def jobspy_health_check(
             }
         }
         
-        from app.schemas.responses import create_success_response
+        from ....schemas.responses import create_success_response
         return create_success_response(
             data=health_data,
             message="JobSpy service health check completed"

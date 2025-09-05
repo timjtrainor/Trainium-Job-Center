@@ -4,9 +4,9 @@ Scheduler API endpoints for managing job scraping schedules.
 from fastapi import APIRouter, HTTPException, Depends
 from loguru import logger
 
-from app.schemas.responses import StandardResponse, create_success_response
-from app.dependencies import get_scheduler_service
-from app.services.infrastructure.scheduler import SchedulerService
+from ....schemas.responses import StandardResponse, create_success_response
+from ....dependencies import get_scheduler_service
+from ....services.infrastructure.scheduler import SchedulerService
 
 router = APIRouter()
 

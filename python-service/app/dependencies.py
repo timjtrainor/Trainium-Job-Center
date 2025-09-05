@@ -1,12 +1,12 @@
 from fastapi import Request
 
-from app.services.ai.gemini import GeminiService
-from app.services.infrastructure.postgrest import PostgRESTService
-from app.services.jobspy.ingestion import JobSpyIngestionService
-from app.services.infrastructure.database import DatabaseService
-from app.services.infrastructure.queue import QueueService
-from app.services.infrastructure.scheduler import SchedulerService
-from app.services.crewai import JobReviewCrew
+from .services.ai.gemini import GeminiService
+from .services.infrastructure.postgrest import PostgRESTService
+from .services.jobspy.ingestion import JobSpyIngestionService
+from .services.infrastructure.database import DatabaseService
+from .services.infrastructure.queue import QueueService
+from .services.infrastructure.scheduler import SchedulerService
+from .services.crewai import JobReviewCrew
 
 
 def get_gemini_service(request: Request) -> GeminiService:

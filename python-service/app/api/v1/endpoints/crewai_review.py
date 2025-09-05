@@ -9,10 +9,14 @@ import yaml
 from fastapi import APIRouter, HTTPException, Query, Depends
 from loguru import logger
 
-from app.schemas.responses import StandardResponse, create_success_response, create_error_response
-from app.dependencies import get_job_review_crew, get_database_service
-from app.services.crewai import JobReviewCrew
-from app.services.infrastructure.database import DatabaseService
+from ....schemas.responses import (
+    StandardResponse,
+    create_success_response,
+    create_error_response,
+)
+from ....dependencies import get_job_review_crew, get_database_service
+from ....services.crewai import JobReviewCrew
+from ....services.infrastructure.database import DatabaseService
 
 router = APIRouter(prefix="/jobs", tags=["Job Review"])
 
