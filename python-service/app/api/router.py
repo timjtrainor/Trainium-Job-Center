@@ -14,3 +14,5 @@ api_router.include_router(jobspy_router, prefix="/jobs", tags=["jobs", "scraping
 api_router.include_router(scheduler_router, prefix="/scheduler", tags=["scheduler"])
 api_router.include_router(crewai_review_router, tags=["job-review", "crewai"])
 api_router.include_router(crewai_personal_brand_router, tags=["job-review", "crewai"])
+
+__all__ = ["api_router"]
