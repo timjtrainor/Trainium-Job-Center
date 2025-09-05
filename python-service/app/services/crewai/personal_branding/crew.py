@@ -1,7 +1,11 @@
 from typing import Dict, List, Any, Optional, Tuple
 from crewai import Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task, before_kickoff, after_kickoff
+from crewai.llm import BaseLLM
 import logging
+
+from ...llm_clients import LLMRouter
+from ....core.config import get_settings
 
 
 logger = logging.getLogger(__name__)
@@ -13,6 +17,33 @@ class PersonalBrandCrew:
 
     agents_config = "config/agents.yaml"
     tasks_config = "config/tasks.yaml"
+
+    def __init__(self):
+        """Initialize the PersonalBrandCrew with LLM router."""
+        settings = get_settings()
+        self._router = LLMRouter(preferences=settings.llm_preference)
+
+    class _RouterLLM(BaseLLM):
+        """Adapter to use LLMRouter with CrewAI agents."""
+
+        def __init__(self, router: LLMRouter):
+            super().__init__(model="gemma3:1b")
+            self._router = router
+
+        def call(
+            self,
+            messages: Any,
+            tools: Optional[List[dict]] = None,
+            callbacks: Optional[List[Any]] = None,
+            available_functions: Optional[Dict[str, Any]] = None,
+            from_task: Optional[Any] = None,
+            from_agent: Optional[Any] = None,
+        ) -> str:
+            if isinstance(messages, list):
+                prompt = "\n".join(m.get("content", "") for m in messages if isinstance(m, dict))
+            else:
+                prompt = str(messages)
+            return self._router.generate(prompt)
 
     @before_kickoff
     def prepare_inputs(self, inputs):
@@ -31,7 +62,7 @@ class PersonalBrandCrew:
         return Agent(
             config=self.agents_config["branding_agent"],  # type: ignore[index]
             verbose=True,
-            model="gemma3:1b"
+            llm=self._RouterLLM(self._router)
         )
 
     @task

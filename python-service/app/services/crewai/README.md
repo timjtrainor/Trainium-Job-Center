@@ -93,8 +93,8 @@ metadata:
   capabilities:
     - google_search
 models:
-  - provider: google
-    model: gemini-2.5-flash-lite
+  - provider: ollama
+    model: gemma3:1b
 ```
 
 ### Task Configuration (YAML)
