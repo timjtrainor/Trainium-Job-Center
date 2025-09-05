@@ -7,7 +7,6 @@ from loguru import logger
 
 from crewai import Agent, Crew, Task, Process
 from crewai.project import CrewBase, agent, task, crew, before_kickoff, after_kickoff
-from crewai_tools import PGSearchTool
 from crewai.llm import BaseLLM
 
 from .. import base
@@ -102,6 +101,7 @@ class PersonalBrandCrew:
             role=config["role"],
             goal=config["goal"],
             backstory=config["backstory"],
+            tools=[pg_search_tool()],
             llm=self._get_agent_llm("branding_agent", config),
             max_iter=config.get("max_iter", 2),
             max_execution_time=config.get("max_execution_time", 60),
