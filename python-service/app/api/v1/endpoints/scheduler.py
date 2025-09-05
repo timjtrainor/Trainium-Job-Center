@@ -1,17 +1,20 @@
 """
 Scheduler API endpoints for managing job scraping schedules.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from loguru import logger
 
 from app.schemas.responses import StandardResponse, create_success_response
-from app.services.infrastructure.scheduler import get_scheduler_service
+from app.dependencies import get_scheduler_service
+from app.services.infrastructure.scheduler import SchedulerService
 
 router = APIRouter()
 
 
 @router.post("/run", response_model=StandardResponse)
-async def run_scheduler():
+async def run_scheduler(
+    scheduler_service: SchedulerService = Depends(get_scheduler_service),
+):
     """
     Manually trigger the scheduler to process due site schedules.
     
@@ -21,11 +24,9 @@ async def run_scheduler():
     try:
         logger.info("Manual scheduler run requested")
         
-        scheduler_service = get_scheduler_service()
-        
         if not scheduler_service.initialized:
             await scheduler_service.initialize()
-        
+
         jobs_enqueued = await scheduler_service.process_scheduled_sites()
         
         return create_success_response(
@@ -39,7 +40,9 @@ async def run_scheduler():
 
 
 @router.get("/status", response_model=StandardResponse)
-async def get_scheduler_status():
+async def get_scheduler_status(
+    scheduler_service: SchedulerService = Depends(get_scheduler_service),
+):
     """
     Get the current status of the scheduler.
     
@@ -49,11 +52,9 @@ async def get_scheduler_status():
     try:
         logger.info("Scheduler status request received")
         
-        scheduler_service = get_scheduler_service()
-        
         if not scheduler_service.initialized:
             await scheduler_service.initialize()
-        
+
         status = await scheduler_service.get_scheduler_status()
         
         return create_success_response(

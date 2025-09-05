@@ -3,14 +3,19 @@ JobSpy API endpoints for job scraping functionality.
 """
 import uuid
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from loguru import logger
 
 from app.schemas.responses import StandardResponse, create_success_response, create_error_response
 from app.schemas.jobspy import JobSearchRequest
-from app.services.jobspy.ingestion import get_jobspy_service
-from app.services.infrastructure.queue import get_queue_service
-from app.services.infrastructure.database import get_database_service
+from app.dependencies import (
+    get_jobspy_service,
+    get_queue_service,
+    get_database_service,
+)
+from app.services.jobspy.ingestion import JobSpyIngestionService
+from app.services.infrastructure.queue import QueueService
+from app.services.infrastructure.database import DatabaseService
 from app.services.jobspy.scraping import scrape_jobs_async
 from app.services.infrastructure.job_persistence import persist_jobs
 
@@ -18,7 +23,15 @@ router = APIRouter()
 
 
 @router.post("/scrape", response_model=StandardResponse)
-async def scrape_jobs(request: JobSearchRequest, mode: Optional[str] = Query(None, description="Execution mode: 'sync' for immediate execution, default is async")):
+async def scrape_jobs(
+    request: JobSearchRequest,
+    mode: Optional[str] = Query(
+        None,
+        description="Execution mode: 'sync' for immediate execution, default is async",
+    ),
+    queue_service: QueueService = Depends(get_queue_service),
+    db_service: DatabaseService = Depends(get_database_service),
+):
     """
     Scrape jobs from a specified job board using the provided search criteria.
     
@@ -94,9 +107,6 @@ async def scrape_jobs(request: JobSearchRequest, mode: Optional[str] = Query(Non
             # Asynchronous execution (default) - enqueue job
             logger.info(f"Enqueuing async scrape for {request.site_name}")
             
-            queue_service = get_queue_service()
-            db_service = get_database_service()
-            
             # Initialize services if needed
             if not queue_service.initialized:
                 await queue_service.initialize()
@@ -160,8 +170,12 @@ async def scrape_jobs(request: JobSearchRequest, mode: Optional[str] = Query(Non
         raise HTTPException(status_code=500, detail=f"Job scraping failed: {str(e)}")
 
 
-@router.get("/scrape/{run_id}", response_model=StandardResponse) 
-async def get_scrape_status(run_id: str):
+@router.get("/scrape/{run_id}", response_model=StandardResponse)
+async def get_scrape_status(
+    run_id: str,
+    db_service: DatabaseService = Depends(get_database_service),
+    queue_service: QueueService = Depends(get_queue_service),
+):
     """
     Get the status of a scraping job by run_id.
     
@@ -173,9 +187,6 @@ async def get_scrape_status(run_id: str):
     """
     try:
         logger.info(f"Getting scrape status for run_id: {run_id}")
-        
-        db_service = get_database_service()
-        queue_service = get_queue_service()
         
         # Initialize services if needed
         if not db_service.initialized:
@@ -223,7 +234,9 @@ async def get_scrape_status(run_id: str):
 
 
 @router.get("/sites", response_model=StandardResponse)
-async def get_supported_sites():
+async def get_supported_sites(
+    jobspy_service: JobSpyIngestionService = Depends(get_jobspy_service),
+):
     """
     Get information about supported job sites for scraping.
 
@@ -233,9 +246,8 @@ async def get_supported_sites():
     try:
         logger.info("Supported sites request received")
         
-        jobspy_service = get_jobspy_service()
         result = await jobspy_service.get_supported_sites()
-        
+
         return result
         
     except Exception as e:
@@ -244,7 +256,11 @@ async def get_supported_sites():
 
 
 @router.get("/health", response_model=StandardResponse)
-async def jobspy_health_check():
+async def jobspy_health_check(
+    jobspy_service: JobSpyIngestionService = Depends(get_jobspy_service),
+    queue_service: QueueService = Depends(get_queue_service),
+    db_service: DatabaseService = Depends(get_database_service),
+):
     """
     Check the health of the JobSpy ingestion service and queue system.
 
@@ -252,19 +268,15 @@ async def jobspy_health_check():
         StandardResponse containing health status
     """
     try:
-        jobspy_service = get_jobspy_service()
-        queue_service = get_queue_service()
-        db_service = get_database_service()
-        
         # Check JobSpy service
         jobspy_health = await jobspy_service.health_check()
-        
+
         # Check queue service
         if not queue_service.initialized:
             await queue_service.initialize()
         queue_info = queue_service.get_queue_info()
-        
-        # Check database service  
+
+        # Check database service
         if not db_service.initialized:
             await db_service.initialize()
         db_health = db_service.initialized
@@ -292,7 +304,9 @@ async def jobspy_health_check():
 
 
 @router.get("/queue/status", response_model=StandardResponse)
-async def get_queue_status():
+async def get_queue_status(
+    queue_service: QueueService = Depends(get_queue_service),
+):
     """
     Get information about the current queue status.
     
@@ -301,8 +315,6 @@ async def get_queue_status():
     """
     try:
         logger.info("Queue status request received")
-        
-        queue_service = get_queue_service()
         
         if not queue_service.initialized:
             await queue_service.initialize()
