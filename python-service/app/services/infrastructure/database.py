@@ -297,12 +297,7 @@ class DatabaseService:
             }
 
 
-# Global instance
-_database_service: Optional[DatabaseService] = None
-
 def get_database_service() -> DatabaseService:
-    """Get or create the global database service instance."""
-    global _database_service
-    if _database_service is None:
-        _database_service = DatabaseService()
-    return _database_service
+    """Create a new database service instance."""
+    return DatabaseService()
+

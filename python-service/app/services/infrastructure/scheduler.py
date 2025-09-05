@@ -183,12 +183,6 @@ class SchedulerService:
             return {"status": "error", "error": str(e)}
 
 
-# Global instance
-_scheduler_service: Optional[SchedulerService] = None
-
 def get_scheduler_service() -> SchedulerService:
-    """Get or create the global scheduler service instance."""
-    global _scheduler_service
-    if _scheduler_service is None:
-        _scheduler_service = SchedulerService()
-    return _scheduler_service
+    """Create a new scheduler service instance."""
+    return SchedulerService()

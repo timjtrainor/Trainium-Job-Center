@@ -1,11 +1,14 @@
 import os
 from .custom_pg import PostgresQueryTool
 
-# Load connection URL from environment
-conn_str = os.getenv("DATABASE_URL")
 
-if not conn_str:
-    raise ValueError("DATABASE_URL environment variable is not set!")
+def get_postgres_tool() -> PostgresQueryTool:
+    """Create a new PostgresQueryTool instance."""
+    conn_str = os.getenv("DATABASE_URL")
+    if not conn_str:
+        raise ValueError("DATABASE_URL environment variable is not set!")
+    return PostgresQueryTool(conn_str=conn_str)
 
-# Instantiate the Postgres tool once at import time (use keyword argument!)
-postgres_tool = PostgresQueryTool(conn_str=conn_str)
+
+__all__ = ["PostgresQueryTool", "get_postgres_tool"]
+

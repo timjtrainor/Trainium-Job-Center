@@ -281,23 +281,15 @@ class JobReviewCrew:
         return output
 
 
-# Crew singleton
-_job_review_crew: Optional[JobReviewCrew] = None
+# Crew factory
 
 
 def get_job_review_crew() -> JobReviewCrew:
-    """
-    Get the singleton JobReviewCrew instance.
-    
-    Returns:
-        JobReviewCrew instance
-    """
-    global _job_review_crew
-    if _job_review_crew is None:
-        try:
-            _job_review_crew = JobReviewCrew()
-            logger.info("JobReviewCrew initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize JobReviewCrew: {str(e)}")
-            raise
-    return _job_review_crew
+    """Create a new JobReviewCrew instance."""
+    try:
+        crew = JobReviewCrew()
+        logger.info("JobReviewCrew initialized successfully")
+        return crew
+    except Exception as e:
+        logger.error(f"Failed to initialize JobReviewCrew: {str(e)}")
+        raise

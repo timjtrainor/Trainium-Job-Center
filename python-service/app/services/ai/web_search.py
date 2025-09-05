@@ -121,13 +121,7 @@ class WebSearchTool:
         )
 
 
-# Global instance
-_web_search_tool = None
-
-
 def get_web_search_tool() -> WebSearchTool:
-    """Get the singleton web search tool instance."""
-    global _web_search_tool
-    if _web_search_tool is None:
-        _web_search_tool = WebSearchTool()
-    return _web_search_tool
+    """Create a new web search tool instance."""
+    return WebSearchTool()
+

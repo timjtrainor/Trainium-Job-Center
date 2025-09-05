@@ -7,7 +7,7 @@ import logging
 from app.services.ai.llm_clients import LLMRouter
 from ....core.config import get_settings
 
-from app.services.crewai.tools import postgres_tool
+from app.services.crewai.tools import get_postgres_tool
 
 
 logger = logging.getLogger(__name__)
@@ -82,7 +82,8 @@ class PersonalBrandCrew:
             sn.narrative_name = 'Product Manager'
         """
         try:
-            db_results = postgres_tool(query)
+            tool = get_postgres_tool()
+            db_results = tool(query)
             inputs["additional_data"] = db_results
         except Exception as e:
             inputs["additional_data"] = f"Failed to fetch data from database: {str(e)}"
@@ -118,18 +119,13 @@ class PersonalBrandCrew:
         )
 
 
-_personal_brand_crew: Optional[PersonalBrandCrew] = None
-
-
 def get_personal_brand_crew() -> PersonalBrandCrew:
-    """Get a singleton instance of PersonalBrandCrew."""
-    global _personal_brand_crew
-    if _personal_brand_crew is None:
-        try:
-            _personal_brand_crew = PersonalBrandCrew()
-            logger.info("PersonalBrandCrew initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize PersonalBrandCrew: {str(e)}")
-            raise
-    return _personal_brand_crew
+    """Create a new PersonalBrandCrew instance."""
+    try:
+        crew = PersonalBrandCrew()
+        logger.info("PersonalBrandCrew initialized successfully")
+        return crew
+    except Exception as e:
+        logger.error(f"Failed to initialize PersonalBrandCrew: {str(e)}")
+        raise
 

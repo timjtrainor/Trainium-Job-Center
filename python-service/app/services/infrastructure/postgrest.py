@@ -122,10 +122,6 @@ class PostgRESTService:
             logger.info("PostgREST service client closed")
 
 
-# Global service instance
-postgrest_service = PostgRESTService()
-
-
 def get_postgrest_service() -> PostgRESTService:
-    """Get the global PostgREST service instance."""
-    return postgrest_service
+    """Create a new PostgREST service instance."""
+    return PostgRESTService()

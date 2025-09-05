@@ -192,12 +192,7 @@ class QueueService:
             return False
 
 
-# Global instance
-_queue_service: Optional[QueueService] = None
-
 def get_queue_service() -> QueueService:
-    """Get or create the global queue service instance."""
-    global _queue_service
-    if _queue_service is None:
-        _queue_service = QueueService()
-    return _queue_service
+    """Create a new queue service instance."""
+    return QueueService()
+

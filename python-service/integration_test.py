@@ -123,13 +123,9 @@ def test_service_initialization():
     scheduler_service = get_scheduler_service()
     
     assert db_service is not None
-    assert queue_service is not None  
+    assert queue_service is not None
     assert scheduler_service is not None
-    
-    # Test singleton pattern
-    db_service2 = get_database_service()
-    assert db_service is db_service2
-    
+
     print("✅ Service initialization test passed!")
 
 
