@@ -10,8 +10,8 @@ from loguru import logger
 
 from jobspy import scrape_jobs
 from ...core.config import get_settings
-from ...models.responses import StandardResponse, create_success_response, create_error_response
-from ...models.jobspy import JobSearchRequest, JobSearchResponse, ScrapedJob
+from ...schemas.responses import StandardResponse, create_success_response, create_error_response
+from ...schemas.jobspy import JobSearchRequest, JobSearchResponse, ScrapedJob
 def _to_iso_date_str(value):
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return None

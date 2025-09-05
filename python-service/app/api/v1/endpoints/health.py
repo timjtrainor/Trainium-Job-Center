@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import APIRouter
 from loguru import logger
 
-from app.models.responses import StandardResponse, HealthStatus, create_success_response
+from app.schemas.responses import StandardResponse, HealthStatus, create_success_response
 from app.core.config import get_settings
 
 

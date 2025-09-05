@@ -9,7 +9,7 @@ import yaml
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 
-from app.models.responses import StandardResponse, create_success_response, create_error_response
+from app.schemas.responses import StandardResponse, create_success_response, create_error_response
 from app.services.crewai import get_job_review_crew
 from app.services.infrastructure.database import get_database_service
 

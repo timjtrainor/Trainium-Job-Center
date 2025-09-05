@@ -84,7 +84,7 @@ These fields are reserved for future functionality:
 
 ```python
 from app.services.infrastructure.job_persistence import persist_jobs
-from app.models.jobspy import ScrapedJob
+from app.schemas.jobspy import ScrapedJob
 
 # Create or get scraped jobs
 jobs = [

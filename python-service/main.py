@@ -19,7 +19,7 @@ from app.services.infrastructure.database import get_database_service
 from app.services.infrastructure.queue import get_queue_service
 from app.services.infrastructure.scheduler import get_scheduler_service
 from app.services.crewai import get_job_review_crew
-from app.models.responses import create_error_response
+from app.schemas.responses import create_error_response
 
 
 @asynccontextmanager

@@ -25,7 +25,7 @@ sys.modules['app.core.config'].get_settings = mock_get_settings
 sys.modules['app.services.infrastructure.database'].get_database_service = lambda: Mock()
 
 # Now import our modules
-from app.models.jobspy import ScrapedJob
+from app.schemas.jobspy import ScrapedJob
 from app.services.infrastructure.job_persistence import JobPersistenceService
 
 

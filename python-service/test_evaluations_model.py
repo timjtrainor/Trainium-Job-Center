@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.models.evaluations import PersonaEvaluation, Decision
+from app.schemas.evaluations import PersonaEvaluation, Decision
 
 
 def test_persona_evaluation_confidence_validation():

@@ -1,5 +1,5 @@
 """
-Standard API response models and utilities.
+Standard API response schemas and utilities.
 """
 from typing import Any, Dict, Optional, Union
 from pydantic import BaseModel
