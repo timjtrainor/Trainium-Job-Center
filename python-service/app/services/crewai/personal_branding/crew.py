@@ -90,10 +90,16 @@ class PersonalBrandCrew:
         self._agent_llms[agent_name] = llm
         return llm
 
-    @tool
-    def pg_search_tool(self) -> str:
-        """Fetch strategic narratives from Postgres."""
-        return pg_search(getattr(self, "_narrative_name", None))
+    def pg_search_tool(self):
+        """Return a CrewAI tool that fetches strategic narratives from Postgres."""
+        def _pg_search(narrative_name: str | None = None) -> str:
+            """Fetch strategic narratives from Postgres."""
+            return pg_search(narrative_name or getattr(self, "_narrative_name", None))
+
+        _pg_search.__name__ = "pg_search_tool"
+        return tool(_pg_search)
+
+    pg_search_tool.is_tool = True
 
         
     @agent
