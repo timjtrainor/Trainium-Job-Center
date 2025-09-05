@@ -8,12 +8,16 @@ from loguru import logger
 from crewai import Agent, Crew, Task, Process
 from crewai.project import CrewBase, agent, task, crew, before_kickoff, after_kickoff
 from crewai.llm import BaseLLM
+from crewai.tools import tool
 
 from .. import base
 from ...llm_clients import LLMRouter
 from ....core.config import get_settings
 from ....models.jobspy import ScrapedJob
-from app.services.crewai.tools.pg_search import pg_search_tool
+from crewai_tools import PGSearchTool
+from app.services.crewai.tools.pg_search import (
+    pg_search_tool as pg_search_tool_factory,
+)
 
 
 @CrewBase
@@ -88,6 +92,11 @@ class PersonalBrandCrew:
         llm = self._RouterLLM(self._router, prefs if prefs else None)
         self._agent_llms[agent_name] = llm
         return llm
+
+    @tool
+    def pg_search_tool(self) -> PGSearchTool:
+        """Provide PGSearchTool for querying strategic narratives."""
+        return pg_search_tool_factory()
         
     @agent
     def branding_agent(self) -> Agent:
@@ -95,17 +104,17 @@ class PersonalBrandCrew:
     Personal branding agent that reviews strategic narratives and
     creates branding documents.
         """
-        config = base.load_agent_config(self.base_dir, "branding_agent")
+        config = self.agents_config["branding_agent"]
 
         return Agent(
             role=config["role"],
             goal=config["goal"],
             backstory=config["backstory"],
-            tools=[pg_search_tool()],
+            tools=config.get("tools"),
             llm=self._get_agent_llm("branding_agent", config),
             max_iter=config.get("max_iter", 2),
             max_execution_time=config.get("max_execution_time", 60),
-            verbose=True
+            verbose=config.get("verbose", True)
         )
 
     @task
@@ -127,7 +136,7 @@ class PersonalBrandCrew:
 
         narrative_name = task.metadata.get("narrative_name") if task.metadata else None
         if narrative_name:
-            task.agent.tools = [pg_search_tool(narrative_name)]
+            task.agent.tools = [pg_search_tool_factory(narrative_name)]
 
         return task
 
