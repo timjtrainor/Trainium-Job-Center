@@ -7,7 +7,7 @@ import redis
 from rq import Queue, Worker, Connection
 from loguru import logger
 
-from ..core.config import get_settings
+from ...core.config import get_settings
 from .database import get_database_service
 from .worker import scrape_jobs_worker
 

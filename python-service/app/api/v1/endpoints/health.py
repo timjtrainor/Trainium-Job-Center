@@ -12,7 +12,7 @@ from app.core.config import get_settings
 def _get_llm_provider_status():
     """Get status of available LLM providers."""
     try:
-        from app.services.llm_clients import LLMRouter
+        from app.services.ai.llm_clients import LLMRouter
         settings = get_settings()
         router = LLMRouter(preferences=settings.llm_preference)
         return [

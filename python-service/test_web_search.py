@@ -5,7 +5,7 @@ Tests for the web search tool.
 import pytest
 from unittest.mock import Mock, patch
 
-from app.services.web_search import WebSearchTool, get_web_search_tool
+from app.services.ai.web_search import WebSearchTool, get_web_search_tool
 
 
 class TestWebSearchTool:
@@ -13,20 +13,20 @@ class TestWebSearchTool:
     
     def test_initialization_no_api_key(self):
         """Test initialization when API key is missing."""
-        with patch('app.services.web_search.resolve_api_key', return_value=None):
+        with patch('app.services.ai.web_search.resolve_api_key', return_value=None):
             tool = WebSearchTool()
             assert not tool.is_available()
             assert tool.client is None
     
     def test_initialization_no_package(self):
         """Test initialization when Tavily package is missing."""
-        with patch('app.services.web_search.TavilyClient', None):
+        with patch('app.services.ai.web_search.TavilyClient', None):
             tool = WebSearchTool()
             assert not tool.is_available()
             assert tool.client is None
     
-    @patch('app.services.web_search.resolve_api_key')
-    @patch('app.services.web_search.TavilyClient')
+    @patch('app.services.ai.web_search.resolve_api_key')
+    @patch('app.services.ai.web_search.TavilyClient')
     def test_successful_initialization(self, mock_tavily_client, mock_resolve_api_key):
         """Test successful initialization."""
         mock_resolve_api_key.return_value = "test-api-key"
@@ -39,8 +39,8 @@ class TestWebSearchTool:
         assert tool.client == mock_client_instance
         mock_tavily_client.assert_called_once_with(api_key="test-api-key")
     
-    @patch('app.services.web_search.resolve_api_key')
-    @patch('app.services.web_search.TavilyClient')
+    @patch('app.services.ai.web_search.resolve_api_key')
+    @patch('app.services.ai.web_search.TavilyClient')
     def test_search_success(self, mock_tavily_client, mock_resolve_api_key):
         """Test successful search operation."""
         mock_resolve_api_key.return_value = "test-api-key"
@@ -78,13 +78,13 @@ class TestWebSearchTool:
     
     def test_search_unavailable(self):
         """Test search when service is unavailable."""
-        with patch('app.services.web_search.resolve_api_key', return_value=None):
+        with patch('app.services.ai.web_search.resolve_api_key', return_value=None):
             tool = WebSearchTool()
             results = tool.search("test query")
             assert results == []
     
-    @patch('app.services.web_search.resolve_api_key')
-    @patch('app.services.web_search.TavilyClient')
+    @patch('app.services.ai.web_search.resolve_api_key')
+    @patch('app.services.ai.web_search.TavilyClient')
     def test_search_exception(self, mock_tavily_client, mock_resolve_api_key):
         """Test search with exception handling."""
         mock_resolve_api_key.return_value = "test-api-key"
@@ -97,8 +97,8 @@ class TestWebSearchTool:
         
         assert results == []
     
-    @patch('app.services.web_search.resolve_api_key')
-    @patch('app.services.web_search.TavilyClient')
+    @patch('app.services.ai.web_search.resolve_api_key')
+    @patch('app.services.ai.web_search.TavilyClient')
     def test_search_company(self, mock_tavily_client, mock_resolve_api_key):
         """Test company search functionality."""
         mock_resolve_api_key.return_value = "test-api-key"
@@ -115,8 +115,8 @@ class TestWebSearchTool:
         assert call_args.kwargs["max_results"] == 3
         assert call_args.kwargs["search_depth"] == "advanced"
     
-    @patch('app.services.web_search.resolve_api_key')
-    @patch('app.services.web_search.TavilyClient')
+    @patch('app.services.ai.web_search.resolve_api_key')
+    @patch('app.services.ai.web_search.TavilyClient')
     def test_search_industry_trends(self, mock_tavily_client, mock_resolve_api_key):
         """Test industry trends search."""
         mock_resolve_api_key.return_value = "test-api-key"
@@ -133,8 +133,8 @@ class TestWebSearchTool:
         assert call_args.kwargs["max_results"] == 5
         assert call_args.kwargs["search_depth"] == "advanced"
     
-    @patch('app.services.web_search.resolve_api_key')
-    @patch('app.services.web_search.TavilyClient')
+    @patch('app.services.ai.web_search.resolve_api_key')
+    @patch('app.services.ai.web_search.TavilyClient')
     def test_search_job_market(self, mock_tavily_client, mock_resolve_api_key):
         """Test job market search."""
         mock_resolve_api_key.return_value = "test-api-key"

@@ -14,7 +14,7 @@ try:
 except ImportError:
     TavilyClient = None
 
-from ..core.config import resolve_api_key
+from ...core.config import resolve_api_key
 
 
 class WebSearchTool:

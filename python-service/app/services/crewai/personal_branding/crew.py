@@ -4,7 +4,7 @@ from crewai.project import CrewBase, agent, crew, task, before_kickoff, after_ki
 from crewai.llm import BaseLLM
 import logging
 
-from ...llm_clients import LLMRouter
+from app.services.ai.llm_clients import LLMRouter
 from ....core.config import get_settings
 
 from app.services.crewai.tools import postgres_tool

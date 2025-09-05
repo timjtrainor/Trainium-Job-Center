@@ -7,11 +7,11 @@ import time
 from loguru import logger
 import yaml
 
-from ..models.evaluations import PersonaEvaluation, Decision, EvaluationSummary
-from .persona_loader import PersonaCatalog
+from ...models.evaluations import PersonaEvaluation, Decision, EvaluationSummary
+from ..persona_loader import PersonaCatalog
 from .persona_llm import PersonaLLM
 try:
-    from .database import DatabaseService, get_database_service
+    from ..infrastructure.database import DatabaseService, get_database_service
 except Exception:  # pragma: no cover - fallback when asyncpg missing
     class DatabaseService:  # type: ignore
         initialized = False

@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.models.jobspy import ScrapedJob
-from app.services.job_persistence import JobPersistenceService, persist_jobs
+from app.services.infrastructure.job_persistence import JobPersistenceService, persist_jobs
 
 
 def test_job_mapping():
@@ -209,7 +209,7 @@ def test_convenience_function():
     print("🧪 Testing convenience function...")
     
     # Mock the service
-    with patch('app.services.job_persistence.get_job_persistence_service') as mock_get_service:
+    with patch('app.services.infrastructure.job_persistence.get_job_persistence_service') as mock_get_service:
         mock_service = Mock()
         mock_service.persist_jobs = AsyncMock(return_value={"inserted": 1, "skipped_duplicates": 0, "errors": []})
         mock_get_service.return_value = mock_service

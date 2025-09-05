@@ -12,12 +12,12 @@ import traceback
 
 from app.core.config import configure_logging, get_settings
 from app.api.router import api_router
-from app.services.gemini import get_gemini_service
-from app.services.postgrest import get_postgrest_service
-from app.services.jobspy_ingestion import get_jobspy_service
-from app.services.database import get_database_service
-from app.services.queue import get_queue_service
-from app.services.scheduler import get_scheduler_service
+from app.services.ai.gemini import get_gemini_service
+from app.services.infrastructure.postgrest import get_postgrest_service
+from app.services.jobspy.ingestion import get_jobspy_service
+from app.services.infrastructure.database import get_database_service
+from app.services.infrastructure.queue import get_queue_service
+from app.services.infrastructure.scheduler import get_scheduler_service
 from app.services.crewai import get_job_review_crew
 from app.models.responses import create_error_response
 

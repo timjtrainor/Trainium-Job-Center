@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Mock configuration first
 sys.modules['app.core.config'] = Mock()
-sys.modules['app.services.database'] = Mock()
+sys.modules['app.services.infrastructure.database'] = Mock()
 
 mock_settings = Mock()
 mock_settings.database_url = "fake://connection"
@@ -22,11 +22,11 @@ def mock_get_settings():
     return mock_settings
 
 sys.modules['app.core.config'].get_settings = mock_get_settings
-sys.modules['app.services.database'].get_database_service = lambda: Mock()
+sys.modules['app.services.infrastructure.database'].get_database_service = lambda: Mock()
 
 # Now import our modules
 from app.models.jobspy import ScrapedJob
-from app.services.job_persistence import JobPersistenceService
+from app.services.infrastructure.job_persistence import JobPersistenceService
 
 
 def test_end_to_end_workflow_simulation():

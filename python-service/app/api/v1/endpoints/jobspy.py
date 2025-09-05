@@ -8,11 +8,11 @@ from loguru import logger
 
 from app.models.responses import StandardResponse, create_success_response, create_error_response
 from app.models.jobspy import JobSearchRequest
-from app.services.jobspy_ingestion import get_jobspy_service
-from app.services.queue import get_queue_service
-from app.services.database import get_database_service
-from app.services.scraping import scrape_jobs_async
-from app.services.job_persistence import persist_jobs
+from app.services.jobspy.ingestion import get_jobspy_service
+from app.services.infrastructure.queue import get_queue_service
+from app.services.infrastructure.database import get_database_service
+from app.services.jobspy.scraping import scrape_jobs_async
+from app.services.infrastructure.job_persistence import persist_jobs
 
 router = APIRouter()
 

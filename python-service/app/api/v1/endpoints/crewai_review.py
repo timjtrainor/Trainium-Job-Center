@@ -11,7 +11,7 @@ from loguru import logger
 
 from app.models.responses import StandardResponse, create_success_response, create_error_response
 from app.services.crewai import get_job_review_crew
-from app.services.database import get_database_service
+from app.services.infrastructure.database import get_database_service
 
 router = APIRouter(prefix="/jobs", tags=["Job Review"])
 

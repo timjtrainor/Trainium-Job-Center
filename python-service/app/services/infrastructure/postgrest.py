@@ -6,8 +6,8 @@ from typing import Optional, Dict, Any, List
 import httpx
 from loguru import logger
 
-from ..core.config import get_settings
-from ..models.responses import StandardResponse, create_success_response, create_error_response
+from ...core.config import get_settings
+from ...models.responses import StandardResponse, create_success_response, create_error_response
 
 
 class PostgRESTService:

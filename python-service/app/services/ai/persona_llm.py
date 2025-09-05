@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Dict, Any, Tuple
 
 from .llm_clients import BaseLLMClient, create_llm_client, LLMRouter
-from ..core.config import get_settings
+from ...core.config import get_settings
 
 
 class PersonaLLM:

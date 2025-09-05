@@ -21,7 +21,7 @@ def test_persistence_integration():
     
     # Import after environment setup
     from app.models.jobspy import ScrapedJob
-    from app.services.job_persistence import JobPersistenceService
+    from app.services.infrastructure.job_persistence import JobPersistenceService
     
     # Create realistic test data similar to what JobSpy would return
     test_jobs = [
@@ -146,7 +146,7 @@ def test_api_integration_mock():
     """Test how the API integration would work."""
     print("🧪 Testing API integration...")
     
-    from app.services.job_persistence import persist_jobs
+    from app.services.infrastructure.job_persistence import persist_jobs
     
     # Mock a successful scraping result
     mock_scraped_result = {
@@ -167,7 +167,7 @@ def test_api_integration_mock():
     
     # Mock the persist_jobs function
     async def mock_test():
-        with patch('app.services.job_persistence.get_job_persistence_service') as mock_service:
+        with patch('app.services.infrastructure.job_persistence.get_job_persistence_service') as mock_service:
             mock_persistence_service = Mock()
             mock_persistence_service.persist_jobs = AsyncMock(return_value={
                 "inserted": 1, 

@@ -83,7 +83,7 @@ These fields are reserved for future functionality:
 ### Basic Usage
 
 ```python
-from app.services.job_persistence import persist_jobs
+from app.services.infrastructure.job_persistence import persist_jobs
 from app.models.jobspy import ScrapedJob
 
 # Create or get scraped jobs
@@ -194,7 +194,7 @@ Response includes persistence summary:
 ### Example 3: Direct Service Usage
 
 ```python
-from app.services.job_persistence import get_job_persistence_service
+from app.services.infrastructure.job_persistence import get_job_persistence_service
 
 service = get_job_persistence_service()
 

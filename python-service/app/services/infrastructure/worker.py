@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from loguru import logger
 
-from .scraping import scrape_jobs_sync
+from ..jobspy.scraping import scrape_jobs_sync
 from .database import get_database_service
 from .job_persistence import persist_jobs
 
