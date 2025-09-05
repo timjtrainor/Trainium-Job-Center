@@ -3,11 +3,14 @@ API endpoints for CrewAI job review functionality.
 """
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+from decimal import Decimal
+from pathlib import Path
+import yaml
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 
 from ..models.responses import StandardResponse, create_success_response, create_error_response
-from ..services.crewai_job_review import get_job_review_crew
+from ..services.crewai import get_job_review_crew
 from ..services.database import get_database_service
 
 router = APIRouter(prefix="/jobs", tags=["Job Review"])
@@ -158,6 +161,7 @@ async def review_jobs_from_database(
                 "site": row["site"],
                 "job_url": row["job_url"]
             }
+            job_data = {k: (float(v) if isinstance(v, Decimal) else v) for k, v in job_data.items()}
             jobs_data.append(job_data)
 
         analyses = [review_crew.job_review().kickoff(inputs={"job": job}) for job in jobs_data]
@@ -186,49 +190,25 @@ async def review_jobs_from_database(
 
 @router.get("/review/agents", response_model=StandardResponse)
 async def get_available_agents():
-    """
-    Get information about available analysis agents.
-    
-    Returns:
-        Information about each agent and their capabilities
-    """
+    """Get information about available analysis agents."""
     try:
+        base_dir = Path(__file__).resolve().parent.parent / "services" / "crewai" / "agents"
+        agents = []
+        for path in base_dir.glob("*.yaml"):
+            with open(path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            agents.append({
+                "name": data.get("id"),
+                "persona_type": data.get("persona_type"),
+                "description": data.get("role"),
+                "decision_lens": data.get("metadata", {}).get("decision_lens"),
+                "capabilities": data.get("metadata", {}).get("capabilities", []),
+            })
         agents_info = {
-            "agents": [
-                {
-                    "name": "SkillsAnalysisAgent",
-                    "description": "Analyzes job skills, requirements, experience level, and education requirements",
-                    "capabilities": [
-                        "Technical skills extraction",
-                        "Experience level determination",
-                        "Education requirements analysis",
-                        "Skills categorization (required vs preferred)"
-                    ]
-                },
-                {
-                    "name": "CompensationAnalysisAgent", 
-                    "description": "Analyzes compensation data, salary ranges, and benefits",
-                    "capabilities": [
-                        "Salary range analysis",
-                        "Compensation competitiveness assessment",
-                        "Benefits extraction and categorization",
-                        "Salary transparency scoring"
-                    ]
-                },
-                {
-                    "name": "QualityAssessmentAgent",
-                    "description": "Assesses job posting quality and identifies red/green flags",
-                    "capabilities": [
-                        "Job posting quality scoring",
-                        "Description completeness assessment",
-                        "Red flag identification (MLM, unrealistic requirements, etc.)",
-                        "Green flag identification (professional development, benefits, etc.)"
-                    ]
-                }
-            ],
+            "agents": agents,
             "analysis_outputs": [
                 "required_skills",
-                "preferred_skills", 
+                "preferred_skills",
                 "experience_level",
                 "education_requirements",
                 "salary_analysis",
@@ -239,22 +219,19 @@ async def get_available_agents():
                 "green_flags",
                 "company_insights",
                 "overall_recommendation",
-                "confidence_score"
-            ]
+                "confidence_score",
+            ],
         }
-        
         return create_success_response(
             data=agents_info,
-            message="Available agents information retrieved successfully"
+            message="Available agents information retrieved successfully",
         )
-    
     except Exception as e:
         logger.error(f"Failed to get agents info: {str(e)}")
         return create_error_response(
             error="Failed to retrieve agents information",
             message=str(e)
         )
-
 
 @router.get("/review/health", response_model=StandardResponse)
 async def health_check():

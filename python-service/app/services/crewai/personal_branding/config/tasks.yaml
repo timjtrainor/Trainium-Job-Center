@@ -1,0 +1,14 @@
+personal_branding_review:
+  description: >
+    Write a short personal branding document for the role "{Job}".
+    Use the following database insights to enrich the output:
+    {additional_data}
+  expected_output: >
+    A Personal Branding Document that includes:
+      - Professional headline
+      - Positioning statement (unique value proposition)
+      - Summary of skills and achievements
+      - Career highlights and proof points
+      - Suggested LinkedIn or resume summary
+  agent: branding_agent
+
