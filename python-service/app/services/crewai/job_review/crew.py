@@ -14,7 +14,7 @@ from crewai.project import CrewBase, agent, task, crew, before_kickoff, after_ki
 from crewai.llm import BaseLLM
 
 from .. import base
-from app.services.ai.llm_clients import LLMRouter
+from ...ai.llm_clients import LLMRouter
 from ....core.config import get_settings
 from ....schemas.jobspy import ScrapedJob
 
