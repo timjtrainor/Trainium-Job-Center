@@ -1,10 +1,11 @@
 from fastapi import APIRouter
-from app.services.crewai.personal_branding.crew import PersonalBrandCrew
+from ..services.crewai import get_personal_brand_crew
+
 
 router = APIRouter(tags=["Personal Branding"])
 
 @router.post("/personal-brand")
-async def review_job_posting():
-    crew = PersonalBrandCrew()
-    result = crew.branding_crew().kickoff(inputs={"narrative_name": "Product Manager"})
+async def personal_branding():
+    crew = get_personal_brand_crew()
+    result = crew.kickoff(inputs={"Job": "Product Manager"})
     return {"personal_branding_document": result}

@@ -5,7 +5,7 @@ This package provides CrewAI-based services following best practices
 for multi-crew systems with YAML-driven configuration.
 """
 from .job_review.crew import JobReviewCrew, get_job_review_crew
-from .personal_branding.crew import PersonalBrandCrew, get_personal_brand_crew
+from .personal_branding.crew import PersonalBrandCrew
 
 __all__ = [
     "JobReviewCrew",

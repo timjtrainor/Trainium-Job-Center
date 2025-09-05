@@ -1,8 +1,6 @@
 personal_branding_review:
   description: >
-    Retrieve and review the strategic narrative stored in the Postgres database
-    for the role "Product Manager". Use the narrative to create a polished
-    Personal Branding Document that highlights the candidate's unique value.
+    Write a short personal branding document for the role "{Job}}".
   expected_output: >
     A Personal Branding Document that includes:
       - Professional headline
@@ -11,8 +9,3 @@ personal_branding_review:
       - Career highlights and proof points
       - Suggested LinkedIn or resume summary
   agent: branding_agent
-  tools:
-    - pg_search_tool
-  metadata:
-    capabilities: [narrative_review, branding]
-    narrative_name: Product Manager
