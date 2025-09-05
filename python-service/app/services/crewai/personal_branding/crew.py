@@ -94,6 +94,7 @@ class PersonalBrandCrew:
     def pg_search_tool(self) -> str:
         """Fetch strategic narratives from Postgres."""
         return pg_search(getattr(self, "_narrative_name", None))
+
         
     @agent
     def branding_agent(self) -> Agent:
@@ -133,7 +134,9 @@ class PersonalBrandCrew:
 
         narrative_name = task.metadata.get("narrative_name") if task.metadata else None
         if narrative_name:
+      
             self._narrative_name = narrative_name
+
 
         return task
 
