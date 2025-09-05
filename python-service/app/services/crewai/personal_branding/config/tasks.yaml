@@ -1,6 +1,6 @@
 personal_branding_review:
   description: >
-    Write a short personal branding document for the role "{Job}}".
+    Write a short personal branding document for the role "{Job}".
   expected_output: >
     A Personal Branding Document that includes:
       - Professional headline
@@ -9,3 +9,4 @@ personal_branding_review:
       - Career highlights and proof points
       - Suggested LinkedIn or resume summary
   agent: branding_agent
+
