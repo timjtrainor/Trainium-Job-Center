@@ -34,7 +34,12 @@ openai==1.104.2
 # Crew orchestration
 crewai==0.175.0
 crewai-tools==0.69.0
+langchain>=0.3,<0.4
 # For web search tool
 tavily-python==0.7.11
+
+# Database connection for direct access
+asyncpg==0.30.0
+psycopg[binary]==3.2.9
 
 

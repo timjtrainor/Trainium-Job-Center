@@ -7,6 +7,8 @@ import logging
 from ...llm_clients import LLMRouter
 from ....core.config import get_settings
 
+from app.services.crewai.tools import postgres_tool
+
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +50,42 @@ class PersonalBrandCrew:
     @before_kickoff
     def prepare_inputs(self, inputs):
         # Modify inputs before the crew starts
-        inputs["additional_data"] = "Some extra information"
+        query = """
+        SELECT
+        --    sn.narrative_id
+        --    , sn.user_id
+        --    , sn.narrative_name
+              sn.desired_title
+            , sn.positioning_statement
+            , sn.signature_capability
+            , sn.impact_story_title
+            , sn.impact_story_body
+        --    ,sn.default_resume_id
+        --    ,sn.created_at
+        --    ,sn.updated_at
+            , sn.desired_industry
+            , sn.desired_company_stage
+            , sn.mission_alignment
+            , sn.long_term_legacy
+            , sn.key_strengths
+            , sn.representative_metrics
+            , sn.leadership_style
+            , sn.communication_style
+            , sn.working_preferences
+            , sn.preferred_locations
+        --    , sn.relocation_open,
+            , sn.compensation_expectation
+            , sn.impact_stories
+        FROM
+            strategic_narratives sn
+        WHERE
+            sn.narrative_name = 'Product Manager'
+        """
+        try:
+            db_results = postgres_tool(query)
+            inputs["additional_data"] = db_results
+        except Exception as e:
+            inputs["additional_data"] = f"Failed to fetch data from database: {str(e)}"
         return inputs
 
     @after_kickoff
