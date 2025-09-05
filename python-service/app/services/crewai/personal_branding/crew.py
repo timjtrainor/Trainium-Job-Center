@@ -31,6 +31,7 @@ class PersonalBrandCrew:
         return Agent(
             config=self.agents_config["branding_agent"],  # type: ignore[index]
             verbose=True,
+            model="gemma3:1b"
         )
 
     @task
