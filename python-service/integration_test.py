@@ -4,12 +4,12 @@ Integration test for queue-based scraping system.
 Tests the basic functionality without requiring live database or Redis.
 """
 import sys
-import os
 import asyncio
+from pathlib import Path
 from unittest.mock import Mock, AsyncMock, patch
 
 # Add the project root to Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, Path(__file__).resolve().parent.as_posix())
 
 from loguru import logger
 
@@ -123,13 +123,9 @@ def test_service_initialization():
     scheduler_service = get_scheduler_service()
     
     assert db_service is not None
-    assert queue_service is not None  
+    assert queue_service is not None
     assert scheduler_service is not None
-    
-    # Test singleton pattern
-    db_service2 = get_database_service()
-    assert db_service is db_service2
-    
+
     print("✅ Service initialization test passed!")
 
 
@@ -138,18 +134,19 @@ def test_database_schema():
     
     print("🧪 Testing database schema files...")
     
-    # Check that migration files exist
-    deploy_file = "/home/runner/work/Trainium-Job-Center/Trainium-Job-Center/DB Scripts/sqitch/deploy/queue-scheduler-tables.sql"
-    revert_file = "/home/runner/work/Trainium-Job-Center/Trainium-Job-Center/DB Scripts/sqitch/revert/queue-scheduler-tables.sql"
-    verify_file = "/home/runner/work/Trainium-Job-Center/Trainium-Job-Center/DB Scripts/sqitch/verify/queue-scheduler-tables.sql"
-    
-    assert os.path.exists(deploy_file), "Deploy migration file missing"
-    assert os.path.exists(revert_file), "Revert migration file missing"
-    assert os.path.exists(verify_file), "Verify migration file missing"
-    
+    # Check that migration files exist using paths relative to repo root
+    repo_root = Path(__file__).resolve().parents[1]
+    sqitch_dir = repo_root / "DB Scripts" / "sqitch"
+    deploy_file = sqitch_dir / "deploy" / "queue-scheduler-tables.sql"
+    revert_file = sqitch_dir / "revert" / "queue-scheduler-tables.sql"
+    verify_file = sqitch_dir / "verify" / "queue-scheduler-tables.sql"
+
+    assert deploy_file.exists(), "Deploy migration file missing"
+    assert revert_file.exists(), "Revert migration file missing"
+    assert verify_file.exists(), "Verify migration file missing"
+
     # Check deploy file contains expected table creation
-    with open(deploy_file, 'r') as f:
-        deploy_content = f.read()
+    deploy_content = deploy_file.read_text()
         
     assert 'CREATE TABLE site_schedules' in deploy_content
     assert 'CREATE TABLE scrape_runs' in deploy_content

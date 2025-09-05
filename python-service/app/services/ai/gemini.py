@@ -107,10 +107,7 @@ class GeminiService:
             )
 
 
-# Global service instance
-gemini_service = GeminiService()
-
-
 def get_gemini_service() -> GeminiService:
-    """Get the global Gemini service instance."""
-    return gemini_service
+    """Create a new Gemini service instance."""
+    return GeminiService()
+

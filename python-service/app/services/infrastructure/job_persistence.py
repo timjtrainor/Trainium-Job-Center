@@ -227,16 +227,9 @@ class JobPersistenceService:
             logger.error(f"Database error during job upsert: {e}")
             raise
 
-
-# Global instance
-_job_persistence_service: Optional[JobPersistenceService] = None
-
 def get_job_persistence_service() -> JobPersistenceService:
-    """Get or create the global job persistence service instance."""
-    global _job_persistence_service
-    if _job_persistence_service is None:
-        _job_persistence_service = JobPersistenceService()
-    return _job_persistence_service
+    """Create a new job persistence service instance."""
+    return JobPersistenceService()
 
 
 async def persist_jobs(records: List[Union[ScrapedJob, Dict[str, Any]]], 
@@ -253,3 +246,4 @@ async def persist_jobs(records: List[Union[ScrapedJob, Dict[str, Any]]],
     """
     service = get_job_persistence_service()
     return await service.persist_jobs(records, site_name)
+

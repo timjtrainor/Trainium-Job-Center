@@ -36,13 +36,8 @@ class PGSearchTool:
         return []
 
 
-_pg_search_tool: PGSearchTool | None = None
-
-
 def get_pg_search_tool() -> PGSearchTool:
-    """Get singleton instance of PGSearchTool."""
-    global _pg_search_tool
-    if _pg_search_tool is None:
-        _pg_search_tool = PGSearchTool()
-    return _pg_search_tool
+    """Create a new PGSearchTool instance."""
+    return PGSearchTool()
+
 

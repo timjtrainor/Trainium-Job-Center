@@ -291,10 +291,6 @@ class JobSpyIngestionService:
             )
 
 
-# Global service instance
-jobspy_service = JobSpyIngestionService()
-
-
 def get_jobspy_service() -> JobSpyIngestionService:
-    """Get the global JobSpy ingestion service instance."""
-    return jobspy_service
+    """Create a new JobSpy ingestion service instance."""
+    return JobSpyIngestionService()

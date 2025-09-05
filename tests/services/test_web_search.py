@@ -151,11 +151,11 @@ class TestWebSearchTool:
         assert call_args.kwargs["max_results"] == 3
         assert call_args.kwargs["search_depth"] == "basic"
     
-    def test_singleton_pattern(self):
-        """Test that get_web_search_tool returns the same instance."""
+    def test_factory_produces_new_instances(self):
+        """Ensure get_web_search_tool creates a fresh instance each call."""
         tool1 = get_web_search_tool()
         tool2 = get_web_search_tool()
-        assert tool1 is tool2
+        assert tool1 is not tool2
 
 
 if __name__ == "__main__":
