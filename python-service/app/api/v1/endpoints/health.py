@@ -5,14 +5,14 @@ from datetime import datetime
 from fastapi import APIRouter
 from loguru import logger
 
-from ..models.responses import StandardResponse, HealthStatus, create_success_response
-from ..core.config import get_settings
+from app.models.responses import StandardResponse, HealthStatus, create_success_response
+from app.core.config import get_settings
 
 
 def _get_llm_provider_status():
     """Get status of available LLM providers."""
     try:
-        from ..services.llm_clients import LLMRouter
+        from app.services.llm_clients import LLMRouter
         settings = get_settings()
         router = LLMRouter(preferences=settings.llm_preference)
         return [
