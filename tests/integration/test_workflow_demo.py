@@ -3,33 +3,13 @@
 Simple integration test demonstrating the complete persistence workflow.
 Focuses on the business logic without complex async mocking.
 """
-from unittest.mock import Mock
-
 from app.schemas.jobspy import ScrapedJob
 
-# Mock configuration during import and then restore to avoid side effects
-import importlib, sys
 
-_original_config = importlib.import_module("app.core.config")
-_original_db = importlib.import_module("app.services.infrastructure.database")
-
-sys.modules["app.core.config"] = Mock()
-sys.modules["app.services.infrastructure.database"] = Mock()
-
-sys.modules["app.core.config"].get_settings = lambda: Mock(database_url="fake://connection")
-sys.modules["app.services.infrastructure.database"].get_database_service = lambda: Mock()
-
-from app.services.infrastructure.job_persistence import JobPersistenceService
-
-# Restore modules for other tests
-sys.modules["app.core.config"] = _original_config
-sys.modules["app.services.infrastructure.database"] = _original_db
-
-
-def test_end_to_end_workflow_simulation():
+def test_end_to_end_workflow_simulation(job_persistence_service):
     """Simulate the complete end-to-end workflow that would happen in production."""
     print("🧪 Testing end-to-end persistence workflow simulation...")
-    
+
     # Step 1: Mock JobSpy scraping results (what we'd get from the scraper)
     scraped_jobs_raw = [
         {
@@ -84,7 +64,7 @@ def test_end_to_end_workflow_simulation():
     print(f"📥 Created {len(scraped_jobs)} ScrapedJob objects from {len(scraped_jobs_raw)} raw records")
     
     # Step 3: Test the field mapping logic
-    service = JobPersistenceService()
+    service = job_persistence_service
     
     mapped_jobs = []
     validation_errors = []
@@ -224,22 +204,3 @@ def test_api_response_format():
     assert api_response["jobs"][0]["job_url"] == "https://glassdoor.com/job/789"
     
     print("✅ API response format verification passed!")
-
-
-if __name__ == "__main__":
-    print("🧪 Running end-to-end persistence workflow tests...\n")
-    
-    test_end_to_end_workflow_simulation()
-    print()
-    test_api_response_format()
-    
-    print("\n🎉 All workflow tests passed!")
-    print("\n📋 What was tested:")
-    print("   ✅ Raw JobSpy data → ScrapedJob object conversion")
-    print("   ✅ ScrapedJob → database field mapping")
-    print("   ✅ Validation of required fields (job_url, title)")
-    print("   ✅ Source data preservation in jsonb field")
-    print("   ✅ Proper handling of nullable/placeholder fields")
-    print("   ✅ Multi-job batch processing")
-    print("   ✅ Persistence summary generation")
-    print("   ✅ API response format with persistence data")
