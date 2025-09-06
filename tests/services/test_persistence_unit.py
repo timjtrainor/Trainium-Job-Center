@@ -1,22 +1,7 @@
 """Simple tests for job persistence functionality without database dependencies."""
 from datetime import datetime
-from unittest.mock import Mock, patch
 
 from app.schemas.jobspy import ScrapedJob
-
-
-def _create_service():
-    """Create JobPersistenceService with a mocked database service."""
-    mock_db_service = Mock()
-    mock_db_service.initialized = True
-    with patch(
-        "app.services.infrastructure.job_persistence.get_database_service",
-        return_value=mock_db_service,
-    ):
-        from app.services.infrastructure.job_persistence import JobPersistenceService
-
-        service = JobPersistenceService()
-    return service
 
 
 def test_scraped_job_model():
@@ -48,9 +33,9 @@ def test_scraped_job_model():
     assert job.emails == ["hr@company.com"]
 
 
-def test_job_field_mapping_logic():
+def test_job_field_mapping_logic(job_persistence_service):
     """Test the field mapping logic without database calls."""
-    service = _create_service()
+    service = job_persistence_service
 
     test_job = ScrapedJob(
         title="Data Scientist",
@@ -93,9 +78,9 @@ def test_job_field_mapping_logic():
     assert "scraped_at" in mapped["source_raw"]
 
 
-def test_date_parsing():
+def test_date_parsing(job_persistence_service):
     """Test date parsing functionality."""
-    service = _create_service()
+    service = job_persistence_service
 
     test_cases = [
         ("2025-01-24", True),

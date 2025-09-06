@@ -3,26 +3,17 @@
 Integration test for the complete jobs persistence workflow.
 Demonstrates the persistence functionality without requiring live database.
 """
-import sys
-import os
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, AsyncMock
 from datetime import datetime
 
-# Add the project root to Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "python-service")))
-
-# Mock the configuration before importing modules
-os.environ['DATABASE_URL'] = 'postgresql://fake:fake@fake:5432/fake'
+from app.schemas.jobspy import ScrapedJob
+from app.services.infrastructure.job_persistence import JobPersistenceService
 
 def test_persistence_integration():
     """Test the complete persistence workflow with mocked components."""
     print("🧪 Testing jobs persistence integration workflow...")
-    
-    # Import after environment setup
-    from app.schemas.jobspy import ScrapedJob
-    from app.services.infrastructure.job_persistence import JobPersistenceService
-    
+
     # Create realistic test data similar to what JobSpy would return
     test_jobs = [
         ScrapedJob(
@@ -146,13 +137,10 @@ def test_persistence_integration():
     print("✅ Complete persistence integration test passed!")
 
 
-def test_api_integration_mock():
+def test_api_integration_mock(job_persistence_service):
     """Test how the API integration would work."""
     print("🧪 Testing API integration...")
 
-    from app.services.infrastructure.job_persistence import persist_jobs
-    from app.schemas.jobspy import ScrapedJob
-    
     # Mock a successful scraping result
     mock_scraped_result = {
         "status": "succeeded",
@@ -169,53 +157,34 @@ def test_api_integration_mock():
         "total_found": 1,
         "message": "Successfully scraped 1 job"
     }
-    
-    # Mock the persist_jobs function
-    async def mock_test():
-        with patch('app.services.infrastructure.job_persistence.get_job_persistence_service') as mock_service:
-            mock_persistence_service = Mock()
-            mock_persistence_service.persist_jobs = AsyncMock(return_value={
-                "inserted": 1, 
-                "skipped_duplicates": 0,
-                "errors": []
-            })
-            mock_service.return_value = mock_persistence_service
-            
-            # Simulate what the API would do
-            if mock_scraped_result.get("jobs"):
-                persistence_summary = await persist_jobs(
-                    records=mock_scraped_result["jobs"],
-                    site_name="glassdoor"
-                )
-                
-                # This is what would be returned to the API user
-                api_response = {
-                    "jobs": [job.dict() for job in mock_scraped_result["jobs"]],
-                    "total_found": mock_scraped_result["total_found"], 
-                    "persistence_summary": persistence_summary,
-                    "execution_mode": "sync"
-                }
-                
-                print(f"📡 API Response includes: {list(api_response.keys())}")
-                assert "persistence_summary" in api_response
-                assert api_response["persistence_summary"]["inserted"] == 1
-                
-    asyncio.run(mock_test())
+
+    job_persistence_service.persist_jobs = AsyncMock(return_value={
+        "inserted": 1,
+        "skipped_duplicates": 0,
+        "errors": []
+    })
+
+    async def run_test():
+        if mock_scraped_result.get("jobs"):
+            persistence_summary = await job_persistence_service.persist_jobs(
+                records=mock_scraped_result["jobs"],
+                site_name="glassdoor"
+            )
+
+            api_response = {
+                "jobs": [job.model_dump() for job in mock_scraped_result["jobs"]],
+                "total_found": mock_scraped_result["total_found"],
+                "persistence_summary": persistence_summary,
+                "execution_mode": "sync"
+            }
+
+            print(f"📡 API Response includes: {list(api_response.keys())}")
+            assert "persistence_summary" in api_response
+            assert api_response["persistence_summary"]["inserted"] == 1
+            job_persistence_service.persist_jobs.assert_awaited_once_with(
+                records=mock_scraped_result["jobs"],
+                site_name="glassdoor"
+            )
+
+    asyncio.run(run_test())
     print("✅ API integration test passed!")
-
-
-if __name__ == "__main__":
-    print("🧪 Running complete jobs persistence integration tests...\n")
-    
-    test_persistence_integration()
-    print()
-    test_api_integration_mock() 
-    
-    print("\n🎉 All integration tests passed!")
-    print("\n📋 Summary of what was tested:")
-    print("   ✅ Field mapping from ScrapedJob to database schema")
-    print("   ✅ Batch processing with mixed valid/invalid records") 
-    print("   ✅ Idempotency handling (duplicates skipped)")
-    print("   ✅ Error handling (missing required fields)")
-    print("   ✅ API integration workflow")
-    print("   ✅ Persistence summary generation")
