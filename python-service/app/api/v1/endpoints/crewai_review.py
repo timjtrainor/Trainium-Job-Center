@@ -246,15 +246,17 @@ async def get_available_agents():
         )
 
 @router.get("/review/health", response_model=StandardResponse)
-async def health_check():
+async def health_check(
+    job_review_crew: JobReviewCrew = Depends(get_job_review_crew),
+):
     """
     Health check for the CrewAI job review service.
-    
+
     Returns:
         Service health status and initialization state
     """
     try:
-        crew = get_job_review_crew()
+        crew = job_review_crew
 
         health_status = {
             "service": "JobReviewCrew",

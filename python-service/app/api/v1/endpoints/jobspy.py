@@ -296,7 +296,6 @@ async def jobspy_health_check(
             }
         }
         
-        from ....schemas.responses import create_success_response
         return create_success_response(
             data=health_data,
             message="JobSpy service health check completed"
