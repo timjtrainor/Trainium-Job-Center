@@ -41,6 +41,10 @@ class Settings:
         )
         self.ollama_host: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
+        # ChromaDB Configuration
+        self.chroma_url: str = os.getenv("CHROMA_URL", "chromadb")
+        self.chroma_port: int = int(os.getenv("CHROMA_PORT", "8000"))
+
         # PostgREST Configuration (for future integration)
         self.postgrest_url: str = os.getenv("POSTGREST_URL", "http://postgrest:3000")
 

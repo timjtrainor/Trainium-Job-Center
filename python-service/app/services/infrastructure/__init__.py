@@ -10,6 +10,7 @@ from .job_persistence import (
     get_job_persistence_service,
     persist_jobs,
 )
+from .chroma import get_chroma_client
 
 __all__ = [
     "DatabaseService",
@@ -26,4 +27,5 @@ __all__ = [
     "JobPersistenceService",
     "get_job_persistence_service",
     "persist_jobs",
+    "get_chroma_client",
 ]

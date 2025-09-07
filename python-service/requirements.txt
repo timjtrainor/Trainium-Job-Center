@@ -42,4 +42,7 @@ tavily-python==0.7.11
 asyncpg==0.30.0
 psycopg[binary]==3.2.9
 
+# Vector database client
+chromadb
+
 
