@@ -6,6 +6,8 @@ goal: "Analyze compensation and advise on negotiating leverage."
 backstory: "A shrewd negotiator who evaluates offers for maximum value."
 max_iter: 2
 max_execution_time: 45
+tools:
+  - chroma_search
 metadata:
   decision_lens: "Is this job worth it financially, and can I push for more?"
   tone: shrewd

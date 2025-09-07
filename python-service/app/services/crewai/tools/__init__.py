@@ -1,5 +1,6 @@
 import os
 from .custom_pg import PostgresQueryTool
+from .chroma_search import ChromaSearchTool
 
 
 def get_postgres_tool() -> PostgresQueryTool:
@@ -10,5 +11,15 @@ def get_postgres_tool() -> PostgresQueryTool:
     return PostgresQueryTool(conn_str=conn_str)
 
 
-__all__ = ["PostgresQueryTool", "get_postgres_tool"]
+def get_chroma_search_tool(collection_name: str, n_results: int = 4) -> ChromaSearchTool:
+    """Create a ChromaSearchTool for the given collection."""
+    return ChromaSearchTool(collection_name=collection_name, n_results=n_results)
+
+
+__all__ = [
+    "PostgresQueryTool",
+    "get_postgres_tool",
+    "ChromaSearchTool",
+    "get_chroma_search_tool",
+]
 
