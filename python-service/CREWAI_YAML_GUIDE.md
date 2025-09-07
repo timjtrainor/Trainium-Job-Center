@@ -6,10 +6,10 @@ This document explains the restructured CrewAI setup where agent definitions hav
 
 The CrewAI system now uses two main YAML files:
 
-- **`persona_catalog.yaml`** - Defines agent personas with their roles, behaviors, and CrewAI parameters
-- **`tasks.yaml`** - Defines tasks that can be executed by personas, including persona review tasks
+- **`app/services/ai/persona_catalog.yaml`** - Defines agent personas with their roles, behaviors, and CrewAI parameters
+- **`app/services/ai/tasks.yaml`** - Defines tasks that can be executed by personas, including persona review tasks
 
-## persona_catalog.yaml Structure
+## app/services/ai/persona_catalog.yaml Structure
 
 ### CrewAI Standard Fields (Top Level)
 These fields are directly used by CrewAI for agent creation:
@@ -37,7 +37,7 @@ Persona-specific fields are stored under `metadata` to avoid conflicts with Crew
       crew_manifest_ref: headhunter.json                 # Reference file
 ```
 
-## tasks.yaml Structure
+## app/services/ai/tasks.yaml Structure
 
 ### Pre-tasks (Existing)
 Analysis tasks that run before persona evaluations:
@@ -70,7 +70,7 @@ persona_review_tasks:
 ```python
 from app.services.persona_loader import PersonaCatalog
 
-catalog = PersonaCatalog(Path("persona_catalog.yaml"))
+catalog = PersonaCatalog(Path("app/services/ai/persona_catalog.yaml"))
 persona = catalog.get("headhunter")
 
 # Get CrewAI agent configuration
@@ -81,7 +81,7 @@ agent_config = catalog.create_agent_config("headhunter")
 ```python
 import yaml
 
-with open("tasks.yaml") as f:
+with open("app/services/ai/tasks.yaml") as f:
     tasks = yaml.safe_load(f)
     
 persona_tasks = tasks["persona_review_tasks"]
@@ -97,7 +97,7 @@ persona_tasks = tasks["persona_review_tasks"]
 
 ## Adding New Personas
 
-1. Edit `persona_catalog.yaml`
+1. Edit `app/services/ai/persona_catalog.yaml`
 2. Add persona to appropriate group (advisory, motivational, decision, judge)
 3. Include all required CrewAI fields at top level
 4. Put custom fields under `metadata` section

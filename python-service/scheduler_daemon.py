@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from loguru import logger
 
 from app.core.config import get_settings, configure_logging
-from app.services.scheduler import get_scheduler_service
+from app.services.infrastructure.scheduler import get_scheduler_service
 
 
 async def scheduler_loop():

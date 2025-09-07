@@ -1,0 +1,67 @@
+"""
+Scheduler API endpoints for managing job scraping schedules.
+"""
+from fastapi import APIRouter, HTTPException, Depends
+from loguru import logger
+
+from ....schemas.responses import StandardResponse, create_success_response
+from ....dependencies import get_scheduler_service
+from ....services.infrastructure.scheduler import SchedulerService
+
+router = APIRouter()
+
+
+@router.post("/run", response_model=StandardResponse)
+async def run_scheduler(
+    scheduler_service: SchedulerService = Depends(get_scheduler_service),
+):
+    """
+    Manually trigger the scheduler to process due site schedules.
+    
+    Returns:
+        StandardResponse containing number of jobs enqueued
+    """
+    try:
+        logger.info("Manual scheduler run requested")
+        
+        if not scheduler_service.initialized:
+            await scheduler_service.initialize()
+
+        jobs_enqueued = await scheduler_service.process_scheduled_sites()
+        
+        return create_success_response(
+            data={"jobs_enqueued": jobs_enqueued},
+            message=f"Scheduler processed {jobs_enqueued} site schedules"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in manual scheduler run: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Scheduler run failed: {str(e)}")
+
+
+@router.get("/status", response_model=StandardResponse)
+async def get_scheduler_status(
+    scheduler_service: SchedulerService = Depends(get_scheduler_service),
+):
+    """
+    Get the current status of the scheduler.
+    
+    Returns:
+        StandardResponse containing scheduler status information
+    """
+    try:
+        logger.info("Scheduler status request received")
+        
+        if not scheduler_service.initialized:
+            await scheduler_service.initialize()
+
+        status = await scheduler_service.get_scheduler_status()
+        
+        return create_success_response(
+            data=status,
+            message="Scheduler status retrieved successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting scheduler status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get scheduler status: {str(e)}")

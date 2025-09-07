@@ -269,7 +269,7 @@ ORDER BY created_at DESC
 
 ### Analyze a Single Job
 ```python
-from app.services.crewai_job_review import get_job_review_crew
+from app.services.crewai import get_job_review_crew
 
 crew = get_job_review_crew().job_review()
 
@@ -293,6 +293,25 @@ analyses = await service.analyze_multiple_jobs(jobs)
 # Results are sorted by recommendation quality
 for analysis in analyses:
     print(f"{analysis.title}: {analysis.overall_recommendation}")
+```
+
+### Retrieve Context from Chroma
+Agents can pull supplementary information from a Chroma vector collection using CrewAI tools:
+```python
+from app.services.crewai.tools import get_chroma_search_tool
+from crewai import Agent
+
+search_tool = get_chroma_search_tool("jobs")
+
+agent = Agent(
+    role="Context seeker",
+    goal="Look up related job snippets",
+    backstory="Consults the vector store for prior analyses",
+    tools=[search_tool],
+)
+
+context = agent.run("Find examples of Python developer roles")
+print(context)
 ```
 
 ## Performance Characteristics
