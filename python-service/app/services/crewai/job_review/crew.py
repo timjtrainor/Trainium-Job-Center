@@ -39,6 +39,16 @@ class JobReviewCrew:
         self._agent_llms: Dict[str, BaseLLM] = {}
         self.tasks_config = base.load_tasks_config(self.base_dir, "job_review/config")
 
+    def _load_tools(self, tool_names: List[str]) -> List[Any]:
+        """Resolve tool names to actual implementations.
+
+        Currently, no external tools are wired up. Any requested tools are
+        ignored to keep agent initialization from failing.
+        """
+        if tool_names:
+            logger.warning(f"Ignoring unsupported tools: {tool_names}")
+        return []
+
     def _parse_model_config(self, models: List[Dict[str, Any]] | None) -> List[Tuple[str, str]]:
         """Convert agent model configs to provider/model tuples."""
         if not models:
@@ -113,7 +123,7 @@ class JobReviewCrew:
             llm=self._get_agent_llm("researcher", config),
             max_iter=config.get("max_iter", 2),
             max_execution_time=config.get("max_execution_time", 60),
-            tools=config.get("tools", []),
+            tools=self._load_tools(config.get("tools", [])),
             verbose=True
         )
     
@@ -133,7 +143,7 @@ class JobReviewCrew:
             llm=self._get_agent_llm("negotiator", config),
             max_iter=config.get("max_iter", 2),
             max_execution_time=config.get("max_execution_time", 60),
-            tools=config.get("tools", []),
+            tools=self._load_tools(config.get("tools", [])),
             verbose=True
         )
     
@@ -153,7 +163,7 @@ class JobReviewCrew:
             llm=self._get_agent_llm("skeptic", config),
             max_iter=config.get("max_iter", 2),
             max_execution_time=config.get("max_execution_time", 60),
-            tools=config.get("tools", []),
+            tools=self._load_tools(config.get("tools", [])),
             verbose=True
         )
     
