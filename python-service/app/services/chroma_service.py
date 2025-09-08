@@ -81,9 +81,10 @@ class ChromaService:
             
             # Prepare data for ChromaDB
             ids = [f"{doc_id}::c{i}" for i in range(len(chunks))]
+            tags_str = ", ".join(request.tags)
             metadatas = [{
                 "title": request.title,
-                "tags": request.tags,
+                "tags": tags_str,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "doc_id": doc_id,
                 "seq": i,
