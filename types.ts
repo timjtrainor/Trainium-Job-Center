@@ -849,6 +849,30 @@ export interface SkillTrend {
     created_at: string;
 }
 
+// ----- NEW Dev Mode / Scheduler Types -----
+export interface SiteDetails {
+    site_name: string;
+    search_url: string;
+    search_params: { [key: string]: string | null };
+    job_card_selector: string;
+    job_url_selector: string;
+}
+
+export interface SiteSchedule {
+    id: string; // uuid
+    site_name: string;
+    enabled: boolean;
+    interval_minutes: number;
+    last_run_at?: string | null; // timestampz
+    next_run_at?: string | null; // timestampz
+    created_at: string; // timestampz
+    updated_at: string; // timestampz
+    payload?: { [key: string]: any } | null;
+}
+
+export type SiteSchedulePayload = Partial<Omit<SiteSchedule, 'id' | 'created_at' | 'updated_at'>>;
+
+
 export const ResumeTemplate: Resume = {
   header: { first_name: "", last_name: "", job_title: "", email: "", phone_number: "", city: "", state: "", links: [] },
   summary: { paragraph: "", bullets: [] },
@@ -914,3 +938,18 @@ export type CreateSprintPayload = Partial<Omit<Sprint, 'sprint_id' | 'user_id' |
 export type BragBankEntryPayload = Partial<Omit<BragBankEntry, 'entry_id' | 'user_id' | 'created_at'>>;
 
 export type SkillTrendPayload = Omit<SkillTrend, 'skill_trend_id' | 'user_id' | 'created_at'>;
+
+// --- ChromaDB types ---
+export interface CollectionInfo {
+    name: string;
+    count: number;
+    metadata?: any;
+}
+
+export interface UploadResponse {
+    success: boolean;
+    message: string;
+    collection_name: string;
+    document_id: string;
+    chunks_created: number;
+}

@@ -6,7 +6,9 @@ import {
     LinkedInEngagementPayload, StandardJobRole, StandardJobRolePayload, Resume, ResumeHeader, DateInfo, Education, Certification,
     StrategicNarrative, StrategicNarrativePayload, Offer, OfferPayload,
     BragBankEntry, BragBankEntryPayload, SkillTrend, SkillTrendPayload,
-    Sprint, SprintAction, CreateSprintPayload, SprintActionPayload, ApplicationQuestion
+    Sprint, SprintAction, CreateSprintPayload, SprintActionPayload, ApplicationQuestion,
+    SiteSchedule, SiteDetails, SiteSchedulePayload,
+    CollectionInfo, UploadResponse
 } from '../types';
 import { API_BASE_URL, USER_ID, FASTAPI_BASE_URL } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -1238,4 +1240,70 @@ export const addActionsToSprint = async (sprintId: string, actions: Omit<SprintA
         headers: { ...headers, 'Prefer': 'return=representation' },
         body: JSON.stringify(payload),
     });
+};
+
+// --- Scheduler / Dev Mode ---
+
+export const getSiteSchedules = async (): Promise<SiteSchedule[]> => {
+    const response = await fetch(`${API_BASE_URL}/site_schedules?order=site_name.asc,created_at.desc`);
+    return handleResponse(response);
+};
+
+export const getJobSites = async (): Promise<SiteDetails[]> => {
+    const response = await fetch(`${FASTAPI_BASE_URL}/sites`);
+    return handleResponse(response);
+};
+
+export const createSiteSchedule = async (payload: SiteSchedulePayload): Promise<SiteSchedule> => {
+    const response = await fetch(`${API_BASE_URL}/site_schedules`, {
+        method: 'POST',
+        headers: { ...headers, 'Prefer': 'return=representation' },
+        body: JSON.stringify(payload),
+    });
+    const data = await handleResponse(response);
+    return data[0];
+};
+
+export const updateSiteSchedule = async (scheduleId: string, payload: SiteSchedulePayload): Promise<SiteSchedule> => {
+    const response = await fetch(`${API_BASE_URL}/site_schedules?id=eq.${scheduleId}`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Prefer': 'return=representation' },
+        body: JSON.stringify(payload),
+    });
+    const data = await handleResponse(response);
+    return data[0];
+};
+
+export const deleteSiteSchedule = async (scheduleId: string): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/site_schedules?id=eq.${scheduleId}`, {
+        method: 'DELETE',
+        headers,
+    });
+    await handleResponse(response);
+};
+
+// --- ChromaDB via FastAPI ---
+
+export const getChromaCollections = async (): Promise<{ collections: CollectionInfo[] }> => {
+    const response = await fetch(`${FASTAPI_BASE_URL}/chroma/collections`);
+    return handleResponse(response);
+};
+
+export const deleteChromaCollection = async (collectionName: string): Promise<void> => {
+    const response = await fetch(`${FASTAPI_BASE_URL}/chroma/collections/${encodeURIComponent(collectionName)}`, {
+        method: 'DELETE',
+    });
+    await handleResponse(response);
+};
+
+export const uploadChromaDocument = async (formData: FormData): Promise<UploadResponse> => {
+    const response = await fetch(`${FASTAPI_BASE_URL}/chroma/upload`, {
+        method: 'POST',
+        body: formData,
+    });
+    const result = await response.json();
+    if (!response.ok) {
+        throw new Error(result.detail || result.message || 'Upload failed');
+    }
+    return result;
 };
