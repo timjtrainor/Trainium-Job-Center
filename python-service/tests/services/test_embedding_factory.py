@@ -2,7 +2,10 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
+from pathlib import Path
+from dotenv import dotenv_values
 
+from app.core.config import settings
 from app.services.embeddings.factory import create_embedding_function, get_embedding_function
 
 
@@ -89,6 +92,12 @@ def test_get_embedding_function_openai():
         mock_create.return_value = mock_func
         
         result = get_embedding_function()
-        
+
         mock_create.assert_called_once_with("openai", "text-embedding-3-small")
         assert result == mock_func
+
+
+def test_settings_reads_embedding_provider_from_env():
+    """Settings should reflect EMBEDDING_PROVIDER from root .env."""
+    env = dotenv_values(Path(__file__).resolve().parents[3] / ".env")
+    assert settings.embedding_provider == env.get("EMBEDDING_PROVIDER")

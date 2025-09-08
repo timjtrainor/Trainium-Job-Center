@@ -2,6 +2,7 @@
 
 from typing import Optional, Union
 import os
+from pathlib import Path
 from urllib.parse import urlparse
 from loguru import logger
 from dotenv import load_dotenv
@@ -12,7 +13,7 @@ class Settings:
     """Application settings and configuration."""
 
     def __init__(self):
-        load_dotenv()
+        load_dotenv(Path(__file__).resolve().parents[3] / ".env")
         # API Configuration
         self.app_name: str = "Trainium Python AI Service"
         self.app_version: str = "1.0.0"
