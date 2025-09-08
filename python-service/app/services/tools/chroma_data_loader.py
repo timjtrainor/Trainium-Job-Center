@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 import uuid, hashlib
 from typing import List
-from chromadb.utils import embedding_functions
 from ..infrastructure.chroma import get_chroma_client
+from ..embeddings import get_embedding_function
 
 # ---- config ----
 COLL_NAME = "career_brand"  # (career_brand, companies, or job_postings)
@@ -261,11 +261,7 @@ As AI reshaped the industry, I evolved again — into an adoption and trust buil
 Across every role, I’ve been a translator between technical and business stakeholders — at Nike, I built personas that helped data teams understand their “customers” and shifted them toward business-value delivery. And I’ve been a focused problem solver, keeping teams aligned on what truly matters and delivering results on time and under budget.
 Looking forward, I’m building toward my North Star: to lead as a Director of AI Product, shaping human-centered AI systems that expand access, reduce cost barriers, and earn adoption and trust. While my direct domain experience has been in EdTech and regulated SaaS (HIPAA exposure), I’m now focused on applying those lessons to healthcare, where the stakes are highest. By 2035, I aim to help make AI-enabled healthcare accessible and affordable to 100M people — while training the next generation of product leaders to carry that mission forward.
 """
-EMBED = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name="BAAI/bge-m3",
-    normalize_embeddings=True,
-    device="cpu"  # "cpu" or "cuda" if GPU available
-)
+EMBED = get_embedding_function()
 
 # token-aware chunker is best; placeholder uses words
 def chunk_words(text: str, words_per_chunk=300, overlap=50) -> List[str]:

@@ -45,6 +45,10 @@ class Settings:
         # ChromaDB Configuration
         self.chroma_url: str = os.getenv("CHROMA_URL", "chromadb")
         self.chroma_port: int = int(os.getenv("CHROMA_PORT", "8000"))
+        
+        # Embedding Configuration
+        self.embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "sentence_transformer")
+        self.embedding_model: str = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
 
         # PostgREST Configuration (for future integration)
         self.postgrest_url: str = os.getenv("POSTGREST_URL", "http://postgrest:3000")

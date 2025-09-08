@@ -12,6 +12,8 @@ FastAPI-based microservice that provides AI capabilities for the Trainium Job Ce
 - **Async Support**: Built for high-performance asynchronous operations
 - **Docker Ready**: Fully containerized for easy deployment
 - **AI Integration Ready**: Prepared for Gemini AI integration
+- **ChromaDB Integration**: Vector database support with configurable embedding services
+- **Embedding Services**: Support for SentenceTransformer and OpenAI embeddings
 
 ## Quick Start
 
@@ -93,6 +95,15 @@ python-service/
         └── postgrest.py   # PostgREST API client
 ```
 
+## Embedding Services
+
+The service supports configurable embedding services for ChromaDB integration:
+
+- **SentenceTransformer**: Local embedding models (default: BAAI/bge-m3)
+- **OpenAI**: Cloud-based embeddings (text-embedding-3-small, text-embedding-3-large)
+
+See [docs/EMBEDDING_CONFIGURATION.md](docs/EMBEDDING_CONFIGURATION.md) for detailed configuration instructions.
+
 ## Configuration
 
 The service uses environment variables for configuration:
@@ -105,6 +116,8 @@ The service uses environment variables for configuration:
 - `HUGGING_FACE_API_KEY`: Hugging Face API key
 - `ANTHROPIC_API_KEY`: Anthropic API key
 - `POSTGREST_URL`: PostgREST backend URL
+- `EMBEDDING_PROVIDER`: Embedding service provider (sentence_transformer, openai)
+- `EMBEDDING_MODEL`: Model name for the embedding provider
 
 ## Future Enhancements
 
