@@ -7,7 +7,7 @@ from typing import List, Tuple
 from loguru import logger
 from chromadb.utils import embedding_functions
 
-from ..infrastructure.chroma import get_chroma_client
+from .infrastructure import get_chroma_client
 from ..schemas.chroma import ChromaUploadRequest, ChromaUploadResponse, ChromaCollectionInfo
 
 
