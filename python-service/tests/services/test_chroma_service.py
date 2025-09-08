@@ -13,10 +13,8 @@ class TestChromaService:
     @pytest.fixture
     def chroma_service(self):
         """Create a ChromaService instance for testing."""
-        with patch(
-            "app.services.chroma_service.embedding_functions.SentenceTransformerEmbeddingFunction"
-        ) as MockEmbedding:
-            MockEmbedding.return_value = MagicMock()
+        with patch("app.services.chroma_service.get_embedding_function") as mock_embed:
+            mock_embed.return_value = MagicMock()
             service = ChromaService()
         return service
     
@@ -149,4 +147,42 @@ class TestChromaService:
 
         # Verify failure
         assert result is False
+
+
+class TestChromaServiceEmbeddingIntegration:
+    """Test embedding integration with ChromaService."""
+    
+    @patch('app.services.chroma_service.get_chroma_client')
+    @patch('app.services.chroma_service.get_embedding_function')
+    def test_upload_document_with_embedding_function(self, mock_get_embedding, mock_get_client):
+        """Test that upload document uses the configured embedding function."""
+        # Setup mocks
+        mock_embedding = MagicMock()
+        mock_embedding.__class__.__name__ = "SentenceTransformerEmbeddingFunction"
+        mock_get_embedding.return_value = mock_embedding
+        
+        mock_client = Mock()
+        mock_collection = Mock()
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_get_client.return_value = mock_client
+        
+        # Create service and test upload
+        service = ChromaService()
+        request = ChromaUploadRequest(
+            collection_name="test_collection",
+            title="Test Document",
+            tags=["test"],
+            document_text="Test content for embedding."
+        )
+        
+        result = asyncio.run(service.upload_document(request))
+        
+        # Verify embedding function was obtained and used
+        mock_get_embedding.assert_called_once()
+        mock_client.get_or_create_collection.assert_called_once()
+        _, kwargs = mock_client.get_or_create_collection.call_args
+        assert kwargs['embedding_function'] == mock_embedding
+        assert kwargs['metadata']['embed_model'] == "SentenceTransformerEmbeddingFunction"
+        
+        assert result.success is True
 

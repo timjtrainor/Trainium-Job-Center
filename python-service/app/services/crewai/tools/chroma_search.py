@@ -6,7 +6,11 @@ from ...infrastructure.chroma import get_chroma_client
 
 
 class ChromaSearchTool(BaseTool):
-    """Tool for performing similarity search using ChromaDB."""
+    """Tool for performing similarity search using ChromaDB.
+    
+    Note: This tool uses existing collections and inherits their embedding functions.
+    New collections should be created via ChromaService which uses configurable embeddings.
+    """
 
     name: str = "chroma_search"
     description: str = (

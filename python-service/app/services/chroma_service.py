@@ -5,9 +5,9 @@ import hashlib
 from datetime import datetime, timezone
 from typing import List, Tuple
 from loguru import logger
-from chromadb.utils import embedding_functions
 
 from .infrastructure import get_chroma_client
+from .embeddings import get_embedding_function
 from ..schemas.chroma import ChromaUploadRequest, ChromaUploadResponse, ChromaCollectionInfo
 
 
@@ -17,16 +17,13 @@ class ChromaService:
     def __init__(self):
         """Initialize the ChromaDB service."""
         self.client = None
-        self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="BAAI/bge-m3",
-            normalize_embeddings=True,
-            device="cpu"  # Use CPU for compatibility
-        )
+        self.embedding_function = None
     
     async def initialize(self):
-        """Initialize the ChromaDB client."""
+        """Initialize the ChromaDB client and embedding function."""
         try:
             self.client = get_chroma_client()
+            self.embedding_function = get_embedding_function()
             logger.info("ChromaDB service initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize ChromaDB service: {e}")
@@ -37,6 +34,12 @@ class ChromaService:
         if self.client is None:
             self.client = get_chroma_client()
         return self.client
+    
+    def _get_embedding_function(self):
+        """Get the embedding function, initializing if needed."""
+        if self.embedding_function is None:
+            self.embedding_function = get_embedding_function()
+        return self.embedding_function
     
     def _chunk_text(self, text: str, words_per_chunk: int = 300, overlap: int = 50) -> List[str]:
         """Split text into chunks for better vector storage."""
@@ -61,14 +64,15 @@ class ChromaService:
         """Upload a document to ChromaDB."""
         try:
             client = self._get_client()
+            embedding_function = self._get_embedding_function()
             
             # Get or create collection
             collection = client.get_or_create_collection(
                 name=request.collection_name,
-                embedding_function=self.embedding_function,
+                embedding_function=embedding_function,
                 metadata={
                     "purpose": "user_uploaded_document",
-                    "embed_model": "BAAI/bge-m3",
+                    "embed_model": f"{embedding_function.__class__.__name__}",
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }
             )
