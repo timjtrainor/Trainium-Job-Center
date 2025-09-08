@@ -84,6 +84,12 @@ async def upload_to_chroma(
             logger.info(
                 f"Successfully uploaded file '{file.filename}' to collection '{collection_name}'"
             )
+        else:
+            # Log the detailed error for debugging
+            logger.error(
+                f"Failed to upload file '{file.filename}' to collection '{collection_name}': "
+                f"{result.message}"
+            )
         
         return result
         
@@ -120,6 +126,12 @@ async def upload_text_to_chroma(
         if result.success:
             logger.info(
                 f"Successfully uploaded text to collection '{request.collection_name}'"
+            )
+        else:
+            # Log the detailed error for debugging
+            logger.error(
+                f"Failed to upload text to collection '{request.collection_name}': "
+                f"{result.message}"
             )
         
         return result

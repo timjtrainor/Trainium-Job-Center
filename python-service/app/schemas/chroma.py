@@ -17,10 +17,12 @@ class ChromaUploadResponse(BaseModel):
     """Response schema for ChromaDB upload operation."""
     
     success: bool = Field(..., description="Whether the upload was successful")
-    message: str = Field(..., description="Status message")
+    message: str = Field(..., description="Status message or detailed error information")
     collection_name: str = Field(..., description="Name of the collection")
     document_id: str = Field(..., description="Generated document ID")
     chunks_created: int = Field(..., description="Number of text chunks created")
+    error_type: Optional[str] = Field(None, description="Type of error if upload failed")
+    suggestions: Optional[List[str]] = Field(None, description="Suggested actions to resolve errors")
 
 
 class ChromaCollectionInfo(BaseModel):
