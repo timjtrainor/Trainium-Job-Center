@@ -82,9 +82,8 @@ class ChromaService:
             )
 
             # Ensure embedding model matches configuration
-            stored_embed = None
-            if getattr(collection, "metadata", None):
-                stored_embed = collection.metadata.get("embed_model")
+            metadata = getattr(collection, "metadata", {}) or {}
+            stored_embed = metadata.get("embed_model")
             if stored_embed and stored_embed != expected_embed:
                 raise ValueError(
                     "Embedding model mismatch: collection uses "
