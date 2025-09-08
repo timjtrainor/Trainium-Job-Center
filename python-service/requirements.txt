@@ -17,9 +17,6 @@ rq==1.16.2
 rq-scheduler==0.13.1
 redis==6.1.1
 
-# Database connection for direct access
-asyncpg==0.30.0
-
 # Force wheel-friendly versions to avoid compiling from source
 grpcio==1.74.0
 # Must be >=5.26.1 and <6.0dev for grpcio-status
@@ -43,6 +40,8 @@ asyncpg==0.30.0
 psycopg[binary]==3.2.9
 
 # Vector database client
-chromadb
+chromadb == 0.5.23
+sentence-transformers==4.1.0
+torch==2.2.0
 
 
