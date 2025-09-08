@@ -3,11 +3,12 @@
 import uuid
 import hashlib
 from datetime import datetime, timezone
-from typing import List, Tuple
+from typing import List
 from loguru import logger
 
 from .infrastructure import get_chroma_client
 from .embeddings import get_embedding_function
+from ..core.config import get_settings
 from ..schemas.chroma import ChromaUploadRequest, ChromaUploadResponse, ChromaCollectionInfo
 
 
@@ -18,6 +19,7 @@ class ChromaService:
         """Initialize the ChromaDB service."""
         self.client = None
         self.embedding_function = None
+        self.settings = get_settings()
     
     async def initialize(self):
         """Initialize the ChromaDB client and embedding function."""
@@ -65,17 +67,29 @@ class ChromaService:
         try:
             client = self._get_client()
             embedding_function = self._get_embedding_function()
-            
+            expected_embed = f"{self.settings.embedding_provider}:{self.settings.embedding_model}"
+
             # Get or create collection
             collection = client.get_or_create_collection(
                 name=request.collection_name,
                 embedding_function=embedding_function,
                 metadata={
                     "purpose": "user_uploaded_document",
-                    "embed_model": f"{embedding_function.__class__.__name__}",
+                    "embed_model": expected_embed,
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }
             )
+
+            # Ensure embedding model matches configuration
+            stored_embed = None
+            if getattr(collection, "metadata", None):
+                stored_embed = collection.metadata.get("embed_model")
+            if stored_embed and stored_embed != expected_embed:
+                raise ValueError(
+                    "Embedding model mismatch: collection uses "
+                    f"'{stored_embed}' but settings specify '{expected_embed}'. "
+                    "Delete or recreate the collection."
+                )
             
             # Generate document ID
             doc_id = str(uuid.uuid4())

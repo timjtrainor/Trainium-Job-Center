@@ -5,6 +5,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from app.services.chroma_service import ChromaService
 from app.schemas.chroma import ChromaUploadRequest
+from app.core.config import get_settings
 
 
 class TestChromaService:
@@ -14,9 +15,11 @@ class TestChromaService:
     def chroma_service(self):
         """Create a ChromaService instance for testing."""
         with patch("app.services.chroma_service.get_embedding_function") as mock_embed:
-            mock_embed.return_value = MagicMock()
+            mock_embedding = MagicMock()
+            mock_embed.return_value = mock_embedding
             service = ChromaService()
-        return service
+            service.embedding_function = mock_embedding
+            yield service
     
     @pytest.fixture
     def sample_request(self):
@@ -61,6 +64,8 @@ class TestChromaService:
         # Mock ChromaDB client and collection
         mock_client = Mock()
         mock_collection = Mock()
+        expected_embed = f"{chroma_service.settings.embedding_provider}:{chroma_service.settings.embedding_model}"
+        mock_collection.metadata = {"embed_model": expected_embed}
         mock_client.get_or_create_collection.return_value = mock_collection
         mock_get_client.return_value = mock_client
 
@@ -94,6 +99,21 @@ class TestChromaService:
         assert result.success is False
         assert "ChromaDB connection failed" in result.message
         assert result.chunks_created == 0
+
+    @patch('app.services.chroma_service.get_chroma_client')
+    def test_upload_document_embed_model_mismatch(self, mock_get_client, chroma_service, sample_request):
+        """Test handling when collection uses different embedding model."""
+        mock_client = Mock()
+        mock_collection = Mock()
+        mock_collection.metadata = {"embed_model": "other:Model"}
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_get_client.return_value = mock_client
+
+        result = asyncio.run(chroma_service.upload_document(sample_request))
+
+        assert result.success is False
+        assert "delete or recreate" in result.message.lower()
+        mock_collection.add.assert_not_called()
     
     @patch('app.services.chroma_service.get_chroma_client')
     def test_list_collections(self, mock_get_client, chroma_service):
@@ -158,11 +178,12 @@ class TestChromaServiceEmbeddingIntegration:
         """Test that upload document uses the configured embedding function."""
         # Setup mocks
         mock_embedding = MagicMock()
-        mock_embedding.__class__.__name__ = "SentenceTransformerEmbeddingFunction"
         mock_get_embedding.return_value = mock_embedding
-        
+
         mock_client = Mock()
         mock_collection = Mock()
+        expected_embed = f"{get_settings().embedding_provider}:{get_settings().embedding_model}"
+        mock_collection.metadata = {"embed_model": expected_embed}
         mock_client.get_or_create_collection.return_value = mock_collection
         mock_get_client.return_value = mock_client
         
@@ -182,7 +203,7 @@ class TestChromaServiceEmbeddingIntegration:
         mock_client.get_or_create_collection.assert_called_once()
         _, kwargs = mock_client.get_or_create_collection.call_args
         assert kwargs['embedding_function'] == mock_embedding
-        assert kwargs['metadata']['embed_model'] == "SentenceTransformerEmbeddingFunction"
+        assert kwargs['metadata']['embed_model'] == expected_embed
         
         assert result.success is True
 
