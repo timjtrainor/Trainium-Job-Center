@@ -46,6 +46,36 @@ class Settings:
         self.chroma_url: str = os.getenv("CHROMA_URL", "chromadb")
         self.chroma_port: int = int(os.getenv("CHROMA_PORT", "8000"))
 
+        # PostgREST Configuration (for future integration)
+        self.postgrest_url: str = os.getenv("POSTGREST_URL", "http://postgrest:3000")
+
+        # Database Configuration for direct access
+        self.database_url: str = os.getenv("DATABASE_URL", "")
+        if not self.database_url:
+            raise ValueError("DATABASE_URL is not set")
+
+        parsed_db = urlparse(self.database_url)
+        if parsed_db.hostname in {"localhost", "127.0.0.1"} or (
+            parsed_db.port and parsed_db.port != 5432
+        ):
+            logger.warning(
+                "DATABASE_URL may be misconfigured for Docker: %s", self.database_url
+            )
+
+        # Redis Configuration for queue system
+        self.redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        self.redis_host: str = os.getenv("REDIS_HOST", "localhost")
+        self.redis_port: int = int(os.getenv("REDIS_PORT", "6379"))
+        self.redis_db: int = int(os.getenv("REDIS_DB", "0"))
+
+        # Queue Configuration
+        self.rq_queue_name: str = os.getenv("RQ_QUEUE_NAME", "scraping")
+        self.rq_result_ttl: int = int(os.getenv("RQ_RESULT_TTL", "3600"))  # 1 hour
+        self.rq_job_timeout: int = int(os.getenv("RQ_JOB_TIMEOUT", "900"))  # 15 minutes
+
+        # Environment-based configuration
+        self.environment: str = os.getenv("ENVIRONMENT", "development")
+
     def create_chroma_client(self) -> Union[chromadb.HttpClient, chromadb.PersistentClient]:
         """Create and return a ChromaDB client using configured settings.
 
@@ -69,35 +99,6 @@ class Settings:
             except Exception as e:  # pragma: no cover - unlikely error
                 logger.error(f"Failed to initialize ChromaDB persistent client: {e}")
                 raise RuntimeError(f"Could not initialize any ChromaDB client: {e}")
-
-        # PostgREST Configuration (for future integration)
-        self.postgrest_url: str = os.getenv("POSTGREST_URL", "http://postgrest:3000")
-
-        # Database Configuration for direct access
-        self.database_url: str = os.getenv("DATABASE_URL", "")
-        if not self.database_url:
-            raise ValueError("DATABASE_URL is not set")
-
-        parsed_db = urlparse(self.database_url)
-        if parsed_db.hostname in {"localhost", "127.0.0.1"} or (
-            parsed_db.port and parsed_db.port != 5432
-        ):
-            logger.warning(
-                "DATABASE_URL may be misconfigured for Docker: %s", self.database_url
-            )
-        # Redis Configuration for queue system
-        self.redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-        self.redis_host: str = os.getenv("REDIS_HOST", "localhost")
-        self.redis_port: int = int(os.getenv("REDIS_PORT", "6379"))
-        self.redis_db: int = int(os.getenv("REDIS_DB", "0"))
-
-        # Queue Configuration
-        self.rq_queue_name: str = os.getenv("RQ_QUEUE_NAME", "scraping")
-        self.rq_result_ttl: int = int(os.getenv("RQ_RESULT_TTL", "3600"))  # 1 hour
-        self.rq_job_timeout: int = int(os.getenv("RQ_JOB_TIMEOUT", "900"))  # 15 minutes
-
-        # Environment-based configuration
-        self.environment: str = os.getenv("ENVIRONMENT", "development")
 
 
 # Global settings instance
