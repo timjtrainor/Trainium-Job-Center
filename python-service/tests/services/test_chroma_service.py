@@ -1,5 +1,6 @@
 """Tests for ChromaDB service functionality."""
 
+import asyncio
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from app.services.chroma_service import ChromaService
@@ -12,7 +13,12 @@ class TestChromaService:
     @pytest.fixture
     def chroma_service(self):
         """Create a ChromaService instance for testing."""
-        return ChromaService()
+        with patch(
+            "app.services.chroma_service.embedding_functions.SentenceTransformerEmbeddingFunction"
+        ) as MockEmbedding:
+            MockEmbedding.return_value = MagicMock()
+            service = ChromaService()
+        return service
     
     @pytest.fixture
     def sample_request(self):
@@ -52,35 +58,39 @@ class TestChromaService:
         assert len(hash1) == 40  # SHA1 produces 40-character hex string
     
     @patch('app.services.chroma_service.get_chroma_client')
-    async def test_upload_document_success(self, mock_get_client, chroma_service, sample_request):
+    def test_upload_document_success(self, mock_get_client, chroma_service, sample_request):
         """Test successful document upload."""
         # Mock ChromaDB client and collection
         mock_client = Mock()
         mock_collection = Mock()
         mock_client.get_or_create_collection.return_value = mock_collection
         mock_get_client.return_value = mock_client
-        
+
         # Execute upload
-        result = await chroma_service.upload_document(sample_request)
+        result = asyncio.run(chroma_service.upload_document(sample_request))
         
         # Verify result
         assert result.success is True
         assert result.collection_name == sample_request.collection_name
         assert result.chunks_created > 0
         assert result.document_id != ""
-        
+
         # Verify client was called correctly
         mock_client.get_or_create_collection.assert_called_once()
         mock_collection.add.assert_called_once()
+        _, kwargs = mock_collection.add.call_args
+        metadatas = kwargs["metadatas"]
+        assert all(isinstance(md["tags"], str) for md in metadatas)
+        assert metadatas[0]["tags"] == "test, sample"
     
     @patch('app.services.chroma_service.get_chroma_client')
-    async def test_upload_document_failure(self, mock_get_client, chroma_service, sample_request):
+    def test_upload_document_failure(self, mock_get_client, chroma_service, sample_request):
         """Test document upload failure handling."""
         # Mock ChromaDB client to raise an exception
         mock_get_client.side_effect = Exception("ChromaDB connection failed")
-        
+
         # Execute upload
-        result = await chroma_service.upload_document(sample_request)
+        result = asyncio.run(chroma_service.upload_document(sample_request))
         
         # Verify failure response
         assert result.success is False
@@ -88,7 +98,7 @@ class TestChromaService:
         assert result.chunks_created == 0
     
     @patch('app.services.chroma_service.get_chroma_client')
-    async def test_list_collections(self, mock_get_client, chroma_service):
+    def test_list_collections(self, mock_get_client, chroma_service):
         """Test listing collections."""
         # Mock ChromaDB client and collections
         mock_client = Mock()
@@ -104,7 +114,7 @@ class TestChromaService:
         mock_get_client.return_value = mock_client
         
         # Execute list collections
-        result = await chroma_service.list_collections()
+        result = asyncio.run(chroma_service.list_collections())
         
         # Verify result
         assert len(result) == 1
@@ -113,21 +123,21 @@ class TestChromaService:
         assert result[0].metadata == {"purpose": "test"}
     
     @patch('app.services.chroma_service.get_chroma_client')
-    async def test_delete_collection_success(self, mock_get_client, chroma_service):
+    def test_delete_collection_success(self, mock_get_client, chroma_service):
         """Test successful collection deletion."""
         # Mock ChromaDB client
         mock_client = Mock()
         mock_get_client.return_value = mock_client
         
         # Execute delete
-        result = await chroma_service.delete_collection("test_collection")
+        result = asyncio.run(chroma_service.delete_collection("test_collection"))
         
         # Verify result
         assert result is True
         mock_client.delete_collection.assert_called_once_with("test_collection")
     
     @patch('app.services.chroma_service.get_chroma_client')
-    async def test_delete_collection_failure(self, mock_get_client, chroma_service):
+    def test_delete_collection_failure(self, mock_get_client, chroma_service):
         """Test collection deletion failure handling."""
         # Mock ChromaDB client to raise an exception
         mock_client = Mock()
@@ -135,7 +145,8 @@ class TestChromaService:
         mock_get_client.return_value = mock_client
         
         # Execute delete
-        result = await chroma_service.delete_collection("nonexistent_collection")
-        
+        result = asyncio.run(chroma_service.delete_collection("nonexistent_collection"))
+
         # Verify failure
         assert result is False
+
