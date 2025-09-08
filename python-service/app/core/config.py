@@ -1,10 +1,11 @@
 """Core application configuration and settings."""
 
-from typing import Optional
+from typing import Optional, Union
 import os
 from urllib.parse import urlparse
 from loguru import logger
 from dotenv import load_dotenv
+import chromadb
 
 
 class Settings:
@@ -43,7 +44,31 @@ class Settings:
 
         # ChromaDB Configuration
         self.chroma_url: str = os.getenv("CHROMA_URL", "chromadb")
-        self.chroma_port: int = int(os.getenv("CHROMA_PORT", "8001"))
+        self.chroma_port: int = int(os.getenv("CHROMA_PORT", "8000"))
+
+    def create_chroma_client(self) -> Union[chromadb.HttpClient, chromadb.PersistentClient]:
+        """Create and return a ChromaDB client using configured settings.
+
+        Falls back to a persistent client if the HTTP client is unavailable.
+        """
+        try:
+            client = chromadb.HttpClient(host=self.chroma_url, port=self.chroma_port)
+            client.heartbeat()
+            logger.info(
+                f"Connected to ChromaDB HTTP server at {self.chroma_url}:{self.chroma_port}"
+            )
+            return client
+        except Exception as e:  # pragma: no cover - network issues
+            logger.warning(f"Could not connect to ChromaDB HTTP server: {e}")
+            try:
+                persist_path = "./data/chroma"
+                os.makedirs(persist_path, exist_ok=True)
+                client = chromadb.PersistentClient(path=persist_path)
+                logger.info(f"Using ChromaDB persistent client at {persist_path}")
+                return client
+            except Exception as e:  # pragma: no cover - unlikely error
+                logger.error(f"Failed to initialize ChromaDB persistent client: {e}")
+                raise RuntimeError(f"Could not initialize any ChromaDB client: {e}")
 
         # PostgREST Configuration (for future integration)
         self.postgrest_url: str = os.getenv("POSTGREST_URL", "http://postgrest:3000")
