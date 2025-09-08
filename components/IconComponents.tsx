@@ -314,3 +314,9 @@ export const ClipboardDocumentCheckIcon = ({ className }: { className: string })
         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 1.5l4.5 4.5m-4.5-4.5v4.5h4.5m-1.625 7.875-3.182-3.182a.75.75 0 00-1.06 0l-1.06 1.06a.75.75 0 000 1.06l3.182 3.182a.75.75 0 001.06 0l4.5-4.5a.75.75 0 000-1.06l-1.06-1.06a.75.75 0 00-1.06 0l-3.182 3.182Z" />
     </svg>
 );
+
+export const CircleStackIcon = ({ className }: { className: string }): React.ReactNode => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375" />
+    </svg>
+);

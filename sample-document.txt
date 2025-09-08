@@ -1,0 +1,38 @@
+Sample Document for ChromaDB Upload
+
+This is a sample text document that you can use to test the ChromaDB upload functionality.
+
+Introduction
+This document demonstrates how to upload text content to ChromaDB using the new web interface. The system will automatically chunk this text into smaller pieces for optimal vector storage and retrieval.
+
+Key Features
+1. File Upload Support: Upload .txt, .md, or .text files
+2. Metadata Configuration: Set collection name, title, and tags
+3. Automatic Chunking: Text is intelligently split into chunks for vector storage
+4. Collection Management: View and manage existing collections
+5. User-Friendly Interface: Simple web form for easy uploads
+
+How It Works
+When you upload a document:
+- The system reads your text file
+- Chunks the content into manageable pieces (typically 300 words with 50-word overlap)
+- Generates vector embeddings using the BAAI/bge-m3 model
+- Stores the chunks in your specified ChromaDB collection
+- Provides feedback on the upload status
+
+Example Use Cases
+- Upload documentation for AI-powered search
+- Store knowledge base articles for retrieval
+- Build a personal document library for AI assistance
+- Create searchable repositories of important texts
+
+Tips for Best Results
+- Use descriptive collection names (e.g., "project-docs", "meeting-notes")
+- Add relevant tags to help organize your documents
+- Choose meaningful titles that describe the document content
+- Keep documents focused on a single topic for better search results
+
+This sample document contains enough text to demonstrate the chunking functionality while being simple enough to understand the upload process.
+
+Conclusion
+The ChromaDB upload system provides a simple way to build your own vector database for AI-powered document search and retrieval. Upload this sample document to see how it works!

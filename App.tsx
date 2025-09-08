@@ -44,6 +44,7 @@ import { InterviewCopilotView } from './components/InterviewCopilotView';
 import { PromptEditorView } from './components/PromptEditorView';
 import { StepTracker } from './components/StepTracker';
 import { CraftMessageStep } from './components/CraftMessageStep';
+import { ChromaUploadView } from './components/ChromaUploadView';
 
 
 type JobDetailsPayload = {
@@ -1305,6 +1306,7 @@ const AppContent = () => {
                             <Route path="/engagement" element={<EngagementHub contacts={contacts} posts={linkedInPosts} engagements={engagements} postResponses={postResponses} applications={applications} allMessages={messages} userProfile={userProfile} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onCreatePostResponse={async ()=>{}} onUpdatePostResponse={handleUpdatePostResponse} onCreateLinkedInEngagement={handleCreateLinkedInEngagement} onCreatePost={handleCreatePost} onImportContacts={async ()=>{}} prompts={PROMPTS} onDeleteContact={handleDeleteContact} companies={companies} onViewCompany={(id)=>navigate(`/company/${id}`)} onAddNewCompany={()=>setIsCompanyModalOpen(true)} baseResumes={baseResumes} strategicNarratives={strategicNarratives} activeNarrative={activeNarrative} onScoreEngagement={()=>{}} />} />
                             <Route path="/interview-studio" element={<InterviewStudioView applications={applications} companies={companies} contacts={contacts} activeNarrative={activeNarrative} onSaveNarrative={handleSaveNarrative} prompts={PROMPTS} initialApp={initialAppForStudio} onClearInitialApp={()=>setInitialAppForStudio(null)} onGetReframeSuggestion={handleGetReframeSuggestion} onDeconstructQuestion={handleDeconstructQuestion} onSaveInterviewOpening={async (interviewId, opening)=>{await handleSaveInterview({strategic_opening: opening}, interviewId)}} />} />
                             <Route path="/brag-bank" element={<BragDocumentView items={bragBankItems} onSave={async (item, id) => { if(id) { await apiService.updateBragBankEntry(id, item); } else { await apiService.createBragBankEntry(item); } fetchInitialData(); }} onDelete={async (id) => { await apiService.deleteBragBankEntry(id); fetchInitialData(); }} strategicNarratives={strategicNarratives} prompts={PROMPTS} />} />
+                            <Route path="/chroma-upload" element={<ChromaUploadView />} />
                             <Route path="/prompt-editor" element={<PromptEditorView prompts={PROMPTS} isDebugMode={isDebugMode} onSetIsDebugMode={setIsDebugMode} modelName={modelName} setModelName={setModelName} />} />
                             
                             <Route path="/new-application" element={<NewApplicationWrapper />} />
