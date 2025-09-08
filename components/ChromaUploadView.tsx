@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { CloudArrowUpIcon, DocumentTextIcon, TrashIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, TrashIcon } from './IconComponents';
 
 interface ChromaUploadProps {
     onBack?: () => void;
@@ -255,7 +255,11 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
                                 id="file-upload"
                             />
                             <label htmlFor="file-upload" className="cursor-pointer">
-                                <CloudArrowUpIcon className="h-12 w-12 mx-auto text-slate-400 dark:text-slate-500 mb-3" />
+                                <div className="h-12 w-12 mx-auto text-slate-400 dark:text-slate-500 mb-3">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-full h-full">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                                    </svg>
+                                </div>
                                 <p className="text-sm text-slate-600 dark:text-slate-400">
                                     {selectedFile ? (
                                         <span className="font-medium text-blue-600 dark:text-blue-400">
@@ -293,9 +297,13 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
                             : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
                     }`}>
                         <div className="flex items-start">
-                            <InformationCircleIcon className={`h-5 w-5 mt-0.5 mr-3 ${
+                            <div className={`h-5 w-5 mt-0.5 mr-3 ${
                                 uploadResult.success ? 'text-green-500' : 'text-red-500'
-                            }`} />
+                            }`}>
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-full h-full">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                                </svg>
+                            </div>
                             <div>
                                 <p className={`font-medium ${
                                     uploadResult.success ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'
