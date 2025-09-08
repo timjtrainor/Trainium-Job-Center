@@ -1,33 +1,66 @@
 """
 FastAPI routes for the job posting fit review pipeline.
 
-This module provides HTTP endpoints for triggering and managing
-the CrewAI-powered job posting fit review process.
+This module serves as a thin HTTP access point for the YAML-configured 
+CrewAI pipeline, delegating execution entirely through run_crew.
 """
+import time
+import uuid
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from loguru import logger
 
 from ..models.job_posting import JobPosting
 from ..models.fit_review import FitReviewResult
-from ..services.fit_review import FitReviewOrchestrator
+from ..services.crewai.job_posting_review.crew import run_crew
 
-router = APIRouter(prefix="/jobs", tags=["Job Fit Review"])
+router = APIRouter(prefix="/jobs/posting", tags=["Job Posting Fit Review"])
 
 
-@router.post("/fit-review", response_model=FitReviewResult)
-async def evaluate_job_fit(
+@router.post("/fit_review", response_model=FitReviewResult)
+async def evaluate_job_posting_fit(
     job_posting: JobPosting,
     options: Optional[Dict[str, Any]] = None
 ) -> FitReviewResult:
     """
-    Evaluate a job posting for fit using the CrewAI pipeline.
+    Evaluate a job posting for fit using the YAML-defined CrewAI pipeline.
     
-    This endpoint orchestrates the complete fit review process:
-    1. Normalizes the job posting data
-    2. Runs persona evaluations in parallel
-    3. Aggregates results through the judge
-    4. Returns comprehensive fit assessment
+    This endpoint delegates execution entirely to the YAML-configured crew,
+    with no hardcoded orchestration logic. All business logic and persona
+    coordination is defined via agents.yaml and tasks.yaml.
+    
+    Example Request:
+    ```json
+    {
+        "title": "Senior Python Developer",
+        "company": "Tech Innovations Inc",
+        "location": "San Francisco, CA",
+        "description": "We are looking for a senior Python developer...",
+        "url": "https://example.com/jobs/senior-python-dev"
+    }
+    ```
+    
+    Example Response:
+    ```json
+    {
+        "job_id": "job_123",
+        "final": {
+            "recommend": true,
+            "rationale": "Strong overall fit with minor compensation concerns",
+            "confidence": "high"
+        },
+        "personas": [
+            {
+                "id": "technical_leader",
+                "recommend": true,
+                "reason": "Excellent technical opportunities"
+            }
+        ],
+        "tradeoffs": ["Lower salary but better equity potential"],
+        "actions": ["Negotiate base salary", "Clarify equity terms"],
+        "sources": ["company_website", "glassdoor"]
+    }
+    ```
     
     Args:
         job_posting: The job posting to evaluate
@@ -39,86 +72,67 @@ async def evaluate_job_fit(
     Raises:
         HTTPException: If evaluation fails
     """
+    # Generate correlation ID for request tracking
+    correlation_id = str(uuid.uuid4())
+    start_time = time.time()
+    
+    # Log route entry
+    logger.info(
+        f"POST /jobs/posting/fit_review - Request received",
+        extra={
+            "correlation_id": correlation_id,
+            "route_path": "/jobs/posting/fit_review",
+            "job_title": job_posting.title,
+            "job_company": job_posting.company
+        }
+    )
+    
     try:
-        logger.info(f"Received fit review request for: {job_posting.title} at {job_posting.company}")
+        # Delegate execution entirely to YAML-defined crew
+        result = run_crew(
+            job_posting.model_dump(),
+            options=options,
+            correlation_id=correlation_id
+        )
         
-        # Initialize orchestrator
-        orchestrator = FitReviewOrchestrator()
+        # Calculate elapsed time
+        elapsed_ms = int((time.time() - start_time) * 1000)
         
-        # Run the fit review pipeline
-        result = await orchestrator.run(job_posting, options)
+        # Log route exit
+        logger.info(
+            f"POST /jobs/posting/fit_review - Request completed successfully",
+            extra={
+                "correlation_id": correlation_id,
+                "route_path": "/jobs/posting/fit_review",
+                "elapsed_time_ms": elapsed_ms,
+                "recommendation": result.get("final", {}).get("recommend")
+            }
+        )
         
-        logger.info(f"Fit review completed successfully for job: {result.job_id}")
-        return result
+        # Convert dict result to Pydantic model
+        return FitReviewResult.model_validate(result)
         
     except Exception as e:
-        logger.error(f"Fit review failed for {job_posting.title}: {str(e)}")
+        # Calculate elapsed time for error case
+        elapsed_ms = int((time.time() - start_time) * 1000)
+        
+        # Log error with correlation ID
+        logger.error(
+            f"POST /jobs/posting/fit_review - Request failed: {str(e)}",
+            extra={
+                "correlation_id": correlation_id,
+                "route_path": "/jobs/posting/fit_review",
+                "elapsed_time_ms": elapsed_ms,
+                "job_title": job_posting.title,
+                "job_company": job_posting.company
+            }
+        )
+        
+        # Return structured error response with correlation ID
         raise HTTPException(
             status_code=500,
-            detail=f"Job fit evaluation failed: {str(e)}"
+            detail={
+                "error": "fit_review_failed",
+                "correlation_id": correlation_id
+            }
         )
-
-
-@router.post("/fit-review/async")
-async def evaluate_job_fit_async(
-    job_posting: JobPosting,
-    background_tasks: BackgroundTasks,
-    options: Optional[Dict[str, Any]] = None
-) -> Dict[str, str]:
-    """
-    Start asynchronous job fit evaluation.
-    
-    This endpoint starts the fit review process in the background
-    and returns immediately with a job ID for tracking.
-    
-    Args:
-        job_posting: The job posting to evaluate
-        background_tasks: FastAPI background tasks
-        options: Optional configuration parameters
-        
-    Returns:
-        Dictionary with job_id for tracking the evaluation
-    """
-    job_id = f"job_{hash(job_posting.url)}"
-    
-    logger.info(f"Starting async fit review for job: {job_id}")
-    
-    async def run_fit_review():
-        """Background task to run the fit review."""
-        try:
-            orchestrator = FitReviewOrchestrator()
-            result = await orchestrator.run(job_posting, options)
-            logger.info(f"Async fit review completed for job: {job_id}")
-            # TODO: Store result in database or cache for retrieval
-        except Exception as e:
-            logger.error(f"Async fit review failed for job {job_id}: {str(e)}")
-    
-    background_tasks.add_task(run_fit_review)
-    
-    return {
-        "job_id": job_id,
-        "status": "started",
-        "message": "Fit review started in background"
-    }
-
-
-@router.get("/fit-review/{job_id}")
-async def get_fit_review_result(job_id: str) -> Dict[str, Any]:
-    """
-    Retrieve the result of an asynchronous fit review.
-    
-    Args:
-        job_id: The job ID returned from the async endpoint
-        
-    Returns:
-        Fit review result or status information
-    """
-    # TODO: Implement result retrieval from database/cache
-    logger.info(f"Retrieving fit review result for job: {job_id}")
-    
-    # Placeholder response
-    return {
-        "job_id": job_id,
-        "status": "pending",
-        "message": "Result retrieval not yet implemented"
-    }
