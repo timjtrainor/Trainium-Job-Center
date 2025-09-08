@@ -53,6 +53,27 @@ services:
       retries: 3
       start_period: 30s
 
+  # Defines the ChromaDB vector database service
+  chromadb:
+    build:
+      context: .
+      dockerfile: Dockerfile.chromadb
+    container_name: trainium_chromadb
+    restart: always
+    ports:
+      - "${CHROMA_PORT:-8001}:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   # Defines the React front-end service
   frontend:
     build:
@@ -102,11 +123,15 @@ services:
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
+      CHROMA_URL: ${CHROMA_URL:-chromadb}
+      CHROMA_PORT: ${CHROMA_PORT:-8001}
     volumes:
       # Mount the python service code for development
       - ./python-service:/app
     depends_on:
       redis:
+        condition: service_healthy
+      chromadb:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -176,3 +201,4 @@ volumes:
   # Defines the named volumes for data persistence.
   postgres_data:
   redis_data:
+  chroma_data:

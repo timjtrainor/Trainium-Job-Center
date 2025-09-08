@@ -55,7 +55,9 @@ class PersonalBrandCrew:
         --    sn.narrative_id
         --    , sn.user_id
         --    , sn.narrative_name
-              sn.desired_title
+              u.first_name 
+            , u.last_name
+            , sn.desired_title
             , sn.positioning_statement
             , sn.signature_capability
             , sn.impact_story_title
@@ -78,6 +80,10 @@ class PersonalBrandCrew:
             , sn.impact_stories
         FROM
             strategic_narratives sn
+        JOIN
+            users u 
+            ON
+            sn.user_id = u.user_id 
         WHERE
             sn.narrative_name = 'Product Manager'
         """

@@ -77,13 +77,14 @@ persona = catalog.get("headhunter")
 agent_config = catalog.create_agent_config("headhunter")
 ```
 
-### Loading Tasks  
+### Loading Tasks
+
 ```python
 import yaml
 
-with open("app/services/ai/tasks.yaml") as f:
+with open("../app/services/ai/tasks.yaml") as f:
     tasks = yaml.safe_load(f)
-    
+
 persona_tasks = tasks["persona_review_tasks"]
 ```
 

@@ -1,17 +1,19 @@
 """Core application configuration and settings."""
 
-from typing import Optional
+from typing import Optional, Union
 import os
+from pathlib import Path
 from urllib.parse import urlparse
 from loguru import logger
 from dotenv import load_dotenv
+import chromadb
 
 
 class Settings:
     """Application settings and configuration."""
 
     def __init__(self):
-        load_dotenv()
+        load_dotenv(Path(__file__).resolve().parents[3] / ".env")
         # API Configuration
         self.app_name: str = "Trainium Python AI Service"
         self.app_version: str = "1.0.0"
@@ -44,6 +46,10 @@ class Settings:
         # ChromaDB Configuration
         self.chroma_url: str = os.getenv("CHROMA_URL", "chromadb")
         self.chroma_port: int = int(os.getenv("CHROMA_PORT", "8000"))
+        
+        # Embedding Configuration
+        self.embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "sentence_transformer")
+        self.embedding_model: str = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
 
         # PostgREST Configuration (for future integration)
         self.postgrest_url: str = os.getenv("POSTGREST_URL", "http://postgrest:3000")
@@ -60,6 +66,7 @@ class Settings:
             logger.warning(
                 "DATABASE_URL may be misconfigured for Docker: %s", self.database_url
             )
+
         # Redis Configuration for queue system
         self.redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
         self.redis_host: str = os.getenv("REDIS_HOST", "localhost")
@@ -73,6 +80,30 @@ class Settings:
 
         # Environment-based configuration
         self.environment: str = os.getenv("ENVIRONMENT", "development")
+
+    def create_chroma_client(self) -> Union[chromadb.HttpClient, chromadb.PersistentClient]:
+        """Create and return a ChromaDB client using configured settings.
+
+        Falls back to a persistent client if the HTTP client is unavailable.
+        """
+        try:
+            client = chromadb.HttpClient(host=self.chroma_url, port=self.chroma_port)
+            client.heartbeat()
+            logger.info(
+                f"Connected to ChromaDB HTTP server at {self.chroma_url}:{self.chroma_port}"
+            )
+            return client
+        except Exception as e:  # pragma: no cover - network issues
+            logger.warning(f"Could not connect to ChromaDB HTTP server: {e}")
+            try:
+                persist_path = "./data/chroma"
+                os.makedirs(persist_path, exist_ok=True)
+                client = chromadb.PersistentClient(path=persist_path)
+                logger.info(f"Using ChromaDB persistent client at {persist_path}")
+                return client
+            except Exception as e:  # pragma: no cover - unlikely error
+                logger.error(f"Failed to initialize ChromaDB persistent client: {e}")
+                raise RuntimeError(f"Could not initialize any ChromaDB client: {e}")
 
 
 # Global settings instance
