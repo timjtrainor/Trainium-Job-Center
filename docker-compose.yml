@@ -55,7 +55,9 @@ services:
 
   # Defines the ChromaDB vector database service
   chromadb:
-    image: chromadb/chroma:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.chromadb
     container_name: trainium_chromadb
     restart: always
     ports:
