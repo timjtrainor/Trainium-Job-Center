@@ -68,11 +68,10 @@ services:
       - CHROMA_SERVER_HOST=0.0.0.0
       - CHROMA_SERVER_HTTP_PORT=8000
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      test: [ "CMD", "/bin/bash", "-c", "cat < /dev/null > /dev/tcp/localhost/8000" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
 
   # Defines the React front-end service
   frontend:
@@ -125,6 +124,8 @@ services:
       REDIS_DB: ${REDIS_DB:-0}
       CHROMA_URL: ${CHROMA_URL:-chromadb}
       CHROMA_PORT: ${CHROMA_PORT:-8001}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
     volumes:
       # Mount the python service code for development
       - ./python-service:/app
@@ -164,6 +165,8 @@ services:
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
     depends_on:
       redis:
         condition: service_healthy
@@ -192,6 +195,8 @@ services:
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
     depends_on:
       redis:
         condition: service_healthy
