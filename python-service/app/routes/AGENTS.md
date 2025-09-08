@@ -1,29 +1,29 @@
 # AGENT.md — FastAPI Routes
 
-**Purpose**: HTTP API endpoints for the job posting fit review pipeline.
+**Purpose**: Serve as thin HTTP access point for the YAML-configured CrewAI pipeline.
 
-**Entrypoints**:
-- `POST /jobs/fit-review` → synchronous job evaluation with immediate response
-- `POST /jobs/fit-review/async` → asynchronous job evaluation with background processing
-- `GET /jobs/fit-review/{job_id}` → retrieve results of async evaluation
+**Entrypoint**: `POST /jobs/posting/fit_review` - Delegates execution entirely to the YAML-defined CrewAI crew.
 
-**Contracts**:
-- Input: `JobPosting` model in request body
-- Output: `FitReviewResult` model for sync, status dict for async
-- Standard HTTP status codes: 200 (success), 500 (server error), 422 (validation error)
+**Data Contracts**: 
+- Input: `JobPosting` model (title, company, location, description, url)
+- Output: `FitReviewResult` model (job_id, final recommendation, personas, tradeoffs, actions, sources)
 
-**Conventions**:
-- Keep route handlers thin; delegate business logic to services
-- Use FastAPI dependency injection for shared resources
-- Log all requests with correlation IDs for tracing
-- Handle errors gracefully with informative error messages
-- Use appropriate HTTP methods (POST for creation, GET for retrieval)
+**YAML-centric Design**: Business logic and orchestration are defined via `agents.yaml`, `tasks.yaml`, and resolved via `crew.py`. This route contains NO hardcoded orchestration logic - it delegates entirely to `run_crew` function.
+
+**Error Handling**:
+- Pydantic validation - automatic 422 response
+- Crew execution failures - HTTP 500 with structured error including correlation_id
+- All errors logged with correlation_id for traceability
+
+**Logging**: 
+- Structured logging with correlation_id, route path, and elapsed time in ms
+- Request entry/exit logging for monitoring and debugging
 
 **Do/Don't**:
-- ✅ Do: Validate input using Pydantic models automatically
-- ✅ Do: Use async route handlers for all endpoints
-- ✅ Do: Include comprehensive OpenAPI documentation via docstrings
-- ✅ Do: Handle exceptions and return appropriate HTTP status codes
-- ❌ Don't: Put business logic in route handlers; delegate to services
-- ❌ Don't: Return raw exceptions to clients; use HTTPException
-- ❌ Don't: Forget to log requests and responses for monitoring
+- ✅ Do: Call `run_crew` and delegate entirely to YAML-defined crew
+- ✅ Do: Generate correlation_id for request tracking
+- ✅ Do: Log structured data with timing information
+- ✅ Do: Return structured error responses with correlation_id
+- ❌ Don't: Add orchestration logic, job parsing, or persona coordination here
+- ❌ Don't: Implement business logic in the route - keep it thin
+- ❌ Don't: Call CrewAI agents directly - use the run_crew abstraction

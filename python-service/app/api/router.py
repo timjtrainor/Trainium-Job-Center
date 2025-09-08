@@ -7,6 +7,7 @@ from app.api.v1.endpoints.scheduler import router as scheduler_router
 from app.api.v1.endpoints.crewai_review import router as crewai_review_router
 from app.api.v1.endpoints.crewai_personal_brand import router as crewai_personal_brand_router
 from app.api.v1.endpoints.chroma import router as chroma_router
+from app.routes.jobs_fit_review import router as jobs_fit_review_router
 
 api_router = APIRouter()
 
@@ -16,5 +17,6 @@ api_router.include_router(scheduler_router, prefix="/scheduler", tags=["schedule
 api_router.include_router(crewai_review_router, tags=["job-review", "crewai"])
 api_router.include_router(crewai_personal_brand_router, tags=["job-review", "crewai"])
 api_router.include_router(chroma_router, tags=["chroma", "vector-database"])
+api_router.include_router(jobs_fit_review_router, tags=["job-posting-fit-review"])
 
 __all__ = ["api_router"]
