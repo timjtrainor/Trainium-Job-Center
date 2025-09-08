@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch, MagicMock
 from app.services.chroma_service import ChromaService
 from app.schemas.chroma import ChromaUploadRequest
 from app.core.config import get_settings
+from chromadb.errors import InvalidDimensionException
 
 
 class TestChromaService:
@@ -114,6 +115,22 @@ class TestChromaService:
         assert result.success is False
         assert "delete or recreate" in result.message.lower()
         mock_collection.add.assert_not_called()
+
+    @patch('app.services.chroma_service.get_chroma_client')
+    def test_upload_document_dimension_mismatch(self, mock_get_client, chroma_service, sample_request):
+        """Test handling when embedding dimension mismatches collection."""
+        mock_client = Mock()
+        mock_collection = Mock()
+        expected_embed = f"{chroma_service.settings.embedding_provider}:{chroma_service.settings.embedding_model}"
+        mock_collection.metadata = {"embed_model": expected_embed}
+        mock_collection.add.side_effect = InvalidDimensionException("Dimension mismatch: expected 1536, got 2")
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_get_client.return_value = mock_client
+
+        result = asyncio.run(chroma_service.upload_document(sample_request))
+
+        assert result.success is False
+        assert "Dimension mismatch" in result.message
     
     @patch('app.services.chroma_service.get_chroma_client')
     def test_list_collections(self, mock_get_client, chroma_service):

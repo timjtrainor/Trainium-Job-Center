@@ -10,6 +10,7 @@ from .infrastructure import get_chroma_client
 from .embeddings import get_embedding_function
 from ..core.config import get_settings
 from ..schemas.chroma import ChromaUploadRequest, ChromaUploadResponse, ChromaCollectionInfo
+from chromadb.errors import InvalidDimensionException, InvalidCollectionException
 
 
 class ChromaService:
@@ -110,12 +111,16 @@ class ChromaService:
                 "type": "user_document"
             } for i in range(len(chunks))]
             
-            # Add to collection
-            collection.add(
-                ids=ids,
-                documents=chunks,
-                metadatas=metadatas
-            )
+            # Add to collection with explicit error handling
+            try:
+                collection.add(
+                    ids=ids,
+                    documents=chunks,
+                    metadatas=metadatas
+                )
+            except (InvalidDimensionException, InvalidCollectionException, Exception) as e:
+                server_message = getattr(e, "message", None) or (e.args[0] if e.args else str(e))
+                raise ValueError(server_message) from e
             
             logger.info(
                 f"Successfully uploaded document to collection '{request.collection_name}' "
