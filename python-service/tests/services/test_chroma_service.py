@@ -98,7 +98,7 @@ class TestChromaService:
         
         # Verify failure response
         assert result.success is False
-        assert "ChromaDB connection failed" in result.message
+        assert result.message == "ChromaDB connection failed"
         assert result.chunks_created == 0
 
     @patch('app.services.chroma_service.get_chroma_client')
@@ -130,7 +130,7 @@ class TestChromaService:
         result = asyncio.run(chroma_service.upload_document(sample_request))
 
         assert result.success is False
-        assert "Dimension mismatch" in result.message
+        assert result.message == "Dimension mismatch: expected 1536, got 2"
     
     @patch('app.services.chroma_service.get_chroma_client')
     def test_list_collections(self, mock_get_client, chroma_service):

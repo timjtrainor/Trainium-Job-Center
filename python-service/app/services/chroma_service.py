@@ -10,7 +10,11 @@ from .infrastructure import get_chroma_client
 from .embeddings import get_embedding_function
 from ..core.config import get_settings
 from ..schemas.chroma import ChromaUploadRequest, ChromaUploadResponse, ChromaCollectionInfo
-from chromadb.errors import InvalidDimensionException, InvalidCollectionException
+from chromadb.errors import (
+    ChromaError,
+    InvalidDimensionException,
+    InvalidCollectionException,
+)
 
 
 class ChromaService:
@@ -115,11 +119,17 @@ class ChromaService:
                 collection.add(
                     ids=ids,
                     documents=chunks,
-                    metadatas=metadatas
+                    metadatas=metadatas,
                 )
-            except (InvalidDimensionException, InvalidCollectionException, Exception) as e:
-                server_message = getattr(e, "message", None) or (e.args[0] if e.args else str(e))
-                raise ValueError(server_message) from e
+            except (InvalidDimensionException, InvalidCollectionException, ChromaError) as e:
+                logger.error(f"ChromaDB add failed: {e}")
+                return ChromaUploadResponse(
+                    success=False,
+                    message=str(e),
+                    collection_name=request.collection_name,
+                    document_id="",
+                    chunks_created=0,
+                )
             
             logger.info(
                 f"Successfully uploaded document to collection '{request.collection_name}' "
@@ -138,10 +148,10 @@ class ChromaService:
             logger.error(f"Failed to upload document to ChromaDB: {e}")
             return ChromaUploadResponse(
                 success=False,
-                message=f"Upload failed: {str(e)}",
+                message=str(e),
                 collection_name=request.collection_name,
                 document_id="",
-                chunks_created=0
+                chunks_created=0,
             )
     
     async def list_collections(self) -> List[ChromaCollectionInfo]:
