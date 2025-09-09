@@ -1,14 +1,16 @@
 name: "motivational_fanout"
-description: "YAML-driven crew for motivational evaluator fan-out analysis"
+description: "YAML-driven crew for motivational evaluator fan-out analysis with optional helper insights"
 version: "1.0"
 
 process: "sequential"  # Will be overridden to handle parallel execution in crew.py
 memory: false
 verbose: true
 
-# Task execution order for motivational fan-out
-# All tasks can run in parallel as they are independent evaluations
+# Task execution order: helper_snapshot before motivational fan-out
+# helper_snapshot conditionally runs based on {options.use_helpers}
+# Motivational tasks can run in parallel as they are independent evaluations
 tasks:
+  - helper_snapshot
   - builder_evaluation
   - maximizer_evaluation
   - harmonizer_evaluation
