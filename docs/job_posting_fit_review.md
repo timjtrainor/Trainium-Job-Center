@@ -13,6 +13,41 @@ The Job Posting Fit Review pipeline is a CrewAI-powered system that evaluates jo
 - **Retrieval** (`app/services/fit_review/retrieval.py`): Handles data preprocessing and normalization
 - **Helper Agents** (`app/services/fit_review/helpers/`): Specialized persona evaluators
 
+### Retrieval Inputs & Shapes
+
+The retrieval layer prepares inputs for YAML-defined CrewAI tasks through the `build_context()` function. This function returns structured data that populates YAML placeholders:
+
+**Input Shape:**
+```python
+job_posting = {
+    "title": "Senior Python Developer", 
+    "company": "Tech Corp",
+    "description": "<p>We need a <strong>senior developer</strong>...</p>",
+    "location": "San Francisco, CA"
+}
+```
+
+**Output Shape (for YAML crews):**
+```python
+{
+    "normalized_jd": "We need a senior developer...",        # Clean text for {job_description}
+    "career_brand_digest": "Career growth opportunities...", # Context for {career_brand_digest}
+    "doc_ids": ["career_001", "career_002"],                # ChromaDB document references
+    "scores": [0.8, 0.6],                                   # Similarity scores
+    "tags": ["ai", "senior", "backend"],                    # Domain/seniority tags for {job_meta}
+    "metadata": {                                            # Debug/monitoring info
+        "original_jd_length": 250,
+        "normalized_jd_length": 180,
+        "career_signal": "sufficient"
+    }
+}
+```
+
+**YAML Placeholder Mapping:**
+- `{job_description}` ← `normalized_jd` (HTML-cleaned job description)
+- `{career_brand_digest}` ← `career_brand_digest` (ChromaDB career insights)
+- `{job_meta}` ← `tags` (extracted domain/seniority tags)
+
 ### Data Flow
 
 1. **Input**: JobPosting model with title, company, location, description, and URL
