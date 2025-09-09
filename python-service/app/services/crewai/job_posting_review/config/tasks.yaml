@@ -361,13 +361,13 @@ helper_snapshot:
     
     If {options.use_helpers} is true, run selected helper tasks and merge their JSON outputs into a single compact object (≤1.5 KB typical):
     {{
-      "data_analyst": {{tc_range, refs}},
-      "strategist": {{signals, refs}},
-      "stakeholder": {{partners, risks}},
-      "technical_leader": {{notes}},
-      "recruiter": {{keyword_gaps}},
-      "skeptic": {{redflags}},
-      "optimizer": {{top3}}
+      "data_analyst": {{{{tc_range, refs}}}},
+      "strategist": {{{{signals, refs}}}},
+      "stakeholder": {{{{partners, risks}}}},
+      "technical_leader": {{{{notes}}}},
+      "recruiter": {{{{keyword_gaps}}}},
+      "skeptic": {{{{redflags}}}},
+      "optimizer": {{{{top3}}}}
     }}
     
     Handle any helper task failures by using empty JSON for that helper key. Keep the merged object valid and compact.
