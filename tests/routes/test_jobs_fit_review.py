@@ -217,6 +217,27 @@ def test_correlation_id_in_logs(mock_run_crew, client, sample_job_posting, sampl
     # Check that logs contain correlation_id
     log_messages = [record.message for record in caplog.records]
     request_logs = [msg for msg in log_messages if "correlation_id" in msg]
-    
+
     # Should have entry and exit logs with correlation_id
     assert len(request_logs) >= 2
+
+
+@patch("python_service.app.services.crewai.job_posting_review.crew.run_crew")
+def test_validation_error_returns_500_without_logging_keyerror(
+    mock_run_crew, client, sample_job_posting, caplog
+):
+    """Regression test for logging KeyError on validation errors."""
+    # Return data that fails FitReviewResult validation
+    mock_run_crew.return_value = {"invalid": "data"}
+
+    response = client.post("/jobs/posting/fit_review", json=sample_job_posting)
+
+    # Route should handle validation errors and return structured 500
+    assert response.status_code == 500
+    error_detail = response.json()["detail"]
+    assert error_detail["error"] == "fit_review_failed"
+    assert "correlation_id" in error_detail
+
+    # Ensure logging did not raise a KeyError
+    log_messages = "".join(record.message for record in caplog.records)
+    assert "KeyError" not in log_messages
