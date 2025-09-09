@@ -37,9 +37,9 @@ def test_yaml_configs():
     assert "judge_aggregation" in tasks_config, "Judge aggregation task not found"
     
     judge_task = tasks_config["judge_aggregation"]
-    assert "motivational_verdicts" in judge_task["description"], "Judge task missing verdicts input"
     assert "weights" in judge_task["description"], "Judge task missing weights input"
     assert "guardrails" in judge_task["description"], "Judge task missing guardrails input"
+    assert "previous task outputs" in judge_task["description"], "Judge task missing context from previous tasks"
     print("✅ Judge task configuration valid")
     
     # Test crew.yaml
