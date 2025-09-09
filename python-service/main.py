@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 import traceback
+import json
 
 from app.core.config import configure_logging, get_settings
 from app.api.router import api_router
@@ -110,10 +111,16 @@ app.add_middleware(
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions with structured error responses."""
     logger.error(f"HTTP exception: {exc.status_code} - {exc.detail}")
-    
+    message = exc.detail
+    if not isinstance(message, str):
+        try:
+            message = json.dumps(message)
+        except TypeError:
+            message = str(message)
+
     response = create_error_response(
         error=f"HTTP {exc.status_code}",
-        message=exc.detail
+        message=message
     )
     
     return JSONResponse(
