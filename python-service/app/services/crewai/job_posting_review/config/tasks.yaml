@@ -373,3 +373,35 @@ helper_snapshot:
     Handle any helper task failures by using empty JSON for that helper key. Keep the merged object valid and compact.
   expected_output: "Compact merged JSON object from helper tasks (≤1.5 KB) or empty JSON if helpers disabled"
   agent: data_analyst
+
+judge_aggregation:
+  description: |
+    Integrate the five persona verdicts and apply configurable weights and guardrails to issue a deterministic final decision.
+    
+    Input Data:
+    - Motivational Verdicts: {motivational_verdicts}
+    - Helper Snapshot: {helper_snapshot}
+    - Decision Weights: {weights}
+    - Decision Guardrails: {guardrails}
+    - Job Metadata: {job_meta}
+    
+    Instructions:
+    1. Parse the five verdicts from motivational_verdicts array
+    2. Compute weighted majority: sum weights where recommend==true
+    3. Apply guardrails in this exact order:
+       a) severe_redflags_block: if helper_snapshot or any verdict notes indicate severe red flag, final=false
+       b) comp_floor_enforced: if job_meta indicates compensation below candidate minimum and maximizer==false, final=false unless both builder and adventurer are true with extraordinary upside articulated
+       c) tie_bias: if weighted sum == threshold (0.5) or undecidable, follow tie_bias from guardrails
+    4. Determine confidence: higher agreement and stronger weights → higher confidence
+    
+    Return strictly this compact JSON structure (no additional text):
+    {{
+      "final_recommendation": true/false,
+      "primary_rationale": "1–2 sentences explaining decision",
+      "tradeoffs": ["short bullet point 1", "short bullet point 2"],
+      "decider_confidence": "low|medium|high"
+    }}
+    
+    Be deterministic and brief. No long prose.
+  expected_output: "Compact JSON with final_recommendation, primary_rationale, tradeoffs array, and decider_confidence"
+  agent: judge

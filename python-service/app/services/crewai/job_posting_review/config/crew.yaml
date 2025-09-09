@@ -6,9 +6,10 @@ process: "sequential"  # Will be overridden to handle parallel execution in crew
 memory: false
 verbose: true
 
-# Task execution order: helper_snapshot before motivational fan-out
+# Task execution order: helper_snapshot before motivational fan-out, then judge_aggregation
 # helper_snapshot conditionally runs based on {options.use_helpers}
 # Motivational tasks can run in parallel as they are independent evaluations
+# judge_aggregation runs after all motivational verdicts are collected
 tasks:
   - helper_snapshot
   - builder_evaluation
@@ -16,6 +17,7 @@ tasks:
   - harmonizer_evaluation
   - pathfinder_evaluation
   - adventurer_evaluation
+  - judge_aggregation
 
 # Expected outputs structure
 outputs:

@@ -76,6 +76,37 @@ class MotivationalFanOutCrew:
             logger.error(f"Failed to load tasks config {config_file}: {str(e)}")
             raise
 
+    def _load_weights_guardrails_config(self) -> Dict[str, Any]:
+        """Load weights and guardrails configuration from YAML file."""
+        # Look for config file in the repository root's config directory
+        config_file = self.base_dir.parent.parent.parent.parent.parent / "config" / "weights_guardrails.yml"
+        if not config_file.exists():
+            logger.warning(f"Weights/guardrails config not found: {config_file}, using defaults")
+            return {
+                "review_weights": {
+                    "builder": 0.30,
+                    "maximizer": 0.20,
+                    "harmonizer": 0.20,
+                    "pathfinder": 0.15,
+                    "adventurer": 0.15
+                },
+                "guardrails": {
+                    "comp_floor_enforced": True,
+                    "severe_redflags_block": True,
+                    "tie_bias": "do_not_pursue"
+                }
+            }
+        
+        try:
+            import yaml
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+            logger.debug(f"Loaded weights/guardrails config from {config_file}")
+            return config
+        except Exception as e:
+            logger.error(f"Failed to load weights/guardrails config {config_file}: {str(e)}")
+            raise
+
     def _load_tools(self, tool_names: List[str]) -> List[Any]:
         """Resolve tool names to actual implementations."""
         if tool_names:
@@ -295,6 +326,21 @@ class MotivationalFanOutCrew:
             verbose=False
         )
     
+    @agent
+    def judge(self) -> Agent:
+        """Create judge agent for final decision aggregation."""
+        config = self.agents_config["judge"]
+        return Agent(
+            role=config["role"],
+            goal=config["goal"],
+            backstory=config["backstory"],
+            llm=self._get_agent_llm("judge", config),
+            max_iter=config.get("max_iter", 2),
+            max_execution_time=config.get("max_execution_time", 60),
+            tools=self._load_tools(config.get("tools", [])),
+            verbose=True  # Enable verbose for judge decisions
+        )
+    
     @task
     def builder_evaluation_task(self) -> Task:
         """Create task for builder evaluation."""
@@ -439,6 +485,17 @@ class MotivationalFanOutCrew:
             async_execution=False
         )
     
+    @task
+    def judge_aggregation(self) -> Task:
+        """Create task for judge aggregation of motivational verdicts."""
+        config = self.tasks_config["judge_aggregation"]
+        return Task(
+            description=config["description"],
+            expected_output=config["expected_output"],
+            agent=self.judge(),
+            async_execution=False
+        )
+    
     @crew
     def motivational_fanout(self) -> Crew:
         """
@@ -466,10 +523,19 @@ class MotivationalFanOutCrew:
         Returns:
             Processed inputs ready for analysis with proper placeholders
         """
-        logger.info("Preparing motivational fan-out inputs with helper support")
+        logger.info("Preparing motivational fan-out inputs with helper support and judge configuration")
         
         # Extract and normalize job posting data
         job_data = inputs.get("job_posting_data", inputs.get("job", {}))
+        
+        # Load weights and guardrails configuration
+        weights_config = self._load_weights_guardrails_config()
+        
+        # Prepare job metadata for judge (compensation floor, etc.)
+        job_meta = {}
+        if "salary" in job_data.get("description", "").lower():
+            # Basic salary detection - could be enhanced
+            job_meta["has_salary_info"] = True
         
         # Prepare standardized inputs that match YAML placeholders
         prepared_inputs = {
@@ -479,7 +545,11 @@ class MotivationalFanOutCrew:
             "job_description": job_data.get("description", ""),
             "career_brand_digest": inputs.get("career_brand_digest", "No career context available"),
             "options": inputs.get("options", {}),
-            "helper_snapshot": "{}"  # Initialize empty, will be populated by helper_snapshot task
+            "helper_snapshot": "{}",  # Initialize empty, will be populated by helper_snapshot task
+            "motivational_verdicts": "[]",  # Initialize empty, will be populated by motivational tasks
+            "weights": weights_config.get("review_weights", {}),
+            "guardrails": weights_config.get("guardrails", {}),
+            "job_meta": job_meta
         }
         
         # Validate required fields

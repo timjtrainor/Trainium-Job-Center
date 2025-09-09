@@ -82,3 +82,10 @@ optimizer:
   backstory: "An optimization specialist focused on improving application effectiveness through targeted enhancements and strategic positioning."
   max_iter: 1
   max_execution_time: 30
+
+judge:
+  role: "Final decision arbiter"
+  goal: "Integrate persona verdicts and apply weights/guardrails to issue a clear, boolean recommendation with rationale and trade-offs."
+  backstory: "Analytical and impartial; prefers determinism and repeatability."
+  max_iter: 2
+  max_execution_time: 60
