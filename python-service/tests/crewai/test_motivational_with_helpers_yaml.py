@@ -114,8 +114,10 @@ class TestMotivationalWithHelpersYaml:
         
         verdicts = result["motivational_verdicts"]
         helper_snapshot = result["helper_snapshot"]
-        
+
         assert len(verdicts) == 5, "Should return 5 motivational verdicts"
+        for verdict in verdicts:
+            assert "id" in verdict
         assert len(helper_snapshot) > 0, "Should return non-empty helper snapshot"
         
         # Check that some motivational verdicts reference helper insights
@@ -150,7 +152,7 @@ class TestMotivationalWithHelpersYaml:
         parsed_verdict = crew._parse_verdict(mock_verdict_with_helpers, "maximizer")
         
         # Verify structure is maintained
-        required_fields = ["persona_id", "recommend", "reason", "notes", "sources"]
+        required_fields = ["id", "recommend", "reason", "notes", "sources"]
         for field in required_fields:
             assert field in parsed_verdict, f"Verdict should contain {field}"
         
@@ -185,7 +187,7 @@ class TestMotivationalWithHelpersYaml:
         parsed_verdict = crew._parse_verdict(mock_verdict_no_helpers, "builder")
         
         # Verify it works without helper references
-        assert parsed_verdict["persona_id"] == "builder"
+        assert parsed_verdict["id"] == "builder"
         assert parsed_verdict["recommend"] is True
         assert len(parsed_verdict["reason"]) > 0
         assert len(parsed_verdict["notes"]) > 0
@@ -289,7 +291,7 @@ class TestMotivationalWithHelpersYaml:
         mock_result = {
             "motivational_verdicts": [
                 {
-                    "persona_id": f"persona_{i}",
+                    "id": f"persona_{i}",
                     "recommend": True,
                     "reason": f"Test reason {i} with helper insights from market data",
                     "notes": [f"note {i}a", f"note {i}b"],
@@ -356,21 +358,21 @@ class TestMotivationalWithHelpersYaml:
         # Verify each persona maintains quality standards
         for persona in personas:
             # Required fields
-            assert "persona_id" in persona
+            assert "id" in persona
             assert "recommend" in persona
             assert "reason" in persona
             assert "notes" in persona
             assert "sources" in persona
-            
+
             # Quality checks
-            assert len(persona["reason"]) > 10, f"Reason for {persona['persona_id']} should be meaningful"
-            assert len(persona["reason"]) <= 300, f"Reason for {persona['persona_id']} should be concise"
-            assert len(persona["notes"]) > 0, f"Notes for {persona['persona_id']} should not be empty"
-            assert len(persona["sources"]) > 0, f"Sources for {persona['persona_id']} should not be empty"
-            
+            assert len(persona["reason"]) > 10, f"Reason for {persona['id']} should be meaningful"
+            assert len(persona["reason"]) <= 300, f"Reason for {persona['id']} should be concise"
+            assert len(persona["notes"]) > 0, f"Notes for {persona['id']} should not be empty"
+            assert len(persona["sources"]) > 0, f"Sources for {persona['id']} should not be empty"
+
             # Persona ID should be valid
             valid_personas = ["builder", "maximizer", "harmonizer", "pathfinder", "adventurer"]
-            assert persona["persona_id"] in valid_personas, f"Invalid persona_id: {persona['persona_id']}"
+            assert persona["id"] in valid_personas, f"Invalid persona id: {persona['id']}"
         
         # Check for appropriate helper integration
         final_rationale = result["final"]["rationale"]

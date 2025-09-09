@@ -165,7 +165,7 @@ class TestHelpersYaml:
         assert prepared_inputs["options"].get("use_helpers") is False
         
         # Execute in mock mode
-        result = crew.process_verdicts({"mock_mode": True})
+        result = crew.process_verdicts({"mock_mode": True, "options": {"use_helpers": False}})
         
         # Verify helper_snapshot is empty or missing
         helper_snapshot = result.get("helper_snapshot", {})
@@ -178,7 +178,7 @@ class TestHelpersYaml:
         
         # Verify verdicts are well-formed
         for verdict in verdicts:
-            assert "persona_id" in verdict
+            assert "id" in verdict
             assert "recommend" in verdict
             assert "reason" in verdict
     
@@ -194,7 +194,7 @@ class TestHelpersYaml:
         assert prepared_inputs["options"].get("use_helpers") is True
         
         # Execute in mock mode
-        result = crew.process_verdicts({"mock_mode": True})
+        result = crew.process_verdicts({"mock_mode": True, "options": {"use_helpers": True}})
         
         # Verify helper_snapshot contains data
         assert "helper_snapshot" in result

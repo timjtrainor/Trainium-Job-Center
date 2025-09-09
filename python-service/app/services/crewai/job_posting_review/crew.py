@@ -510,7 +510,10 @@ class MotivationalFanOutCrew:
         
         if base.get_mock_mode():
             # Return mock motivational verdicts for testing
-            return self._get_mock_verdicts_with_helpers()
+            result = self._get_mock_verdicts_with_helpers()
+            if not output.get("options", {}).get("use_helpers"):
+                result["helper_snapshot"] = {}
+            return result
         
         # Process actual crew results
         motivational_verdicts = []
@@ -538,7 +541,7 @@ class MotivationalFanOutCrew:
                     logger.warning(f"Failed to parse {persona_id} verdict: {str(e)}")
                     # Add fallback verdict for failed tasks
                     motivational_verdicts.append({
-                        "persona_id": persona_id,
+                        "id": persona_id,
                         "recommend": False,
                         "reason": "insufficient signal",
                         "notes": ["task execution failed"],
@@ -550,7 +553,7 @@ class MotivationalFanOutCrew:
             # Return fallback verdicts for all personas
             for persona_id in ["builder", "maximizer", "harmonizer", "pathfinder", "adventurer"]:
                 motivational_verdicts.append({
-                    "persona_id": persona_id,
+                    "id": persona_id,
                     "recommend": False,
                     "reason": "insufficient signal",
                     "notes": ["processing error"],
@@ -561,6 +564,10 @@ class MotivationalFanOutCrew:
             "motivational_verdicts": motivational_verdicts,
             "helper_snapshot": helper_snapshot
         }
+        # Ensure verdicts use 'id' key
+        for verdict in result["motivational_verdicts"]:
+            if "persona_id" in verdict:
+                verdict["id"] = verdict.pop("persona_id")
         base.log_crew_execution(self.crew_name, {}, result)
         return result
     
@@ -569,35 +576,35 @@ class MotivationalFanOutCrew:
         return {
             "motivational_verdicts": [
                 {
-                    "persona_id": "builder",
+                    "id": "builder",
                     "recommend": True,
                     "reason": "Strong technical building opportunities with modern stack; helpers indicate positive tech trends",
                     "notes": ["Complex system architecture", "Engineering ownership"],
                     "sources": ["job_description", "technical_requirements", "helper_insights"]
                 },
                 {
-                    "persona_id": "maximizer", 
+                    "id": "maximizer",
                     "recommend": True,
                     "reason": "Excellent growth potential with competitive compensation; market data supports strong TC range",
                     "notes": ["Market-rate salary", "Learning opportunities"],
                     "sources": ["compensation_analysis", "growth_opportunities", "helper_insights"]
                 },
                 {
-                    "persona_id": "harmonizer",
+                    "id": "harmonizer",
                     "recommend": True,
                     "reason": "Positive culture indicators and team collaboration focus",
                     "notes": ["Inclusive environment", "Work-life balance"],
                     "sources": ["culture_indicators", "work_environment"]
                 },
                 {
-                    "persona_id": "pathfinder",
+                    "id": "pathfinder",
                     "recommend": True,
                     "reason": "Strategic alignment with career goals and industry positioning",
                     "notes": ["Career progression path", "Industry growth"],
                     "sources": ["career_strategy", "industry_analysis"]
                 },
                 {
-                    "persona_id": "adventurer",
+                    "id": "adventurer",
                     "recommend": True,
                     "reason": "Exciting innovation opportunities with emerging technologies",
                     "notes": ["Cutting-edge tech", "Learning challenges"],
@@ -681,6 +688,7 @@ class MotivationalFanOutCrew:
                 verdict_json = json.loads(json_match.group())
                 # Validate required fields
                 if all(key in verdict_json for key in ["persona_id", "recommend", "reason"]):
+                    verdict_json["id"] = verdict_json.pop("persona_id")
                     return verdict_json
             
             # Fallback parsing if JSON structure is not found
@@ -689,7 +697,7 @@ class MotivationalFanOutCrew:
             reason = reason_match.group(1) if reason_match else "Analysis completed"
             
             return {
-                "persona_id": persona_id,
+                "id": persona_id,
                 "recommend": recommend,
                 "reason": reason,
                 "notes": ["parsed from text output"],
@@ -794,7 +802,10 @@ def _format_crew_result(
     
     # Handle motivational verdicts from the new crew
     if isinstance(crew_result, dict) and "motivational_verdicts" in crew_result:
-        verdicts = crew_result["motivational_verdicts"]
+        verdicts = [
+            {**v, "id": v.pop("persona_id")} if "persona_id" in v else v
+            for v in crew_result["motivational_verdicts"]
+        ]
         
         # Aggregate recommendations
         total_verdicts = len(verdicts)
@@ -847,35 +858,35 @@ def _format_crew_result(
             },
             "personas": [
                 {
-                    "persona_id": "builder",
+                    "id": "builder",
                     "recommend": True,
                     "reason": "Strong technical building opportunities",
                     "notes": ["Modern tech stack", "System design challenges"],
                     "sources": ["job_description", "technical_requirements"]
                 },
                 {
-                    "persona_id": "maximizer", 
+                    "id": "maximizer",
                     "recommend": True,
                     "reason": "Excellent growth and optimization potential",
                     "notes": ["Market-rate compensation", "Career advancement"],
                     "sources": ["compensation_analysis", "growth_opportunities"]
                 },
                 {
-                    "persona_id": "harmonizer",
+                    "id": "harmonizer",
                     "recommend": True,
                     "reason": "Positive cultural alignment indicators",
                     "notes": ["Collaborative environment", "Work-life balance"],
                     "sources": ["culture_indicators", "work_environment"]
                 },
                 {
-                    "persona_id": "pathfinder",
+                    "id": "pathfinder",
                     "recommend": True,
                     "reason": "Strategic career path alignment",
                     "notes": ["Industry positioning", "Skill development"],
                     "sources": ["career_strategy", "industry_analysis"]
                 },
                 {
-                    "persona_id": "adventurer",
+                    "id": "adventurer",
                     "recommend": True,
                     "reason": "Innovation and learning opportunities",
                     "notes": ["Emerging technologies", "Creative challenges"],
@@ -914,35 +925,35 @@ def _format_crew_result(
             },
             "personas": [
                 {
-                    "persona_id": "builder",
+                    "id": "builder",
                     "recommend": True,
                     "reason": "Technical analysis completed",
                     "notes": ["System requirements analyzed"],
                     "sources": ["job_description"]
                 },
                 {
-                    "persona_id": "maximizer",
-                    "recommend": True, 
+                    "id": "maximizer",
+                    "recommend": True,
                     "reason": "Growth analysis completed",
                     "notes": ["Opportunities assessed"],
                     "sources": ["career_analysis"]
                 },
                 {
-                    "persona_id": "harmonizer",
+                    "id": "harmonizer",
                     "recommend": True,
                     "reason": "Cultural fit analysis completed",
                     "notes": ["Environment evaluated"],
                     "sources": ["culture_assessment"]
                 },
                 {
-                    "persona_id": "pathfinder",
+                    "id": "pathfinder",
                     "recommend": True,
                     "reason": "Strategic analysis completed",
                     "notes": ["Career path evaluated"],
                     "sources": ["strategic_analysis"]
                 },
                 {
-                    "persona_id": "adventurer",
+                    "id": "adventurer",
                     "recommend": True,
                     "reason": "Innovation analysis completed",
                     "notes": ["Learning opportunities assessed"],
