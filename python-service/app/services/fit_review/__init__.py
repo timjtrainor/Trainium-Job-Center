@@ -6,10 +6,12 @@ including orchestration, judgment, retrieval, and persona helper agents.
 """
 from .orchestrator import FitReviewOrchestrator
 from .judge import FitReviewJudge
-from .retrieval import FitReviewRetrieval
+from .retrieval import normalize_jd, get_career_brand_digest, build_context
 
 __all__ = [
     "FitReviewOrchestrator",
     "FitReviewJudge", 
-    "FitReviewRetrieval",
+    "normalize_jd",
+    "get_career_brand_digest", 
+    "build_context",
 ]
