@@ -1,7 +1,6 @@
-"""
-Standard API response schemas and utilities.
-"""
-from typing import Any, Dict, Optional, Union
+"""Standard API response schemas and utilities."""
+from typing import Any, Dict, Optional
+import json
 from pydantic import BaseModel
 from enum import Enum
 
@@ -40,8 +39,18 @@ class ErrorDetail(BaseModel):
     details: Optional[Dict[str, Any]] = None
 
 
+def _stringify(value: Any) -> Optional[str]:
+    """Convert non-string values to JSON strings when possible."""
+    if value is None or isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value)
+    except TypeError:
+        return str(value)
+
+
 def create_success_response(
-    data: Any = None, 
+    data: Any = None,
     message: Optional[str] = None
 ) -> StandardResponse:
     """Create a standard success response."""
@@ -53,16 +62,16 @@ def create_success_response(
 
 
 def create_error_response(
-    error: str,
+    error: Any,
     data: Optional[Any] = None,
-    message: Optional[str] = None
+    message: Optional[Any] = None
 ) -> StandardResponse:
     """Create a standard error response."""
     return StandardResponse(
         status=ResponseStatus.ERROR,
-        error=error,
+        error=_stringify(error),
         data=data,
-        message=message
+        message=_stringify(message)
     )
 
 
