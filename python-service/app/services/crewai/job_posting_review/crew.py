@@ -76,6 +76,37 @@ class MotivationalFanOutCrew:
             logger.error(f"Failed to load tasks config {config_file}: {str(e)}")
             raise
 
+    def _load_weights_guardrails_config(self) -> Dict[str, Any]:
+        """Load weights and guardrails configuration from YAML file."""
+        # Look for config file in the repository root's config directory
+        config_file = self.base_dir.parent.parent.parent.parent.parent / "config" / "weights_guardrails.yml"
+        if not config_file.exists():
+            logger.warning(f"Weights/guardrails config not found: {config_file}, using defaults")
+            return {
+                "review_weights": {
+                    "builder": 0.30,
+                    "maximizer": 0.20,
+                    "harmonizer": 0.20,
+                    "pathfinder": 0.15,
+                    "adventurer": 0.15
+                },
+                "guardrails": {
+                    "comp_floor_enforced": True,
+                    "severe_redflags_block": True,
+                    "tie_bias": "do_not_pursue"
+                }
+            }
+        
+        try:
+            import yaml
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+            logger.debug(f"Loaded weights/guardrails config from {config_file}")
+            return config
+        except Exception as e:
+            logger.error(f"Failed to load weights/guardrails config {config_file}: {str(e)}")
+            raise
+
     def _load_tools(self, tool_names: List[str]) -> List[Any]:
         """Resolve tool names to actual implementations."""
         if tool_names:
@@ -295,6 +326,21 @@ class MotivationalFanOutCrew:
             verbose=False
         )
     
+    @agent
+    def judge(self) -> Agent:
+        """Create judge agent for final decision aggregation."""
+        config = self.agents_config["judge"]
+        return Agent(
+            role=config["role"],
+            goal=config["goal"],
+            backstory=config["backstory"],
+            llm=self._get_agent_llm("judge", config),
+            max_iter=config.get("max_iter", 2),
+            max_execution_time=config.get("max_execution_time", 60),
+            tools=self._load_tools(config.get("tools", [])),
+            verbose=True  # Enable verbose for judge decisions
+        )
+    
     @task
     def builder_evaluation_task(self) -> Task:
         """Create task for builder evaluation."""
@@ -439,6 +485,17 @@ class MotivationalFanOutCrew:
             async_execution=False
         )
     
+    @task
+    def judge_aggregation(self) -> Task:
+        """Create task for judge aggregation of motivational verdicts."""
+        config = self.tasks_config["judge_aggregation"]
+        return Task(
+            description=config["description"],
+            expected_output=config["expected_output"],
+            agent=self.judge(),
+            async_execution=False
+        )
+    
     @crew
     def motivational_fanout(self) -> Crew:
         """
@@ -466,10 +523,19 @@ class MotivationalFanOutCrew:
         Returns:
             Processed inputs ready for analysis with proper placeholders
         """
-        logger.info("Preparing motivational fan-out inputs with helper support")
+        logger.info("Preparing motivational fan-out inputs with helper support and judge configuration")
         
         # Extract and normalize job posting data
         job_data = inputs.get("job_posting_data", inputs.get("job", {}))
+        
+        # Load weights and guardrails configuration
+        weights_config = self._load_weights_guardrails_config()
+        
+        # Prepare job metadata for judge (compensation floor, etc.)
+        job_meta = {}
+        if "salary" in job_data.get("description", "").lower():
+            # Basic salary detection - could be enhanced
+            job_meta["has_salary_info"] = True
         
         # Prepare standardized inputs that match YAML placeholders
         prepared_inputs = {
@@ -479,7 +545,10 @@ class MotivationalFanOutCrew:
             "job_description": job_data.get("description", ""),
             "career_brand_digest": inputs.get("career_brand_digest", "No career context available"),
             "options": inputs.get("options", {}),
-            "helper_snapshot": "{}"  # Initialize empty, will be populated by helper_snapshot task
+            "helper_snapshot": "{}",  # Initialize empty, will be populated by helper_snapshot task
+            "weights": weights_config.get("review_weights", {}),
+            "guardrails": weights_config.get("guardrails", {}),
+            "job_meta": job_meta
         }
         
         # Validate required fields
@@ -515,6 +584,7 @@ class MotivationalFanOutCrew:
         # Process actual crew results
         motivational_verdicts = []
         helper_snapshot = {}
+        judge_decision = None
         
         try:
             # Parse task outputs and extract JSON verdicts
@@ -544,6 +614,19 @@ class MotivationalFanOutCrew:
                         "notes": ["task execution failed"],
                         "sources": ["error_handler"]
                     })
+            
+            # Extract judge decision if available
+            judge_output = task_outputs.get("judge_aggregation", "")
+            if judge_output:
+                try:
+                    judge_decision = self._parse_judge_decision(judge_output)
+                except Exception as e:
+                    logger.warning(f"Failed to parse judge decision: {str(e)}")
+                    # Create fallback judge decision
+                    judge_decision = self._create_fallback_judge_decision(motivational_verdicts)
+            else:
+                # Create fallback if no judge output
+                judge_decision = self._create_fallback_judge_decision(motivational_verdicts)
                     
         except Exception as e:
             logger.error(f"Failed to process motivational verdicts: {str(e)}")
@@ -556,10 +639,13 @@ class MotivationalFanOutCrew:
                     "notes": ["processing error"],
                     "sources": ["error_handler"]
                 })
+            # Create fallback judge decision
+            judge_decision = self._create_fallback_judge_decision(motivational_verdicts)
         
         result = {
             "motivational_verdicts": motivational_verdicts,
-            "helper_snapshot": helper_snapshot
+            "helper_snapshot": helper_snapshot,
+            "judge_decision": judge_decision
         }
         base.log_crew_execution(self.crew_name, {}, result)
         return result
@@ -609,6 +695,12 @@ class MotivationalFanOutCrew:
                 "strategist": {"signals": ["AI adoption", "cloud migration"], "refs": ["industry_report"]},
                 "skeptic": {"redflags": []},
                 "optimizer": {"top3": ["highlight cloud experience", "emphasize AI projects", "mention team leadership"]}
+            },
+            "judge_decision": {
+                "final_recommendation": True,
+                "primary_rationale": "Strong weighted majority (5/5 positive) with no red flags; excellent technical and growth alignment",
+                "tradeoffs": ["High expectations vs growth potential", "Learning curve vs immediate impact"],
+                "decider_confidence": "high"
             }
         }
     
@@ -653,8 +745,11 @@ class MotivationalFanOutCrew:
                     # Extract task type from task description
                     description = str(task_output.description)
                     
+                    # Check for judge_aggregation task
+                    if "judge_aggregation" in description.lower() or "integrate the five persona verdicts" in description.lower():
+                        task_outputs["judge_aggregation"] = str(task_output.raw)
                     # Check for helper_snapshot task
-                    if "helper_snapshot" in description.lower() or "aggregate helper" in description.lower():
+                    elif "helper_snapshot" in description.lower() or "aggregate helper" in description.lower():
                         task_outputs["helper_snapshot"] = str(task_output.raw)
                     else:
                         # Check for motivational evaluation tasks
@@ -699,6 +794,66 @@ class MotivationalFanOutCrew:
         except Exception as e:
             logger.warning(f"Failed to parse JSON verdict for {persona_id}: {str(e)}")
             raise
+
+    def _parse_judge_decision(self, task_output: str) -> Dict[str, Any]:
+        """Parse JSON judge decision from task output."""
+        try:
+            # Try to extract JSON from task output
+            import re
+            json_match = re.search(r'\{[^{}]*"final_recommendation"[^{}]*\}', task_output, re.DOTALL)
+            if json_match:
+                decision_json = json.loads(json_match.group())
+                # Validate required fields
+                required_fields = ["final_recommendation", "primary_rationale", "tradeoffs", "decider_confidence"]
+                if all(key in decision_json for key in required_fields):
+                    return decision_json
+            
+            # Fallback parsing if JSON structure is not found
+            recommend = "final_recommendation" in task_output.lower() and "true" in task_output.lower()
+            rationale_match = re.search(r'"primary_rationale":\s*"([^"]+)"', task_output)
+            rationale = rationale_match.group(1) if rationale_match else "Judge analysis completed"
+            
+            return {
+                "final_recommendation": recommend,
+                "primary_rationale": rationale,
+                "tradeoffs": ["parsed from text output"],
+                "decider_confidence": "medium"
+            }
+            
+        except Exception as e:
+            logger.warning(f"Failed to parse JSON judge decision: {str(e)}")
+            raise
+
+    def _create_fallback_judge_decision(self, motivational_verdicts: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Create fallback judge decision when judge task fails."""
+        try:
+            # Simple majority vote as fallback
+            positive_votes = sum(1 for v in motivational_verdicts if v.get("recommend", False))
+            total_votes = len(motivational_verdicts)
+            
+            final_recommendation = positive_votes > (total_votes / 2)
+            confidence = "low"  # Always low confidence for fallback
+            
+            if final_recommendation:
+                rationale = f"Fallback majority decision: {positive_votes}/{total_votes} positive evaluations"
+            else:
+                rationale = f"Fallback majority decision: {positive_votes}/{total_votes} positive evaluations insufficient"
+            
+            return {
+                "final_recommendation": final_recommendation,
+                "primary_rationale": rationale,
+                "tradeoffs": ["Judge aggregation failed", "Using simple majority vote"],
+                "decider_confidence": confidence
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to create fallback judge decision: {str(e)}")
+            return {
+                "final_recommendation": False,
+                "primary_rationale": "Unable to determine recommendation due to system error",
+                "tradeoffs": ["System error occurred"],
+                "decider_confidence": "low"
+            }
 
 
 # Updated run_crew function to use the new MotivationalFanOutCrew

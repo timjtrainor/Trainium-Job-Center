@@ -1,15 +1,15 @@
 # AGENTS.md — Job Posting Review Service
 
-**Purpose**: Orchestrates the motivational evaluator fan-out system using CrewAI multi-agent architecture with YAML-first design and optional helper agent insights.
+**Purpose**: Orchestrates the motivational evaluator fan-out system using CrewAI multi-agent architecture with YAML-first design and optional helper agent insights, culminating in deterministic judge aggregation.
 
 **Entrypoints**:
-- `run_crew(job_posting_data, options, correlation_id)` → main entry for FastAPI routes executing motivational fan-out
-- `MotivationalFanOutCrew.motivational_fanout()` → YAML-driven crew executing helper snapshot + five parallel evaluations  
+- `run_crew(job_posting_data, options, correlation_id)` → main entry for FastAPI routes executing motivational fan-out + judge aggregation
+- `MotivationalFanOutCrew.motivational_fanout()` → YAML-driven crew executing helper snapshot + five parallel evaluations + judge decision
 - `crew.kickoff(inputs={job_posting_data, career_brand_digest, options})` → crew execution with placeholder replacement
 
-## YAML-First Motivational Fan-Out
+## YAML-First Motivational Fan-Out with Judge Aggregation
 
-**Purpose**: All Motivational agents (builder, maximizer, harmonizer, pathfinder, adventurer) are defined in YAML files with runtime variable interpolation. The fan-out executes five independent evaluations that return thumbs-up/thumbs-down verdicts.
+**Purpose**: All Motivational agents (builder, maximizer, harmonizer, pathfinder, adventurer) are defined in YAML files with runtime variable interpolation. The fan-out executes five independent evaluations that return thumbs-up/thumbs-down verdicts, which are then aggregated by a Judge agent using configurable weights and guardrails.
 
 **Core Architecture**:
 
@@ -19,27 +19,75 @@
 - **harmonizer**: Culture and Team Harmony Specialist - determines cultural fit and team dynamics
 - **pathfinder**: Career Path Navigator and Strategic Planner - evaluates career trajectory alignment
 - **adventurer**: Innovation and Learning Explorer - assesses learning and innovation opportunities
+- **judge**: Final decision arbiter - integrates persona verdicts and applies weights/guardrails for deterministic decisions
 
 Each agent has:
 - `role`: Concise professional role description
 - `goal`: Specific evaluation objective  
 - `backstory`: Context and motivation for the agent
-- `max_iter`: Maximum iterations (default: 2)
-- `max_execution_time`: Timeout in seconds (default: 45)
+- `max_iter`: Maximum iterations (default: 2 for motivational, 2 for judge)
+- `max_execution_time`: Timeout in seconds (default: 45 for motivational, 60 for judge)
 
 ### Task Definitions (tasks.yaml)
 - **{persona}_evaluation**: Reusable task pattern for each motivational agent
-- Uses placeholders: `{job_title}`, `{job_company}`, `{job_location}`, `{job_description}`, `{career_brand_digest}`, `{options}`, `{helper_snapshot}`
-- Returns structured JSON: `{persona_id, recommend (boolean), reason (1-2 sentences), notes (array), sources (array)}`
+- **judge_aggregation**: Deterministic aggregation task using YAML-declared logic
+- Uses placeholders: `{job_title}`, `{job_company}`, `{job_location}`, `{job_description}`, `{career_brand_digest}`, `{options}`, `{helper_snapshot}`, `{motivational_verdicts}`, `{weights}`, `{guardrails}`, `{job_meta}`
+- Returns structured JSON: `{persona_id, recommend (boolean), reason (1-2 sentences), notes (array), sources (array)}` for motivational tasks
+- Judge returns: `{final_recommendation (boolean), primary_rationale (1-2 sentences), tradeoffs (array), decider_confidence (low/medium/high)}`
 - Emphasizes brevity to control token usage
-- Each task assigned to corresponding agent with `async_execution: true` for parallel execution
+- Each task assigned to corresponding agent with `async_execution: true` for motivational, `false` for judge
 
 ### Crew Flow (crew.py)
 - **Helper snapshot stage**: Conditionally runs helper agents based on `{options.use_helpers}`
 - **Fan-out execution**: All five motivational tasks run independently with the same inputs
-- **Result collection**: Individual verdicts collected into `motivational_verdicts` array
+- **Judge aggregation**: Runs after motivational verdicts are collected, applies weights and guardrails
+- **Result collection**: Individual verdicts collected into `motivational_verdicts` array, then judge produces final decision
 - **Error handling**: Failed tasks return `{recommend: false, reason: "insufficient signal"}`
 - **Placeholder resolution**: CrewAI replaces `{placeholders}` from `crew.kickoff(inputs={...})` at runtime
+
+## Judge Aggregation & Guardrails (YAML-first)
+
+**Purpose**: Centralize final decision-making in a YAML task; keep Python as a thin runner.
+
+**Entrypoints**: 
+- `judge_aggregation` task - defined in tasks.yaml
+- `Judge` agent definition - defined in agents.yaml
+
+**Inputs**: 
+- `{motivational_verdicts}` - array of five objects from motivational fan-out
+- `{helper_snapshot}` - compact JSON from helper stage; may be {}
+- `{weights}` - e.g., {builder:0.30,maximizer:0.20,harmonizer:0.20,pathfinder:0.15,adventurer:0.15}
+- `{guardrails}` - e.g., {comp_floor_enforced:true,severe_redflags_block:true,tie_bias:"do_not_pursue"}
+- `{job_meta}` - minimal metadata such as comp_floor/user_floor if available (can be {})
+
+**Outputs**: 
+- `{final_recommendation}` - boolean decision
+- `{primary_rationale}` - 1–2 sentences explaining decision
+- `{tradeoffs}` - array of short bullet points
+- `{decider_confidence}` - "low"|"medium"|"high"
+
+**YAML-first guidance**: 
+- Weights and guardrails are config values loaded at runtime from `config/weights_guardrails.yml` and passed as placeholders
+- Do not implement voting logic in Python
+- Keep output compact JSON
+- Changing names/IDs requires synchronized updates in agents.yaml, tasks.yaml, crew.yaml, crew.py, and tests
+
+**Judge Decision Logic (YAML-declared)**:
+1. Parse the five verdicts; compute a weighted majority (sum weights where recommend==true)
+2. Apply guardrails in this order:
+   a) `severe_redflags_block`: if helper_snapshot or any verdict notes indicate a severe red flag, final=false
+   b) `comp_floor_enforced`: if job_meta indicates compensation below candidate's minimum and maximizer==false, final=false unless both builder and adventurer are true and articulate extraordinary upside
+   c) `tie_bias`: if weighted sum == threshold or undecidable, follow tie_bias ("do_not_pursue" → final=false)
+3. Determine confidence: higher agreement and stronger weights → higher confidence
+
+**Do/Don't**:
+- ✅ **Do**: Keep prompts short and emphasize determinism
+- ✅ **Do**: Keep JSON small and schema-consistent  
+- ✅ **Do**: Load weights/guardrails from config file at runtime
+- ✅ **Do**: Apply guardrails in the specified order
+- ❌ **Don't**: Add aggregation logic to the FastAPI route or crew.py
+- ❌ **Don't**: Return long narratives
+- ❌ **Don't**: Implement voting logic in Python code
 
 ## Helpers as Lightweight YAML Tools
 
@@ -127,6 +175,12 @@ inputs = {
         "data_analyst": {"tc_range": "...", "refs": [...]},
         "strategist": {"signals": [...], "refs": [...]},
         // ... other helpers or {} if disabled
+    },
+    "judge_decision": {
+        "final_recommendation": boolean,
+        "primary_rationale": "1-2 sentences",
+        "tradeoffs": ["short bullet 1", "short bullet 2"],
+        "decider_confidence": "low|medium|high"
     }
 }
 ```
@@ -135,10 +189,12 @@ inputs = {
 
 **Critical Requirements**:
 - All helper behavior (prompts, expected output, brevity constraints) is declared in YAML
-- `crew.py` only passes inputs and binds configs - no helper logic in Python code
+- All judge logic (weights, guardrails, decision-making) is declared in YAML prompts
+- `crew.py` only passes inputs and binds configs - no helper logic or judge logic in Python code
 - Agent names in `agents.yaml` must exactly match method names in `crew.py`
 - Task names in `tasks.yaml` must match method names for proper binding
 - Placeholder names must match input keys exactly for CrewAI interpolation
+- Weights and guardrails loaded from `config/weights_guardrails.yml` and injected as placeholders
 
 **Do/Don't for Helpers**:
 - ✅ **Do**: Keep helper responses ≤600 chars typical and strictly JSON
@@ -150,13 +206,23 @@ inputs = {
 - ❌ **Don't**: Return verbose prose from helpers; stick to compact JSON structures
 - ❌ **Don't**: Embed helper logic in Python; keep it YAML-declared
 
-**Change Management**: If you rename helper IDs or task names, update `agents.yaml`, `tasks.yaml`, `crew.yaml`, and any tests that assert on those names to avoid binding mismatches.
+**Do/Don't for Judge**:
+- ✅ **Do**: Keep judge prompts deterministic and brief
+- ✅ **Do**: Apply guardrails in the exact order specified
+- ✅ **Do**: Return compact JSON with required schema
+- ✅ **Do**: Load configuration from weights_guardrails.yml at runtime
+- ❌ **Don't**: Implement aggregation logic in Python - keep it in YAML prompts
+- ❌ **Don't**: Return verbose narratives - stick to 1-2 sentence rationales
+- ❌ **Don't**: Hardcode weights or guardrails - use configuration placeholders
+
+**Change Management**: If you rename helper IDs, task names, or judge components, update `agents.yaml`, `tasks.yaml`, `crew.yaml`, and any tests that assert on those names to avoid binding mismatches.
 
 ## Validation and Error Behavior
 
 **Task Failure Handling**:
 - If any motivational task fails or times out → `{recommend: false, reason: "insufficient signal"}`
 - If any helper task fails → empty JSON for that helper key in aggregated snapshot
+- If judge task fails → return fallback decision with low confidence
 - All five motivational tasks must produce parseable JSON → fail fast on malformed output
 - Deterministic fallback behavior maintains system reliability
 
@@ -166,16 +232,23 @@ inputs = {
 - Motivational tasks work robustly with empty `{helper_snapshot: {}}`
 - Size limits enforced to prevent token bloat (1.5 KB helper snapshot limit)
 
+**Judge Failure Resilience**:
+- Judge task failure should not crash entire crew
+- Fallback to simple majority vote with medium confidence
+- Log judge failures for debugging but continue execution
+- Ensure final output always matches expected schema
+
 **JSON Parsing**:
 - Primary: Extract JSON object matching expected schema from task output
 - Fallback: Text parsing for boolean recommendation and reason extraction
 - Error: Return `{recommend: false, reason: "insufficient signal", notes: ["task execution failed"]}`
+- Judge: Validate required keys are present; fail with clear error if malformed
 
 ## YAML Binding Rules
 
 **Critical Requirements**:
-- Agent names in `agents.yaml` must exactly match method names in `crew.py` (e.g., `builder` → `builder_agent()`)
-- Task names in `tasks.yaml` must match method names (e.g., `builder_evaluation` → `builder_evaluation_task()`)
+- Agent names in `agents.yaml` must exactly match method names in `crew.py` (e.g., `builder` → `builder_agent()`, `judge` → `judge()`)
+- Task names in `tasks.yaml` must match method names (e.g., `builder_evaluation` → `builder_evaluation_task()`, `judge_aggregation` → `judge_aggregation()`)
 - Placeholder names in tasks must match input keys exactly (`{job_title}` requires `inputs["job_title"]`)
 - Changes to agent/task IDs require updates in both YAML and Python to avoid KeyError binding issues
 
@@ -193,6 +266,7 @@ inputs = {
 - 1-2 sentence reasons maximum for token efficiency
 - Notes array for key observations, sources array for attribution
 - Helper outputs especially compact (≤600 chars individual, ≤1.5 KB aggregated)
+- Judge outputs compact with required schema fields only
 
 **Error Resilience**:
 - Individual task failures don't block other evaluations
@@ -208,6 +282,8 @@ inputs = {
 - ✅ Do: Log execution with correlation IDs for traceability
 - ✅ Do: Use helpers conditionally based on `options.use_helpers`
 - ✅ Do: Keep helper insights brief in motivational reasoning
+- ✅ Do: Apply judge guardrails in the specified order
+- ✅ Do: Load weights/guardrails from configuration file
 - ❌ Don't: Change agent/task names without updating both YAML and Python bindings
 - ❌ Don't: Return verbose prose from agents; stick to structured JSON
 - ❌ Don't: Assume all tasks will succeed; implement robust error handling
@@ -215,3 +291,5 @@ inputs = {
 - ❌ Don't: Modify YAML structure without verifying CrewAI compatibility
 - ❌ Don't: Let helper payload exceed size limits (600 chars individual, 1.5 KB total)
 - ❌ Don't: Make motivational tasks dependent on helper success
+- ❌ Don't: Implement judge logic in Python - keep it YAML-declarative
+- ❌ Don't: Skip guardrails application or change their order
