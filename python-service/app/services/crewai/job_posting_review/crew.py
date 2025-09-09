@@ -189,6 +189,112 @@ class MotivationalFanOutCrew:
             verbose=True
         )
     
+    # Helper agents for advisory analysis
+    @agent
+    def data_analyst(self) -> Agent:
+        """Create data analyst helper agent for compensation and market analysis."""
+        config = self.agents_config["data_analyst"]
+        return Agent(
+            role=config["role"],
+            goal=config["goal"],
+            backstory=config["backstory"],
+            llm=self._get_agent_llm("data_analyst", config),
+            max_iter=config.get("max_iter", 1),
+            max_execution_time=config.get("max_execution_time", 30),
+            tools=self._load_tools(config.get("tools", [])),
+            verbose=False  # Keep helper output minimal
+        )
+    
+    @agent
+    def strategist(self) -> Agent:
+        """Create strategist helper agent for trend analysis."""
+        config = self.agents_config["strategist"]
+        return Agent(
+            role=config["role"],
+            goal=config["goal"],
+            backstory=config["backstory"],
+            llm=self._get_agent_llm("strategist", config),
+            max_iter=config.get("max_iter", 1),
+            max_execution_time=config.get("max_execution_time", 30),
+            tools=self._load_tools(config.get("tools", [])),
+            verbose=False
+        )
+    
+    @agent
+    def stakeholder(self) -> Agent:
+        """Create stakeholder helper agent for partnership analysis."""
+        config = self.agents_config["stakeholder"]
+        return Agent(
+            role=config["role"],
+            goal=config["goal"],
+            backstory=config["backstory"],
+            llm=self._get_agent_llm("stakeholder", config),
+            max_iter=config.get("max_iter", 1),
+            max_execution_time=config.get("max_execution_time", 30),
+            tools=self._load_tools(config.get("tools", [])),
+            verbose=False
+        )
+    
+    @agent
+    def technical_leader(self) -> Agent:
+        """Create technical leader helper agent for delivery analysis."""
+        config = self.agents_config["technical_leader"]
+        return Agent(
+            role=config["role"],
+            goal=config["goal"],
+            backstory=config["backstory"],
+            llm=self._get_agent_llm("technical_leader", config),
+            max_iter=config.get("max_iter", 1),
+            max_execution_time=config.get("max_execution_time", 30),
+            tools=self._load_tools(config.get("tools", [])),
+            verbose=False
+        )
+    
+    @agent
+    def recruiter(self) -> Agent:
+        """Create recruiter helper agent for ATS analysis."""
+        config = self.agents_config["recruiter"]
+        return Agent(
+            role=config["role"],
+            goal=config["goal"],
+            backstory=config["backstory"],
+            llm=self._get_agent_llm("recruiter", config),
+            max_iter=config.get("max_iter", 1),
+            max_execution_time=config.get("max_execution_time", 30),
+            tools=self._load_tools(config.get("tools", [])),
+            verbose=False
+        )
+    
+    @agent
+    def skeptic(self) -> Agent:
+        """Create skeptic helper agent for risk analysis."""
+        config = self.agents_config["skeptic"]
+        return Agent(
+            role=config["role"],
+            goal=config["goal"],
+            backstory=config["backstory"],
+            llm=self._get_agent_llm("skeptic", config),
+            max_iter=config.get("max_iter", 1),
+            max_execution_time=config.get("max_execution_time", 30),
+            tools=self._load_tools(config.get("tools", [])),
+            verbose=False
+        )
+    
+    @agent
+    def optimizer(self) -> Agent:
+        """Create optimizer helper agent for application enhancement."""
+        config = self.agents_config["optimizer"]
+        return Agent(
+            role=config["role"],
+            goal=config["goal"],
+            backstory=config["backstory"],
+            llm=self._get_agent_llm("optimizer", config),
+            max_iter=config.get("max_iter", 1),
+            max_execution_time=config.get("max_execution_time", 30),
+            tools=self._load_tools(config.get("tools", [])),
+            verbose=False
+        )
+    
     @task
     def builder_evaluation_task(self) -> Task:
         """Create task for builder evaluation."""
@@ -244,6 +350,95 @@ class MotivationalFanOutCrew:
             async_execution=True  # Enable parallel execution
         )
     
+    # Helper tasks for advisory analysis
+    @task
+    def data_analyst_task(self) -> Task:
+        """Create task for data analyst helper."""
+        config = self.tasks_config["data_analyst_task"]
+        return Task(
+            description=config["description"],
+            expected_output=config["expected_output"],
+            agent=self.data_analyst(),
+            async_execution=False  # Sequential execution for helpers
+        )
+    
+    @task
+    def strategist_task(self) -> Task:
+        """Create task for strategist helper."""
+        config = self.tasks_config["strategist_task"]
+        return Task(
+            description=config["description"],
+            expected_output=config["expected_output"],
+            agent=self.strategist(),
+            async_execution=False
+        )
+    
+    @task
+    def stakeholder_task(self) -> Task:
+        """Create task for stakeholder helper."""
+        config = self.tasks_config["stakeholder_task"]
+        return Task(
+            description=config["description"],
+            expected_output=config["expected_output"],
+            agent=self.stakeholder(),
+            async_execution=False
+        )
+    
+    @task
+    def technical_leader_task(self) -> Task:
+        """Create task for technical leader helper."""
+        config = self.tasks_config["technical_leader_task"]
+        return Task(
+            description=config["description"],
+            expected_output=config["expected_output"],
+            agent=self.technical_leader(),
+            async_execution=False
+        )
+    
+    @task
+    def recruiter_task(self) -> Task:
+        """Create task for recruiter helper."""
+        config = self.tasks_config["recruiter_task"]
+        return Task(
+            description=config["description"],
+            expected_output=config["expected_output"],
+            agent=self.recruiter(),
+            async_execution=False
+        )
+    
+    @task
+    def skeptic_task(self) -> Task:
+        """Create task for skeptic helper."""
+        config = self.tasks_config["skeptic_task"]
+        return Task(
+            description=config["description"],
+            expected_output=config["expected_output"],
+            agent=self.skeptic(),
+            async_execution=False
+        )
+    
+    @task
+    def optimizer_task(self) -> Task:
+        """Create task for optimizer helper."""
+        config = self.tasks_config["optimizer_task"]
+        return Task(
+            description=config["description"],
+            expected_output=config["expected_output"],
+            agent=self.optimizer(),
+            async_execution=False
+        )
+    
+    @task
+    def helper_snapshot(self) -> Task:
+        """Create task for helper snapshot aggregation."""
+        config = self.tasks_config["helper_snapshot"]
+        return Task(
+            description=config["description"],
+            expected_output=config["expected_output"],
+            agent=self.data_analyst(),  # Use data_analyst agent for aggregation
+            async_execution=False
+        )
+    
     @crew
     def motivational_fanout(self) -> Crew:
         """
@@ -271,7 +466,7 @@ class MotivationalFanOutCrew:
         Returns:
             Processed inputs ready for analysis with proper placeholders
         """
-        logger.info("Preparing motivational fan-out inputs")
+        logger.info("Preparing motivational fan-out inputs with helper support")
         
         # Extract and normalize job posting data
         job_data = inputs.get("job_posting_data", inputs.get("job", {}))
@@ -283,7 +478,8 @@ class MotivationalFanOutCrew:
             "job_location": job_data.get("location", ""),
             "job_description": job_data.get("description", ""),
             "career_brand_digest": inputs.get("career_brand_digest", "No career context available"),
-            "options": inputs.get("options", {})
+            "options": inputs.get("options", {}),
+            "helper_snapshot": "{}"  # Initialize empty, will be populated by helper_snapshot task
         }
         
         # Validate required fields
@@ -310,57 +506,30 @@ class MotivationalFanOutCrew:
         Returns:
             Processed motivational verdicts ready for judge aggregation
         """
-        logger.info("Processing motivational fan-out results")
+        logger.info("Processing motivational fan-out results with helper support")
         
         if base.get_mock_mode():
             # Return mock motivational verdicts for testing
-            return {
-                "motivational_verdicts": [
-                    {
-                        "persona_id": "builder",
-                        "recommend": True,
-                        "reason": "Strong technical building opportunities with modern stack",
-                        "notes": ["Complex system architecture", "Engineering ownership"],
-                        "sources": ["job_description", "technical_requirements"]
-                    },
-                    {
-                        "persona_id": "maximizer", 
-                        "recommend": True,
-                        "reason": "Excellent growth potential with competitive compensation",
-                        "notes": ["Market-rate salary", "Learning opportunities"],
-                        "sources": ["compensation_analysis", "growth_opportunities"]
-                    },
-                    {
-                        "persona_id": "harmonizer",
-                        "recommend": True,
-                        "reason": "Positive culture indicators and team collaboration focus",
-                        "notes": ["Inclusive environment", "Work-life balance"],
-                        "sources": ["culture_indicators", "work_environment"]
-                    },
-                    {
-                        "persona_id": "pathfinder",
-                        "recommend": True,
-                        "reason": "Strategic alignment with career goals and industry positioning",
-                        "notes": ["Career progression path", "Industry growth"],
-                        "sources": ["career_strategy", "industry_analysis"]
-                    },
-                    {
-                        "persona_id": "adventurer",
-                        "recommend": True,
-                        "reason": "Exciting innovation opportunities with emerging technologies",
-                        "notes": ["Cutting-edge tech", "Learning challenges"],
-                        "sources": ["innovation_indicators", "learning_opportunities"]
-                    }
-                ]
-            }
+            return self._get_mock_verdicts_with_helpers()
         
         # Process actual crew results
         motivational_verdicts = []
+        helper_snapshot = {}
         
         try:
             # Parse task outputs and extract JSON verdicts
             task_outputs = self._extract_task_outputs(output)
             
+            # Extract helper snapshot if available
+            helper_output = task_outputs.get("helper_snapshot", "")
+            if helper_output:
+                try:
+                    helper_snapshot = self._parse_helper_snapshot(helper_output)
+                except Exception as e:
+                    logger.warning(f"Failed to parse helper snapshot: {str(e)}")
+                    helper_snapshot = {}
+            
+            # Process motivational verdicts
             for persona_id in ["builder", "maximizer", "harmonizer", "pathfinder", "adventurer"]:
                 try:
                     verdict = self._parse_verdict(task_outputs.get(f"{persona_id}_evaluation", ""), persona_id)
@@ -388,9 +557,90 @@ class MotivationalFanOutCrew:
                     "sources": ["error_handler"]
                 })
         
-        result = {"motivational_verdicts": motivational_verdicts}
+        result = {
+            "motivational_verdicts": motivational_verdicts,
+            "helper_snapshot": helper_snapshot
+        }
         base.log_crew_execution(self.crew_name, {}, result)
         return result
+    
+    def _get_mock_verdicts_with_helpers(self) -> Dict[str, Any]:
+        """Return mock verdicts with helper insights for testing."""
+        return {
+            "motivational_verdicts": [
+                {
+                    "persona_id": "builder",
+                    "recommend": True,
+                    "reason": "Strong technical building opportunities with modern stack; helpers indicate positive tech trends",
+                    "notes": ["Complex system architecture", "Engineering ownership"],
+                    "sources": ["job_description", "technical_requirements", "helper_insights"]
+                },
+                {
+                    "persona_id": "maximizer", 
+                    "recommend": True,
+                    "reason": "Excellent growth potential with competitive compensation; market data supports strong TC range",
+                    "notes": ["Market-rate salary", "Learning opportunities"],
+                    "sources": ["compensation_analysis", "growth_opportunities", "helper_insights"]
+                },
+                {
+                    "persona_id": "harmonizer",
+                    "recommend": True,
+                    "reason": "Positive culture indicators and team collaboration focus",
+                    "notes": ["Inclusive environment", "Work-life balance"],
+                    "sources": ["culture_indicators", "work_environment"]
+                },
+                {
+                    "persona_id": "pathfinder",
+                    "recommend": True,
+                    "reason": "Strategic alignment with career goals and industry positioning",
+                    "notes": ["Career progression path", "Industry growth"],
+                    "sources": ["career_strategy", "industry_analysis"]
+                },
+                {
+                    "persona_id": "adventurer",
+                    "recommend": True,
+                    "reason": "Exciting innovation opportunities with emerging technologies",
+                    "notes": ["Cutting-edge tech", "Learning challenges"],
+                    "sources": ["innovation_indicators", "learning_opportunities"]
+                }
+            ],
+            "helper_snapshot": {
+                "data_analyst": {"tc_range": "$120k-$160k", "refs": ["levels.fyi", "glassdoor"]},
+                "strategist": {"signals": ["AI adoption", "cloud migration"], "refs": ["industry_report"]},
+                "skeptic": {"redflags": []},
+                "optimizer": {"top3": ["highlight cloud experience", "emphasize AI projects", "mention team leadership"]}
+            }
+        }
+    
+    def _parse_helper_snapshot(self, helper_output: str) -> Dict[str, Any]:
+        """Parse helper snapshot JSON from task output."""
+        try:
+            # Try to extract JSON from helper output
+            import re
+            json_match = re.search(r'\{.*\}', helper_output, re.DOTALL)
+            if json_match:
+                helper_data = json.loads(json_match.group())
+                
+                # Validate it's a reasonable helper snapshot
+                if isinstance(helper_data, dict):
+                    # Limit size to prevent token bloat
+                    serialized = json.dumps(helper_data)
+                    if len(serialized) <= 1536:  # ~1.5KB limit
+                        return helper_data
+                    else:
+                        logger.warning(f"Helper snapshot too large ({len(serialized)} chars), truncating")
+                        # Return truncated version with key helpers only
+                        return {
+                            k: v for k, v in helper_data.items() 
+                            if k in ["data_analyst", "skeptic", "optimizer"]
+                        }
+            
+            # Fallback to empty if parsing fails
+            return {}
+            
+        except Exception as e:
+            logger.warning(f"Failed to parse helper snapshot JSON: {str(e)}")
+            return {}
     
     def _extract_task_outputs(self, output: Any) -> Dict[str, str]:
         """Extract individual task outputs from crew result."""
@@ -400,12 +650,18 @@ class MotivationalFanOutCrew:
         if hasattr(output, 'tasks_output'):
             for task_output in output.tasks_output:
                 if hasattr(task_output, 'description') and hasattr(task_output, 'raw'):
-                    # Extract persona ID from task description
+                    # Extract task type from task description
                     description = str(task_output.description)
-                    for persona in ["builder", "maximizer", "harmonizer", "pathfinder", "adventurer"]:
-                        if persona in description.lower():
-                            task_outputs[f"{persona}_evaluation"] = str(task_output.raw)
-                            break
+                    
+                    # Check for helper_snapshot task
+                    if "helper_snapshot" in description.lower() or "aggregate helper" in description.lower():
+                        task_outputs["helper_snapshot"] = str(task_output.raw)
+                    else:
+                        # Check for motivational evaluation tasks
+                        for persona in ["builder", "maximizer", "harmonizer", "pathfinder", "adventurer"]:
+                            if persona in description.lower():
+                                task_outputs[f"{persona}_evaluation"] = str(task_output.raw)
+                                break
         elif isinstance(output, dict):
             # Handle dictionary output
             task_outputs = output

@@ -12,12 +12,16 @@ builder_evaluation:
     
     Options: {options}
     
+    Helper Insights: {helper_snapshot}
+    
     Focus on:
     - Technical complexity and system design opportunities
     - Architecture and infrastructure challenges
     - Technology stack and development practices
     - Product impact and engineering ownership
     - Code quality and technical excellence standards
+    
+    If helper_snapshot contains useful keys for your lens, cite them briefly in your reason; otherwise proceed without helpers.
     
     Return your evaluation as JSON with this exact structure:
     {{
@@ -44,12 +48,16 @@ maximizer_evaluation:
     
     Options: {options}
     
+    Helper Insights: {helper_snapshot}
+    
     Focus on:
     - Compensation and benefits package
     - Career advancement opportunities
     - Skill development and learning potential
     - Market value and industry positioning
     - Long-term value creation prospects
+    
+    If helper_snapshot contains useful keys for your lens, cite them briefly in your reason; otherwise proceed without helpers.
     
     Return your evaluation as JSON with this exact structure:
     {{
@@ -76,12 +84,16 @@ harmonizer_evaluation:
     
     Options: {options}
     
+    Helper Insights: {helper_snapshot}
+    
     Focus on:
     - Company culture and values alignment
     - Team collaboration and working style
     - Work-life balance indicators
     - Diversity and inclusion practices
     - Management style and organizational structure
+    
+    If helper_snapshot contains useful keys for your lens, cite them briefly in your reason; otherwise proceed without helpers.
     
     Return your evaluation as JSON with this exact structure:
     {{
@@ -108,12 +120,16 @@ pathfinder_evaluation:
     
     Options: {options}
     
+    Helper Insights: {helper_snapshot}
+    
     Focus on:
     - Strategic career positioning
     - Industry and domain alignment
     - Network and relationship building potential
     - Future opportunity pathways
     - Skill portfolio development
+    
+    If helper_snapshot contains useful keys for your lens, cite them briefly in your reason; otherwise proceed without helpers.
     
     Return your evaluation as JSON with this exact structure:
     {{
@@ -140,12 +156,16 @@ adventurer_evaluation:
     
     Options: {options}
     
+    Helper Insights: {helper_snapshot}
+    
     Focus on:
     - Innovation and emerging technology exposure
     - Learning and experimentation opportunities
     - Creative problem-solving challenges
     - Cross-functional collaboration potential
     - Intellectual curiosity and growth stimulation
+    
+    If helper_snapshot contains useful keys for your lens, cite them briefly in your reason; otherwise proceed without helpers.
     
     Return your evaluation as JSON with this exact structure:
     {{
@@ -157,3 +177,199 @@ adventurer_evaluation:
     }}
   expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
   agent: adventurer_agent
+
+# Helper tasks for advisory analysis (compact JSON output ≤600 chars)
+data_analyst_task:
+  description: |
+    Analyze salary/TC benchmarks and company health indicators.
+    
+    Job Details:
+    - Title: {job_title}
+    - Company: {job_company}
+    - Location: {job_location}
+    - Description: {job_description}
+    
+    Career Context: {career_brand_digest}
+    
+    Options: {options}
+    
+    Provide compensation benchmarks and company health cues. Return compact JSON only (≤600 chars):
+    {{
+      "tc_range": "salary range estimate",
+      "refs": ["reference 1", "reference 2"]
+    }}
+    
+    On insufficient signal, return: {{"tc_range": "", "refs": []}}
+  expected_output: "Compact JSON with tc_range and refs fields (≤600 chars)"
+  agent: data_analyst
+
+strategist_task:
+  description: |
+    Assess trend fit including industry/platform shifts and AI adoption.
+    
+    Job Details:
+    - Title: {job_title}
+    - Company: {job_company}
+    - Location: {job_location}
+    - Description: {job_description}
+    
+    Career Context: {career_brand_digest}
+    
+    Options: {options}
+    
+    Analyze industry trends and strategic alignment. Return compact JSON only (≤600 chars):
+    {{
+      "signals": ["trend signal 1", "trend signal 2"],
+      "refs": ["reference 1", "reference 2"]
+    }}
+    
+    On insufficient signal, return: {{"signals": [], "refs": []}}
+  expected_output: "Compact JSON with signals and refs fields (≤600 chars)"
+  agent: strategist
+
+stakeholder_task:
+  description: |
+    Evaluate cross-functional partnership risks and opportunities.
+    
+    Job Details:
+    - Title: {job_title}
+    - Company: {job_company}
+    - Location: {job_location}
+    - Description: {job_description}
+    
+    Career Context: {career_brand_digest}
+    
+    Options: {options}
+    
+    Assess partnership dynamics and collaboration factors. Return compact JSON only (≤600 chars):
+    {{
+      "partners": ["key partner 1", "key partner 2"],
+      "risks": ["risk 1", "risk 2"]
+    }}
+    
+    On insufficient signal, return: {{"partners": [], "risks": []}}
+  expected_output: "Compact JSON with partners and risks fields (≤600 chars)"
+  agent: stakeholder
+
+technical_leader_task:
+  description: |
+    Assess delivery feasibility and architecture trade-offs.
+    
+    Job Details:
+    - Title: {job_title}
+    - Company: {job_company}
+    - Location: {job_location}
+    - Description: {job_description}
+    
+    Career Context: {career_brand_digest}
+    
+    Options: {options}
+    
+    Evaluate technical delivery and architecture considerations. Return compact JSON only (≤600 chars):
+    {{
+      "notes": ["technical note 1", "technical note 2"]
+    }}
+    
+    On insufficient signal, return: {{"notes": []}}
+  expected_output: "Compact JSON with notes field (≤600 chars)"
+  agent: technical_leader
+
+recruiter_task:
+  description: |
+    Identify ATS and keyword gaps against job description.
+    
+    Job Details:
+    - Title: {job_title}
+    - Company: {job_company}
+    - Location: {job_location}
+    - Description: {job_description}
+    
+    Career Context: {career_brand_digest}
+    
+    Options: {options}
+    
+    Analyze ATS optimization and keyword alignment. Return compact JSON only (≤600 chars):
+    {{
+      "keyword_gaps": ["missing keyword 1", "missing keyword 2"]
+    }}
+    
+    On insufficient signal, return: {{"keyword_gaps": []}}
+  expected_output: "Compact JSON with keyword_gaps field (≤600 chars)"
+  agent: recruiter
+
+skeptic_task:
+  description: |
+    Perform red-flag scan for financial, legal, and culture warning signals.
+    
+    Job Details:
+    - Title: {job_title}
+    - Company: {job_company}
+    - Location: {job_location}
+    - Description: {job_description}
+    
+    Career Context: {career_brand_digest}
+    
+    Options: {options}
+    
+    Scan for potential risks and warning signals. Return compact JSON only (≤600 chars):
+    {{
+      "redflags": ["red flag 1", "red flag 2"]
+    }}
+    
+    On insufficient signal, return: {{"redflags": []}}
+  expected_output: "Compact JSON with redflags field (≤600 chars)"
+  agent: skeptic
+
+optimizer_task:
+  description: |
+    Suggest top three quick tweaks to strengthen application.
+    
+    Job Details:
+    - Title: {job_title}
+    - Company: {job_company}
+    - Location: {job_location}
+    - Description: {job_description}
+    
+    Career Context: {career_brand_digest}
+    
+    Options: {options}
+    
+    Provide application optimization recommendations. Return compact JSON only (≤600 chars):
+    {{
+      "top3": ["optimization 1", "optimization 2", "optimization 3"]
+    }}
+    
+    On insufficient signal, return: {{"top3": []}}
+  expected_output: "Compact JSON with top3 field (≤600 chars)"
+  agent: optimizer
+
+helper_snapshot:
+  description: |
+    Aggregate helper task results into a single compact snapshot.
+    
+    Job Details:
+    - Title: {job_title}
+    - Company: {job_company}
+    - Location: {job_location}
+    - Description: {job_description}
+    
+    Career Context: {career_brand_digest}
+    
+    Options: {options}
+    
+    If {options.use_helpers} is false or missing, return empty JSON: {{}}
+    
+    If {options.use_helpers} is true, run selected helper tasks and merge their JSON outputs into a single compact object (≤1.5 KB typical):
+    {{
+      "data_analyst": {{tc_range, refs}},
+      "strategist": {{signals, refs}},
+      "stakeholder": {{partners, risks}},
+      "technical_leader": {{notes}},
+      "recruiter": {{keyword_gaps}},
+      "skeptic": {{redflags}},
+      "optimizer": {{top3}}
+    }}
+    
+    Handle any helper task failures by using empty JSON for that helper key. Keep the merged object valid and compact.
+  expected_output: "Compact merged JSON object from helper tasks (≤1.5 KB) or empty JSON if helpers disabled"
+  agent: data_analyst
