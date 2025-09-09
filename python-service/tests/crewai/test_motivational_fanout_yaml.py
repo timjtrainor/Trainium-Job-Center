@@ -150,14 +150,14 @@ class TestMotivationalFanOutYaml:
         
         # Test each verdict structure
         expected_personas = ["builder", "maximizer", "harmonizer", "pathfinder", "adventurer"]
-        actual_personas = [v["persona_id"] for v in verdicts]
-        
+        actual_personas = [v["id"] for v in verdicts]
+
         for expected_persona in expected_personas:
             assert expected_persona in actual_personas, f"Missing persona {expected_persona}"
-        
+
         # Test verdict structure
         for verdict in verdicts:
-            assert "persona_id" in verdict, "Verdict missing persona_id"
+            assert "id" in verdict, "Verdict missing id"
             assert "recommend" in verdict, "Verdict missing recommend"
             assert "reason" in verdict, "Verdict missing reason"
             assert "notes" in verdict, "Verdict missing notes"
@@ -194,16 +194,16 @@ class TestMotivationalFanOutYaml:
             assert len(verdicts) == 5, "Should return verdicts for all 5 personas even with failures"
             
             # Check successful parsing
-            builder_verdict = next(v for v in verdicts if v["persona_id"] == "builder")
+            builder_verdict = next(v for v in verdicts if v["id"] == "builder")
             assert builder_verdict["recommend"] is True
             assert "Good tech stack" in builder_verdict["reason"]
             
             # Check failure handling
-            maximizer_verdict = next(v for v in verdicts if v["persona_id"] == "maximizer") 
+            maximizer_verdict = next(v for v in verdicts if v["id"] == "maximizer")
             assert maximizer_verdict["recommend"] is False
             assert "insufficient signal" in maximizer_verdict["reason"]
             
-            pathfinder_verdict = next(v for v in verdicts if v["persona_id"] == "pathfinder")
+            pathfinder_verdict = next(v for v in verdicts if v["id"] == "pathfinder")
             assert pathfinder_verdict["recommend"] is False
             assert "insufficient signal" in pathfinder_verdict["reason"]
     
@@ -233,7 +233,7 @@ class TestMotivationalFanOutYaml:
         assert len(personas) >= 5, "Should include all motivational evaluators"
         
         # Verify persona structure
-        persona_ids = [p.get("persona_id") for p in personas]
+        persona_ids = [p.get("id") for p in personas]
         expected_personas = ["builder", "maximizer", "harmonizer", "pathfinder", "adventurer"]
         for expected in expected_personas:
             assert expected in persona_ids, f"Missing {expected} in personas"
