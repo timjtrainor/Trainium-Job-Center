@@ -117,8 +117,8 @@ async def evaluate_job_posting_fit(
         elapsed_ms = int((time.time() - start_time) * 1000)
         
         # Log error with correlation ID
-        logger.error(
-            f"POST /jobs/posting/fit_review - Request failed: {str(e)}",
+        logger.exception(
+            "POST /jobs/posting/fit_review - Request failed",
             extra={
                 "correlation_id": correlation_id,
                 "route_path": "/jobs/posting/fit_review",
