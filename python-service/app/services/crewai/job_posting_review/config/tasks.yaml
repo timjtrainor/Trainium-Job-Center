@@ -1,0 +1,159 @@
+builder_evaluation:
+  description: |
+    Analyze the job posting to determine if it offers meaningful technical building opportunities.
+    
+    Job Details:
+    - Title: {job_title}
+    - Company: {job_company}
+    - Location: {job_location}
+    - Description: {job_description}
+    
+    Career Context: {career_brand_digest}
+    
+    Options: {options}
+    
+    Focus on:
+    - Technical complexity and system design opportunities
+    - Architecture and infrastructure challenges
+    - Technology stack and development practices
+    - Product impact and engineering ownership
+    - Code quality and technical excellence standards
+    
+    Return your evaluation as JSON with this exact structure:
+    {{
+      "persona_id": "builder",
+      "recommend": true/false,
+      "reason": "1-2 sentence explanation of recommendation",
+      "notes": ["key observation 1", "key observation 2"],
+      "sources": ["job_description", "technical_requirements"]
+    }}
+  expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
+  agent: builder_agent
+
+maximizer_evaluation:
+  description: |
+    Evaluate if this opportunity maximizes career growth and value creation potential.
+    
+    Job Details:
+    - Title: {job_title}
+    - Company: {job_company}
+    - Location: {job_location}
+    - Description: {job_description}
+    
+    Career Context: {career_brand_digest}
+    
+    Options: {options}
+    
+    Focus on:
+    - Compensation and benefits package
+    - Career advancement opportunities
+    - Skill development and learning potential
+    - Market value and industry positioning
+    - Long-term value creation prospects
+    
+    Return your evaluation as JSON with this exact structure:
+    {{
+      "persona_id": "maximizer",
+      "recommend": true/false,
+      "reason": "1-2 sentence explanation of recommendation",
+      "notes": ["key observation 1", "key observation 2"],
+      "sources": ["compensation_analysis", "growth_opportunities"]
+    }}
+  expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
+  agent: maximizer_agent
+
+harmonizer_evaluation:
+  description: |
+    Assess cultural fit and work environment alignment with personal values.
+    
+    Job Details:
+    - Title: {job_title}
+    - Company: {job_company}
+    - Location: {job_location}
+    - Description: {job_description}
+    
+    Career Context: {career_brand_digest}
+    
+    Options: {options}
+    
+    Focus on:
+    - Company culture and values alignment
+    - Team collaboration and working style
+    - Work-life balance indicators
+    - Diversity and inclusion practices
+    - Management style and organizational structure
+    
+    Return your evaluation as JSON with this exact structure:
+    {{
+      "persona_id": "harmonizer",
+      "recommend": true/false,
+      "reason": "1-2 sentence explanation of recommendation",
+      "notes": ["key observation 1", "key observation 2"],
+      "sources": ["culture_indicators", "work_environment"]
+    }}
+  expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
+  agent: harmonizer_agent
+
+pathfinder_evaluation:
+  description: |
+    Evaluate strategic career path alignment and future opportunity potential.
+    
+    Job Details:
+    - Title: {job_title}
+    - Company: {job_company}
+    - Location: {job_location}
+    - Description: {job_description}
+    
+    Career Context: {career_brand_digest}
+    
+    Options: {options}
+    
+    Focus on:
+    - Strategic career positioning
+    - Industry and domain alignment
+    - Network and relationship building potential
+    - Future opportunity pathways
+    - Skill portfolio development
+    
+    Return your evaluation as JSON with this exact structure:
+    {{
+      "persona_id": "pathfinder",
+      "recommend": true/false,
+      "reason": "1-2 sentence explanation of recommendation",
+      "notes": ["key observation 1", "key observation 2"],
+      "sources": ["career_strategy", "industry_analysis"]
+    }}
+  expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
+  agent: pathfinder_agent
+
+adventurer_evaluation:
+  description: |
+    Assess innovation, learning opportunities, and intellectual stimulation potential.
+    
+    Job Details:
+    - Title: {job_title}
+    - Company: {job_company}
+    - Location: {job_location}
+    - Description: {job_description}
+    
+    Career Context: {career_brand_digest}
+    
+    Options: {options}
+    
+    Focus on:
+    - Innovation and emerging technology exposure
+    - Learning and experimentation opportunities
+    - Creative problem-solving challenges
+    - Cross-functional collaboration potential
+    - Intellectual curiosity and growth stimulation
+    
+    Return your evaluation as JSON with this exact structure:
+    {{
+      "persona_id": "adventurer",
+      "recommend": true/false,
+      "reason": "1-2 sentence explanation of recommendation",
+      "notes": ["key observation 1", "key observation 2"],
+      "sources": ["innovation_indicators", "learning_opportunities"]
+    }}
+  expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
+  agent: adventurer_agent

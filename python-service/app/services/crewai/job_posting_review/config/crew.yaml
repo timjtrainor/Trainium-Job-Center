@@ -1,0 +1,37 @@
+name: "motivational_fanout"
+description: "YAML-driven crew for motivational evaluator fan-out analysis"
+version: "1.0"
+
+process: "sequential"  # Will be overridden to handle parallel execution in crew.py
+memory: false
+verbose: true
+
+# Task execution order for motivational fan-out
+# All tasks can run in parallel as they are independent evaluations
+tasks:
+  - builder_evaluation
+  - maximizer_evaluation
+  - harmonizer_evaluation
+  - pathfinder_evaluation
+  - adventurer_evaluation
+
+# Expected outputs structure
+outputs:
+  motivational_verdicts:
+    type: "array"
+    description: "List of persona verdicts from all motivational evaluators"
+    schema:
+      persona_id: "string"
+      recommend: "boolean"
+      reason: "string"
+      notes: "array of strings"
+      sources: "array of strings"
+
+# Error handling strategy
+error_handling:
+  on_task_failure: "continue_with_fallback"
+  fallback_response:
+    recommend: false
+    reason: "insufficient signal"
+    notes: ["task execution failed"]
+    sources: ["error_handler"]
