@@ -9,6 +9,10 @@ from pathlib import Path
 from loguru import logger
 import yaml
 import os
+import asyncio
+
+from ..mcp_adapter import get_mcp_adapter, create_sync_tool_wrapper
+from ...core.config import get_settings
 
 
 def load_agent_config(base_dir: Path, agent_name: str) -> Dict[str, Any]:
@@ -67,3 +71,113 @@ def log_crew_execution(crew_name: str, inputs: Dict[str, Any], result: Any):
         logger.info(f"[MOCK] {crew_name} crew executed with inputs: {list(inputs.keys())}")
     else:
         logger.info(f"{crew_name} crew executed successfully")
+
+
+async def load_mcp_tools(tool_names: List[str]) -> List[Any]:
+    """
+    Load tools from MCP servers through the Docker MCP Gateway.
+    
+    Args:
+        tool_names: List of tool names to load
+        
+    Returns:
+        List of loaded tool implementations
+    """
+    settings = get_settings()
+    
+    # Check if MCP Gateway is enabled
+    if not getattr(settings, 'mcp_gateway_enabled', True):
+        logger.info("MCP Gateway disabled, skipping tool loading")
+        return []
+        
+    gateway_url = getattr(settings, 'mcp_gateway_url', 'http://localhost:8080')
+    loaded_tools = []
+    
+    try:
+        async with get_mcp_adapter(gateway_url) as adapter:
+            available_tools = adapter.get_available_tools()
+            
+            for tool_name in tool_names:
+                # Handle different tool name formats
+                if tool_name in available_tools:
+                    # Direct match
+                    tool_config = available_tools[tool_name]
+                elif f"duckduckgo_{tool_name}" in available_tools:
+                    # Try with duckduckgo prefix
+                    tool_config = available_tools[f"duckduckgo_{tool_name}"]
+                    tool_name = f"duckduckgo_{tool_name}"
+                else:
+                    # Check for partial matches
+                    matches = [t for t in available_tools.keys() if tool_name in t]
+                    if matches:
+                        tool_name = matches[0]
+                        tool_config = available_tools[tool_name]
+                    else:
+                        logger.warning(f"Tool '{tool_name}' not found in MCP servers")
+                        continue
+                
+                # Convert async tool to sync for CrewAI compatibility
+                async_executor = adapter._create_tool_executor(tool_name, tool_config)
+                sync_executor = create_sync_tool_wrapper(async_executor)
+                
+                # Create CrewAI-compatible tool
+                tool = {
+                    "name": tool_name,
+                    "description": tool_config.get("description", ""),
+                    "func": sync_executor,
+                    "parameters": tool_config.get("parameters", {})
+                }
+                
+                loaded_tools.append(tool)
+                logger.info(f"Loaded MCP tool: {tool_name}")
+                
+        return loaded_tools
+        
+    except Exception as e:
+        logger.error(f"Failed to load MCP tools: {e}")
+        return []
+
+
+def load_mcp_tools_sync(tool_names: List[str]) -> List[Any]:
+    """
+    Synchronous wrapper for loading MCP tools.
+    
+    Args:
+        tool_names: List of tool names to load
+        
+    Returns:
+        List of loaded tool implementations
+    """
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If loop is already running, create a new one in a thread
+            import concurrent.futures
+            import threading
+            
+            def run_in_thread():
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    return new_loop.run_until_complete(load_mcp_tools(tool_names))
+                finally:
+                    new_loop.close()
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_in_thread)
+                return future.result(timeout=30)
+        else:
+            return loop.run_until_complete(load_mcp_tools(tool_names))
+    except Exception as e:
+        logger.error(f"Error in sync MCP tool loading: {e}")
+        return []
+
+
+def get_duckduckgo_tools() -> List[Any]:
+    """
+    Get DuckDuckGo tools specifically for web search capabilities.
+    
+    Returns:
+        List of DuckDuckGo tool implementations
+    """
+    return load_mcp_tools_sync(["web_search", "search"])

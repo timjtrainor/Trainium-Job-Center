@@ -40,14 +40,26 @@ class JobReviewCrew:
         self.tasks_config = base.load_tasks_config(self.base_dir, "job_review/config")
 
     def _load_tools(self, tool_names: List[str]) -> List[Any]:
-        """Resolve tool names to actual implementations.
+        """Resolve tool names to actual implementations using MCP Gateway.
 
-        Currently, no external tools are wired up. Any requested tools are
-        ignored to keep agent initialization from failing.
+        Loads tools from MCP servers through the Docker MCP Gateway.
+        Falls back to empty list if MCP tools are unavailable.
         """
-        if tool_names:
-            logger.warning(f"Ignoring unsupported tools: {tool_names}")
-        return []
+        if not tool_names:
+            return []
+            
+        try:
+            # Load tools from MCP Gateway
+            mcp_tools = base.load_mcp_tools_sync(tool_names)
+            if mcp_tools:
+                logger.info(f"Loaded {len(mcp_tools)} MCP tools: {[t.get('name', 'unknown') for t in mcp_tools]}")
+                return mcp_tools
+            else:
+                logger.warning(f"No MCP tools loaded for: {tool_names}")
+                return []
+        except Exception as e:
+            logger.error(f"Failed to load MCP tools: {e}")
+            return []
 
     def _parse_model_config(self, models: List[Dict[str, Any]] | None) -> List[Tuple[str, str]]:
         """Convert agent model configs to provider/model tuples."""
@@ -237,7 +249,7 @@ class JobReviewCrew:
     @before_kickoff
     def prepare_analysis(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Prepare inputs before crew execution.
+        Prepare inputs before crew execution and inject MCP tools.
         
         Args:
             inputs: Raw inputs for the crew
@@ -245,7 +257,7 @@ class JobReviewCrew:
         Returns:
             Processed inputs ready for analysis
         """
-        logger.info("Preparing job analysis inputs")
+        logger.info("Preparing job analysis inputs and loading MCP tools")
         
         # Extract job data
         job_data = inputs.get("job", {})
@@ -256,6 +268,19 @@ class JobReviewCrew:
         
         if missing_fields:
             logger.warning(f"Missing job fields: {missing_fields}")
+        
+        # Load DuckDuckGo tools from MCP Gateway
+        try:
+            duckduckgo_tools = base.get_duckduckgo_tools()
+            if duckduckgo_tools:
+                logger.info(f"Loaded {len(duckduckgo_tools)} DuckDuckGo tools for agents")
+                inputs["mcp_tools"] = duckduckgo_tools
+            else:
+                logger.warning("No DuckDuckGo tools available from MCP Gateway")
+                inputs["mcp_tools"] = []
+        except Exception as e:
+            logger.error(f"Failed to load DuckDuckGo tools: {e}")
+            inputs["mcp_tools"] = []
         
         # Add mock mode flag
         inputs["mock_mode"] = base.get_mock_mode()
