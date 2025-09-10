@@ -29,7 +29,8 @@ class TestChromaService:
             collection_name="test_collection",
             title="Test Document",
             tags=["test", "sample"],
-            document_text="This is a test document with some content for testing purposes."
+            document_text="This is a test document with some content for testing purposes.",
+            metadata={"source": "unit-test"}
         )
     
     def test_chunk_text_basic(self, chroma_service):
@@ -86,6 +87,7 @@ class TestChromaService:
         metadatas = kwargs["metadatas"]
         assert all(isinstance(md["tags"], str) for md in metadatas)
         assert metadatas[0]["tags"] == "test, sample"
+        assert metadatas[0]["source"] == "unit-test"
     
     @patch('app.services.chroma_service.get_chroma_client')
     def test_upload_document_failure(self, mock_get_client, chroma_service, sample_request):

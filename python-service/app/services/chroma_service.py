@@ -155,15 +155,19 @@ class ChromaService:
             # Prepare data for ChromaDB
             ids = [f"{doc_id}::c{i}" for i in range(len(chunks))]
             tags_str = ", ".join(request.tags)
-            metadatas = [{
-                "title": request.title,
-                "tags": tags_str,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "doc_id": doc_id,
-                "seq": i,
-                "content_hash": self._sha1_hash(chunks[i]),
-                "type": "user_document"
-            } for i in range(len(chunks))]
+            created_at = datetime.now(timezone.utc).isoformat()
+            metadatas = []
+            for i, chunk in enumerate(chunks):
+                base_metadata = {
+                    "title": request.title,
+                    "tags": tags_str,
+                    "created_at": created_at,
+                    "doc_id": doc_id,
+                    "seq": i,
+                    "content_hash": self._sha1_hash(chunk),
+                    "type": "user_document",
+                }
+                metadatas.append({**base_metadata, **request.metadata})
             
             # Add to collection with explicit error handling
             try:
