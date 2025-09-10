@@ -8,6 +8,7 @@ harmonizer, pathfinder, adventurer) provide thumbs-up/thumbs-down verdicts.
 
 import uuid
 import json
+import re
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from loguru import logger
@@ -796,52 +797,107 @@ def _format_crew_result(
     # Generate job_id from URL or use correlation_id
     job_url = job_posting_data.get("url", "")
     job_id = f"job_{hash(job_url)}" if job_url else correlation_id
-    
+
+    # Attempt to parse crew result if provided as a string
+    if isinstance(crew_result, str):
+        try:
+            crew_result = json.loads(crew_result)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", crew_result, re.DOTALL)
+            if match:
+                try:
+                    crew_result = json.loads(match.group(0))
+                except Exception as parse_err:
+                    logger.error(
+                        "Malformed crew result: JSON parsing failed",
+                        extra={
+                            "correlation_id": correlation_id,
+                            "raw_result": str(crew_result)[:1000],
+                            "error": str(parse_err),
+                        },
+                    )
+                    raise ValueError("Failed to parse crew result") from parse_err
+            else:
+                logger.error(
+                    "Malformed crew result: no JSON object found",
+                    extra={
+                        "correlation_id": correlation_id,
+                        "raw_result": str(crew_result)[:1000],
+                    },
+                )
+                raise ValueError("Failed to parse crew result")
+
     # Handle motivational verdicts from the new crew
     if isinstance(crew_result, dict) and "motivational_verdicts" in crew_result:
+        raw_verdicts = crew_result.get("motivational_verdicts")
+        if not isinstance(raw_verdicts, list) or not all(
+            isinstance(v, dict) and "recommend" in v for v in raw_verdicts
+        ):
+            logger.error(
+                "Malformed crew result: invalid 'motivational_verdicts' structure",
+                extra={
+                    "correlation_id": correlation_id,
+                    "raw_result": str(crew_result)[:1000],
+                },
+            )
+            raise ValueError("Invalid motivational verdicts")
+
         verdicts = [
             {**v, "id": v.pop("persona_id")} if "persona_id" in v else v
-            for v in crew_result["motivational_verdicts"]
+            for v in raw_verdicts
         ]
-        
+
         # Aggregate recommendations
         total_verdicts = len(verdicts)
         positive_verdicts = sum(1 for v in verdicts if v.get("recommend", False))
-        recommendation_ratio = positive_verdicts / total_verdicts if total_verdicts > 0 else 0
-        
+        recommendation_ratio = (
+            positive_verdicts / total_verdicts if total_verdicts > 0 else 0
+        )
+
         # Determine overall recommendation
         overall_recommend = recommendation_ratio >= 0.6  # Majority rule with 60% threshold
-        confidence = "high" if recommendation_ratio >= 0.8 or recommendation_ratio <= 0.2 else "medium"
-        
+        confidence = (
+            "high" if recommendation_ratio >= 0.8 or recommendation_ratio <= 0.2 else "medium"
+        )
+
         # Generate rationale
         if overall_recommend:
-            rationale = f"Positive alignment across {positive_verdicts}/{total_verdicts} motivational evaluators"
+            rationale = (
+                f"Positive alignment across {positive_verdicts}/{total_verdicts} motivational evaluators"
+            )
         else:
-            rationale = f"Mixed signals with only {positive_verdicts}/{total_verdicts} positive evaluations"
-        
+            rationale = (
+                f"Mixed signals with only {positive_verdicts}/{total_verdicts} positive evaluations"
+            )
+
         return {
             "job_id": job_id,
             "final": {
                 "recommend": overall_recommend,
                 "rationale": rationale,
-                "confidence": confidence
+                "confidence": confidence,
             },
             "personas": verdicts,  # Use motivational verdicts as personas
             "motivational_verdicts": verdicts,  # Also include for judge aggregation
             "tradeoffs": [
                 "Technical complexity vs learning curve",
                 "Growth potential vs current compensation",
-                "Cultural fit vs career advancement"
+                "Cultural fit vs career advancement",
             ],
             "actions": [
                 "Deep dive into technical requirements",
-                "Research company culture and values", 
-                "Evaluate long-term career trajectory"
+                "Research company culture and values",
+                "Evaluate long-term career trajectory",
             ],
-            "sources": list(set([
-                source for verdict in verdicts 
-                for source in verdict.get("sources", [])
-            ]))
+            "sources": list(
+                set(
+                    [
+                        source
+                        for verdict in verdicts
+                        for source in verdict.get("sources", [])
+                    ]
+                )
+            ),
         }
     
     # Handle mock mode results
@@ -908,30 +964,11 @@ def _format_crew_result(
             ]
         }
     
-    # Attempt to parse unexpected crew results and surface errors
-    try:
-        parsed_result = (
-            json.loads(crew_result) if isinstance(crew_result, str) else crew_result
-        )
-    except Exception as parse_err:
-        logger.error(
-            "Malformed crew result: JSON parsing failed",
-            extra={
-                "correlation_id": correlation_id,
-                "raw_result": str(crew_result)[:1000],
-                "error": str(parse_err)
-            }
-        )
-        raise ValueError("Failed to parse crew result") from parse_err
-
-    if isinstance(parsed_result, dict) and "motivational_verdicts" in parsed_result:
-        return _format_crew_result(parsed_result, job_posting_data, correlation_id)
-
     logger.error(
         "Malformed crew result: missing 'motivational_verdicts'",
         extra={
             "correlation_id": correlation_id,
-            "raw_result": str(parsed_result)[:1000]
-        }
+            "raw_result": str(crew_result)[:1000],
+        },
     )
     raise ValueError("Crew result missing 'motivational_verdicts'")
