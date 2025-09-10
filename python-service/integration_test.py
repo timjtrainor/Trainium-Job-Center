@@ -5,11 +5,15 @@ Tests the basic functionality without requiring live database or Redis.
 """
 import sys
 import asyncio
+import os
 from pathlib import Path
 from unittest.mock import Mock, AsyncMock, patch
 
 # Add the project root to Python path
 sys.path.insert(0, Path(__file__).resolve().parent.as_posix())
+
+# Provide default configuration values required by settings
+os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/db")
 
 from loguru import logger
 
@@ -90,13 +94,21 @@ async def test_api_endpoints():
     from app.api.v1.endpoints.jobspy import router as jobspy_router
     from app.api.v1.endpoints.scheduler import router as scheduler_router
     from app.api.router import api_router
+    from app.services.jobspy.ingestion import JobSpyIngestionService
     
     # Check that routers have the expected endpoints
     jobspy_routes = [route.path for route in jobspy_router.routes]
     scheduler_routes = [route.path for route in scheduler_router.routes]
     
     # Validate jobspy endpoints
-    expected_jobspy_routes = ['/scrape', '/scrape/{run_id}', '/sites', '/health', '/queue/status']
+    expected_jobspy_routes = [
+        '/scrape',
+        '/scrape/{run_id}',
+        '/sites',
+        '/sites/names',
+        '/health',
+        '/queue/status'
+    ]
     for expected_route in expected_jobspy_routes:
         assert any(expected_route in route for route in jobspy_routes), f"Missing route: {expected_route}"
     
@@ -106,6 +118,16 @@ async def test_api_endpoints():
         assert any(expected_route in route for route in scheduler_routes), f"Missing route: {expected_route}"
     
     print("✅ All expected API endpoints are registered!")
+
+    # Validate supported sites include requirement and conflict info
+    service = JobSpyIngestionService()
+    supported = await service.get_supported_sites()
+    assert supported.data, "Supported sites data missing"
+    for site in JobSite:
+        info = supported.data.get(site.value)
+        assert info is not None, f"Missing site info for {site.value}"
+        assert "requires" in info, f"Missing 'requires' for {site.value}"
+        assert "conflicts" in info, f"Missing 'conflicts' for {site.value}"
 
 
 def test_service_initialization():

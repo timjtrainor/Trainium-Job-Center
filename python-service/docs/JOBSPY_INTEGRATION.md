@@ -27,7 +27,10 @@ Scrape jobs from a specified job board.
 ```
 
 ### GET `/jobs/sites`
-Get information about supported job sites.
+Get information about supported job sites, including required filters and any conflicting criteria.
+
+### GET `/jobs/sites/names`
+List the identifiers of supported job sites.
 
 ### GET `/jobs/health`
 Check JobSpy service health status.
