@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent / "app"))
 
 from app.services.mcp_adapter import MCPServerAdapter, get_mcp_adapter
 from app.services.crewai import base
+from langchain.tools import BaseTool
 from app.core.config import get_settings
 from loguru import logger
 
@@ -65,9 +66,10 @@ def test_crewai_tool_loading():
         # Test sync tool loading
         tools = base.load_mcp_tools_sync(["web_search"])
         logger.info(f"Loaded {len(tools)} tools through sync loader")
-        
+
         for tool in tools:
-            logger.info(f"  - {tool.get('name')}: {tool.get('description')}")
+            assert isinstance(tool, BaseTool)
+            logger.info(f"  - {tool.name}: {tool.description}")
             
         # Test DuckDuckGo specific loading
         duckduckgo_tools = base.get_duckduckgo_tools()
@@ -104,9 +106,9 @@ async def test_job_review_crew_integration():
         
         mcp_tools = prepared_inputs.get("mcp_tools", [])
         logger.info(f"JobReviewCrew loaded {len(mcp_tools)} MCP tools")
-        
+
         for tool in mcp_tools:
-            logger.info(f"  - {tool.get('name')}: {tool.get('description', 'No description')}")
+            logger.info(f"  - {tool.name}: {getattr(tool, 'description', 'No description')}")
             
         return len(mcp_tools) > 0
         
