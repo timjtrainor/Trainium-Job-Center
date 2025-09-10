@@ -289,13 +289,12 @@ class TestBuildContext:
         result = build_context(job_posting, profile_id="test_user")
         
         # Verify all expected keys are present
-        required_keys = ["normalized_jd", "career_brand_digest", "doc_ids", "scores", "tags", "metadata"]
+        required_keys = ["normalized_jd", "doc_ids", "scores", "tags", "metadata"]
         for key in required_keys:
             assert key in result, f"Missing required key: {key}"
         
         # Verify types and basic content
         assert isinstance(result["normalized_jd"], str)
-        assert isinstance(result["career_brand_digest"], str)
         assert isinstance(result["doc_ids"], list)
         assert isinstance(result["scores"], list)
         assert isinstance(result["tags"], list)
@@ -307,7 +306,6 @@ class TestBuildContext:
         assert "senior AI engineer" in result["normalized_jd"]
         
         # Career data should be passed through
-        assert result["career_brand_digest"] == "Sample career insights..."
         assert result["doc_ids"] == ["doc_1", "doc_2"]
         assert result["scores"] == [0.8, 0.6]
         

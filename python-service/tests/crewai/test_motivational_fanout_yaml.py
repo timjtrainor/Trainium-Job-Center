@@ -40,7 +40,6 @@ class TestMotivationalFanOutYaml:
         """Sample inputs for crew execution."""
         return {
             "job_posting_data": sample_job_posting,
-            "career_brand_digest": "Experienced software engineer with expertise in distributed systems and team leadership. Passionate about scalable architecture and mentoring.",
             "options": {"priority": "growth", "location_preference": "remote"}
         }
     
@@ -89,7 +88,6 @@ class TestMotivationalFanOutYaml:
         # Required placeholders that should appear in task descriptions
         required_placeholders = [
             "{job_title}", "{job_company}", "{job_location}", 
-            "{job_description}", "{career_brand_digest}", "{options}"
         ]
         
         for task_name, task_config in crew.tasks_config.items():
@@ -132,7 +130,6 @@ class TestMotivationalFanOutYaml:
         assert "job_title" in prepared_inputs
         assert "job_company" in prepared_inputs
         assert "job_description" in prepared_inputs
-        assert "career_brand_digest" in prepared_inputs
         assert "options" in prepared_inputs
         assert prepared_inputs["mock_mode"] is True
     

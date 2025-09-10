@@ -116,7 +116,7 @@ class MotivationalFanOutCrew:
     
     @agent
     def builder_agent(self) -> Agent:
-        """Create builder agent for technical building opportunities analysis."""
+        """Evaluate career growth and trajectory potential"""
         config = self.agents_config["builder"]
         return Agent(
             role=config["role"],
@@ -128,10 +128,10 @@ class MotivationalFanOutCrew:
             tools=self._load_tools(config.get("tools", [])),
             verbose=True
         )
-    
+
     @agent
     def maximizer_agent(self) -> Agent:
-        """Create maximizer agent for growth and optimization analysis."""
+        """Evaluate compensation and rewards"""
         config = self.agents_config["maximizer"]
         return Agent(
             role=config["role"],
@@ -143,10 +143,10 @@ class MotivationalFanOutCrew:
             tools=self._load_tools(config.get("tools", [])),
             verbose=True
         )
-    
+
     @agent
     def harmonizer_agent(self) -> Agent:
-        """Create harmonizer agent for culture and team dynamics analysis."""
+        """Evaluate culture and team alignment"""
         config = self.agents_config["harmonizer"]
         return Agent(
             role=config["role"],
@@ -158,10 +158,10 @@ class MotivationalFanOutCrew:
             tools=self._load_tools(config.get("tools", [])),
             verbose=True
         )
-    
+
     @agent
     def pathfinder_agent(self) -> Agent:
-        """Create pathfinder agent for strategic career path analysis."""
+        """Evaluate lifestyle and flexibility fit"""
         config = self.agents_config["pathfinder"]
         return Agent(
             role=config["role"],
@@ -173,10 +173,10 @@ class MotivationalFanOutCrew:
             tools=self._load_tools(config.get("tools", [])),
             verbose=True
         )
-    
+
     @agent
     def adventurer_agent(self) -> Agent:
-        """Create adventurer agent for innovation and learning analysis."""
+        """Evaluate purpose and impact alignment"""
         config = self.agents_config["adventurer"]
         return Agent(
             role=config["role"],
@@ -188,7 +188,7 @@ class MotivationalFanOutCrew:
             tools=self._load_tools(config.get("tools", [])),
             verbose=True
         )
-    
+
     # Helper agents for advisory analysis
     @agent
     def data_analyst(self) -> Agent:
@@ -204,7 +204,7 @@ class MotivationalFanOutCrew:
             tools=self._load_tools(config.get("tools", [])),
             verbose=False  # Keep helper output minimal
         )
-    
+
     @agent
     def strategist(self) -> Agent:
         """Create strategist helper agent for trend analysis."""
@@ -219,52 +219,52 @@ class MotivationalFanOutCrew:
             tools=self._load_tools(config.get("tools", [])),
             verbose=False
         )
-    
-    @agent
-    def stakeholder(self) -> Agent:
-        """Create stakeholder helper agent for partnership analysis."""
-        config = self.agents_config["stakeholder"]
-        return Agent(
-            role=config["role"],
-            goal=config["goal"],
-            backstory=config["backstory"],
-            llm=self._get_agent_llm("stakeholder", config),
-            max_iter=config.get("max_iter", 1),
-            max_execution_time=config.get("max_execution_time", 30),
-            tools=self._load_tools(config.get("tools", [])),
-            verbose=False
-        )
-    
-    @agent
-    def technical_leader(self) -> Agent:
-        """Create technical leader helper agent for delivery analysis."""
-        config = self.agents_config["technical_leader"]
-        return Agent(
-            role=config["role"],
-            goal=config["goal"],
-            backstory=config["backstory"],
-            llm=self._get_agent_llm("technical_leader", config),
-            max_iter=config.get("max_iter", 1),
-            max_execution_time=config.get("max_execution_time", 30),
-            tools=self._load_tools(config.get("tools", [])),
-            verbose=False
-        )
-    
-    @agent
-    def recruiter(self) -> Agent:
-        """Create recruiter helper agent for ATS analysis."""
-        config = self.agents_config["recruiter"]
-        return Agent(
-            role=config["role"],
-            goal=config["goal"],
-            backstory=config["backstory"],
-            llm=self._get_agent_llm("recruiter", config),
-            max_iter=config.get("max_iter", 1),
-            max_execution_time=config.get("max_execution_time", 30),
-            tools=self._load_tools(config.get("tools", [])),
-            verbose=False
-        )
-    
+
+    # The following helper agents are currently unused and can be removed or commented out
+    # @agent
+    # def stakeholder(self) -> Agent:
+    #     """Create stakeholder helper agent for partnership analysis."""
+    #     config = self.agents_config["stakeholder"]
+    #     return Agent(
+    #         role=config["role"],
+    #         goal=config["goal"],
+    #         backstory=config["backstory"],
+    #         llm=self._get_agent_llm("stakeholder", config),
+    #         max_iter=config.get("max_iter", 1),
+    #         max_execution_time=config.get("max_execution_time", 30),
+    #         tools=self._load_tools(config.get("tools", [])),
+    #         verbose=False
+    #     )
+    #
+    # @agent
+    # def technical_leader(self) -> Agent:
+    #     """Create technical leader helper agent for delivery analysis."""
+    #     config = self.agents_config["technical_leader"]
+    #     return Agent(
+    #         role=config["role"],
+    #         goal=config["goal"],
+    #         backstory=config["backstory"],
+    #         llm=self._get_agent_llm("technical_leader", config),
+    #         max_iter=config.get("max_iter", 1),
+    #         max_execution_time=config.get("max_execution_time", 30),
+    #         tools=self._load_tools(config.get("tools", [])),
+    #         verbose=False
+    #     )
+    #
+    # @agent
+    # def recruiter(self) -> Agent:
+    #     """Create recruiter helper agent for ATS analysis."""
+    #     config = self.agents_config["recruiter"]
+    #     return Agent(
+    #         role=config["role"],
+    #         goal=config["goal"],
+    #         backstory=config["backstory"],
+    #         llm=self._get_agent_llm("recruiter", config),
+    #         max_iter=config.get("max_iter", 1),
+    #         max_execution_time=config.get("max_execution_time", 30),
+    #         tools=self._load_tools(config.get("tools", [])),
+    #         verbose=False
+    #     )
     @agent
     def skeptic(self) -> Agent:
         """Create skeptic helper agent for risk analysis."""
@@ -279,22 +279,21 @@ class MotivationalFanOutCrew:
             tools=self._load_tools(config.get("tools", [])),
             verbose=False
         )
-    
-    @agent
-    def optimizer(self) -> Agent:
-        """Create optimizer helper agent for application enhancement."""
-        config = self.agents_config["optimizer"]
-        return Agent(
-            role=config["role"],
-            goal=config["goal"],
-            backstory=config["backstory"],
-            llm=self._get_agent_llm("optimizer", config),
-            max_iter=config.get("max_iter", 1),
-            max_execution_time=config.get("max_execution_time", 30),
-            tools=self._load_tools(config.get("tools", [])),
-            verbose=False
-        )
-    
+    # @agent
+    # def optimizer(self) -> Agent:
+    #     """Create optimizer helper agent for application enhancement."""
+    #     config = self.agents_config["optimizer"]
+    #     return Agent(
+    #         role=config["role"],
+    #         goal=config["goal"],
+    #         backstory=config["backstory"],
+    #         llm=self._get_agent_llm("optimizer", config),
+    #         max_iter=config.get("max_iter", 1),
+    #         max_execution_time=config.get("max_execution_time", 30),
+    #         tools=self._load_tools(config.get("tools", [])),
+    #         verbose=False
+    #     )
+
     @task
     def builder_evaluation_task(self) -> Task:
         """Create task for builder evaluation."""
@@ -305,7 +304,7 @@ class MotivationalFanOutCrew:
             agent=self.builder_agent(),
             async_execution=True  # Enable parallel execution
         )
-    
+
     @task
     def maximizer_evaluation_task(self) -> Task:
         """Create task for maximizer evaluation."""
@@ -316,7 +315,7 @@ class MotivationalFanOutCrew:
             agent=self.maximizer_agent(),
             async_execution=True  # Enable parallel execution
         )
-    
+
     @task
     def harmonizer_evaluation_task(self) -> Task:
         """Create task for harmonizer evaluation."""
@@ -327,7 +326,7 @@ class MotivationalFanOutCrew:
             agent=self.harmonizer_agent(),
             async_execution=True  # Enable parallel execution
         )
-    
+
     @task
     def pathfinder_evaluation_task(self) -> Task:
         """Create task for pathfinder evaluation."""
@@ -338,7 +337,7 @@ class MotivationalFanOutCrew:
             agent=self.pathfinder_agent(),
             async_execution=True  # Enable parallel execution
         )
-    
+
     @task
     def adventurer_evaluation_task(self) -> Task:
         """Create task for adventurer evaluation."""
@@ -349,7 +348,7 @@ class MotivationalFanOutCrew:
             agent=self.adventurer_agent(),
             async_execution=True  # Enable parallel execution
         )
-    
+
     # Helper tasks for advisory analysis
     @task
     def data_analyst_task(self) -> Task:
@@ -361,7 +360,7 @@ class MotivationalFanOutCrew:
             agent=self.data_analyst(),
             async_execution=False  # Sequential execution for helpers
         )
-    
+
     @task
     def strategist_task(self) -> Task:
         """Create task for strategist helper."""
@@ -372,40 +371,40 @@ class MotivationalFanOutCrew:
             agent=self.strategist(),
             async_execution=False
         )
-    
-    @task
-    def stakeholder_task(self) -> Task:
-        """Create task for stakeholder helper."""
-        config = self.tasks_config["stakeholder_task"]
-        return Task(
-            description=config["description"],
-            expected_output=config["expected_output"],
-            agent=self.stakeholder(),
-            async_execution=False
-        )
-    
-    @task
-    def technical_leader_task(self) -> Task:
-        """Create task for technical leader helper."""
-        config = self.tasks_config["technical_leader_task"]
-        return Task(
-            description=config["description"],
-            expected_output=config["expected_output"],
-            agent=self.technical_leader(),
-            async_execution=False
-        )
-    
-    @task
-    def recruiter_task(self) -> Task:
-        """Create task for recruiter helper."""
-        config = self.tasks_config["recruiter_task"]
-        return Task(
-            description=config["description"],
-            expected_output=config["expected_output"],
-            agent=self.recruiter(),
-            async_execution=False
-        )
-    
+
+    # @task
+    # def stakeholder_task(self) -> Task:
+    #     """Create task for stakeholder helper."""
+    #     config = self.tasks_config["stakeholder_task"]
+    #     return Task(
+    #         description=config["description"],
+    #         expected_output=config["expected_output"],
+    #         agent=self.stakeholder(),
+    #         async_execution=False
+    #     )
+    #
+    # @task
+    # def technical_leader_task(self) -> Task:
+    #     """Create task for technical leader helper."""
+    #     config = self.tasks_config["technical_leader_task"]
+    #     return Task(
+    #         description=config["description"],
+    #         expected_output=config["expected_output"],
+    #         agent=self.technical_leader(),
+    #         async_execution=False
+    #     )
+    #
+    # @task
+    # def recruiter_task(self) -> Task:
+    #     """Create task for recruiter helper."""
+    #     config = self.tasks_config["recruiter_task"]
+    #     return Task(
+    #         description=config["description"],
+    #         expected_output=config["expected_output"],
+    #         agent=self.recruiter(),
+    #         async_execution=False
+    #     )
+
     @task
     def skeptic_task(self) -> Task:
         """Create task for skeptic helper."""
@@ -416,18 +415,18 @@ class MotivationalFanOutCrew:
             agent=self.skeptic(),
             async_execution=False
         )
-    
-    @task
-    def optimizer_task(self) -> Task:
-        """Create task for optimizer helper."""
-        config = self.tasks_config["optimizer_task"]
-        return Task(
-            description=config["description"],
-            expected_output=config["expected_output"],
-            agent=self.optimizer(),
-            async_execution=False
-        )
-    
+
+    # @task
+    # def optimizer_task(self) -> Task:
+    #     """Create task for optimizer helper."""
+    #     config = self.tasks_config["optimizer_task"]
+    #     return Task(
+    #         description=config["description"],
+    #         expected_output=config["expected_output"],
+    #         agent=self.optimizer(),
+    #         async_execution=False
+    #     )
+
     @task
     def helper_snapshot(self) -> Task:
         """Create task for helper snapshot aggregation."""
@@ -438,12 +437,12 @@ class MotivationalFanOutCrew:
             agent=self.data_analyst(),  # Use data_analyst agent for aggregation
             async_execution=False
         )
-    
+
     @crew
     def motivational_fanout(self) -> Crew:
         """
         Assemble the motivational fan-out crew with all agents and tasks.
-        
+
         Returns:
             Configured crew for motivational evaluator analysis
         """
@@ -454,75 +453,74 @@ class MotivationalFanOutCrew:
             verbose=True,
             memory=False  # Disable memory to avoid API key requirements
         )
-    
+
     @before_kickoff
     def prepare_inputs(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """
         Prepare inputs before crew execution.
-        
+
         Args:
             inputs: Raw inputs for the crew
-            
+
         Returns:
             Processed inputs ready for analysis with proper placeholders
         """
         logger.info("Preparing motivational fan-out inputs with helper support")
-        
+
         # Extract and normalize job posting data
         job_data = inputs.get("job_posting_data", inputs.get("job", {}))
-        
+
         # Prepare standardized inputs that match YAML placeholders
         prepared_inputs = {
             "job_title": job_data.get("title", ""),
             "job_company": job_data.get("company", ""),
             "job_location": job_data.get("location", ""),
             "job_description": job_data.get("description", ""),
-            "career_brand_digest": inputs.get("career_brand_digest", "No career context available"),
             "options": inputs.get("options", {}),
             "helper_snapshot": "{}"  # Initialize empty, will be populated by helper_snapshot task
         }
-        
+
         # Validate required fields
         required_fields = ["job_title", "job_company", "job_description"]
         missing_fields = [field for field in required_fields if not prepared_inputs.get(field)]
-        
+
         if missing_fields:
             logger.warning(f"Missing job fields: {missing_fields}")
-        
+
         # Add mock mode flag
         prepared_inputs["mock_mode"] = base.get_mock_mode()
-        
+
         base.log_crew_execution(self.crew_name, prepared_inputs, "preparation_complete")
         return prepared_inputs
-    
+
     @after_kickoff
     def process_verdicts(self, output: Any) -> Dict[str, Any]:
         """
         Process results after crew execution.
-        
+
         Args:
             output: Raw crew output
-            
+
         Returns:
             Processed motivational verdicts ready for judge aggregation
         """
         logger.info("Processing motivational fan-out results with helper support")
-        
+
         if base.get_mock_mode():
             # Return mock motivational verdicts for testing
             result = self._get_mock_verdicts_with_helpers()
             if not output.get("options", {}).get("use_helpers"):
                 result["helper_snapshot"] = {}
             return result
-        
+
         # Process actual crew results
         motivational_verdicts = []
         helper_snapshot = {}
-        
+
         try:
             # Parse task outputs and extract JSON verdicts
             task_outputs = self._extract_task_outputs(output)
-            
+
             # Extract helper snapshot if available
             helper_output = task_outputs.get("helper_snapshot", "")
             if helper_output:
@@ -531,7 +529,7 @@ class MotivationalFanOutCrew:
                 except Exception as e:
                     logger.warning(f"Failed to parse helper snapshot: {str(e)}")
                     helper_snapshot = {}
-            
+
             # Process motivational verdicts
             for persona_id in ["builder", "maximizer", "harmonizer", "pathfinder", "adventurer"]:
                 try:
@@ -547,7 +545,7 @@ class MotivationalFanOutCrew:
                         "notes": ["task execution failed"],
                         "sources": ["error_handler"]
                     })
-                    
+
         except Exception as e:
             logger.error(f"Failed to process motivational verdicts: {str(e)}")
             # Return fallback verdicts for all personas
@@ -559,7 +557,7 @@ class MotivationalFanOutCrew:
                     "notes": ["processing error"],
                     "sources": ["error_handler"]
                 })
-        
+
         result = {
             "motivational_verdicts": motivational_verdicts,
             "helper_snapshot": helper_snapshot
@@ -570,7 +568,7 @@ class MotivationalFanOutCrew:
                 verdict["id"] = verdict.pop("persona_id")
         base.log_crew_execution(self.crew_name, {}, result)
         return result
-    
+
     def _get_mock_verdicts_with_helpers(self) -> Dict[str, Any]:
         """Return mock verdicts with helper insights for testing."""
         return {
@@ -578,37 +576,37 @@ class MotivationalFanOutCrew:
                 {
                     "id": "builder",
                     "recommend": True,
-                    "reason": "Strong technical building opportunities with modern stack; helpers indicate positive tech trends",
+                    "reason": "Strong career growth trajectory and leadership potential",
                     "notes": ["Complex system architecture", "Engineering ownership"],
-                    "sources": ["job_description", "technical_requirements", "helper_insights"]
+                    "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
                 },
                 {
                     "id": "maximizer",
                     "recommend": True,
-                    "reason": "Excellent growth potential with competitive compensation; market data supports strong TC range",
+                    "reason": "Competitive compensation and benefits package",
                     "notes": ["Market-rate salary", "Learning opportunities"],
-                    "sources": ["compensation_analysis", "growth_opportunities", "helper_insights"]
+                    "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
                 },
                 {
                     "id": "harmonizer",
                     "recommend": True,
-                    "reason": "Positive culture indicators and team collaboration focus",
+                    "reason": "Positive cultural alignment indicators",
                     "notes": ["Inclusive environment", "Work-life balance"],
-                    "sources": ["culture_indicators", "work_environment"]
+                    "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
                 },
                 {
                     "id": "pathfinder",
                     "recommend": True,
-                    "reason": "Strategic alignment with career goals and industry positioning",
+                    "reason": "Good flexibility and lifestyle balance",
                     "notes": ["Career progression path", "Industry growth"],
-                    "sources": ["career_strategy", "industry_analysis"]
+                    "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
                 },
                 {
                     "id": "adventurer",
                     "recommend": True,
-                    "reason": "Exciting innovation opportunities with emerging technologies",
+                    "reason": "Clear mission and meaningful impact",
                     "notes": ["Cutting-edge tech", "Learning challenges"],
-                    "sources": ["innovation_indicators", "learning_opportunities"]
+                    "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
                 }
             ],
             "helper_snapshot": {
@@ -753,7 +751,6 @@ def run_crew(
         inputs = {
             "job_posting_data": job_posting_data,
             "options": options or {},
-            "career_brand_digest": "Career context would be provided by retrieval layer"
         }
         
         # Execute the crew with the job data

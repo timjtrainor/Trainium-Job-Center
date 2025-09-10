@@ -1,6 +1,6 @@
 builder_evaluation:
   description: |
-    Analyze the job posting to determine if it offers meaningful technical building opportunities.
+    Analyze the job posting to determine if it offers strong career growth and advancement opportunities.
     
     Job Details:
     - Title: {job_title}
@@ -8,20 +8,19 @@ builder_evaluation:
     - Location: {job_location}
     - Description: {job_description}
     
-    Career Context: {career_brand_digest}
-    
     Options: {options}
-    
     Helper Insights: {helper_snapshot}
     
     Focus on:
-    - Technical complexity and system design opportunities
-    - Architecture and infrastructure challenges
-    - Technology stack and development practices
-    - Product impact and engineering ownership
-    - Code quality and technical excellence standards
+    - Scope of ownership and responsibility
+    - Opportunities for leadership and advancement
+    - Learning potential and skill development
+    - Alignment with long-term mastery and career trajectory
+    - Signals of recognition and support for growth
+    - Any location factors that may influence advancement (e.g., HQ access, regional constraints)
     
     If helper_snapshot contains useful keys for your lens, cite them briefly in your reason; otherwise proceed without helpers.
+    If your agent knowledge provides additional context, you may reference it briefly.
     
     Return your evaluation as JSON with this exact structure:
     {{
@@ -29,14 +28,14 @@ builder_evaluation:
       "recommend": true/false,
       "reason": "1-2 sentence explanation of recommendation",
       "notes": ["key observation 1", "key observation 2"],
-      "sources": ["job_description", "technical_requirements"]
+      "sources": ["job_description", "agent_knowledge"]
     }}
   expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
   agent: builder_agent
 
 maximizer_evaluation:
   description: |
-    Evaluate if this opportunity maximizes career growth and value creation potential.
+    Evaluate if this opportunity maximizes financial rewards and overall compensation package.
     
     Job Details:
     - Title: {job_title}
@@ -44,20 +43,18 @@ maximizer_evaluation:
     - Location: {job_location}
     - Description: {job_description}
     
-    Career Context: {career_brand_digest}
-    
     Options: {options}
-    
     Helper Insights: {helper_snapshot}
     
     Focus on:
-    - Compensation and benefits package
-    - Career advancement opportunities
-    - Skill development and learning potential
-    - Market value and industry positioning
-    - Long-term value creation prospects
+    - Base salary and pay transparency
+    - Equity refresh, stock options, or bonuses
+    - Benefits package (health, retirement, PTO, flexibility perks)
+    - Total compensation compared to market benchmarks
+    - Signals of strong financial upside or under-valuation
     
-    If helper_snapshot contains useful keys for your lens, cite them briefly in your reason; otherwise proceed without helpers.
+    If helper_snapshot contains useful compensation or market data, cite them briefly in your reason; otherwise proceed without helpers.
+    If your agent knowledge provides additional context, you may reference it briefly.
     
     Return your evaluation as JSON with this exact structure:
     {{
@@ -65,14 +62,15 @@ maximizer_evaluation:
       "recommend": true/false,
       "reason": "1-2 sentence explanation of recommendation",
       "notes": ["key observation 1", "key observation 2"],
-      "sources": ["compensation_analysis", "growth_opportunities"]
+      "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
     }}
   expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
   agent: maximizer_agent
 
 harmonizer_evaluation:
   description: |
-    Assess cultural fit and work environment alignment with personal values.
+    Assess whether the company culture, team environment, and values
+    align with the candidate’s personal preferences and working style.
     
     Job Details:
     - Title: {job_title}
@@ -80,20 +78,18 @@ harmonizer_evaluation:
     - Location: {job_location}
     - Description: {job_description}
     
-    Career Context: {career_brand_digest}
-    
     Options: {options}
-    
     Helper Insights: {helper_snapshot}
     
     Focus on:
-    - Company culture and values alignment
+    - Alignment of stated company values with personal values
     - Team collaboration and working style
-    - Work-life balance indicators
-    - Diversity and inclusion practices
+    - Work-life balance signals
+    - Diversity, equity, and inclusion practices
     - Management style and organizational structure
     
-    If helper_snapshot contains useful keys for your lens, cite them briefly in your reason; otherwise proceed without helpers.
+    If helper_snapshot contains useful signals (culture, values, balance), cite them briefly in your reason; otherwise proceed without helpers.
+    If your agent knowledge provides additional context, you may reference it briefly.
     
     Return your evaluation as JSON with this exact structure:
     {{
@@ -101,14 +97,14 @@ harmonizer_evaluation:
       "recommend": true/false,
       "reason": "1-2 sentence explanation of recommendation",
       "notes": ["key observation 1", "key observation 2"],
-      "sources": ["culture_indicators", "work_environment"]
+      "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
     }}
   expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
   agent: harmonizer_agent
 
 pathfinder_evaluation:
   description: |
-    Evaluate strategic career path alignment and future opportunity potential.
+    Assess whether this role supports the candidate’s desired lifestyle and work–life balance.
     
     Job Details:
     - Title: {job_title}
@@ -116,20 +112,18 @@ pathfinder_evaluation:
     - Location: {job_location}
     - Description: {job_description}
     
-    Career Context: {career_brand_digest}
-    
     Options: {options}
-    
     Helper Insights: {helper_snapshot}
     
     Focus on:
-    - Strategic career positioning
-    - Industry and domain alignment
-    - Network and relationship building potential
-    - Future opportunity pathways
-    - Skill portfolio development
+    - Flexibility in work hours and arrangements (remote, hybrid, onsite)
+    - Travel demands and impact on lifestyle
+    - Workload expectations and balance signals
+    - Location factors that influence daily life (commute, relocation, time zones)
+    - Overall sustainability of the role for the candidate’s preferred way of living
     
-    If helper_snapshot contains useful keys for your lens, cite them briefly in your reason; otherwise proceed without helpers.
+    If helper_snapshot contains useful lifestyle or flexibility signals, cite them briefly in your reason; otherwise proceed without helpers.
+    If your agent knowledge provides additional context, you may reference it briefly.
     
     Return your evaluation as JSON with this exact structure:
     {{
@@ -137,14 +131,14 @@ pathfinder_evaluation:
       "recommend": true/false,
       "reason": "1-2 sentence explanation of recommendation",
       "notes": ["key observation 1", "key observation 2"],
-      "sources": ["career_strategy", "industry_analysis"]
+      "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
     }}
   expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
   agent: pathfinder_agent
 
 adventurer_evaluation:
   description: |
-    Assess innovation, learning opportunities, and intellectual stimulation potential.
+    Assess whether this opportunity offers meaningful purpose, impact, and inspiring challenges.
     
     Job Details:
     - Title: {job_title}
@@ -152,20 +146,18 @@ adventurer_evaluation:
     - Location: {job_location}
     - Description: {job_description}
     
-    Career Context: {career_brand_digest}
-    
     Options: {options}
-    
     Helper Insights: {helper_snapshot}
     
     Focus on:
-    - Innovation and emerging technology exposure
-    - Learning and experimentation opportunities
-    - Creative problem-solving challenges
-    - Cross-functional collaboration potential
-    - Intellectual curiosity and growth stimulation
+    - Alignment with mission or purpose-driven work
+    - Opportunities to create societal or organizational impact
+    - Inspiring challenges that go beyond routine tasks
+    - Contribution to innovation that matters
+    - Signals that the role can foster passion and long-term commitment
     
-    If helper_snapshot contains useful keys for your lens, cite them briefly in your reason; otherwise proceed without helpers.
+    If helper_snapshot contains useful purpose or impact signals, cite them briefly in your reason; otherwise proceed without helpers.
+    If your agent knowledge provides additional context, you may reference it briefly.
     
     Return your evaluation as JSON with this exact structure:
     {{
@@ -173,7 +165,7 @@ adventurer_evaluation:
       "recommend": true/false,
       "reason": "1-2 sentence explanation of recommendation",
       "notes": ["key observation 1", "key observation 2"],
-      "sources": ["innovation_indicators", "learning_opportunities"]
+      "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
     }}
   expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
   agent: adventurer_agent
@@ -188,8 +180,6 @@ data_analyst_task:
     - Company: {job_company}
     - Location: {job_location}
     - Description: {job_description}
-    
-    Career Context: {career_brand_digest}
     
     Options: {options}
     
@@ -213,8 +203,6 @@ strategist_task:
     - Location: {job_location}
     - Description: {job_description}
     
-    Career Context: {career_brand_digest}
-    
     Options: {options}
     
     Analyze industry trends and strategic alignment. Return compact JSON only (≤600 chars):
@@ -227,76 +215,6 @@ strategist_task:
   expected_output: "Compact JSON with signals and refs fields (≤600 chars)"
   agent: strategist
 
-stakeholder_task:
-  description: |
-    Evaluate cross-functional partnership risks and opportunities.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Career Context: {career_brand_digest}
-    
-    Options: {options}
-    
-    Assess partnership dynamics and collaboration factors. Return compact JSON only (≤600 chars):
-    {{
-      "partners": ["key partner 1", "key partner 2"],
-      "risks": ["risk 1", "risk 2"]
-    }}
-    
-    On insufficient signal, return: {{"partners": [], "risks": []}}
-  expected_output: "Compact JSON with partners and risks fields (≤600 chars)"
-  agent: stakeholder
-
-technical_leader_task:
-  description: |
-    Assess delivery feasibility and architecture trade-offs.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Career Context: {career_brand_digest}
-    
-    Options: {options}
-    
-    Evaluate technical delivery and architecture considerations. Return compact JSON only (≤600 chars):
-    {{
-      "notes": ["technical note 1", "technical note 2"]
-    }}
-    
-    On insufficient signal, return: {{"notes": []}}
-  expected_output: "Compact JSON with notes field (≤600 chars)"
-  agent: technical_leader
-
-recruiter_task:
-  description: |
-    Identify ATS and keyword gaps against job description.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Career Context: {career_brand_digest}
-    
-    Options: {options}
-    
-    Analyze ATS optimization and keyword alignment. Return compact JSON only (≤600 chars):
-    {{
-      "keyword_gaps": ["missing keyword 1", "missing keyword 2"]
-    }}
-    
-    On insufficient signal, return: {{"keyword_gaps": []}}
-  expected_output: "Compact JSON with keyword_gaps field (≤600 chars)"
-  agent: recruiter
-
 skeptic_task:
   description: |
     Perform red-flag scan for financial, legal, and culture warning signals.
@@ -306,8 +224,6 @@ skeptic_task:
     - Company: {job_company}
     - Location: {job_location}
     - Description: {job_description}
-    
-    Career Context: {career_brand_digest}
     
     Options: {options}
     
@@ -320,28 +236,6 @@ skeptic_task:
   expected_output: "Compact JSON with redflags field (≤600 chars)"
   agent: skeptic
 
-optimizer_task:
-  description: |
-    Suggest top three quick tweaks to strengthen application.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Career Context: {career_brand_digest}
-    
-    Options: {options}
-    
-    Provide application optimization recommendations. Return compact JSON only (≤600 chars):
-    {{
-      "top3": ["optimization 1", "optimization 2", "optimization 3"]
-    }}
-    
-    On insufficient signal, return: {{"top3": []}}
-  expected_output: "Compact JSON with top3 field (≤600 chars)"
-  agent: optimizer
 
 helper_snapshot:
   description: |
@@ -352,8 +246,6 @@ helper_snapshot:
     - Company: {job_company}
     - Location: {job_location}
     - Description: {job_description}
-    
-    Career Context: {career_brand_digest}
     
     Options: {options}
     

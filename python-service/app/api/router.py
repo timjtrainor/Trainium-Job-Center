@@ -11,12 +11,13 @@ from app.routes.jobs_fit_review import router as jobs_fit_review_router
 
 api_router = APIRouter()
 
-api_router.include_router(health_router, tags=["health"])
-api_router.include_router(jobspy_router, prefix="/jobs", tags=["jobs", "scraping"])
-api_router.include_router(scheduler_router, prefix="/scheduler", tags=["scheduler"])
-api_router.include_router(crewai_review_router, tags=["job-review", "crewai"])
-api_router.include_router(crewai_personal_brand_router, tags=["job-review", "crewai"])
-api_router.include_router(chroma_router, tags=["chroma", "vector-database"])
+api_router.include_router(jobspy_router, prefix="/job-feed", tags=["Job Feed"])
+api_router.include_router(scheduler_router, prefix="/scheduler", tags=["Scheduler"])
+api_router.include_router(crewai_review_router, prefix="/crewai", tags=["CrewAI"])
+api_router.include_router(crewai_personal_brand_router, prefix="/crewai", tags=["CrewAI"])
+api_router.include_router(chroma_router, tags=["Vector-Database"])
+# Health check
+api_router.include_router(health_router, tags=["Health"])
 api_router.include_router(jobs_fit_review_router, tags=["job-posting-fit-review"])
 
 __all__ = ["api_router"]

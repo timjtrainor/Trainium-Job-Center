@@ -278,7 +278,6 @@ def build_context(job_posting: Dict[str, Any], profile_id: Optional[str] = None)
     # Build the context that crew.py will forward to YAML placeholders
     context = {
         "normalized_jd": normalized_jd,
-        "career_brand_digest": career_data["digest"],
         "doc_ids": career_data["doc_ids"],
         "scores": career_data["scores"],
         "tags": tags,

@@ -40,7 +40,6 @@ class TestHelpersYaml:
         """Sample inputs with helpers enabled."""
         return {
             "job_posting_data": sample_job_posting,
-            "career_brand_digest": "Experienced software engineer with expertise in distributed systems and team leadership.",
             "options": {"use_helpers": True, "priority": "growth"}
         }
     
@@ -49,7 +48,6 @@ class TestHelpersYaml:
         """Sample inputs with helpers disabled."""
         return {
             "job_posting_data": sample_job_posting,
-            "career_brand_digest": "Experienced software engineer with expertise in distributed systems.",
             "options": {"use_helpers": False, "priority": "growth"}
         }
     
