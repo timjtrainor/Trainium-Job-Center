@@ -12,7 +12,7 @@ from loguru import logger
 from crewai import Agent, Crew, Task, Process
 from crewai.project import CrewBase, agent, task, crew, before_kickoff, after_kickoff
 from crewai.llm import BaseLLM
-from langchain.tools import BaseTool
+from crewai.tools import BaseTool
 
 from .. import base
 from ...ai.llm_clients import LLMRouter

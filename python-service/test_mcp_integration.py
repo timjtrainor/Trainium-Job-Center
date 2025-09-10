@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent / "app"))
 
 from app.services.mcp_adapter import MCPServerAdapter, get_mcp_adapter
 from app.services.crewai import base
-from langchain.tools import BaseTool
+from crewai.tools import BaseTool
 from app.core.config import get_settings
 from loguru import logger
 
