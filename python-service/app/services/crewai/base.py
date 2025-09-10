@@ -4,7 +4,7 @@ Shared utilities for CrewAI multi-crew architecture.
 This module provides common utilities for implementing 
 scalable CrewAI crews following best practices.
 """
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Callable
 from pathlib import Path
 from loguru import logger
 import yaml
@@ -13,6 +13,22 @@ import asyncio
 
 from ..mcp_adapter import get_mcp_adapter, create_sync_tool_wrapper
 from ...core.config import get_settings
+from langchain.tools import BaseTool
+
+
+class MCPDynamicTool(BaseTool):
+    """Lightweight wrapper around MCP tools for LangChain compatibility."""
+
+    name: str
+    description: str = ""
+    executor: Callable[..., Any]
+    parameters: Dict[str, Any] | None = None
+
+    def _run(self, *args: Any, **kwargs: Any) -> Any:  # type: ignore[override]
+        return self.executor(*args, **kwargs)
+
+    async def _arun(self, *args: Any, **kwargs: Any) -> Any:  # type: ignore[override]
+        raise NotImplementedError("MCPDynamicTool does not support async execution")
 
 
 def load_agent_config(base_dir: Path, agent_name: str) -> Dict[str, Any]:
@@ -73,7 +89,7 @@ def log_crew_execution(crew_name: str, inputs: Dict[str, Any], result: Any):
         logger.info(f"{crew_name} crew executed successfully")
 
 
-async def load_mcp_tools(tool_names: List[str]) -> List[Any]:
+async def load_mcp_tools(tool_names: List[str]) -> List[BaseTool]:
     """
     Load tools from MCP servers through the Docker MCP Gateway.
     
@@ -119,15 +135,14 @@ async def load_mcp_tools(tool_names: List[str]) -> List[Any]:
                 # Convert async tool to sync for CrewAI compatibility
                 async_executor = adapter._create_tool_executor(tool_name, tool_config)
                 sync_executor = create_sync_tool_wrapper(async_executor)
-                
-                # Create CrewAI-compatible tool
-                tool = {
-                    "name": tool_name,
-                    "description": tool_config.get("description", ""),
-                    "func": sync_executor,
-                    "parameters": tool_config.get("parameters", {})
-                }
-                
+
+                tool = MCPDynamicTool(
+                    name=tool_name,
+                    description=tool_config.get("description", ""),
+                    executor=sync_executor,
+                    parameters=tool_config.get("parameters", {}),
+                )
+
                 loaded_tools.append(tool)
                 logger.info(f"Loaded MCP tool: {tool_name}")
                 
@@ -138,7 +153,7 @@ async def load_mcp_tools(tool_names: List[str]) -> List[Any]:
         return []
 
 
-def load_mcp_tools_sync(tool_names: List[str]) -> List[Any]:
+def load_mcp_tools_sync(tool_names: List[str]) -> List[BaseTool]:
     """
     Synchronous wrapper for loading MCP tools.
     
@@ -173,7 +188,7 @@ def load_mcp_tools_sync(tool_names: List[str]) -> List[Any]:
         return []
 
 
-def get_duckduckgo_tools() -> List[Any]:
+def get_duckduckgo_tools() -> List[BaseTool]:
     """
     Get DuckDuckGo tools specifically for web search capabilities.
     

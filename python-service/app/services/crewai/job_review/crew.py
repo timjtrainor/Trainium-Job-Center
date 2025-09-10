@@ -12,6 +12,7 @@ from loguru import logger
 from crewai import Agent, Crew, Task, Process
 from crewai.project import CrewBase, agent, task, crew, before_kickoff, after_kickoff
 from crewai.llm import BaseLLM
+from langchain.tools import BaseTool
 
 from .. import base
 from ...ai.llm_clients import LLMRouter
@@ -39,7 +40,7 @@ class JobReviewCrew:
         self._agent_llms: Dict[str, BaseLLM] = {}
         self.tasks_config = base.load_tasks_config(self.base_dir, "job_review/config")
 
-    def _load_tools(self, tool_names: List[str]) -> List[Any]:
+    def _load_tools(self, tool_names: List[str]) -> List[BaseTool]:
         """Resolve tool names to actual implementations using MCP Gateway.
 
         Loads tools from MCP servers through the Docker MCP Gateway.
@@ -52,7 +53,7 @@ class JobReviewCrew:
             # Load tools from MCP Gateway
             mcp_tools = base.load_mcp_tools_sync(tool_names)
             if mcp_tools:
-                logger.info(f"Loaded {len(mcp_tools)} MCP tools: {[t.get('name', 'unknown') for t in mcp_tools]}")
+                logger.info(f"Loaded {len(mcp_tools)} MCP tools: {[t.name for t in mcp_tools]}")
                 return mcp_tools
             else:
                 logger.warning(f"No MCP tools loaded for: {tool_names}")
