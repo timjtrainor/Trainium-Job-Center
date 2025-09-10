@@ -96,7 +96,14 @@ async def test_api_endpoints():
     scheduler_routes = [route.path for route in scheduler_router.routes]
     
     # Validate jobspy endpoints
-    expected_jobspy_routes = ['/scrape', '/scrape/{run_id}', '/sites', '/health', '/queue/status']
+    expected_jobspy_routes = [
+        '/scrape',
+        '/scrape/{run_id}',
+        '/sites',
+        '/sites/names',
+        '/health',
+        '/queue/status'
+    ]
     for expected_route in expected_jobspy_routes:
         assert any(expected_route in route for route in jobspy_routes), f"Missing route: {expected_route}"
     

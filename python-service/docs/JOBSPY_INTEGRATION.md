@@ -29,6 +29,9 @@ Scrape jobs from a specified job board.
 ### GET `/jobs/sites`
 Get information about supported job sites.
 
+### GET `/jobs/sites/names`
+List the identifiers of supported job sites.
+
 ### GET `/jobs/health`
 Check JobSpy service health status.
 
