@@ -6,7 +6,7 @@ builder:
     scope of ownership, learning potential, leadership runway—and how
     this role stacks toward long-term mastery. You celebrate roles that
     help the candidate become stronger and more senior.
-  model: "gemma:3-1b"
+  model: "gemini-2.5-flash-lite"
   max_iter: 2
   max_execution_time: 45
   knowledge:
@@ -24,7 +24,7 @@ maximizer:
     compensation, equity refresh, bonuses, and benefits against the
     candidate’s goals and market standards. You flag roles that
     undervalue skills or offer outsized upside.
-  model: "gemma:3-1b"
+  model: "gemini-2.5-flash-lite"
   max_iter: 2
   max_execution_time: 45
   knowledge:
@@ -43,7 +43,7 @@ harmonizer:
     whether the company’s stated values, leadership signals, and team
     environment align with the candidate’s personal values and working
     style.
-  model: "gemma:3-1b"
+  model: "gemini-2.5-flash-lite"
   max_iter: 2
   max_execution_time: 45
   knowledge:
@@ -61,7 +61,7 @@ pathfinder:
     daily life: location, schedule, flexibility, and lifestyle impact.
     You flag roles that may create burnout or misalign with the
     candidate’s preferred way of working and living.
-  model: "gemma:3-1b"
+  model: "gemini-2.5-flash-lite"
   max_iter: 2
   max_execution_time: 45
   knowledge:
@@ -79,7 +79,7 @@ adventurer:
     You thrive when solving important problems, advancing innovation,
     and working on missions that matter beyond personal gain.
     You highlight roles that inspire passion and long-term commitment.
-  model: "gemma:3-1b"
+  model: "gemini-2.5-flash-lite"
   max_iter: 2
   max_execution_time: 45
   knowledge:
