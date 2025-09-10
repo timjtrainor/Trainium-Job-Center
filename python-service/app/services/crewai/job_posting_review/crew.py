@@ -908,76 +908,30 @@ def _format_crew_result(
             ]
         }
     
-    # Handle actual crew results (transform to expected format)
+    # Attempt to parse unexpected crew results and surface errors
     try:
-        # Extract information from crew result
-        result_str = str(crew_result) if crew_result else ""
-        
-        return {
-            "job_id": job_id,
-            "final": {
-                "recommend": True,  # Default based on crew analysis
-                "rationale": f"Analysis completed via YAML-defined motivational fan-out: {result_str[:200]}",
-                "confidence": "medium"
-            },
-            "personas": [
-                {
-                    "id": "builder",
-                    "recommend": True,
-                    "reason": "Technical analysis completed",
-                    "notes": ["System requirements analyzed"],
-                    "sources": ["job_description"]
-                },
-                {
-                    "id": "maximizer",
-                    "recommend": True,
-                    "reason": "Growth analysis completed",
-                    "notes": ["Opportunities assessed"],
-                    "sources": ["career_analysis"]
-                },
-                {
-                    "id": "harmonizer",
-                    "recommend": True,
-                    "reason": "Cultural fit analysis completed",
-                    "notes": ["Environment evaluated"],
-                    "sources": ["culture_assessment"]
-                },
-                {
-                    "id": "pathfinder",
-                    "recommend": True,
-                    "reason": "Strategic analysis completed",
-                    "notes": ["Career path evaluated"],
-                    "sources": ["strategic_analysis"]
-                },
-                {
-                    "id": "adventurer",
-                    "recommend": True,
-                    "reason": "Innovation analysis completed",
-                    "notes": ["Learning opportunities assessed"],
-                    "sources": ["innovation_assessment"]
-                }
-            ],
-            "tradeoffs": ["Growth potential vs current state"],
-            "actions": ["Apply with tailored approach"],
-            "sources": ["job_description", "crew_analysis"]
-        }
-        
-    except Exception as e:
-        logger.warning(
-            f"Failed to parse crew result, using fallback format: {str(e)}",
-            extra={"correlation_id": correlation_id}
+        parsed_result = (
+            json.loads(crew_result) if isinstance(crew_result, str) else crew_result
         )
-        
-        # Fallback format
-        return {
-            "job_id": job_id,
-            "final": {
-                "recommend": False,
-                "rationale": "Analysis incomplete due to parsing error",
-                "confidence": "low"
-            },
-            "personas": [],
-            "tradeoffs": [],
-            "actions": [],
-            "sources": []
+    except Exception as parse_err:
+        logger.error(
+            "Malformed crew result: JSON parsing failed",
+            extra={
+                "correlation_id": correlation_id,
+                "raw_result": str(crew_result)[:1000],
+                "error": str(parse_err)
+            }
+        )
+        raise ValueError("Failed to parse crew result") from parse_err
+
+    if isinstance(parsed_result, dict) and "motivational_verdicts" in parsed_result:
+        return _format_crew_result(parsed_result, job_posting_data, correlation_id)
+
+    logger.error(
+        "Malformed crew result: missing 'motivational_verdicts'",
+        extra={
+            "correlation_id": correlation_id,
+            "raw_result": str(parsed_result)[:1000]
         }
+    )
+    raise ValueError("Crew result missing 'motivational_verdicts'")
