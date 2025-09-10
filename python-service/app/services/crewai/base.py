@@ -13,11 +13,11 @@ import asyncio
 
 from ..mcp_adapter import get_mcp_adapter, create_sync_tool_wrapper
 from ...core.config import get_settings
-from langchain.tools import BaseTool
+from crewai.tools import BaseTool
 
 
 class MCPDynamicTool(BaseTool):
-    """Lightweight wrapper around MCP tools for LangChain compatibility."""
+    """Lightweight wrapper around MCP tools for CrewAI compatibility."""
 
     name: str
     description: str = ""
