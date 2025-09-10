@@ -1,189 +1,216 @@
 """
-Simple MCP Gateway implementation for managing MCP servers.
+MCP Gateway implementation for managing MCP servers like DuckDuckGo.
 
-This provides a REST API to interact with MCP servers, specifically
-designed for DuckDuckGo search integration with CrewAI.
+This service exposes a REST API that allows clients to connect to MCP
+servers, inspect their available tools, and execute those tools. It uses the
+Model Context Protocol Python toolkit and launches each server as a
+subprocess based on configuration in ``/config/servers.json``.
 """
-import asyncio
+
 import json
 import os
 import uuid
-from typing import Dict, List, Any, Optional
 from contextlib import asynccontextmanager
+from typing import Any, Dict, List
 
-import httpx
+import uvicorn
 from fastapi import FastAPI, HTTPException, status
 from loguru import logger
-import uvicorn
+
+from mcp import ClientSession
+from mcp.transport import SubprocessTransport
+from mcp.types import Tool as MCPTool
 
 
-class MockMCPGateway:
-    """
-    Mock MCP Gateway for development and testing.
-    
-    This implementation provides a simplified MCP server interface
-    focused on DuckDuckGo search capabilities.
-    """
-    
+class MCPGateway:
+    """Gateway for managing MCP server subprocesses."""
+
     def __init__(self, config_path: str = "/config/servers.json"):
         self.config_path = config_path
-        self.servers_config = {}
-        self.active_sessions = {}
+        self.servers_config: Dict[str, Any] = {}
+        # session_id -> {server_name, transport, protocol, client}
+        self.active_sessions: Dict[str, Dict[str, Any]] = {}
+        # server_name -> session_id
+        self.server_sessions: Dict[str, str] = {}
         self.load_config()
-        
-    def load_config(self):
-        """Load MCP servers configuration."""
+
+    def load_config(self) -> None:
+        """Load server configuration from JSON file."""
         try:
             if os.path.exists(self.config_path):
-                with open(self.config_path, 'r') as f:
+                with open(self.config_path, "r") as f:
                     config = json.load(f)
                     self.servers_config = config.get("servers", {})
-                    logger.info(f"Loaded {len(self.servers_config)} MCP server configurations")
+                    logger.info(
+                        f"Loaded {len(self.servers_config)} MCP server configurations"
+                    )
             else:
                 logger.warning(f"Config file not found: {self.config_path}")
-                # Default configuration for DuckDuckGo
-                self.servers_config = {
-                    "duckduckgo": {
-                        "description": "DuckDuckGo search server for web searches",
-                        "capabilities": {
-                            "tools": {
-                                "web_search": {
-                                    "description": "Search the web using DuckDuckGo",
-                                    "parameters": {
-                                        "query": {
-                                            "type": "string", 
-                                            "description": "Search query"
-                                        },
-                                        "max_results": {
-                                            "type": "integer",
-                                            "description": "Maximum number of results to return",
-                                            "default": 5
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                self.servers_config = {}
         except Exception as e:
             logger.error(f"Failed to load config: {e}")
             self.servers_config = {}
-            
+
     async def get_servers(self) -> Dict[str, Any]:
-        """Get available MCP servers."""
+        """Return available server configurations."""
         return self.servers_config
-        
+
     async def connect_server(self, server_name: str) -> Dict[str, str]:
-        """Connect to an MCP server."""
+        """Launch and connect to an MCP server."""
         if server_name not in self.servers_config:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Server '{server_name}' not found"
+                detail=f"Server '{server_name}' not found",
             )
-            
-        session_id = str(uuid.uuid4())
-        self.active_sessions[session_id] = {
-            "server_name": server_name,
-            "created_at": asyncio.get_event_loop().time()
-        }
-        
-        logger.info(f"Created session {session_id} for server '{server_name}'")
-        return {"session_id": session_id, "status": "connected"}
-        
-    async def disconnect_server(self, server_name: str, session_id: str) -> Dict[str, str]:
-        """Disconnect from an MCP server."""
-        if session_id in self.active_sessions:
-            del self.active_sessions[session_id]
-            logger.info(f"Disconnected session {session_id} for server '{server_name}'")
-            
-        return {"status": "disconnected"}
-        
-    async def get_server_tools(self, server_name: str) -> Dict[str, Any]:
-        """Get available tools for a server."""
-        if server_name not in self.servers_config:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Server '{server_name}' not found"
-            )
-            
-        server_config = self.servers_config[server_name]
-        tools = []
-        
-        for tool_name, tool_config in server_config.get("capabilities", {}).get("tools", {}).items():
-            tools.append({
-                "name": tool_name,
-                "description": tool_config.get("description", ""),
-                "parameters": tool_config.get("parameters", {})
-            })
-            
-        return {"tools": tools}
-        
-    async def execute_tool(self, server_name: str, tool_name: str, session_id: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a tool on an MCP server."""
-        if session_id not in self.active_sessions:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid session ID"
-            )
-            
-        if server_name != "duckduckgo":
-            raise HTTPException(
-                status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                detail=f"Server '{server_name}' not implemented"
-            )
-            
-        if tool_name != "web_search":
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Tool '{tool_name}' not found"
-            )
-            
-        # Mock DuckDuckGo search implementation
-        query = arguments.get("query", "")
-        max_results = arguments.get("max_results", 5)
-        
-        if not query:
-            return {"result": "Error: Query parameter is required"}
-            
-        # Simulate search results
-        mock_results = [
-            {
-                "title": f"Search result {i+1} for '{query}'",
-                "url": f"https://example.com/result{i+1}",
-                "snippet": f"This is a mock search result snippet for query '{query}'. Result {i+1} contains relevant information."
+
+        # Reuse existing session if already connected
+        if server_name in self.server_sessions:
+            session_id = self.server_sessions[server_name]
+            return {"session_id": session_id, "status": "connected"}
+
+        cfg = self.servers_config[server_name]
+        command = cfg.get("command")
+        args = cfg.get("args", [])
+        env = cfg.get("env", {})
+
+        try:
+            transport = SubprocessTransport(command, args=args, env=env)
+            await transport.start()
+            protocol = transport.open_session()
+            client = ClientSession(protocol)
+            await client.initialize()
+
+            session_id = str(uuid.uuid4())
+            self.active_sessions[session_id] = {
+                "server_name": server_name,
+                "transport": transport,
+                "protocol": protocol,
+                "client": client,
             }
-            for i in range(min(max_results, 3))  # Limit to 3 mock results
-        ]
-        
-        result_text = f"Found {len(mock_results)} results for '{query}':\n\n"
-        for i, result in enumerate(mock_results, 1):
-            result_text += f"{i}. {result['title']}\n"
-            result_text += f"   URL: {result['url']}\n"
-            result_text += f"   {result['snippet']}\n\n"
-            
-        logger.info(f"Executed DuckDuckGo search for query: '{query}', returned {len(mock_results)} results")
-        
-        return {"result": result_text}
+            self.server_sessions[server_name] = session_id
+
+            logger.info(
+                f"Connected to MCP server '{server_name}' with session {session_id}"
+            )
+            return {"session_id": session_id, "status": "connected"}
+        except Exception as e:
+            logger.error(f"Failed to connect to server '{server_name}': {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to connect to server '{server_name}'",
+            )
+
+    async def disconnect_server(self, server_name: str, session_id: str) -> Dict[str, str]:
+        """Disconnect and terminate a server session."""
+        session = self.active_sessions.pop(session_id, None)
+        self.server_sessions.pop(server_name, None)
+
+        if not session:
+            return {"status": "disconnected"}
+
+        transport: SubprocessTransport = session.get("transport")
+        protocol = session.get("protocol")
+        client: ClientSession = session.get("client")
+
+        # Best effort cleanup
+        try:
+            await client.close()
+        except Exception:
+            pass
+        try:
+            await protocol.close()
+        except Exception:
+            pass
+        try:
+            await transport.close()
+        except Exception:
+            pass
+
+        logger.info(
+            f"Disconnected session {session_id} for server '{server_name}'"
+        )
+        return {"status": "disconnected"}
+
+    async def get_server_tools(self, server_name: str) -> Dict[str, Any]:
+        """List tools provided by a connected server."""
+        if server_name not in self.server_sessions:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Server '{server_name}' not connected",
+            )
+
+        session_id = self.server_sessions[server_name]
+        client: ClientSession = self.active_sessions[session_id]["client"]
+
+        tools: List[MCPTool] = (await client.list_tools()).tools
+        tool_list = []
+        for tool in tools:
+            tool_list.append(
+                {
+                    "name": tool.name,
+                    "description": getattr(tool, "description", ""),
+                    "parameters": getattr(tool, "input_schema", {}),
+                }
+            )
+
+        return {"tools": tool_list}
+
+    async def execute_tool(
+        self,
+        server_name: str,
+        tool_name: str,
+        session_id: str,
+        arguments: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Execute a tool on a connected server."""
+        session = self.active_sessions.get(session_id)
+        if not session or session.get("server_name") != server_name:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session '{session_id}' not found for server '{server_name}'",
+            )
+
+        client: ClientSession = session["client"]
+
+        try:
+            response = await client.call_tool(tool_name, arguments)
+            parts = []
+            for item in getattr(response, "content", []):
+                text = getattr(item, "text", None)
+                if text:
+                    parts.append(text)
+            result_text = "\n".join(parts) if parts else str(response)
+            logger.info(
+                f"Executed tool '{tool_name}' on server '{server_name}'"
+            )
+            return {"result": result_text}
+        except Exception as e:
+            logger.error(
+                f"Error executing tool '{tool_name}' on server '{server_name}': {e}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error executing tool '{tool_name}' on server '{server_name}'",
+            )
 
 
-# Initialize the gateway
-gateway = MockMCPGateway()
+# Initialize the gateway instance
+gateway = MCPGateway()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan management."""
     logger.info("Starting MCP Gateway")
     yield
     logger.info("Shutting down MCP Gateway")
 
 
-# Create FastAPI app
+# FastAPI application
 app = FastAPI(
     title="MCP Gateway",
     description="Gateway for managing MCP servers",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 
@@ -195,46 +222,44 @@ async def health_check():
 
 @app.get("/servers")
 async def get_servers():
-    """Get available MCP servers."""
+    """Return available MCP servers."""
     return await gateway.get_servers()
 
 
 @app.post("/servers/{server_name}/connect")
 async def connect_server(server_name: str):
-    """Connect to an MCP server."""
+    """Connect to a configured MCP server."""
     return await gateway.connect_server(server_name)
 
 
 @app.post("/servers/{server_name}/disconnect")
 async def disconnect_server(server_name: str, request: Dict[str, str]):
-    """Disconnect from an MCP server."""
+    """Disconnect from a connected MCP server."""
     session_id = request.get("session_id")
     if not session_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="session_id is required"
+            detail="session_id is required",
         )
     return await gateway.disconnect_server(server_name, session_id)
 
 
 @app.get("/servers/{server_name}/tools")
 async def get_server_tools(server_name: str):
-    """Get available tools for a server."""
+    """List available tools for a server."""
     return await gateway.get_server_tools(server_name)
 
 
 @app.post("/servers/{server_name}/tools/{tool_name}/execute")
 async def execute_tool(server_name: str, tool_name: str, request: Dict[str, Any]):
-    """Execute a tool on an MCP server."""
+    """Execute a tool on the specified server."""
     session_id = request.get("session_id")
     arguments = request.get("arguments", {})
-    
     if not session_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="session_id is required"
+            detail="session_id is required",
         )
-        
     return await gateway.execute_tool(server_name, tool_name, session_id, arguments)
 
 
@@ -245,12 +270,11 @@ if __name__ == "__main__":
         lambda msg: print(msg, end=""),
         format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} - {message}",
         level="INFO",
-        colorize=True
+        colorize=True,
     )
-    
-    # Run the gateway
+
     host = os.getenv("MCP_GATEWAY_HOST", "0.0.0.0")
     port = int(os.getenv("MCP_GATEWAY_PORT", "8080"))
-    
     logger.info(f"Starting MCP Gateway on {host}:{port}")
     uvicorn.run(app, host=host, port=port)
+
