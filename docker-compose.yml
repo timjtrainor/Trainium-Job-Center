@@ -126,6 +126,9 @@ services:
       CHROMA_PORT: ${CHROMA_PORT:-8001}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      # MCP Gateway configuration
+      MCP_GATEWAY_URL: ${MCP_GATEWAY_URL:-http://mcp-gateway:8080}
+      MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED:-true}
     volumes:
       # Mount the python service code for development
       - ./python-service:/app
@@ -133,6 +136,8 @@ services:
       redis:
         condition: service_healthy
       chromadb:
+        condition: service_healthy
+      mcp-gateway:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -200,6 +205,28 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+
+  # Docker MCP Gateway for managing MCP servers
+  mcp-gateway:
+    build:
+      context: ./python-service
+      dockerfile: Dockerfile.mcp-gateway
+    container_name: trainium_mcp_gateway
+    restart: always
+    ports:
+      - "${MCP_GATEWAY_PORT:-8080}:8080"
+    environment:
+      - MCP_GATEWAY_HOST=0.0.0.0
+      - MCP_GATEWAY_PORT=8080
+      - MCP_SERVERS_CONFIG=/config/servers.json
+    volumes:
+      - ./python-service/mcp-config:/config:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 
 volumes:

@@ -44,4 +44,7 @@ chromadb == 0.5.23
 sentence-transformers==4.1.0
 torch==2.2.0
 
+# MCP (Model Context Protocol) support
+mcp==1.13.1
+
 

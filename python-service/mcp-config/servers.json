@@ -1,0 +1,32 @@
+{
+  "servers": {
+    "duckduckgo": {
+      "command": "python",
+      "args": ["-m", "mcp_server_duckduckgo"],
+      "env": {},
+      "description": "DuckDuckGo search server for web searches",
+      "capabilities": {
+        "tools": {
+          "web_search": {
+            "description": "Search the web using DuckDuckGo",
+            "parameters": {
+              "query": {
+                "type": "string", 
+                "description": "Search query"
+              },
+              "max_results": {
+                "type": "integer",
+                "description": "Maximum number of results to return",
+                "default": 5
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "gateway": {
+    "port": 8080,
+    "host": "0.0.0.0"
+  }
+}
