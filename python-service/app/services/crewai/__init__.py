@@ -12,5 +12,7 @@ __all__ = [
     "get_job_review_crew",
     "PersonalBrandCrew",
     "get_personal_brand_crew",
+    "ResearchCompanyCrew",
+    "get_research_company_crew",
 ]
 
