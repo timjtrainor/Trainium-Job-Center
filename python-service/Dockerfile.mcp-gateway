@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir \
     uvicorn[standard]==0.35.0 \
     httpx==0.28.1 \
     loguru==0.7.3 \
-    model-context-protocol
+    mcp
 
 # Copy MCP Gateway implementation
 COPY mcp_gateway.py /app/

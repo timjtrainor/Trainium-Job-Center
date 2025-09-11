@@ -45,6 +45,6 @@ sentence-transformers==4.1.0
 torch==2.2.0
 
 # MCP (Model Context Protocol) support
-model-context-protocol
+mcp
 
 
