@@ -184,7 +184,7 @@ def main():
         print("\n🎉 All validations passed! Implementation looks good.")
         print("\n📋 Next steps:")
         print("   1. Build and start services: docker-compose up --build")
-        print("   2. Test MCP gateway: curl http://localhost:3000/health") 
+        print("   2. Test MCP gateway: curl http://localhost:8811/health")
         print("   3. Run job review crew with different models")
         return 0
     else:

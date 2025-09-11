@@ -24,11 +24,11 @@ RUN useradd -m -u 1000 mcpuser && chown -R mcpuser:mcpuser /app
 USER mcpuser
 
 # Expose port
-EXPOSE 3000
+EXPOSE 8811
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
+    CMD curl -f http://localhost:8811/health || exit 1
 
 # Start the server
 CMD ["python", "main.py"]

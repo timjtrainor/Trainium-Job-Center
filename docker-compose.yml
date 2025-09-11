@@ -126,6 +126,9 @@ services:
       CHROMA_PORT: ${CHROMA_PORT:-8001}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      # MCP Gateway configuration
+      MCP_GATEWAY_URL: ${MCP_GATEWAY_URL:-http://mcp-gateway:8080}
+      MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED:-true}
     volumes:
       # Mount the python service code for development
       - ./python-service:/app
@@ -133,6 +136,8 @@ services:
       redis:
         condition: service_healthy
       chromadb:
+        condition: service_healthy
+      mcp-gateway:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -203,21 +208,22 @@ services:
 
   # Defines the MCP Gateway service for Model Context Protocol servers
   mcp-gateway:
-    build:
-      context: ./docker/mcp-gateway
-      dockerfile: Dockerfile
     container_name: trainium_mcp_gateway
-    restart: always
-    ports:
-      - "${MCP_GATEWAY_PORT:-3000}:3000"
-    volumes:
-      # Mount configuration for extensibility
-      - ./docker/mcp-gateway/config:/app/config:ro
+    image: docker/mcp-gateway
     environment:
-      PORT: 3000
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Environment configuration for scheduler
+      ENVIRONMENT: ${MCP_GATEWAY_PORT:-8811}
+    command:
+      - --servers=duckduckgo
+      - --transport=sse
+      - --port=${MCP_GATEWAY_PORT:-8811}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "${MCP_GATEWAY_PORT:-8811}:8811"
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: wget -O- http://localhost:8811/health
       interval: 30s
       timeout: 10s
       retries: 3

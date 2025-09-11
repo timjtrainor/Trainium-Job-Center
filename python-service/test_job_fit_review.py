@@ -62,7 +62,7 @@ def test_mcp_tool_import():
         print("   ✅ Successfully imported MCP gateway tool")
         
         # Test tool creation
-        tool = create_mcp_gateway_tool(gateway_url="http://localhost:3000")
+        tool = create_mcp_gateway_tool(gateway_url="http://localhost:8811")
         print(f"   ✅ Successfully created tool: {tool.name}")
         print(f"   📝 Tool description: {tool.description[:100]}...")
         

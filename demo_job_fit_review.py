@@ -53,7 +53,7 @@ def show_mcp_architecture():
     🔧 Current Implementation:
     • MCP Gateway Service: docker/mcp-gateway/
     • CrewAI Tool: python-service/app/services/crewai/tools/mcp_gateway.py
-    • Docker Service: mcp-gateway (port 3000)
+    • Docker Service: mcp-gateway (port 8811)
     • Default MCP Server: DuckDuckGo search
     """)
 
@@ -130,10 +130,10 @@ def show_usage_examples():
        docker-compose up --build
     
     2. Test MCP gateway health:
-       curl http://localhost:3000/health
+       curl http://localhost:8811/health
     
     3. Test web search via MCP:
-       curl -X POST http://localhost:3000/call \\
+       curl -X POST http://localhost:8811/call \\
          -H "Content-Type: application/json" \\
          -d '{
            "server": "duckduckgo",

@@ -124,7 +124,7 @@ services:
   mcp-gateway:
     # ... existing configuration
     environment:
-      PORT: 3000
+      PORT: 8811
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       BRAVE_API_KEY: ${BRAVE_API_KEY}
       GITHUB_TOKEN: ${GITHUB_TOKEN}
@@ -149,7 +149,7 @@ result = mcp_tool._execute(
 # Create a Brave search specific tool
 def create_brave_search_tool():
     return MCPGatewayTool(
-        gateway_url="http://mcp-gateway:3000",
+        gateway_url="http://mcp-gateway:8811",
         default_server="brave_search"
     )
 ```
@@ -216,20 +216,20 @@ tools:
 
 ```bash
 # Check available servers
-curl http://localhost:3000/servers
+curl http://localhost:8811/servers
 
 # Start a specific server
-curl -X POST http://localhost:3000/servers/filesystem/start
+curl -X POST http://localhost:8811/servers/filesystem/start
 
 # Check server status
-curl http://localhost:3000/health
+curl http://localhost:8811/health
 ```
 
 ### 2. Test Direct MCP Calls
 
 ```bash
 # Test search functionality
-curl -X POST http://localhost:3000/call \
+curl -X POST http://localhost:8811/call \
   -H "Content-Type: application/json" \
   -d '{
     "server": "duckduckgo",
@@ -267,13 +267,13 @@ print(result)
 docker-compose logs mcp-gateway
 
 # Check if gateway is responding
-curl http://localhost:3000/health
+curl http://localhost:8811/health
 
 # List available servers
-curl http://localhost:3000/servers
+curl http://localhost:8811/servers
 
 # Test direct server communication
-curl -X POST http://localhost:3000/call -H "Content-Type: application/json" -d '{"server":"duckduckgo","method":"search","params":{"query":"test"}}'
+curl -X POST http://localhost:8811/call -H "Content-Type: application/json" -d '{"server":"duckduckgo","method":"search","params":{"query":"test"}}'
 ```
 
 ## Best Practices

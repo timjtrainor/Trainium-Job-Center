@@ -48,7 +48,7 @@ class MCPGatewayTool(BaseTool):
     )
     args_schema: Type[BaseModel] = MCPSearchInput
     
-    def __init__(self, gateway_url: str = "http://localhost:3000", **kwargs):
+    def __init__(self, gateway_url: str = "http://localhost:8811", **kwargs):
         """
         Initialize the MCP Gateway tool.
         
@@ -191,12 +191,12 @@ class MCPGatewayTool(BaseTool):
 
 
 # Tool factory function
-def create_mcp_gateway_tool(gateway_url: str = "http://mcp-gateway:3000") -> MCPGatewayTool:
+def create_mcp_gateway_tool(gateway_url: str = "http://mcp-gateway:8811") -> MCPGatewayTool:
     """
     Factory function to create an MCP Gateway tool instance.
     
     Args:
-        gateway_url: URL of the MCP Gateway service (default: http://mcp-gateway:3000 for Docker)
+        gateway_url: URL of the MCP Gateway service (default: http://mcp-gateway:8811 for Docker)
         
     Returns:
         Configured MCPGatewayTool instance

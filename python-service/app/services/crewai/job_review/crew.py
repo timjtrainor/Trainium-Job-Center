@@ -54,7 +54,7 @@ class JobReviewCrew:
                 if tool_name in ["mcp_gateway", "web_search"]:
                     from ..tools.mcp_gateway import create_mcp_gateway_tool
                     # Use Docker service name when running in container
-                    gateway_url = "http://mcp-gateway:3000"
+                    gateway_url = "http://mcp-gateway:8811"
                     tool = create_mcp_gateway_tool(gateway_url=gateway_url)
                     tools.append(tool)
                     logger.info(f"Loaded MCP Gateway tool for {tool_name}")

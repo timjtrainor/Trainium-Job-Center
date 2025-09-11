@@ -30,12 +30,12 @@ docker-compose up --build
 
 ### 2. Verify MCP Gateway
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:8811/health
 ```
 
 ### 3. Test Web Search
 ```bash
-curl -X POST http://localhost:3000/call \
+curl -X POST http://localhost:8811/call \
   -H "Content-Type: application/json" \
   -d '{
     "server": "duckduckgo",
@@ -202,7 +202,7 @@ TAVILY_API_KEY=your_tavily_key
 LLM_PREFERENCE=ollama:gemma3:1b,gemini:gemini-1.5-flash,openai:gpt-4o-mini
 
 # MCP Gateway
-MCP_GATEWAY_PORT=3000
+MCP_GATEWAY_PORT=8811
 
 # Optional for external MCP servers
 BRAVE_API_KEY=your_brave_key
