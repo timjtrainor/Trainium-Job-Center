@@ -208,22 +208,22 @@ services:
 
   # Docker MCP Gateway for managing MCP servers
   mcp-gateway:
-    build:
-      context: ./python-service
-      dockerfile: Dockerfile.mcp-gateway
     container_name: trainium_mcp_gateway
-    restart: always
-    ports:
-      - "${MCP_GATEWAY_PORT:-8080}:8080"
+    image: docker/mcp-gateway
     environment:
-      - MCP_GATEWAY_HOST=0.0.0.0
-      - MCP_GATEWAY_PORT=8080
-      - MCP_SERVERS_CONFIG=/config/servers.json
+      # Environment configuration for scheduler
+      ENVIRONMENT: ${MCP_GATEWAY_PORT:-8811}
+    command:
+      - --servers=duckduckgo
+      - --transport=sse
+      - --port=${MCP_GATEWAY_PORT:-8811}
     volumes:
-      - ./python-service/mcp-config:/config:ro
       - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "${MCP_GATEWAY_PORT:-8811}:8811"
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: wget -O- http://localhost:8811/health
       interval: 30s
       timeout: 10s
       retries: 3
