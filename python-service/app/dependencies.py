@@ -6,7 +6,6 @@ from .services.jobspy.ingestion import JobSpyIngestionService
 from .services.infrastructure.database import DatabaseService
 from .services.infrastructure.queue import QueueService
 from .services.infrastructure.scheduler import SchedulerService
-from .services.crewai import JobReviewCrew
 
 
 def get_gemini_service(request: Request) -> GeminiService:
@@ -37,9 +36,4 @@ def get_queue_service(request: Request) -> QueueService:
 def get_scheduler_service(request: Request) -> SchedulerService:
     """Retrieve the scheduler service instance from application state."""
     return request.app.state.scheduler_service
-
-
-def get_job_review_crew(request: Request) -> JobReviewCrew:
-    """Retrieve the JobReviewCrew instance from application state."""
-    return request.app.state.job_review_crew
 
