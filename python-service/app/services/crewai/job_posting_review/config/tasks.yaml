@@ -22,7 +22,7 @@ builder_evaluation:
     If helper_snapshot contains useful keys for your lens, cite them briefly in your reason; otherwise proceed without helpers.
     If your agent knowledge provides additional context, you may reference it briefly.
     
-    Return your evaluation as JSON with this exact structure:
+    Return your evaluation strictly as JSON with this exact structure. Do not include any additional text or code fences:
     {{
       "persona_id": "builder",
       "recommend": true/false,
@@ -56,7 +56,7 @@ maximizer_evaluation:
     If helper_snapshot contains useful compensation or market data, cite them briefly in your reason; otherwise proceed without helpers.
     If your agent knowledge provides additional context, you may reference it briefly.
     
-    Return your evaluation as JSON with this exact structure:
+    Return your evaluation strictly as JSON with this exact structure. Do not include any additional text or code fences:
     {{
       "persona_id": "maximizer",
       "recommend": true/false,
@@ -91,7 +91,7 @@ harmonizer_evaluation:
     If helper_snapshot contains useful signals (culture, values, balance), cite them briefly in your reason; otherwise proceed without helpers.
     If your agent knowledge provides additional context, you may reference it briefly.
     
-    Return your evaluation as JSON with this exact structure:
+    Return your evaluation strictly as JSON with this exact structure. Do not include any additional text or code fences:
     {{
       "persona_id": "harmonizer",
       "recommend": true/false,
@@ -125,7 +125,7 @@ pathfinder_evaluation:
     If helper_snapshot contains useful lifestyle or flexibility signals, cite them briefly in your reason; otherwise proceed without helpers.
     If your agent knowledge provides additional context, you may reference it briefly.
     
-    Return your evaluation as JSON with this exact structure:
+    Return your evaluation strictly as JSON with this exact structure. Do not include any additional text or code fences:
     {{
       "persona_id": "pathfinder",
       "recommend": true/false,
@@ -159,7 +159,7 @@ adventurer_evaluation:
     If helper_snapshot contains useful purpose or impact signals, cite them briefly in your reason; otherwise proceed without helpers.
     If your agent knowledge provides additional context, you may reference it briefly.
     
-    Return your evaluation as JSON with this exact structure:
+    Return your evaluation strictly as JSON with this exact structure. Do not include any additional text or code fences:
     {{
       "persona_id": "adventurer",
       "recommend": true/false,
