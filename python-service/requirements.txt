@@ -46,6 +46,5 @@ torch==2.2.0
 
 # MCP (Model Context Protocol) support
 mcp==1.13.1
-mcp-server-duckduckgo
 
 

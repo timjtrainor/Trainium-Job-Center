@@ -8,14 +8,13 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install FastAPI and MCP dependencies including DuckDuckGo server
+# Install FastAPI and MCP dependencies
 RUN pip install --no-cache-dir \
     fastapi==0.116.1 \
     uvicorn[standard]==0.35.0 \
     httpx==0.28.1 \
     loguru==0.7.3 \
-    mcp==1.13.1 \
-    mcp-server-duckduckgo
+    mcp==1.13.1
 
 # Copy MCP Gateway implementation
 COPY mcp_gateway.py /app/
