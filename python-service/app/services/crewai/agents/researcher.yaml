@@ -7,7 +7,7 @@ backstory: "An inquisitive researcher who quickly gathers facts from the web."
 max_iter: 2
 max_execution_time: 30
 tools:
-  - chroma_search
+  - web_search
 metadata:
   decision_lens: "What quick facts can guide this decision?"
   tone: inquisitive
@@ -15,5 +15,5 @@ metadata:
     - google_search
   crew_manifest_ref: researcher.json
 models:
-  - provider: ollama
-    model: gemma3:1b
+  - provider: openai
+    model: gpt-4o-mini

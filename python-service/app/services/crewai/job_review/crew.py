@@ -41,13 +41,38 @@ class JobReviewCrew:
 
     def _load_tools(self, tool_names: List[str]) -> List[Any]:
         """Resolve tool names to actual implementations.
-
-        Currently, no external tools are wired up. Any requested tools are
-        ignored to keep agent initialization from failing.
+        
+        Supports:
+        - mcp_gateway: MCP Gateway tool for web search and external services
+        - chroma_search: ChromaDB search tool
+        - web_search: Alias for mcp_gateway tool
         """
-        if tool_names:
-            logger.warning(f"Ignoring unsupported tools: {tool_names}")
-        return []
+        tools = []
+        
+        for tool_name in tool_names:
+            try:
+                if tool_name in ["mcp_gateway", "web_search"]:
+                    from ..tools.mcp_gateway import create_mcp_gateway_tool
+                    # Use Docker service name when running in container
+                    gateway_url = "http://mcp-gateway:3000"
+                    tool = create_mcp_gateway_tool(gateway_url=gateway_url)
+                    tools.append(tool)
+                    logger.info(f"Loaded MCP Gateway tool for {tool_name}")
+                    
+                elif tool_name == "chroma_search":
+                    from ..tools.chroma_search import chroma_search_tool
+                    tools.append(chroma_search_tool)
+                    logger.info(f"Loaded ChromaDB search tool")
+                    
+                else:
+                    logger.warning(f"Unknown tool: {tool_name}, skipping")
+                    
+            except ImportError as e:
+                logger.error(f"Failed to import tool {tool_name}: {e}")
+            except Exception as e:
+                logger.error(f"Failed to load tool {tool_name}: {e}")
+        
+        return tools
 
     def _parse_model_config(self, models: List[Dict[str, Any]] | None) -> List[Tuple[str, str]]:
         """Convert agent model configs to provider/model tuples."""

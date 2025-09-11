@@ -16,5 +16,5 @@ metadata:
     - leverage_advice
   crew_manifest_ref: negotiator.json
 models:
-  - provider: ollama
-    model: gemma3:1b
+  - provider: gemini
+    model: gemini-1.5-flash

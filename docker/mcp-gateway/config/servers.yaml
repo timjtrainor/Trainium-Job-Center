@@ -1,0 +1,44 @@
+# MCP Gateway Configuration
+
+# Default MCP servers configuration
+# To add new MCP servers, add entries to this file and update the main.py MCP_SERVERS_CONFIG
+
+servers:
+  duckduckgo:
+    description: "DuckDuckGo search MCP server"
+    command: "npx"
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-duckduckgo@latest"
+    env: {}
+    auto_start: true
+
+  # Example of additional MCP servers that can be added:
+  
+  # filesystem:
+  #   description: "Filesystem operations MCP server"
+  #   command: "npx"
+  #   args:
+  #     - "-y"
+  #     - "@modelcontextprotocol/server-filesystem@latest"
+  #   env:
+  #     ALLOWED_DIRECTORIES: "/tmp,/app/data"
+  #   auto_start: false
+  
+  # brave_search:
+  #   description: "Brave Search API MCP server"
+  #   command: "npx"
+  #   args:
+  #     - "-y"
+  #     - "@modelcontextprotocol/server-brave-search@latest"
+  #   env:
+  #     BRAVE_API_KEY: "${BRAVE_API_KEY}"
+  #   auto_start: false
+
+# Gateway settings
+gateway:
+  host: "0.0.0.0"
+  port: 3000
+  log_level: "info"
+  cors_origins:
+    - "*"

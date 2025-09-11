@@ -201,6 +201,28 @@ services:
       redis:
         condition: service_healthy
 
+  # Defines the MCP Gateway service for Model Context Protocol servers
+  mcp-gateway:
+    build:
+      context: ./docker/mcp-gateway
+      dockerfile: Dockerfile
+    container_name: trainium_mcp_gateway
+    restart: always
+    ports:
+      - "${MCP_GATEWAY_PORT:-3000}:3000"
+    volumes:
+      # Mount configuration for extensibility
+      - ./docker/mcp-gateway/config:/app/config:ro
+    environment:
+      PORT: 3000
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
 
 volumes:
   # Defines the named volumes for data persistence.
