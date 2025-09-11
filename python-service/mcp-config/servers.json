@@ -1,8 +1,8 @@
 {
   "servers": {
     "duckduckgo": {
-      "command": "python",
-      "args": ["-m", "mcp_server_duckduckgo"],
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "mcp/duckduckgo"],
       "env": {},
       "description": "DuckDuckGo search server for web searches"
     }
