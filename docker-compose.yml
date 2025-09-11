@@ -221,6 +221,7 @@ services:
       - MCP_SERVERS_CONFIG=/config/servers.json
     volumes:
       - ./python-service/mcp-config:/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
