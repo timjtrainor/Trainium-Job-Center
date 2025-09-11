@@ -25,8 +25,9 @@ financial_analysis_task:
     such as recent funding, profitability, layoffs, or rapid expansion.
     Explain what these signals mean for a potential employee.
   expected_output: >
-    A clear analysis of financial stability with 2-3 key metrics or events, and a plain-language 
+    A clear analysis of financial stability with 2-3 key metrics or events, and a plain-language
     explanation of what it means for job seekers.
+  context: [latest_news_task]
   agent: financial_analyst
 
 # 4. Workplace culture analysis
@@ -37,6 +38,7 @@ culture_analysis_task:
     Highlight strengths and weaknesses that matter to job seekers.
   expected_output: >
     A summary of workplace culture including 2-3 positive aspects and 2-3 potential red flags.
+  context: [latest_news_task]
   agent: culture_investigator
 
 # 5. Leadership and reputation analysis
@@ -46,8 +48,9 @@ leadership_analysis_task:
     management style, and any notable controversies or praise in the media. 
     Explain how leadership perception might affect job seekers.
   expected_output: >
-    A profile of leadership reputation with key highlights (positive and negative) 
+    A profile of leadership reputation with key highlights (positive and negative)
     and a summary of how they impact workplace perception.
+  context: [latest_news_task]
   agent: leadership_analyst
 
 # 6. Career growth opportunities
@@ -57,8 +60,9 @@ career_growth_task:
     Look into internal mobility, employee advancement, mentorship programs, training support, 
     and job posting patterns.
   expected_output: >
-    A summary of career growth opportunities with 2-3 examples of how employees 
+    A summary of career growth opportunities with 2-3 examples of how employees
     can progress at this company.
+  context: [latest_news_task]
   agent: career_growth_analyst
 
 # 7. Synthesis task (manager)
@@ -69,6 +73,7 @@ synthesis_task:
     and structured for report writing.
   expected_output: >
     A consolidated research summary organized by category, ready to be turned into a structured report.
+  context: [latest_news_task]
   agent: research_manager
 
 # 8. Final report writing
@@ -85,7 +90,8 @@ final_report_task:
       - overall_summary
     Make sure the JSON is valid and strictly follows the schema.
   expected_output: >
-    A valid JSON object containing the research findings in the specified schema. 
+    A valid JSON object containing the research findings in the specified schema.
     Your final answer MUST be valid JSON.
+  context: [latest_news_task]
   agent: report_writer
   output_file: "company_report.json"
