@@ -9,6 +9,7 @@ harmonizer, pathfinder, adventurer) provide thumbs-up/thumbs-down verdicts.
 import uuid
 import json
 import re
+import ast
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from loguru import logger
@@ -678,34 +679,51 @@ class MotivationalFanOutCrew:
         return task_outputs
     
     def _parse_verdict(self, task_output: str, persona_id: str) -> Dict[str, Any]:
-        """Parse JSON verdict from task output."""
+        """Parse verdict output, tolerating minor formatting issues."""
         try:
-            # Try to extract JSON from task output
-            import re
-            json_match = re.search(r'\{[^{}]*"persona_id"[^{}]*\}', task_output, re.DOTALL)
+            cleaned = task_output.strip()
+            cleaned = re.sub(r"```(?:json)?", "", cleaned, flags=re.IGNORECASE)
+            cleaned = cleaned.replace("```", "").strip()
+
+            json_match = re.search(r"\{.*\}", cleaned, re.DOTALL)
             if json_match:
-                verdict_json = json.loads(json_match.group())
-                # Validate required fields
-                if all(key in verdict_json for key in ["persona_id", "recommend", "reason"]):
+                json_str = json_match.group().strip()
+                parsers = [json.loads, lambda s: json.loads(s.replace("'", '"')), ast.literal_eval]
+                verdict_json = None
+                for parser in parsers:
+                    try:
+                        verdict_json = parser(json_str)
+                        break
+                    except Exception:
+                        verdict_json = None
+                if isinstance(verdict_json, dict) and all(k in verdict_json for k in ["persona_id", "recommend", "reason"]):
                     verdict_json["id"] = verdict_json.pop("persona_id")
+                    verdict_json.setdefault("notes", [])
+                    verdict_json.setdefault("sources", [])
                     return verdict_json
-            
-            # Fallback parsing if JSON structure is not found
-            recommend = "recommend" in task_output.lower() and "true" in task_output.lower()
-            reason_match = re.search(r'"reason":\s*"([^"]+)"', task_output)
-            reason = reason_match.group(1) if reason_match else "Analysis completed"
-            
+
+            recommend_match = re.search(r"recommend\s*[:=]\s*(true|false)", cleaned, re.IGNORECASE)
+            recommend = recommend_match.group(1).lower() == "true" if recommend_match else False
+            reason_match = re.search(r"reason\s*[:=]\s*\"?([^\n\"}]+)", cleaned, re.IGNORECASE)
+            reason = reason_match.group(1).strip() if reason_match else "insufficient signal"
+
             return {
                 "id": persona_id,
                 "recommend": recommend,
                 "reason": reason,
                 "notes": ["parsed from text output"],
-                "sources": ["task_analysis"]
+                "sources": ["task_analysis"],
             }
-            
+
         except Exception as e:
-            logger.warning(f"Failed to parse JSON verdict for {persona_id}: {str(e)}")
-            raise
+            logger.warning(f"Failed to parse verdict for {persona_id}: {str(e)}")
+            return {
+                "id": persona_id,
+                "recommend": False,
+                "reason": "insufficient signal",
+                "notes": ["parsing failed"],
+                "sources": ["task_analysis"],
+            }
 
 
 # Updated run_crew function to use the new MotivationalFanOutCrew
