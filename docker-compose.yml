@@ -127,7 +127,7 @@ services:
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
       # MCP Gateway configuration
-      MCP_GATEWAY_URL: ${MCP_GATEWAY_URL:-http://mcp-gateway:8080}
+      MCP_GATEWAY_URL: ${MCP_GATEWAY_URL:-http://mcp-gateway:8811}
       MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED:-true}
     volumes:
       # Mount the python service code for development
@@ -139,6 +139,8 @@ services:
         condition: service_healthy
       mcp-gateway:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -235,3 +237,5 @@ volumes:
   postgres_data:
   redis_data:
   chroma_data:
+
+

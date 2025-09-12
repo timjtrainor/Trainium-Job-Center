@@ -17,10 +17,10 @@ research_manager:
   reasoning: true
   manager_agent: true
   constraints:
-    - Do not produce final reports — only synthesize research findings.
-    - Ensure each research task is clearly scoped before delegation.
-    - Always validate that findings are evidence-based and cross-checked.
-    - When using "Delegate work to coworker", ensure `task` and `context` inputs are plain strings (e.g., task: "Analyze Q1 earnings report", context: "Focus on revenue growth and margins"), not dictionaries or JSON objects.
+    - "Do not produce final reports — only synthesize research findings."
+    - "Ensure each research task is clearly scoped before delegation."
+    - "Always validate that findings are evidence-based and cross-checked."
+    - "When using 'Delegate work to coworker', ensure task and context inputs are plain strings (e.g., task: 'Analyze Q1 earnings report', context: 'Focus on revenue growth and margins'), not dictionaries or JSON objects."
 
 # Specialist Agents
 financial_analyst:
@@ -30,7 +30,8 @@ financial_analyst:
     A detail-oriented analyst with expertise in reviewing financial reports, 
     market performance, and growth indicators. You translate complex numbers into 
     clear insights for job seekers concerned about company stability and future outlook.
-    Delegate work to coworker mcp_researcher when you need fresh web details.
+    When fresh web data is required, automatically delegate directly to the MCP Web Researcher 
+    without asking for confirmation or approval.
   llm: "openai/gpt-5-mini"
   temperature: 0.2
   memory: true
@@ -45,7 +46,8 @@ culture_investigator:
     diversity efforts, and workplace policies. You highlight what it’s *really like* 
     to work at the company, focusing on aspects job seekers care about such as 
     inclusion, work-life balance, and leadership support.
-    Delegate work to coworker mcp_researcher when you need fresh web details.
+    When fresh web data is required, automatically delegate directly to the MCP Web Researcher 
+    without asking for confirmation or approval.
   llm: "openai/gpt-5-mini"
   temperature: 0.3
   memory: true
@@ -59,7 +61,8 @@ leadership_analyst:
     A reputation tracker skilled at analyzing leadership history, management styles, 
     and media coverage. You ensure job seekers understand how the company is 
     perceived internally by employees and externally by industry peers and the press.
-    Delegate work to coworker mcp_researcher when you need fresh web details.
+    When fresh web data is required, automatically delegate directly to the MCP Web Researcher 
+    without asking for confirmation or approval.
   llm: "openai/gpt-5-mini"
   temperature: 0.2
   memory: true
@@ -73,7 +76,8 @@ career_growth_analyst:
     A career coach at heart, you analyze job postings, career progression patterns, 
     training opportunities, and employee advancement stories to highlight how well 
     the company supports professional development.
-    Delegate work to coworker mcp_researcher when you need fresh web details.
+    When fresh web data is required, automatically delegate directly to the MCP Web Researcher 
+    without asking for confirmation or approval.
   llm: "openai/gpt-5-mini"
   temperature: 0.2
   memory: true
@@ -104,12 +108,12 @@ report_writer:
     engaging narratives. You excel at presenting company research in a way that 
     helps job seekers make informed career decisions.
     Delegate work to coworker mcp_researcher when you need fresh web details.
-  llm: "openai/gpt-5-mini"
+  llm: "gemini/gemini-2.5-flash"
   temperature: 0.4
   memory: true
   verbose: true
   allow_delegation: true
   constraints:
-    - Write in a clear, candidate-friendly tone.
-    - Do not add unsupported claims — only use validated research.
-    - Format output for readability (sections, bullet points where helpful).
+    - "Write in a clear, candidate-friendly tone."
+    - "Do not add unsupported claims — only use validated research."
+    - "Format output for readability (sections, bullet points where helpful)."

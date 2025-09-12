@@ -64,42 +64,6 @@ class ResearchCompanyCrew:
         )
 
     @task
-    def latest_news_task(self) -> Task:
-        return Task(
-            config=self.tasks_config["latest_news_task"],  # type: ignore[index]
-        )
-
-    @task
-    def financial_analysis_task(self) -> Task:
-        return Task(
-            config=self.tasks_config["financial_analysis_task"],  # type: ignore[index]
-        )
-
-    @task
-    def culture_analysis_task(self) -> Task:
-        return Task(
-            config=self.tasks_config["culture_analysis_task"],  # type: ignore[index]
-        )
-
-    @task
-    def leadership_analysis_task(self) -> Task:
-        return Task(
-            config=self.tasks_config["leadership_analysis_task"],  # type: ignore[index]
-        )
-
-    @task
-    def career_growth_task(self) -> Task:
-        return Task(
-            config=self.tasks_config["career_growth_task"],  # type: ignore[index]
-        )
-
-    @task
-    def synthesis_task(self) -> Task:
-        return Task(
-            config=self.tasks_config["synthesis_task"],  # type: ignore[index]
-        )
-
-    @task
     def final_report_task(self) -> Task:
         return Task(
             config=self.tasks_config["final_report_task"],  # type: ignore[index]
@@ -109,7 +73,7 @@ class ResearchCompanyCrew:
     def crew(self) -> Crew:
         return Crew(
             agents=[self.research_manager(), self.financial_analyst(), self.culture_investigator(), self.leadership_analyst(), self.career_growth_analyst(), self.mcp_researcher(), self.report_writer()],
-            tasks=[self.research_strategy_task(), self.latest_news_task(), self.financial_analysis_task(), self.culture_analysis_task(), self.leadership_analysis_task(), self.career_growth_task(), self.synthesis_task(), self.final_report_task()],
+            tasks=[self.research_strategy_task(), self.final_report_task()],
             manager_agent=self.research_manager(),
             process=Process.sequential,
             verbose=True,
