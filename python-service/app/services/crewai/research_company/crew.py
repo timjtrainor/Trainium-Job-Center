@@ -1,6 +1,13 @@
+from threading import Lock
+from typing import Optional
+
 from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
 from ..base import load_mcp_tools_sync
+
+
+_cached_crew: Optional[Crew] = None
+_crew_lock = Lock()
 
 @CrewBase
 class ResearchCompanyCrew:
@@ -80,5 +87,11 @@ class ResearchCompanyCrew:
         )
 
 
-def get_research_company_crew():
-    return ResearchCompanyCrew().crew()
+def get_research_company_crew() -> Crew:
+    global _cached_crew
+    if _cached_crew is None:
+        with _crew_lock:
+            if _cached_crew is None:
+                _cached_crew = ResearchCompanyCrew().crew()
+    assert _cached_crew is not None
+    return _cached_crew
