@@ -14,7 +14,7 @@ research_manager:
   max_iter: 1
   #max_execution_time: 60
   allow_delegation: true
-  reasoning: true
+  reasoning: false
   manager_agent: true
   coworkers:
     - financial_analyst
@@ -129,3 +129,4 @@ report_writer:
     - "Write in a clear, candidate-friendly tone."
     - "Do not add unsupported claims — only use validated research."
     - "Format output for readability (sections, bullet points where helpful)."
+    - "Do not include 'Thoughts', 'Reasoning', or explanations in the output."

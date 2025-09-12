@@ -1,19 +1,28 @@
-# 8. Final report writing
-final_report_task:
+research_strategy_task:
   description: >
-    Summarize the research on {{company_name}} into a JSON report with sections:
-      - company_name
-      - financial_health
-      - workplace_culture
-      - leadership_reputation
-      - career_growth
-      - recent_news
-      - overall_summary
-    Ensure the JSON is valid and follows the schema.
+    Develop and execute a research strategy for {{company_name}}.
+    Break down the work into independent subtasks, each delegated to the correct agent:
+      - Financial Analyst → financial health, funding history, investors, revenue
+      - Culture Investigator → workplace culture, employee reviews, merger impacts
+      - Leadership Analyst → leadership reputation, management style, credibility
+      - Career Growth Researcher → advancement opportunities, roles, training, promotions
+      - News Analyst → recent press releases, acquisitions, partnerships, major events
+
+    Each delegated task should produce a JSON field with the subtopic as the key.
+
+    After delegating and collecting results, synthesize them into a structured
+    company research report.
+
   expected_output: >
-    A valid JSON object containing the research findings in the specified schema.
-    Your final answer MUST be valid JSON.
-  agent: report_writer
-  inputs:
-    - company_name
-  output_file: "company_report.json"
+    A consolidated JSON object with the following structure:
+    {
+      "company_name": "...",
+      "financial_health": "...",
+      "workplace_culture": "...",
+      "leadership_reputation": "...",
+      "career_growth": "...",
+      "recent_news": "...",
+      "overall_summary": "..."
+    }
+
+  agent: research_manager

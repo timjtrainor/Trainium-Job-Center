@@ -65,9 +65,9 @@ class ResearchCompanyCrew:
         )
 
     @task
-    def final_report_task(self) -> Task:
+    def research_strategy_task(self) -> Task:
         return Task(
-            config=self.tasks_config["final_report_task"],  # type: ignore[index]
+            config=self.tasks_config["research_strategy_task"],  # type: ignore[index]
         )
 
     @crew
@@ -81,7 +81,7 @@ class ResearchCompanyCrew:
                 self.mcp_researcher(),
                 self.report_writer()
             ],
-            tasks=[self.final_report_task()],
+            tasks=[self.research_strategy_task()],
             manager_agent=self.research_manager(),
             process=Process.hierarchical,
             verbose=True,
