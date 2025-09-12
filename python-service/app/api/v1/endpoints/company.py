@@ -9,5 +9,7 @@ async def company_report(request: CompanyRequest):
     try:
         report = generate_company_report(request.company_name)
         return CompanyReportResponse(report=report)
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
