@@ -74,6 +74,7 @@ class ResearchCompanyCrew:
     def final_report_task(self) -> Task:
         return Task(
             config=self.tasks_config["final_report_task"],  # type: ignore[index]
+            context=[self.research_strategy_task()],
         )
 
     @crew
@@ -82,7 +83,7 @@ class ResearchCompanyCrew:
             agents=[self.research_manager(), self.financial_analyst(), self.culture_investigator(), self.leadership_analyst(), self.career_growth_analyst(), self.mcp_researcher(), self.report_writer()],
             tasks=[self.research_strategy_task(), self.final_report_task()],
             manager_agent=self.research_manager(),
-            process=Process.sequential,
+            process=Process.hierarchical,
             verbose=True,
         )
 

@@ -194,7 +194,7 @@ class JobReviewCrew:
             description=config["description"],
             expected_output=config["expected_output"],
             agent=agent_method(),
-            async_execution=False
+            async_execution=True
         )
     
     @task
@@ -211,7 +211,7 @@ class JobReviewCrew:
             description=config["description"],
             expected_output=config["expected_output"],
             agent=agent_method(),
-            async_execution=False
+            async_execution=True
         )
     
     @task
@@ -228,7 +228,7 @@ class JobReviewCrew:
             description=config["description"],
             expected_output=config["expected_output"],
             agent=agent_method(),
-            async_execution=False
+            async_execution=True
         )
     
     @crew
@@ -242,7 +242,7 @@ class JobReviewCrew:
         return Crew(
             agents=self.agents,
             tasks=self.tasks,
-            process=Process.sequential,
+            process=Process.hierarchical,
             verbose=True,
             memory=False  # Disable memory to avoid API key requirements
         )

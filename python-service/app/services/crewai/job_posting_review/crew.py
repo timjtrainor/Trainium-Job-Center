@@ -304,7 +304,8 @@ class MotivationalFanOutCrew:
             description=config["description"],
             expected_output=config["expected_output"],
             agent=self.builder_agent(),
-            async_execution=True  # Enable parallel execution
+            async_execution=True,  # Enable parallel execution
+            context=[self.helper_snapshot()]
         )
 
     @task
@@ -315,7 +316,8 @@ class MotivationalFanOutCrew:
             description=config["description"],
             expected_output=config["expected_output"],
             agent=self.maximizer_agent(),
-            async_execution=True  # Enable parallel execution
+            async_execution=True,  # Enable parallel execution
+            context=[self.helper_snapshot()]
         )
 
     @task
@@ -326,7 +328,8 @@ class MotivationalFanOutCrew:
             description=config["description"],
             expected_output=config["expected_output"],
             agent=self.harmonizer_agent(),
-            async_execution=True  # Enable parallel execution
+            async_execution=True,  # Enable parallel execution
+            context=[self.helper_snapshot()]
         )
 
     @task
@@ -337,7 +340,8 @@ class MotivationalFanOutCrew:
             description=config["description"],
             expected_output=config["expected_output"],
             agent=self.pathfinder_agent(),
-            async_execution=True  # Enable parallel execution
+            async_execution=True,  # Enable parallel execution
+            context=[self.helper_snapshot()]
         )
 
     @task
@@ -348,7 +352,8 @@ class MotivationalFanOutCrew:
             description=config["description"],
             expected_output=config["expected_output"],
             agent=self.adventurer_agent(),
-            async_execution=True  # Enable parallel execution
+            async_execution=True,  # Enable parallel execution
+            context=[self.helper_snapshot()]
         )
 
     # Helper tasks for advisory analysis
@@ -437,7 +442,12 @@ class MotivationalFanOutCrew:
             description=config["description"],
             expected_output=config["expected_output"],
             agent=self.data_analyst(),  # Use data_analyst agent for aggregation
-            async_execution=False
+            async_execution=False,
+            context=[
+                self.data_analyst_task(),
+                self.strategist_task(),
+                self.skeptic_task(),
+            ]
         )
 
     @crew
@@ -451,7 +461,7 @@ class MotivationalFanOutCrew:
         return Crew(
             agents=self.agents,
             tasks=self.tasks,
-            process=Process.sequential,  # Tasks will run in sequence but are designed for parallel evaluation
+            process=Process.hierarchical,
             verbose=True,
             memory=False  # Disable memory to avoid API key requirements
         )
