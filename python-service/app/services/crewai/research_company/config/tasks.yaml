@@ -1,28 +1,151 @@
-research_strategy_task:
+financial_analysis_task:
   description: >
-    Develop and execute a research strategy for {{company_name}}.
-    Break down the work into independent subtasks, each delegated to the correct agent:
-      - Financial Analyst → financial health, funding history, investors, revenue
-      - Culture Investigator → workplace culture, employee reviews, merger impacts
-      - Leadership Analyst → leadership reputation, management style, credibility
-      - Career Growth Researcher → advancement opportunities, roles, training, promotions
-      - News Analyst → recent press releases, acquisitions, partnerships, major events
-
-    Each delegated task should produce a JSON field with the subtopic as the key.
-
-    After delegating and collecting results, synthesize them into a structured
-    company research report.
-
+    Research and analyze {{company_name}}'s financial health, stability, and growth potential.
+    Focus on financial reports, market performance, revenue trends, funding history, 
+    investors, and growth indicators. Use web research to get the most recent financial 
+    information and news that might affect the company's financial outlook.
+    
   expected_output: >
-    A consolidated JSON object with the following structure:
+    A JSON object with financial analysis:
     {
-      "company_name": "...",
-      "financial_health": "...",
-      "workplace_culture": "...",
-      "leadership_reputation": "...",
-      "career_growth": "...",
-      "recent_news": "...",
-      "overall_summary": "..."
+      "financial_health": {
+        "revenue_trends": "...",
+        "profitability": "...", 
+        "funding_history": "...",
+        "investor_information": "...",
+        "market_performance": "...",
+        "growth_indicators": "...",
+        "financial_stability_score": "...",
+        "key_financial_insights": ["..."]
+      }
     }
+  
+  agent: financial_analyst
 
-  agent: research_manager
+culture_investigation_task:
+  description: >
+    Investigate {{company_name}}'s workplace culture, values, and employee experience.
+    Research employee reviews, HR practices, diversity efforts, workplace policies,
+    work-life balance indicators, and inclusion metrics. Use web research to gather
+    recent employee feedback and cultural insights from multiple sources.
+    
+  expected_output: >
+    A JSON object with culture analysis:
+    {
+      "workplace_culture": {
+        "company_values": "...",
+        "employee_satisfaction": "...",
+        "work_life_balance": "...",
+        "diversity_inclusion": "...",
+        "management_style": "...",
+        "career_support": "...",
+        "culture_score": "...",
+        "cultural_highlights": ["..."],
+        "potential_concerns": ["..."]
+      }
+    }
+    
+  agent: culture_investigator
+
+leadership_analysis_task:
+  description: >
+    Research {{company_name}}'s leadership team and analyze the company's reputation.
+    Investigate leadership history, management styles, executive backgrounds,
+    media coverage, industry reputation, and how the company is perceived by
+    employees and industry peers. Use web research for recent leadership news and changes.
+    
+  expected_output: >
+    A JSON object with leadership analysis:
+    {
+      "leadership_reputation": {
+        "executive_team": "...",
+        "leadership_style": "...",
+        "industry_reputation": "...",
+        "media_coverage": "...",
+        "leadership_stability": "...",
+        "vision_clarity": "...",
+        "reputation_score": "...",
+        "leadership_strengths": ["..."],
+        "reputation_risks": ["..."]
+      }
+    }
+    
+  agent: leadership_analyst
+
+career_growth_analysis_task:
+  description: >
+    Investigate career development opportunities and employee growth support at {{company_name}}.
+    Research job postings, career progression patterns, training programs, internal mobility,
+    employee advancement stories, and professional development support. Use web research
+    to find recent information about career opportunities and employee growth.
+    
+  expected_output: >
+    A JSON object with career growth analysis:
+    {
+      "career_growth": {
+        "advancement_opportunities": "...",
+        "training_programs": "...",
+        "internal_mobility": "...",
+        "mentorship_support": "...",
+        "skill_development": "...",
+        "promotion_patterns": "...",
+        "growth_score": "...",
+        "career_highlights": ["..."],
+        "growth_limitations": ["..."]
+      }
+    }
+    
+  agent: career_growth_analyst
+
+web_research_task:
+  description: >
+    Conduct comprehensive web research for {{company_name}} to gather the latest
+    information including recent news, press releases, acquisitions, partnerships,
+    major events, and any other current developments. Focus on information that
+    would be relevant for job seekers and recent changes that might affect the
+    company's outlook.
+    
+  expected_output: >
+    A JSON object with recent web research findings:
+    {
+      "recent_news": {
+        "latest_developments": "...",
+        "press_releases": "...",
+        "acquisitions_partnerships": "...",
+        "major_events": "...",
+        "market_changes": "...",
+        "recent_announcements": "...",
+        "news_summary": "...",
+        "key_updates": ["..."]
+      }
+    }
+    
+  agent: mcp_researcher
+
+report_compilation_task:
+  description: >
+    Compile and synthesize all research findings about {{company_name}} into a 
+    comprehensive, job seeker-friendly company profile. Integrate insights from 
+    financial analysis, culture investigation, leadership analysis, career growth 
+    research, and recent news into a cohesive report with an overall assessment.
+    
+  expected_output: >
+    A complete JSON report with all research findings:
+    {
+      "company_name": "{{company_name}}",
+      "financial_health": {}, 
+      "workplace_culture": {},
+      "leadership_reputation": {},
+      "career_growth": {},
+      "recent_news": {},
+      "overall_summary": {
+        "recommendation_score": "...",
+        "key_strengths": ["..."],
+        "potential_concerns": ["..."],
+        "best_fit_for": "...",
+        "summary": "..."
+      }
+    }
+    
+  agent: report_writer
+  context: [financial_analysis_task, culture_investigation_task, leadership_analysis_task, career_growth_analysis_task, web_research_task]
