@@ -33,7 +33,7 @@ def test_company_news(monkeypatch):
     )
 
     report = generate_company_report("SampleCo")
-    assert report["recent_news"] == [
+    assert report.recent_news == [
         "SampleCo announces new product line",
         "SampleCo secures major funding",
     ]
