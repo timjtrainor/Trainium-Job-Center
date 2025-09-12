@@ -1,19 +1,3 @@
-# 1. Research strategy planning
-research_strategy_task:
-  description: >
-    Break down the research request into a strategy for investigating {{company_name}}.
-    Identify what information is needed across financials, culture, leadership, growth,
-    and recent news. Delegate tasks to the appropriate specialist agents.
-    Remind specialists to use "Delegate work to coworker mcp_researcher" when they need fresh web details.
-  expected_output: >
-    A structured outline of research tasks to be completed by the analysts,
-    explicitly referencing {{company_name}} in each task so that agents know the target.
-  agent: research_manager
-  inputs:
-    - company_name
-
-# removed 2-7 tasks as they are now handled by the research_manager
-
 # 8. Final report writing
 final_report_task:
   description: >
