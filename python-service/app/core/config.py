@@ -56,8 +56,8 @@ class Settings:
 
         # MCP Gateway Configuration
         self.mcp_gateway_enabled: bool = os.getenv("MCP_GATEWAY_ENABLED", "true").lower() == "true"
-        self.mcp_gateway_url: str = os.getenv("MCP_GATEWAY_URL", "http://localhost:8080")
-        self.mcp_gateway_port: int = int(os.getenv("MCP_GATEWAY_PORT", "8080"))
+        self.mcp_gateway_url: str = os.getenv("MCP_GATEWAY_URL", "http://localhost:8811")
+        self.mcp_gateway_port: int = int(os.getenv("MCP_GATEWAY_PORT", "8811"))
 
         # Database Configuration for direct access
         self.database_url: str = os.getenv("DATABASE_URL", "")

@@ -13,7 +13,7 @@ from pathlib import Path
 class MockMCPAdapter:
     """Mock MCP Adapter that simulates the real implementation."""
     
-    def __init__(self, gateway_url: str = "http://localhost:8080"):
+    def __init__(self, gateway_url: str = "http://localhost:8811"):
         self.gateway_url = gateway_url
         self.connected = False
         self._available_tools = {}
@@ -105,7 +105,7 @@ class MockJobReviewCrew:
         # Load MCP tools (this would use the real MCPServerAdapter)
         print("🔧 Loading MCP tools...")
         
-        async with MockMCPAdapter("http://mcp-gateway:8080") as adapter:
+        async with MockMCPAdapter("http://mcp-gateway:8811") as adapter:
             duckduckgo_tools = adapter.get_duckduckgo_tools()
             
             if duckduckgo_tools:

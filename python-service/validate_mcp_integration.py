@@ -132,7 +132,7 @@ def test_docker_compose_integration():
                 ("mcp-gateway service", "mcp-gateway:" in content),
                 ("MCP environment vars", "MCP_GATEWAY_URL" in content),
                 ("MCP dependencies", "mcp-gateway:" in content and "condition: service_healthy" in content),
-                ("MCP port mapping", "8080:8080" in content)
+                ("MCP port mapping", "8811:8811" in content)
             ]
             
             all_passed = True

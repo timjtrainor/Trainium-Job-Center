@@ -22,7 +22,9 @@ COPY mcp_gateway.py /app/
 COPY mcp-config/ /config/
 
 # Create health check endpoint
-EXPOSE 8080
+EXPOSE 8811
+
+ENV CI=true
 
 # Run the MCP Gateway
 CMD ["python", "mcp_gateway.py"]

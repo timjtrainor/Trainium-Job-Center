@@ -6,6 +6,13 @@ class ResearchCompanyCrew:
     agents_config = 'config/agents.yaml'
     tasks_config = 'config/tasks.yaml'
 
+    mcp_server_params = [
+        {
+            "url": "http://mcp-gateway:8811/sse",
+            "transport": "sse"
+        }
+    ]
+
     @agent
     def research_manager(self) -> Agent:
         return Agent(
@@ -40,6 +47,7 @@ class ResearchCompanyCrew:
     def mcp_researcher(self) -> Agent:
         return Agent(
             config=self.agents_config["mcp_researcher"],  # type: ignore[index]
+            tools=self.get_mcp_tools()
         )
 
     @agent

@@ -23,7 +23,7 @@ class MCPServerAdapter:
     that can be injected into CrewAI agents.
     """
     
-    def __init__(self, gateway_url: str = "http://localhost:8080"):
+    def __init__(self, gateway_url: str = "http://localhost:8811"):
         """
         Initialize the MCP Server Adapter.
         
@@ -240,7 +240,7 @@ class MCPServerAdapter:
 
 
 @asynccontextmanager
-async def get_mcp_adapter(gateway_url: str = "http://localhost:8080"):
+async def get_mcp_adapter(gateway_url: str = "http://localhost:8811"):
     """
     Context manager for creating and managing an MCP Server Adapter.
     

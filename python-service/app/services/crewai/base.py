@@ -106,7 +106,7 @@ async def load_mcp_tools(tool_names: List[str]) -> List[BaseTool]:
         logger.info("MCP Gateway disabled, skipping tool loading")
         return []
         
-    gateway_url = getattr(settings, 'mcp_gateway_url', 'http://localhost:8080')
+    gateway_url = getattr(settings, 'mcp_gateway_url', 'http://localhost:8811')
     loaded_tools = []
     
     try:

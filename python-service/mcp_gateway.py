@@ -274,7 +274,7 @@ if __name__ == "__main__":
     )
 
     host = os.getenv("MCP_GATEWAY_HOST", "0.0.0.0")
-    port = int(os.getenv("MCP_GATEWAY_PORT", "8080"))
+    port = int(os.getenv("MCP_GATEWAY_PORT", "8811"))
     logger.info(f"Starting MCP Gateway on {host}:{port}")
     uvicorn.run(app, host=host, port=port)
 
