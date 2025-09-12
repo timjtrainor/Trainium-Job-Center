@@ -3,7 +3,7 @@ from typing import Optional
 
 from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
-from ..base import load_mcp_tools_sync
+from ..base import get_duckduckgo_tools
 
 
 _cached_crew: Optional[Crew] = None
@@ -55,7 +55,7 @@ class ResearchCompanyCrew:
     def mcp_researcher(self) -> Agent:
         return Agent(
             config=self.agents_config["mcp_researcher"],  # type: ignore[index]
-            tools=load_mcp_tools_sync(["duckduckgo"])
+            tools=get_duckduckgo_tools()
         )
 
     @agent
@@ -85,7 +85,6 @@ class ResearchCompanyCrew:
             process=Process.sequential,
             verbose=True,
         )
-
 
 def get_research_company_crew() -> Crew:
     global _cached_crew
