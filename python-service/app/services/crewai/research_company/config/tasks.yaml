@@ -2,8 +2,9 @@
 research_strategy_task:
   description: >
     Break down the research request into a strategy for investigating the target company.
-    Identify what information is needed across financials, culture, leadership, growth, 
+    Identify what information is needed across financials, culture, leadership, growth,
     and recent news. Delegate tasks to the appropriate specialist agents.
+    Remind specialists to use "Delegate work to coworker mcp_researcher" when they need fresh web details.
   expected_output: >
     A structured outline of research tasks to be completed by the analysts.
   agent: research_manager
@@ -21,9 +22,10 @@ latest_news_task:
 # 3. Financial analysis
 financial_analysis_task:
   description: >
-    Analyze the financial health of {company_name}. Check for indicators of stability or risk, 
+    Analyze the financial health of {company_name}. Check for indicators of stability or risk,
     such as recent funding, profitability, layoffs, or rapid expansion.
     Explain what these signals mean for a potential employee.
+    Delegate work to coworker mcp_researcher when you need fresh web details.
   expected_output: >
     A clear analysis of financial stability with 2-3 key metrics or events, and a plain-language
     explanation of what it means for job seekers.
@@ -33,9 +35,10 @@ financial_analysis_task:
 # 4. Workplace culture analysis
 culture_analysis_task:
   description: >
-    Research the workplace culture of {company_name}. Use employee reviews, 
-    workplace reputation, diversity and inclusion practices, and employee satisfaction indicators. 
+    Research the workplace culture of {company_name}. Use employee reviews,
+    workplace reputation, diversity and inclusion practices, and employee satisfaction indicators.
     Highlight strengths and weaknesses that matter to job seekers.
+    Delegate work to coworker mcp_researcher when you need fresh web details.
   expected_output: >
     A summary of workplace culture including 2-3 positive aspects and 2-3 potential red flags.
   context: [latest_news_task]
@@ -44,9 +47,10 @@ culture_analysis_task:
 # 5. Leadership and reputation analysis
 leadership_analysis_task:
   description: >
-    Research the leadership team at {company_name}. Identify CEO and senior leadership reputation, 
-    management style, and any notable controversies or praise in the media. 
+    Research the leadership team at {company_name}. Identify CEO and senior leadership reputation,
+    management style, and any notable controversies or praise in the media.
     Explain how leadership perception might affect job seekers.
+    Delegate work to coworker mcp_researcher when you need fresh web details.
   expected_output: >
     A profile of leadership reputation with key highlights (positive and negative)
     and a summary of how they impact workplace perception.
@@ -56,9 +60,10 @@ leadership_analysis_task:
 # 6. Career growth opportunities
 career_growth_task:
   description: >
-    Investigate career development and growth opportunities at {company_name}. 
-    Look into internal mobility, employee advancement, mentorship programs, training support, 
+    Investigate career development and growth opportunities at {company_name}.
+    Look into internal mobility, employee advancement, mentorship programs, training support,
     and job posting patterns.
+    Delegate work to coworker mcp_researcher when you need fresh web details.
   expected_output: >
     A summary of career growth opportunities with 2-3 examples of how employees
     can progress at this company.
@@ -89,6 +94,7 @@ final_report_task:
       - recent_news
       - overall_summary
     Make sure the JSON is valid and strictly follows the schema.
+    Delegate work to coworker mcp_researcher when you need fresh web details.
   expected_output: >
     A valid JSON object containing the research findings in the specified schema.
     Your final answer MUST be valid JSON.

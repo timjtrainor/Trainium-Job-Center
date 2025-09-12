@@ -30,11 +30,12 @@ financial_analyst:
     A detail-oriented analyst with expertise in reviewing financial reports, 
     market performance, and growth indicators. You translate complex numbers into 
     clear insights for job seekers concerned about company stability and future outlook.
+    Delegate work to coworker mcp_researcher when you need fresh web details.
   llm: "openai/gpt-5-mini"
   temperature: 0.2
   memory: true
   verbose: true
-  allow_delegation: false
+  allow_delegation: true
 
 culture_investigator:
   role: "Workplace Culture Investigator"
@@ -44,11 +45,12 @@ culture_investigator:
     diversity efforts, and workplace policies. You highlight what it’s *really like* 
     to work at the company, focusing on aspects job seekers care about such as 
     inclusion, work-life balance, and leadership support.
+    Delegate work to coworker mcp_researcher when you need fresh web details.
   llm: "openai/gpt-5-mini"
   temperature: 0.3
   memory: true
   verbose: true
-  allow_delegation: false
+  allow_delegation: true
 
 leadership_analyst:
   role: "Leadership and Reputation Analyst"
@@ -57,11 +59,12 @@ leadership_analyst:
     A reputation tracker skilled at analyzing leadership history, management styles, 
     and media coverage. You ensure job seekers understand how the company is 
     perceived internally by employees and externally by industry peers and the press.
+    Delegate work to coworker mcp_researcher when you need fresh web details.
   llm: "openai/gpt-5-mini"
   temperature: 0.2
   memory: true
   verbose: true
-  allow_delegation: false
+  allow_delegation: true
 
 career_growth_analyst:
   role: "Career Growth and Opportunities Analyst"
@@ -70,11 +73,12 @@ career_growth_analyst:
     A career coach at heart, you analyze job postings, career progression patterns, 
     training opportunities, and employee advancement stories to highlight how well 
     the company supports professional development.
+    Delegate work to coworker mcp_researcher when you need fresh web details.
   llm: "openai/gpt-5-mini"
   temperature: 0.2
   memory: true
   verbose: true
-  allow_delegation: false
+  allow_delegation: true
 
 mcp_researcher:
   role: "MCP Web Researcher"
@@ -88,7 +92,7 @@ mcp_researcher:
   temperature: 0.2
   memory: true
   verbose: true
-  allow_delegation: false
+  allow_delegation: true
   mcp_tools:
     - duckduckgo
 
@@ -99,11 +103,12 @@ report_writer:
     A skilled communicator with a talent for turning complex insights into clear, 
     engaging narratives. You excel at presenting company research in a way that 
     helps job seekers make informed career decisions.
+    Delegate work to coworker mcp_researcher when you need fresh web details.
   llm: "openai/gpt-5-mini"
   temperature: 0.4
   memory: true
   verbose: true
-  allow_delegation: false
+  allow_delegation: true
   constraints:
     - Write in a clear, candidate-friendly tone.
     - Do not add unsupported claims — only use validated research.
