@@ -8,6 +8,6 @@ router = APIRouter(prefix="/company", tags=["Company Research"])
 async def company_report(request: CompanyRequest):
     try:
         report = generate_company_report(request.company_name)
-        return {"report": report}
+        return CompanyReportResponse(report=report)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
