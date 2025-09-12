@@ -73,7 +73,14 @@ class ResearchCompanyCrew:
     @crew
     def crew(self) -> Crew:
         return Crew(
-            agents=[self.research_manager(), self.financial_analyst(), self.culture_investigator(), self.leadership_analyst(), self.career_growth_analyst(), self.mcp_researcher(), self.report_writer()],
+            agents=[
+                self.financial_analyst(),
+                self.culture_investigator(),
+                self.leadership_analyst(),
+                self.career_growth_analyst(),
+                self.mcp_researcher(),
+                self.report_writer()
+            ],
             tasks=[self.final_report_task()],
             manager_agent=self.research_manager(),
             process=Process.hierarchical,

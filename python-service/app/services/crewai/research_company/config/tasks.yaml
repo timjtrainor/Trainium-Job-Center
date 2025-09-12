@@ -1,7 +1,7 @@
 # 8. Final report writing
 final_report_task:
   description: >
-    Summarize the research into a JSON report with sections:
+    Summarize the research on {{company_name}} into a JSON report with sections:
       - company_name
       - financial_health
       - workplace_culture
@@ -14,4 +14,6 @@ final_report_task:
     A valid JSON object containing the research findings in the specified schema.
     Your final answer MUST be valid JSON.
   agent: report_writer
+  inputs:
+    - company_name
   output_file: "company_report.json"
