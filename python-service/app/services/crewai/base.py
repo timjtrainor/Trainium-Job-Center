@@ -10,6 +10,7 @@ from loguru import logger
 import yaml
 import os
 import asyncio
+from functools import lru_cache
 
 from ..mcp_adapter import get_mcp_adapter, create_sync_tool_wrapper
 from ...core.config import get_settings
@@ -188,11 +189,20 @@ def load_mcp_tools_sync(tool_names: List[str]) -> List[BaseTool]:
         return []
 
 
+@lru_cache(maxsize=1)
 def get_duckduckgo_tools() -> List[BaseTool]:
-    """
-    Get DuckDuckGo tools specifically for web search capabilities.
-    
-    Returns:
-        List of DuckDuckGo tool implementations
-    """
+    """Load DuckDuckGo tools once and cache the result."""
     return load_mcp_tools_sync(["web_search", "search"])
+
+
+def clear_mcp_tool_cache() -> None:
+    """Clear cached MCP tools.
+
+    Should be called at application startup or when MCP tool configuration
+    changes to ensure stale tools aren't reused.
+    """
+    get_duckduckgo_tools.cache_clear()
+
+
+# Clear any cached tools on import to avoid stale configuration
+clear_mcp_tool_cache()
