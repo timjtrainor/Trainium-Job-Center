@@ -1,5 +1,6 @@
 from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
+from ..base import load_mcp_tools_sync
 
 @CrewBase
 class ResearchCompanyCrew:
@@ -47,7 +48,7 @@ class ResearchCompanyCrew:
     def mcp_researcher(self) -> Agent:
         return Agent(
             config=self.agents_config["mcp_researcher"],  # type: ignore[index]
-            tools=self.get_mcp_tools()
+            tools=load_mcp_tools_sync(["duckduckgo"])
         )
 
     @agent

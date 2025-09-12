@@ -20,6 +20,7 @@ research_manager:
     - Do not produce final reports — only synthesize research findings.
     - Ensure each research task is clearly scoped before delegation.
     - Always validate that findings are evidence-based and cross-checked.
+    - When using "Delegate work to coworker", ensure `task` and `context` inputs are plain strings (e.g., task: "Analyze Q1 earnings report", context: "Focus on revenue growth and margins"), not dictionaries or JSON objects.
 
 # Specialist Agents
 financial_analyst:
