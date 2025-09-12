@@ -1,8 +1,7 @@
 # 8. Final report writing
 final_report_task:
   description: >
-    Transform the synthesized research into a JSON-formatted report designed for job seekers.
-    The JSON should include these sections:
+    Summarize the research into a JSON report with sections:
       - company_name
       - financial_health
       - workplace_culture
@@ -10,8 +9,7 @@ final_report_task:
       - career_growth
       - recent_news
       - overall_summary
-    Make sure the JSON is valid and strictly follows the schema.
-    Delegate work to coworker mcp_researcher when you need fresh web details.
+    Ensure the JSON is valid and follows the schema.
   expected_output: >
     A valid JSON object containing the research findings in the specified schema.
     Your final answer MUST be valid JSON.
