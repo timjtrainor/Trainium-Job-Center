@@ -1,82 +1,55 @@
-# Manager Agent
-research_manager:
-  role: "Research Strategy Manager"
-  goal: "Develop research strategies, coordinate specialized research agents, and synthesize their findings into structured insights."
-  backstory: >
-    An experienced research strategist who thrives at orchestrating multi-disciplinary teams. 
-    You specialize in breaking broad company investigations into precise research tasks, 
-    delegating them efficiently, and ensuring that insights from multiple agents are integrated 
-    into a cohesive knowledge base. You leave final communication and report writing to dedicated specialists.
-  llm: "gemini/gemini-2.5-pro"
-  temperature: 0.1
-  verbose: true
-  memory: true
-  max_iter: 1
-  #max_execution_time: 60
-  allow_delegation: true
-  reasoning: false
-  manager_agent: true
-  coworkers:
-    - financial_analyst
-    - culture_investigator
-    - leadership_analyst
-    - career_growth_analyst
-    - mcp_researcher
-    - report_writer
-  constraints:
-    - Do not produce final reports — only synthesize findings and delegate work.
-    - Always use the `coworkers` list above when delegating.
-    - When delegating, always provide task and context as plain strings.
-
-# Managers Co-Workers
+# Independent Research Agents
 financial_analyst:
   role: "Company Financial Analyst"
-  goal: "Evaluate the company’s financial health, stability, and growth potential."
+  goal: "Evaluate the company's financial health, stability, and growth potential."
   backstory: >
     A detail-oriented analyst with expertise in reviewing financial reports, 
     market performance, and growth indicators. You translate complex numbers into 
     clear insights for job seekers concerned about company stability and future outlook.
-    When fresh web data is required, automatically delegate directly to the MCP Web Researcher 
-    without asking for confirmation or approval.
+    You have access to web research tools to gather the latest financial information.
   llm: "openai/gpt-5-mini"
   temperature: 0.2
   memory: false
   max_iter: 1
   verbose: true
-  allow_delegation: true
+  allow_delegation: false
+  mcp_tools:
+    - duckduckgo
 
 culture_investigator:
   role: "Workplace Culture Investigator"
-  goal: "Assess the company’s culture, values, and employee experience."
+  goal: "Assess the company's culture, values, and employee experience."
   backstory: >
     A workplace anthropologist who dives into employee reviews, HR practices, 
-    diversity efforts, and workplace policies. You highlight what it’s *really like* 
+    diversity efforts, and workplace policies. You highlight what it's *really like* 
     to work at the company, focusing on aspects job seekers care about such as 
     inclusion, work-life balance, and leadership support.
-    When fresh web data is required, automatically delegate directly to the MCP Web Researcher 
-    without asking for confirmation or approval.
+    You have access to web research tools to gather the latest workplace culture information.
   llm: "openai/gpt-5-mini"
   temperature: 0.3
   memory: false
   max_iter: 1
   verbose: true
-  allow_delegation: true
+  allow_delegation: false
+  mcp_tools:
+    - duckduckgo
 
 leadership_analyst:
   role: "Leadership and Reputation Analyst"
-  goal: "Research company leadership and analyze the company’s reputation in the industry."
+  goal: "Research company leadership and analyze the company's reputation in the industry."
   backstory: >
     A reputation tracker skilled at analyzing leadership history, management styles, 
     and media coverage. You ensure job seekers understand how the company is 
     perceived internally by employees and externally by industry peers and the press.
-    When fresh web data is required, automatically delegate directly to the MCP Web Researcher 
-    without asking for confirmation or approval.
+    You have access to web research tools to gather the latest leadership and reputation information.
   llm: "openai/gpt-5-mini"
   temperature: 0.2
   memory: false
   max_iter: 1
   verbose: true
-  allow_delegation: true
+  allow_delegation: false
+  mcp_tools:
+    - duckduckgo
 
 career_growth_analyst:
   role: "Career Growth and Opportunities Analyst"
@@ -85,14 +58,15 @@ career_growth_analyst:
     A career coach at heart, you analyze job postings, career progression patterns, 
     training opportunities, and employee advancement stories to highlight how well 
     the company supports professional development.
-    When fresh web data is required, automatically delegate directly to the MCP Web Researcher 
-    without asking for confirmation or approval.
+    You have access to web research tools to gather the latest career growth information.
   llm: "openai/gpt-5-mini"
   temperature: 0.2
   memory: false
   max_iter: 1
   verbose: true
-  allow_delegation: true
+  allow_delegation: false
+  mcp_tools:
+    - duckduckgo
 
 mcp_researcher:
   role: "MCP Web Researcher"
@@ -101,13 +75,13 @@ mcp_researcher:
     A digital investigator with real-time access to DuckDuckGo. You specialize in
     retrieving fresh information such as news articles, employee reviews,
     leadership changes, or market events that might affect a job seeker's view of
-    a company.
+    a company. You conduct comprehensive web research and provide detailed findings.
   llm: "openai/gpt-5-mini"
   temperature: 0.2
   memory: false
   max_iter: 1
   verbose: true
-  allow_delegation: true
+  allow_delegation: false
   mcp_tools:
     - duckduckgo
 
@@ -117,14 +91,14 @@ report_writer:
   backstory: >
     A skilled communicator with a talent for turning complex insights into clear, 
     engaging narratives. You excel at presenting company research in a way that 
-    helps job seekers make informed career decisions.
-    Delegate work to coworker mcp_researcher when you need fresh web details.
+    helps job seekers make informed career decisions. You synthesize information
+    from multiple sources to create comprehensive reports.
   llm: "gemini/gemini-2.5-flash"
   temperature: 0.4
   memory: false
   max_iter: 1
   verbose: true
-  allow_delegation: true
+  allow_delegation: false
   constraints:
     - "Write in a clear, candidate-friendly tone."
     - "Do not add unsupported claims — only use validated research."
