@@ -7,6 +7,7 @@ from .services.infrastructure.database import DatabaseService
 from .services.infrastructure.queue import QueueService
 from .services.infrastructure.scheduler import SchedulerService
 from .services.crewai import JobReviewCrew
+from .services.crewai.job_posting_review.crew import get_job_posting_review_crew
 
 
 def get_gemini_service(request: Request) -> GeminiService:
