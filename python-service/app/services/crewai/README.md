@@ -120,6 +120,19 @@ execution_sequence:
   - quality_assessment
 ```
 
+### MCP Tool Structure
+
+MCP tools accessed through this service expect input arguments formatted as a
+JSON-like payload containing both `args` and `kwargs` keys. Positional
+arguments are wrapped automatically by `MCPDynamicTool` into:
+
+```python
+{"args": <original_args>, "kwargs": {}}
+```
+
+When invoking tools directly, ensure to supply this structure so the MCP
+Gateway can forward requests correctly.
+
 ## Best Practices
 
 ### CrewBase Implementation

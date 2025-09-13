@@ -18,7 +18,12 @@ from crewai.tools import BaseTool
 
 
 class MCPDynamicTool(BaseTool):
-    """Lightweight wrapper around MCP tools for CrewAI compatibility."""
+    """Lightweight wrapper around MCP tools for CrewAI compatibility.
+
+    MCP tools expect arguments in the form ``{"args": ..., "kwargs": {}}``.
+    This wrapper translates CrewAI's positional arguments into that structure
+    before delegating execution to the underlying MCP executor.
+    """
 
     name: str
     description: str = ""
@@ -26,7 +31,10 @@ class MCPDynamicTool(BaseTool):
     parameters: Dict[str, Any] | None = None
 
     def _run(self, *args: Any, **kwargs: Any) -> Any:  # type: ignore[override]
-        return self.executor(*args, **kwargs)
+        if args:
+            arg_payload = args[0] if len(args) == 1 else list(args)
+            return self.executor(args=arg_payload, kwargs={})
+        return self.executor(**kwargs)
 
     async def _arun(self, *args: Any, **kwargs: Any) -> Any:  # type: ignore[override]
         raise NotImplementedError("MCPDynamicTool does not support async execution")
