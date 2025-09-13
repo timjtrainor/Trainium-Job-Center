@@ -168,7 +168,7 @@ inputs = {
 
 **JSON Parsing**:
 - Primary: Extract JSON object matching expected schema from task output.
-- Validator: Parsed object must include `final`, `personas`, and at least one key containing `score`.
+- Validator: Parsed object must include `final`, `personas`, `tradeoffs`, `actions`, `sources`, and at least one key containing `score`.
 - Metrics: Non-standard keys (including score fields) are moved under a separate `data` object; `final.rationale` is trimmed to a concise summary.
 - Fallback: Text parsing for boolean recommendation and reason extraction when JSON parsing fails.
 - Error: Return `{recommend: false, reason: "insufficient signal", notes: ["task execution failed"]}`

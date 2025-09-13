@@ -41,6 +41,9 @@ def test_run_crew_returns_job_details():
             "confidence": "high",
         },
         "personas": [],
+        "tradeoffs": ["high_competition"],
+        "actions": ["reach_out_recruiter"],
+        "sources": ["job_posting"],
         "job_title": "Software Engineer",
         "company": "Acme",
         "fit_score": 0.9,
@@ -58,4 +61,6 @@ def test_run_crew_returns_job_details():
     assert result["data"]["job_title"] == "Software Engineer"
     assert result["data"]["company"] == "Acme"
     assert result["data"]["fit_score"] == 0.9
+    for key in ["final", "personas", "tradeoffs", "actions", "sources"]:
+        assert key in result
 
