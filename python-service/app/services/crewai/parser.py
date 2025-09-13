@@ -48,8 +48,10 @@ def parse_crew_result(raw_output: str) -> Dict[str, Any]:
     json_str = _find_json_block(raw_output)
     data = json.loads(json_str)
 
-    if "final" not in data or "personas" not in data:
-        raise ValueError("Missing required keys in crew output")
+    required_keys = {"final", "personas", "tradeoffs", "actions", "sources"}
+    missing = [k for k in required_keys if k not in data]
+    if missing:
+        raise ValueError(f"Missing required keys in crew output: {', '.join(missing)}")
     if not _has_score_field(data):
         raise ValueError("No score fields present in crew output")
 

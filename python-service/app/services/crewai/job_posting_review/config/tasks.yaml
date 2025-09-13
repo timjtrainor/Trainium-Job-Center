@@ -46,14 +46,29 @@ brand_match_task:
 
 orchestration_task:
   description: >
-    Manage the pipeline for {{job_posting}}: 
-    1. Run intake_task → pre_filter_task. 
-    2. If {{pre_filter_task.output}} is "reject", stop. 
-    3. If {{pre_filter_task.output}} is "pass", run quick_fit_task. 
-    4. If {{quick_fit_task.output.quick_recommendation}} is "review_deeper", run brand_match_task. 
+    Manage the pipeline for {{job_posting}}:
+    1. Run intake_task → pre_filter_task.
+    2. If {{pre_filter_task.output}} is "reject", stop.
+    3. If {{pre_filter_task.output}} is "pass", run quick_fit_task.
+    4. If {{quick_fit_task.output.quick_recommendation}} is "review_deeper", run brand_match_task.
     5. Provide a final recommendation: "green-light" or "reject" with reasons.
+
+    The final response **must** be a JSON object containing only these top-level keys:
+    `final`, `personas`, `tradeoffs`, `actions`, `sources`, and any additional metrics
+    grouped under a `data` object. If any mandatory key is missing, reply exactly with
+    `{"error": "missing mandatory keys"}`.
+
+    Example schema:
+    {
+      "final": {"recommend": boolean, "rationale": string, "confidence": string},
+      "personas": [{"id": string, "recommend": boolean, "reason": string}],
+      "tradeoffs": [string],
+      "actions": [string],
+      "sources": [string],
+      "data": {"example_metric": number}
+    }
   expected_output: >
-    A final JSON object with all relevant results and the decision.
+    Final JSON object adhering to the schema above. Reject any output missing required keys.
   agent: managing_agent
   input:
     job_posting: "{{job_posting}}"
