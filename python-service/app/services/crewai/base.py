@@ -114,6 +114,10 @@ async def load_mcp_tools(tool_names: List[str]) -> List[BaseTool]:
         async with get_mcp_adapter(gateway_url) as adapter:
             available_tools = adapter.get_available_tools()
             
+            if not available_tools:
+                logger.warning("No tools available from MCP Gateway")
+                return []
+            
             for tool_name in tool_names:
                 # Handle different tool name formats
                 if tool_name in available_tools:
@@ -151,6 +155,7 @@ async def load_mcp_tools(tool_names: List[str]) -> List[BaseTool]:
         
     except Exception as e:
         logger.error(f"Failed to load MCP tools: {e}")
+        logger.info("MCP tools unavailable - continuing without them")
         return []
 
 

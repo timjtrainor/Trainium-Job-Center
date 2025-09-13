@@ -212,13 +212,10 @@ services:
   mcp-gateway:
     container_name: trainium_mcp_gateway
     image: docker/mcp-gateway
-    environment:
-      # Environment configuration for scheduler
-      ENVIRONMENT: ${MCP_GATEWAY_PORT:-8811}
     command:
       - --servers=duckduckgo
       - --transport=sse
-      - --port=${MCP_GATEWAY_PORT:-8811}
+      - --port=8811
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
