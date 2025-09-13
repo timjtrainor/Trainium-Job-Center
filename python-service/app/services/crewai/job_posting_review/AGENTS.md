@@ -1,217 +1,236 @@
-# AGENTS.md — Job Posting Review Service
+# Job Posting Review Crew - AGENTS.md
 
-**Purpose**: Orchestrates the motivational evaluator fan-out system using CrewAI multi-agent architecture with YAML-first design and optional helper agent insights.
+## Purpose
 
-**Entrypoints**:
-- `run_crew(job_posting_data, options, correlation_id)` → main entry for FastAPI routes executing motivational fan-out
-- `MotivationalFanOutCrew.motivational_fanout()` → YAML-driven crew executing helper snapshot + five parallel evaluations  
-- `crew.kickoff(inputs={job_posting_data, career_brand_digest, options})` → crew execution with placeholder replacement
+The Job Posting Review Crew provides comprehensive evaluation of job opportunities against the user's career brand framework, incorporating company research data to deliver personalized fit assessments across multiple dimensions: skills alignment, cultural fit, compensation competitiveness, and career growth potential.
 
-## YAML-First Motivational Fan-Out
+## Roles and Goals of Each Agent
 
-**Purpose**: All Motivational agents (builder, maximizer, harmonizer, pathfinder, adventurer) are defined in YAML files with runtime variable interpolation. The fan-out executes five independent evaluations that return thumbs-up/thumbs-down verdicts.
+### Skills Analyst
+- **Role**: Skills and Requirements Analyst
+- **Goal**: Evaluate how well the candidate's skills and experience align with the job requirements
+- **Responsibilities**:
+  - Analyze technical and soft skill requirements vs candidate capabilities
+  - Assess experience levels and seniority match
+  - Identify skill gaps and development opportunities
+  - Leverage ChromaDB career brand data for candidate skills context
 
-**Core Architecture**:
+### Culture Analyst
+- **Role**: Cultural Fit and Alignment Analyst  
+- **Goal**: Assess alignment between company culture, values, and the candidate's preferences
+- **Responsibilities**:
+  - Analyze company values alignment with candidate values
+  - Evaluate work environment and team dynamics
+  - Assess management style and organizational structure compatibility
+  - Consider work-life balance and flexibility factors
+  - Leverage ChromaDB career brand data for cultural preferences
 
-### Agent Definitions (agents.yaml)
-- **builder**: Technical Builder and Systems Designer - evaluates technical building opportunities
-- **maximizer**: Growth and Performance Optimizer - assesses growth and compensation potential  
-- **harmonizer**: Culture and Team Harmony Specialist - determines cultural fit and team dynamics
-- **pathfinder**: Career Path Navigator and Strategic Planner - evaluates career trajectory alignment
-- **adventurer**: Innovation and Learning Explorer - assesses learning and innovation opportunities
+### Compensation Analyst
+- **Role**: Compensation and Benefits Analyst
+- **Goal**: Evaluate the competitiveness of compensation, benefits, and total rewards package
+- **Responsibilities**:
+  - Research current market compensation data via web search tools
+  - Analyze salary ranges, equity, and benefits packages  
+  - Evaluate total compensation competitiveness
+  - Consider location and experience level factors
+  - Assess growth potential in compensation
 
-Each agent has:
-- `role`: Concise professional role description
-- `goal`: Specific evaluation objective  
-- `backstory`: Context and motivation for the agent
-- `max_iter`: Maximum iterations (default: 2)
-- `max_execution_time`: Timeout in seconds (default: 45)
+### Career Trajectory Analyst
+- **Role**: Career Growth and Trajectory Analyst
+- **Goal**: Analyze career advancement opportunities and alignment with long-term career goals
+- **Responsibilities**:
+  - Evaluate advancement and leadership opportunities
+  - Assess skill development and learning support
+  - Analyze industry positioning and market growth
+  - Leverage ChromaDB career brand data for trajectory goals
+  - Consider long-term career strategy alignment
 
-### Task Definitions (tasks.yaml)
-- **{persona}_evaluation**: Reusable task pattern for each motivational agent
-- Uses placeholders: `{job_title}`, `{job_company}`, `{job_location}`, `{job_description}`, `{career_brand_digest}`, `{options}`, `{helper_snapshot}`
-- Returns structured JSON: `{persona_id, recommend (boolean), reason (1-2 sentences), notes (array), sources (array)}`
-- Emphasizes brevity to control token usage
-- Each task assigned to corresponding agent with `async_execution: true` for parallel execution
+### Fit Evaluator (Manager Agent)
+- **Role**: Job Fit Evaluation Manager
+- **Goal**: Synthesize all analyses into a comprehensive fit evaluation and recommendation
+- **Responsibilities**:
+  - Integrate findings from all specialist agents
+  - Provide overall recommendation with clear rationale
+  - Identify key strengths, concerns, and decision factors
+  - Generate actionable recommendations and negotiation points
+  - Coordinate and manage the analysis workflow
 
-### Crew Flow (crew.py)
-- **Helper snapshot stage**: Conditionally runs helper agents based on `{options.use_helpers}`
-- **Fan-out execution**: All five motivational tasks run independently with the same inputs
-- **Result collection**: Individual verdicts collected into `motivational_verdicts` array
-- **Error handling**: Failed tasks return `{recommend: false, reason: "insufficient signal"}`
-- **Placeholder resolution**: CrewAI replaces `{placeholders}` from `crew.kickoff(inputs={...})` at runtime
+## Task Flow and Dependencies
 
-## Helpers as Lightweight YAML Tools
+### Sequential Task Execution (Hierarchical Process)
 
-**Purpose**: Advisory helper agents are defined in YAML as agents + tasks that return compact JSON used by motivational evaluators.
+1. **Parallel Specialist Analysis Phase**:
+   - Skills Analysis Task (async)
+   - Culture Analysis Task (async)  
+   - Compensation Analysis Task (async)
+   - Career Trajectory Analysis Task (async)
 
-**Entrypoints**: 
-- `helper_snapshot` (aggregates helper JSON)
-- Individual helper tasks: `data_analyst_task`, `strategist_task`, `stakeholder_task`, `technical_leader_task`, `recruiter_task`, `skeptic_task`, `optimizer_task`
+2. **Synthesis Phase**:
+   - Fit Evaluation Task (depends on all specialist analyses)
 
-**Contracts**: Each helper returns a small JSON object with fixed keys; the aggregator merges them into `{helper_snapshot}`. Motivational tasks may read `{helper_snapshot}`.
+### Task Dependencies
+- All specialist tasks run in parallel to maximize efficiency
+- Fit Evaluation Task receives context from all four specialist analyses
+- Manager agent (Fit Evaluator) coordinates final synthesis
 
-### Helper Agent Definitions (agents.yaml)
-- **data_analyst**: Compensation and Market Data Analyst - salary/TC benchmarks and company health indicators
-- **strategist**: Industry Trend and Strategy Analyst - trend fit (industry/platform shifts, AI adoption)
-- **stakeholder**: Cross-Functional Partnership Specialist - partnership risks/opportunities
-- **technical_leader**: Technical Delivery and Architecture Advisor - delivery feasibility, architecture trade-offs
-- **recruiter**: ATS and Keyword Optimization Specialist - ATS/keyword gaps against JD
-- **skeptic**: Risk Assessment and Red Flag Analyst - red-flag scan (financial/legal/culture signals)
-- **optimizer**: Application Enhancement Strategist - top three quick tweaks to strengthen application
+## Shared Tools Usage
 
-Each helper agent has:
-- `max_iter`: 1 (faster execution than motivational agents)
-- `max_execution_time`: 30 seconds (shorter than motivational agents)
-- Focused, specific role for compact output
+### ChromaDB Search Tool
+- **Purpose**: Access career brand framework data stored in ChromaDB
+- **Usage**: 
+  - Skills Analyst: Retrieve candidate skills and technical background
+  - Culture Analyst: Access candidate values and cultural preferences  
+  - Career Trajectory Analyst: Understand career goals and aspirations
+- **Collection**: `career_brand` with 3 results per query
+- **Integration**: Automatic via ChromaSearchTool configuration
 
-### Helper Task Definitions (tasks.yaml)
-Each helper task:
-- Consumes same placeholders as motivational tasks: `{job_title}`, `{job_company}`, `{job_location}`, `{job_description}`, `{career_brand_digest}`, `{options}`
-- Returns compact JSON (≤600 chars typical):
-  - **data_analyst** → `{"tc_range": "...", "refs": ["..."]}`
-  - **strategist** → `{"signals": ["..."], "refs": ["..."]}`
-  - **stakeholder** → `{"partners": ["..."], "risks": ["..."]}`
-  - **technical_leader** → `{"notes": ["..."]}`
-  - **recruiter** → `{"keyword_gaps": ["..."]}`
-  - **skeptic** → `{"redflags": ["..."]}`
-  - **optimizer** → `{"top3": ["...", "...", "..."]}`
-- On insufficient signal, returns valid empty-shape JSON (e.g., `{"redflags": []}`)
-- Emphasizes brevity and determinism
+### DuckDuckGo Web Search Tools
+- **Purpose**: Research current market data and company information
+- **Usage**:
+  - Compensation Analyst: Gather market salary and benefits data
+  - All agents: Access recent company information and industry trends
+- **Integration**: Via MCP tools from base utilities
 
-### Helper Snapshot Aggregation
-- **helper_snapshot task**: Runs selected subset of helper tasks and merges JSON into single compact object
-- Conditional execution: if `{options.use_helpers}` is false/missing → returns `{}`
-- If enabled → returns merged JSON: `{"data_analyst": {...}, "strategist": {...}, ...}`
-- Size constraint: ≤1.5 KB typical to prevent token bloat
-- Failure handling: individual helper failures produce empty JSON for that key; overall object remains valid
+## Input Requirements
 
-### Integration with Motivational Tasks
-- All motivational tasks receive `{helper_snapshot}` placeholder
-- Task prompts include: "If helper_snapshot contains useful keys for your lens, cite them briefly in your reason; otherwise proceed without helpers"
-- Motivational tasks remain robust with or without helper data
-- Helper insights appear as brief citations in `reason` field, not verbose integration
-
-## Input Contract
-
-**Required inputs for crew.kickoff():**
-```python
-inputs = {
-    "job_posting_data": {
-        "title": str,       # Maps to {job_title}
-        "company": str,     # Maps to {job_company}  
-        "location": str,    # Maps to {job_location}
-        "description": str  # Maps to {job_description}
-    },
-    "career_brand_digest": str,  # Maps to {career_brand_digest}
-    "options": {                 # Maps to {options}
-        "use_helpers": bool,     # Controls helper execution
-        ...                      # Other options
-    }
-}
-```
-
-**Output Contract:**
+### Required Inputs
 ```python
 {
-    "motivational_verdicts": [
-        {
-            "persona_id": "builder|maximizer|harmonizer|pathfinder|adventurer",
-            "recommend": boolean,
-            "reason": "1-2 sentence explanation",
-            "notes": ["key observation 1", "key observation 2"],
-            "sources": ["job_description", "analysis_type"]
-        }
-    ],
-    "helper_snapshot": {
-        "data_analyst": {"tc_range": "...", "refs": [...]},
-        "strategist": {"signals": [...], "refs": [...]},
-        // ... other helpers or {} if disabled
-    }
+    "job_title": str,           # Job title to analyze
+    "company_name": str,        # Company name  
+    "job_location": str,        # Job location (optional)
+    "job_description": str,     # Full job description text
+    "company_research": dict,   # Research data from research_company crew
+    "options": dict            # Additional analysis options
 }
 ```
 
-## YAML-First Guidance
+### Company Research Integration
+The crew expects company research data from the `research_company` crew, including:
+- Financial health and stability analysis
+- Workplace culture and employee experience
+- Leadership and reputation analysis
+- Career growth opportunities within the company
 
-**Critical Requirements**:
-- All helper behavior (prompts, expected output, brevity constraints) is declared in YAML
-- `crew.py` only passes inputs and binds configs - no helper logic in Python code
-- Agent names in `agents.yaml` must exactly match method names in `crew.py`
-- Task names in `tasks.yaml` must match method names for proper binding
-- Placeholder names must match input keys exactly for CrewAI interpolation
+## Output Schema
 
-**Do/Don't for Helpers**:
-- ✅ **Do**: Keep helper responses ≤600 chars typical and strictly JSON
-- ✅ **Do**: Handle missing data by returning empty structures, not prose
-- ✅ **Do**: Use deterministic output patterns for reliable integration
-- ✅ **Do**: Keep helper execution fast (≤30 seconds, 1 iteration max)
-- ❌ **Don't**: Call external web APIs from Python here; if research is required, do it via YAML helper with clear output keys
-- ❌ **Don't**: Reference helpers directly from FastAPI route; use through crew execution only
-- ❌ **Don't**: Return verbose prose from helpers; stick to compact JSON structures
-- ❌ **Don't**: Embed helper logic in Python; keep it YAML-declared
+### Comprehensive Fit Analysis
+```json
+{
+  "job_title": "...",
+  "company_name": "...",
+  "skills_fit": {
+    "technical_alignment": "...",
+    "experience_match": "...",
+    "skill_gaps": ["..."],
+    "strengths": ["..."],
+    "skills_score": "...",
+    "key_insights": ["..."]
+  },
+  "cultural_fit": {
+    "values_alignment": "...",
+    "work_environment": "...",
+    "culture_score": "...",
+    "cultural_highlights": ["..."],
+    "potential_concerns": ["..."]
+  },
+  "compensation_fit": {
+    "market_competitiveness": "...",
+    "total_compensation": "...",
+    "compensation_score": "...",
+    "market_insights": ["..."]
+  },
+  "career_growth": {
+    "advancement_opportunities": "...",
+    "trajectory_alignment": "...", 
+    "growth_score": "...",
+    "career_highlights": ["..."]
+  },
+  "overall_evaluation": {
+    "recommend": true/false,
+    "fit_score": "...",
+    "confidence_level": "...",
+    "rationale": "...",
+    "key_strengths": ["..."],
+    "key_concerns": ["..."]
+  },
+  "recommended_actions": ["..."],
+  "questions_to_ask": ["..."],
+  "negotiation_points": ["..."]
+}
+```
 
-**Change Management**: If you rename helper IDs or task names, update `agents.yaml`, `tasks.yaml`, `crew.yaml`, and any tests that assert on those names to avoid binding mismatches.
+## FastAPI Integration
 
-## Validation and Error Behavior
+### Endpoint
+- **URL**: `POST /job-posting-review`
+- **Purpose**: Analyze job posting fit against career brand framework
+- **Request Schema**: `JobPostingReviewRequest`
+- **Response Schema**: `JobPostingReviewResponse`
 
-**Task Failure Handling**:
-- If any motivational task fails or times out → `{recommend: false, reason: "insufficient signal"}`
-- If any helper task fails → empty JSON for that helper key in aggregated snapshot
-- All five motivational tasks must produce parseable JSON → fail fast on malformed output
-- Deterministic fallback behavior maintains system reliability
+### Request Format
+```python
+{
+  "job_posting": {
+    "title": "Senior Software Engineer",
+    "company": "TechCorp", 
+    "location": "San Francisco, CA",
+    "description": "...",
+    "url": "https://...",
+    "salary_range": "$120k-160k"
+  },
+  "company_research": {
+    # Data from research_company crew
+  },
+  "options": {
+    # Additional analysis parameters
+  }
+}
+```
 
-**Helper Failure Resilience**:
-- Individual helper failures don't block motivational evaluation
-- helper_snapshot returns valid JSON even with partial helper failures
-- Motivational tasks work robustly with empty `{helper_snapshot: {}}`
-- Size limits enforced to prevent token bloat (1.5 KB helper snapshot limit)
+### Health Check
+- **URL**: `GET /job-posting-review/health`
+- **Purpose**: Verify crew initialization and service health
 
-**JSON Parsing**:
-- Primary: Extract JSON object matching expected schema from task output
-- Fallback: Text parsing for boolean recommendation and reason extraction
-- Error: Return `{recommend: false, reason: "insufficient signal", notes: ["task execution failed"]}`
+## Maintenance Instructions
 
-## YAML Binding Rules
+### Configuration Updates
+1. **Agent Modifications**: Update `config/agents.yaml` for agent role, goal, or backstory changes
+2. **Task Changes**: Modify `config/tasks.yaml` for task descriptions or expected outputs
+3. **Tool Integration**: Add new tools to agent configurations in YAML files
+4. **Schema Updates**: Update Pydantic schemas in `app/schemas/job_posting_review.py`
 
-**Critical Requirements**:
-- Agent names in `agents.yaml` must exactly match method names in `crew.py` (e.g., `builder` → `builder_agent()`)
-- Task names in `tasks.yaml` must match method names (e.g., `builder_evaluation` → `builder_evaluation_task()`)
-- Placeholder names in tasks must match input keys exactly (`{job_title}` requires `inputs["job_title"]`)
-- Changes to agent/task IDs require updates in both YAML and Python to avoid KeyError binding issues
+### Dependencies
+- **ChromaDB**: Requires `career_brand` collection with user's career framework data
+- **Company Research**: Integrates with `research_company` crew output
+- **Web Search**: Uses DuckDuckGo tools for market research
+- **LLM Models**: Configured for OpenAI GPT-5-mini and Gemini 2.5-flash
 
-**CrewAI YAML Integration**:
-- Follows CrewAI's documented pattern: agents/tasks defined in YAML, loaded by CrewBase-derived class
-- Runtime variable interpolation via `crew.kickoff(inputs={...})` replaces `{placeholders}`
-- Agent configurations loaded via custom `_load_agents_config()` and `_load_tasks_config()` methods
-- LLM routing handled by `_RouterLLM` adapter compatible with project's `LLMRouter`
+### Testing
+- **Unit Tests**: Test individual agent functionality and task execution
+- **Integration Tests**: Verify FastAPI endpoint and complete workflow
+- **Mock Mode**: Enable `CREWAI_MOCK_MODE=true` for testing without external APIs
 
-## Conventions
+### Performance Considerations
+- Specialist tasks run in parallel for efficiency
+- ChromaDB queries limited to 3 results per agent
+- Web search queries optimized for relevant market data
+- Hierarchical process ensures proper task coordination
 
-**Output Structure**:
-- Keep agent outputs compact and structured JSON only
-- No prose walls or verbose explanations
-- 1-2 sentence reasons maximum for token efficiency
-- Notes array for key observations, sources array for attribution
-- Helper outputs especially compact (≤600 chars individual, ≤1.5 KB aggregated)
+### Error Handling
+- Graceful degradation if ChromaDB or web search fails
+- Comprehensive error logging with correlation IDs  
+- Fallback responses for failed specialist analyses
+- Input validation via Pydantic schemas
 
-**Error Resilience**:
-- Individual task failures don't block other evaluations
-- Graceful degradation with partial results
-- Deterministic fallback responses for consistent behavior
-- Correlation ID tracking for debugging and monitoring
+## Architecture Alignment
 
-**Do/Don't**:
-- ✅ Do: Keep YAML agent definitions stable once bound to avoid runtime errors
-- ✅ Do: Use exact placeholder names in tasks that match input preparation
-- ✅ Do: Return compact JSON structures for efficient processing
-- ✅ Do: Handle task failures gracefully with "insufficient signal" responses
-- ✅ Do: Log execution with correlation IDs for traceability
-- ✅ Do: Use helpers conditionally based on `options.use_helpers`
-- ✅ Do: Keep helper insights brief in motivational reasoning
-- ❌ Don't: Change agent/task names without updating both YAML and Python bindings
-- ❌ Don't: Return verbose prose from agents; stick to structured JSON
-- ❌ Don't: Assume all tasks will succeed; implement robust error handling
-- ❌ Don't: Hardcode agent logic in Python; keep it YAML-driven
-- ❌ Don't: Modify YAML structure without verifying CrewAI compatibility
-- ❌ Don't: Let helper payload exceed size limits (600 chars individual, 1.5 KB total)
-- ❌ Don't: Make motivational tasks dependent on helper success
+This crew follows the standardized CrewAI architecture patterns established in the main AGENTS.md:
+- ✅ Standard file structure (crew.py, config/agents.yaml, config/tasks.yaml)
+- ✅ CrewAI decorators (@agent, @task, @crew)
+- ✅ Hierarchical process with manager agent coordination
+- ✅ Proper task delegation and context flow
+- ✅ ChromaDB and MCP tools integration
+- ✅ FastAPI endpoint with Pydantic schemas
+- ✅ Singleton pattern for crew instances
+- ✅ Comprehensive error handling and logging

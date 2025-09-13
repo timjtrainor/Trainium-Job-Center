@@ -1,269 +1,212 @@
-builder_evaluation:
-  description: |
-    Analyze the job posting to determine if it offers strong career growth and advancement opportunities.
+skills_analysis_task:
+  description: >
+    Analyze the job requirements and assess how well the candidate's skills and experience align with the position.
     
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
+    Job Posting Details:
+    - Title: {{job_title}}
+    - Company: {{company_name}}
+    - Location: {{job_location}}
+    - Description: {{job_description}}
     
-    Options: {options}
-    Helper Insights: {helper_snapshot}
+    Company Research Context: {{company_research}}
     
-    Focus on:
-    - Scope of ownership and responsibility
-    - Opportunities for leadership and advancement
-    - Learning potential and skill development
-    - Alignment with long-term mastery and career trajectory
-    - Signals of recognition and support for growth
-    - Any location factors that may influence advancement (e.g., HQ access, regional constraints)
+    Use ChromaDB search to retrieve relevant career brand information about the candidate's skills,
+    technical background, and professional experience. Focus on:
     
-    If helper_snapshot contains useful keys for your lens, cite them briefly in your reason; otherwise proceed without helpers.
-    If your agent knowledge provides additional context, you may reference it briefly.
+    - Technical skills and proficiency levels required vs possessed
+    - Years of experience and seniority level match
+    - Domain expertise and industry knowledge alignment
+    - Soft skills and leadership requirements
+    - Education and certification requirements
+    - Any notable skill gaps or areas for growth
     
-    Return your evaluation strictly as JSON with this exact structure. Do not include any additional text or code fences:
-    {{
-      "persona_id": "builder",
-      "recommend": true/false,
-      "reason": "1-2 sentence explanation of recommendation",
-      "notes": ["key observation 1", "key observation 2"],
-      "sources": ["job_description", "agent_knowledge"]
-    }}
-  expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
-  agent: builder_agent
-
-maximizer_evaluation:
-  description: |
-    Evaluate if this opportunity maximizes financial rewards and overall compensation package.
+    Based on your analysis, provide insights into the skills fit.
     
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    Helper Insights: {helper_snapshot}
-    
-    Focus on:
-    - Base salary and pay transparency
-    - Equity refresh, stock options, or bonuses
-    - Benefits package (health, retirement, PTO, flexibility perks)
-    - Total compensation compared to market benchmarks
-    - Signals of strong financial upside or under-valuation
-    
-    If helper_snapshot contains useful compensation or market data, cite them briefly in your reason; otherwise proceed without helpers.
-    If your agent knowledge provides additional context, you may reference it briefly.
-    
-    Return your evaluation strictly as JSON with this exact structure. Do not include any additional text or code fences:
-    {{
-      "persona_id": "maximizer",
-      "recommend": true/false,
-      "reason": "1-2 sentence explanation of recommendation",
-      "notes": ["key observation 1", "key observation 2"],
-      "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
-    }}
-  expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
-  agent: maximizer_agent
-
-harmonizer_evaluation:
-  description: |
-    Assess whether the company culture, team environment, and values
-    align with the candidate’s personal preferences and working style.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    Helper Insights: {helper_snapshot}
-    
-    Focus on:
-    - Alignment of stated company values with personal values
-    - Team collaboration and working style
-    - Work-life balance signals
-    - Diversity, equity, and inclusion practices
-    - Management style and organizational structure
-    
-    If helper_snapshot contains useful signals (culture, values, balance), cite them briefly in your reason; otherwise proceed without helpers.
-    If your agent knowledge provides additional context, you may reference it briefly.
-    
-    Return your evaluation strictly as JSON with this exact structure. Do not include any additional text or code fences:
-    {{
-      "persona_id": "harmonizer",
-      "recommend": true/false,
-      "reason": "1-2 sentence explanation of recommendation",
-      "notes": ["key observation 1", "key observation 2"],
-      "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
-    }}
-  expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
-  agent: harmonizer_agent
-
-pathfinder_evaluation:
-  description: |
-    Assess whether this role supports the candidate’s desired lifestyle and work–life balance.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    Helper Insights: {helper_snapshot}
-    
-    Focus on:
-    - Flexibility in work hours and arrangements (remote, hybrid, onsite)
-    - Travel demands and impact on lifestyle
-    - Workload expectations and balance signals
-    - Location factors that influence daily life (commute, relocation, time zones)
-    - Overall sustainability of the role for the candidate’s preferred way of living
-    
-    If helper_snapshot contains useful lifestyle or flexibility signals, cite them briefly in your reason; otherwise proceed without helpers.
-    If your agent knowledge provides additional context, you may reference it briefly.
-    
-    Return your evaluation strictly as JSON with this exact structure. Do not include any additional text or code fences:
-    {{
-      "persona_id": "pathfinder",
-      "recommend": true/false,
-      "reason": "1-2 sentence explanation of recommendation",
-      "notes": ["key observation 1", "key observation 2"],
-      "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
-    }}
-  expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
-  agent: pathfinder_agent
-
-adventurer_evaluation:
-  description: |
-    Assess whether this opportunity offers meaningful purpose, impact, and inspiring challenges.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    Helper Insights: {helper_snapshot}
-    
-    Focus on:
-    - Alignment with mission or purpose-driven work
-    - Opportunities to create societal or organizational impact
-    - Inspiring challenges that go beyond routine tasks
-    - Contribution to innovation that matters
-    - Signals that the role can foster passion and long-term commitment
-    
-    If helper_snapshot contains useful purpose or impact signals, cite them briefly in your reason; otherwise proceed without helpers.
-    If your agent knowledge provides additional context, you may reference it briefly.
-    
-    Return your evaluation strictly as JSON with this exact structure. Do not include any additional text or code fences:
-    {{
-      "persona_id": "adventurer",
-      "recommend": true/false,
-      "reason": "1-2 sentence explanation of recommendation",
-      "notes": ["key observation 1", "key observation 2"],
-      "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
-    }}
-  expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
-  agent: adventurer_agent
-
-# Helper tasks for advisory analysis (compact JSON output ≤600 chars)
-data_analyst_task:
-  description: |
-    Analyze salary/TC benchmarks and company health indicators.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    
-    Provide compensation benchmarks and company health cues. Return compact JSON only (≤600 chars):
-    {{
-      "tc_range": "salary range estimate",
-      "refs": ["reference 1", "reference 2"]
-    }}
-    
-    On insufficient signal, return: {{"tc_range": "", "refs": []}}
-  expected_output: "Compact JSON with tc_range and refs fields (≤600 chars)"
-  agent: data_analyst
-
-strategist_task:
-  description: |
-    Assess trend fit including industry/platform shifts and AI adoption.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    
-    Analyze industry trends and strategic alignment. Return compact JSON only (≤600 chars):
-    {{
-      "signals": ["trend signal 1", "trend signal 2"],
-      "refs": ["reference 1", "reference 2"]
-    }}
-    
-    On insufficient signal, return: {{"signals": [], "refs": []}}
-  expected_output: "Compact JSON with signals and refs fields (≤600 chars)"
-  agent: strategist
-
-skeptic_task:
-  description: |
-    Perform red-flag scan for financial, legal, and culture warning signals.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    
-    Scan for potential risks and warning signals. Return compact JSON only (≤600 chars):
-    {{
-      "redflags": ["red flag 1", "red flag 2"]
-    }}
-    
-    On insufficient signal, return: {{"redflags": []}}
-  expected_output: "Compact JSON with redflags field (≤600 chars)"
-  agent: skeptic
-
-
-helper_snapshot:
-  description: |
-    Aggregate helper task results into a single compact snapshot.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    
-    If {options.use_helpers} is false or missing, return empty JSON: {{}}
-    
-    If {options.use_helpers} is true, run selected helper tasks and merge their JSON outputs into a single compact object (≤1.5 KB typical):
-    {% raw %}
+  expected_output: >
+    A JSON object with skills analysis:
     {
-      "data_analyst": {{"tc_range, refs"}},
-      "strategist": {{"signals, refs"}},
-      "stakeholder": {{"partners, risks"}},
-      "technical_leader": {{"notes"}},
-      "recruiter": {{"keyword_gaps"}},
-      "skeptic": {{"redflags"}},
-      "optimizer": {{"top3"}}
+      "skills_fit": {
+        "technical_alignment": "...",
+        "experience_match": "...",
+        "skill_gaps": ["..."],
+        "strengths": ["..."],
+        "seniority_fit": "...",
+        "development_opportunities": ["..."],
+        "skills_score": "...",
+        "key_insights": ["..."]
+      }
     }
-    {% endraw %}
+  
+  agent: skills_analyst
+
+culture_analysis_task:
+  description: >
+    Analyze the company culture, values, and work environment to assess alignment with the candidate's preferences.
     
-    Handle any helper task failures by using empty JSON for that helper key. Keep the merged object valid and compact.
-  expected_output: "Compact merged JSON object from helper tasks (≤1.5 KB) or empty JSON if helpers disabled"
-  agent: data_analyst
+    Job Posting Details:
+    - Title: {{job_title}}
+    - Company: {{company_name}}
+    - Location: {{job_location}}
+    - Description: {{job_description}}
+    
+    Company Research Context: {{company_research}}
+    
+    Use ChromaDB search to retrieve relevant career brand information about the candidate's values,
+    working style preferences, and cultural fit criteria. Focus on:
+    
+    - Company values alignment with candidate's values
+    - Work environment and team dynamics
+    - Management style and organizational structure
+    - Diversity, equity, and inclusion practices
+    - Work-life balance and flexibility
+    - Company mission and purpose alignment
+    
+    Based on your analysis, provide insights into cultural fit.
+    
+  expected_output: >
+    A JSON object with culture analysis:
+    {
+      "cultural_fit": {
+        "values_alignment": "...",
+        "work_environment": "...",
+        "team_dynamics": "...",
+        "management_style": "...",
+        "work_life_balance": "...",
+        "mission_alignment": "...",
+        "culture_score": "...",
+        "cultural_highlights": ["..."],
+        "potential_concerns": ["..."]
+      }
+    }
+    
+  agent: culture_analyst
+
+compensation_analysis_task:
+  description: >
+    Analyze the compensation package and evaluate competitiveness against market benchmarks.
+    
+    Job Posting Details:
+    - Title: {{job_title}}
+    - Company: {{company_name}}
+    - Location: {{job_location}}
+    - Description: {{job_description}}
+    
+    Company Research Context: {{company_research}}
+    
+    Use web research tools to gather current market data for similar roles. Focus on:
+    
+    - Salary range and base compensation
+    - Equity, stock options, and bonus structure
+    - Benefits package (health, retirement, PTO, etc.)
+    - Market competitiveness for the location and role level
+    - Total compensation value
+    - Growth potential and merit increase patterns
+    
+    Based on your research, provide insights into compensation competitiveness.
+    
+  expected_output: >
+    A JSON object with compensation analysis:
+    {
+      "compensation_fit": {
+        "base_salary": "...",
+        "total_compensation": "...",
+        "benefits_package": "...",
+        "equity_potential": "...",
+        "market_competitiveness": "...",
+        "compensation_transparency": "...",
+        "compensation_score": "...",
+        "market_insights": ["..."],
+        "value_propositions": ["..."]
+      }
+    }
+    
+  agent: compensation_analyst
+
+career_trajectory_analysis_task:
+  description: >
+    Analyze career growth opportunities and alignment with the candidate's long-term career goals.
+    
+    Job Posting Details:
+    - Title: {{job_title}}
+    - Company: {{company_name}}
+    - Location: {{job_location}}
+    - Description: {{job_description}}
+    
+    Company Research Context: {{company_research}}
+    
+    Use ChromaDB search to retrieve relevant career brand information about the candidate's career goals,
+    trajectory aspirations, and growth priorities. Focus on:
+    
+    - Career advancement opportunities within the role and company
+    - Skill development and learning opportunities
+    - Leadership and management track potential
+    - Industry positioning and market growth
+    - Networking and professional development support
+    - Long-term career trajectory alignment
+    
+    Based on your analysis, provide insights into career growth potential.
+    
+  expected_output: >
+    A JSON object with career trajectory analysis:
+    {
+      "career_growth": {
+        "advancement_opportunities": "...",
+        "skill_development": "...",
+        "leadership_potential": "...",
+        "industry_positioning": "...",
+        "learning_support": "...",
+        "trajectory_alignment": "...",
+        "growth_score": "...",
+        "career_highlights": ["..."],
+        "growth_limitations": ["..."]
+      }
+    }
+    
+  agent: career_trajectory_analyst
+
+fit_evaluation_task:
+  description: >
+    Synthesize all specialist analyses into a comprehensive job fit evaluation and recommendation.
+    
+    Job Posting Details:
+    - Title: {{job_title}}
+    - Company: {{company_name}}
+    - Location: {{job_location}}
+    - Description: {{job_description}}
+    
+    Company Research Context: {{company_research}}
+    
+    Review and integrate the findings from:
+    - Skills and requirements analysis
+    - Cultural fit analysis
+    - Compensation analysis
+    - Career trajectory analysis
+    
+    Provide a comprehensive evaluation that considers all dimensions of fit and makes a clear
+    recommendation with supporting rationale. Include specific actions and considerations.
+    
+  expected_output: >
+    A complete JSON report with integrated fit evaluation:
+    {
+      "job_title": "{{job_title}}",
+      "company_name": "{{company_name}}",
+      "skills_fit": {},
+      "cultural_fit": {},
+      "compensation_fit": {},
+      "career_growth": {},
+      "overall_evaluation": {
+        "recommend": true/false,
+        "fit_score": "...",
+        "confidence_level": "...",
+        "rationale": "...",
+        "key_strengths": ["..."],
+        "key_concerns": ["..."],
+        "decision_factors": ["..."]
+      },
+      "recommended_actions": ["..."],
+      "questions_to_ask": ["..."],
+      "negotiation_points": ["..."]
+    }
+    
+  agent: fit_evaluator
+  context: [skills_analysis_task, culture_analysis_task, compensation_analysis_task, career_trajectory_analysis_task]
