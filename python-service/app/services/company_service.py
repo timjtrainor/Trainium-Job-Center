@@ -24,4 +24,4 @@ def generate_company_report(company_name: str) -> CompanyReport:
     try:
         return CompanyReport(**data)
     except ValidationError as exc:
-        raise ValueError(f"CompanyReport validation error: {exc}") from exc
+        raise ValueError(f"Invalid company report: {exc}") from exc
