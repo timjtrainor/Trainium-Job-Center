@@ -66,35 +66,40 @@ class ResearchCompanyCrew:
     def financial_analysis_task(self) -> Task:
         return Task(
             config=self.tasks_config["financial_analysis_task"],  # type: ignore[index]
-            agent=self.financial_analyst()
+            agent=self.financial_analyst(),
+            async_execution=True
         )
 
     @task
     def culture_investigation_task(self) -> Task:
         return Task(
             config=self.tasks_config["culture_investigation_task"],  # type: ignore[index]
-            agent=self.culture_investigator()
+            agent=self.culture_investigator(),
+            async_execution=True
         )
 
     @task
     def leadership_analysis_task(self) -> Task:
         return Task(
             config=self.tasks_config["leadership_analysis_task"],  # type: ignore[index]
-            agent=self.leadership_analyst()
+            agent=self.leadership_analyst(),
+            async_execution=True
         )
 
     @task
     def career_growth_analysis_task(self) -> Task:
         return Task(
             config=self.tasks_config["career_growth_analysis_task"],  # type: ignore[index]
-            agent=self.career_growth_analyst()
+            agent=self.career_growth_analyst(),
+            async_execution=True
         )
 
     @task
     def web_research_task(self) -> Task:
         return Task(
             config=self.tasks_config["web_research_task"],  # type: ignore[index]
-            agent=self.mcp_researcher()
+            agent=self.mcp_researcher(),
+            async_execution=True
         )
 
     @task
@@ -123,7 +128,7 @@ class ResearchCompanyCrew:
                 self.web_research_task(),
                 self.report_compilation_task()
             ],
-            process=Process.sequential,
+            process=Process.hierarchical,
             verbose=True,
         )
 
