@@ -1,6 +1,7 @@
 import json
 from app.services.crewai.research_company.crew import get_research_company_crew
 from app.schemas.company import CompanyReport
+from pydantic import ValidationError
 
 def generate_company_report(company_name: str) -> CompanyReport:
     """Run CrewAI and return parsed JSON report."""
@@ -15,4 +16,12 @@ def generate_company_report(company_name: str) -> CompanyReport:
         data = json.loads(raw_output[start : end + 1])
     except json.JSONDecodeError as exc:
         raise ValueError("Invalid JSON output from CrewAI") from exc
-    return CompanyReport(**data)
+    recent_news = data.get("recent_news")
+    if isinstance(recent_news, dict):
+        data["recent_news"] = list(recent_news.values())
+    elif recent_news is not None and not isinstance(recent_news, list):
+        raise ValueError("recent_news must be a dict or list")
+    try:
+        return CompanyReport(**data)
+    except ValidationError as exc:
+        raise ValueError(f"CompanyReport validation error: {exc}") from exc
