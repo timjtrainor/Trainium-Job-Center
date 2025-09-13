@@ -172,7 +172,7 @@ class JobSpyIngestionService:
                         if request.easy_apply is not None:
                             kwargs["easy_apply"] = request.easy_apply
                             kwargs.pop("hours_old", None)
-                    elif site == "zip_recruiter":
+                    elif site == "ziprecruiter":
                         # no special params beyond the general ones; note hours_old rounds to next day upstream
                         pass
 
@@ -246,7 +246,10 @@ class JobSpyIngestionService:
                     "supports_remote": True,
                     "supports_salary_filter": True,
                     "requires": ["country_indeed"],
-                    "limits": ["only one of: hours_old OR (job_type/is_remote) OR easy_apply"],
+                    "conflicts": [
+                        "hours_old conflicts with job_type/is_remote/easy_apply",
+                        "easy_apply conflicts with job_type/is_remote"
+                    ],
                     "notes": ["Best scraper; low rate limiting"]
                 },
                 "glassdoor": {
@@ -254,19 +257,23 @@ class JobSpyIngestionService:
                     "supports_remote": True,
                     "supports_salary_filter": True,
                     "requires": ["country_indeed"],
+                    "conflicts": [],
                     "notes": ["hours_old rounds to next day"]
                 },
                 "linkedin": {
                     "name": "LinkedIn",
                     "supports_remote": True,
                     "supports_salary_filter": False,
+                    "requires": [],
                     "optional": ["linkedin_fetch_description", "linkedin_company_ids"],
-                    "limits": ["only one of: hours_old OR easy_apply"]
+                    "conflicts": ["only one of: hours_old or easy_apply"],
                 },
-                "zip_recruiter": {
+                "ziprecruiter": {
                     "name": "ZipRecruiter",
                     "supports_remote": True,
                     "supports_salary_filter": True,
+                    "requires": [],
+                    "conflicts": [],
                     "notes": ["hours_old rounds to next day"]
                 },
                 "google": {
@@ -274,6 +281,7 @@ class JobSpyIngestionService:
                     "supports_remote": True,
                     "supports_salary_filter": False,
                     "requires": ["google_search_term"],
+                    "conflicts": [],
                     "notes": ["structured filters are ignored; use full-text query"]
                 }
             }

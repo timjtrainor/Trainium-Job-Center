@@ -1,4 +1,4 @@
-from langchain.tools import BaseTool
+from crewai.tools import BaseTool
 import psycopg, os
 from typing import Optional
 

@@ -1,16 +1,20 @@
 """Schemas for ChromaDB operations."""
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
 class ChromaUploadRequest(BaseModel):
     """Request schema for uploading data to ChromaDB."""
-    
+
     collection_name: str = Field(..., description="Name of the ChromaDB collection")
     title: str = Field(..., description="Title for the document")
     tags: List[str] = Field(default_factory=list, description="Tags for the document")
     document_text: str = Field(..., description="The text content to upload")
+    metadata: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Additional metadata to include with each chunk",
+    )
 
 
 class ChromaUploadResponse(BaseModel):

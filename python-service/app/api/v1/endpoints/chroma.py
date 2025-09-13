@@ -4,6 +4,7 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from typing import List, Optional
 from loguru import logger
+import json
 
 from ....schemas.chroma import (
     ChromaUploadRequest, 
@@ -29,6 +30,7 @@ async def upload_to_chroma(
     title: str = Form(..., description="Title for the document"),
     tags: str = Form(default="", description="Comma-separated tags"),
     file: UploadFile = File(..., description="Text file to upload"),
+    metadata: str = Form(default="{}", description="JSON string of additional metadata"),
     chroma_service: ChromaService = Depends(get_chroma_service)
 ):
     """
@@ -65,13 +67,25 @@ async def upload_to_chroma(
         
         # Parse tags
         tag_list = [tag.strip() for tag in tags.split(',') if tag.strip()] if tags else []
-        
+
+        # Parse metadata
+        try:
+            metadata_dict = json.loads(metadata) if metadata else {}
+            if not isinstance(metadata_dict, dict):
+                raise ValueError("Metadata must be a JSON object")
+        except (json.JSONDecodeError, ValueError):
+            raise HTTPException(
+                status_code=400,
+                detail="Metadata must be a valid JSON object",
+            )
+
         # Create request object
         request = ChromaUploadRequest(
             collection_name=collection_name,
             title=title,
             tags=tag_list,
-            document_text=document_text
+            document_text=document_text,
+            metadata=metadata_dict,
         )
         
         # Initialize service if needed

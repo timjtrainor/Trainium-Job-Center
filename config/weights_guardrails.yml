@@ -1,0 +1,35 @@
+# Weights and Guardrails Configuration for Job Posting Fit Review
+#
+# This configuration file defines the default weights for different persona
+# types and guardrails for the fit review decision-making process.
+
+# Review weights determine how much influence each persona type has
+# on the final recommendation. Weights should sum to 1.0.
+review_weights:
+  builder: 0.30        # Technical builders and implementers
+  maximizer: 0.20      # Opportunity and growth maximizers  
+  harmonizer: 0.20     # Team and culture harmonizers
+  pathfinder: 0.15     # Strategic pathfinders and navigators
+  adventurer: 0.15     # Risk-taking adventurers and explorers
+
+# Guardrails define hard constraints and decision-making rules
+# that override persona recommendations in certain circumstances.
+guardrails:
+  # Enforce minimum compensation requirements
+  comp_floor_enforced: true
+  
+  # Block jobs with severe red flags regardless of other factors
+  severe_redflags_block: true
+  
+  # How to handle ties in persona recommendations
+  # Options: "do_not_pursue", "pursue", "escalate_to_human"
+  tie_bias: "do_not_pursue"
+  
+  # Minimum confidence threshold for positive recommendations
+  min_confidence_threshold: "medium"
+  
+  # Maximum number of red flags allowed before auto-rejection
+  max_red_flags: 3
+  
+  # Require unanimous agreement for high-risk roles
+  require_consensus_for_high_risk: false

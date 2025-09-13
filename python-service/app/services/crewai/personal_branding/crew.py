@@ -120,7 +120,7 @@ class PersonalBrandCrew:
         return Crew(
             agents=self.agents,  # Automatically collected by the @agent decorator
             tasks=self.tasks,    # Automatically collected by the @task decorator.
-            process=Process.sequential,
+            process=Process.hierarchical,
             verbose=True,
         )
 

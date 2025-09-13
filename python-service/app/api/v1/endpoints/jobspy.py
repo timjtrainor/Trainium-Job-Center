@@ -11,7 +11,7 @@ from ....schemas.responses import (
     create_success_response,
     create_error_response,
 )
-from ....schemas.jobspy import JobSearchRequest
+from ....schemas.jobspy import JobSearchRequest, JobSite
 from ....dependencies import (
     get_jobspy_service,
     get_queue_service,
@@ -235,6 +235,22 @@ async def get_scrape_status(
     except Exception as e:
         logger.error(f"Error getting scrape status for {run_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get scrape status: {str(e)}")
+
+
+@router.get("/sites/names", response_model=StandardResponse)
+async def list_supported_sites() -> StandardResponse:
+    """List supported job sites based on the JobSite enum."""
+    try:
+        sites = [site.value for site in JobSite]
+        return create_success_response(
+            data={"sites": sites},
+            message="Supported job sites retrieved successfully",
+        )
+    except Exception as e:
+        logger.error(f"Error listing supported sites: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to list supported sites: {str(e)}"
+        )
 
 
 @router.get("/sites", response_model=StandardResponse)

@@ -1,13 +1,5 @@
 # Agent Overview
 
-## CrewAI Job Review Agents
-
-| Agent | Inputs | Outputs | Decision Lens | Source |
-|-------|--------|---------|---------------|--------|
-| SkillsAnalysisAgent | Job description and title | Required skills, preferred skills, experience level, education requirements | Evaluates skills and requirements | [crew.py](../app/services/crewai/job_review/crew.py#L57-L83) |
-| CompensationAnalysisAgent | Salary range and description | Salary analysis, benefits mentioned | Reviews compensation and benefits | [crew.py](../app/services/crewai/job_review/crew.py#L177-L200) |
-| QualityAssessmentAgent | Job description, title, company | Job quality score, completeness, red and green flags | Checks posting quality and flags | [crew.py](../app/services/crewai/job_review/crew.py#L268-L292) |
-
 ## Persona Catalog Agents
 
 ### Advisory
