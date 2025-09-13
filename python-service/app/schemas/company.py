@@ -85,17 +85,6 @@ class CareerGrowth(BaseModel):
     )
 
 
-class RecentNews(BaseModel):
-    latest_developments: str
-    press_releases: str
-    acquisitions_partnerships: str
-    major_events: str
-    market_changes: str
-    recent_announcements: str
-    news_summary: str
-    key_updates: list[str]
-
-
 class OverallSummary(BaseModel):
     recommendation_score: str
     key_strengths: list[str]
@@ -112,7 +101,6 @@ class CompanyReport(BaseModel):
     workplace_culture: WorkplaceCulture
     leadership_reputation: LeadershipReputation
     career_growth: CareerGrowth
-    #recent_news: RecentNews
     overall_summary: OverallSummary
 
 
