@@ -1,7 +1,7 @@
 """ChromaDB search tools for CrewAI following 0.186.1 best practices."""
 
 from typing import List, Optional, Dict, Any
-from crewai_tools import tool
+from crewai.tools import tool
 from ...infrastructure.chroma import get_chroma_client
 
 
