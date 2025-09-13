@@ -12,7 +12,7 @@ class FinancialHealth(BaseModel):
     funding_events: str = Field(
         ..., validation_alias="funding_status", serialization_alias="funding_status"
     )
-    notable_investors: str
+    notable_investors: list[str]
     financial_trend: str
     risk_flag: str = Field(
         ..., validation_alias="risk_factors", serialization_alias="risk_factors"
