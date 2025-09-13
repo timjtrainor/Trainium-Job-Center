@@ -167,6 +167,27 @@ def run_crew(job_posting_data: dict, options: dict = None, correlation_id: str =
                 if all(key in parsed_result for key in ['final', 'personas']):
                     parsed_result['job_id'] = job_id
                     return parsed_result
+                # Accept alternate structure with job details and recommendation
+                if 'job_title' in parsed_result and 'company' in parsed_result:
+                    rec_value = parsed_result.get('recommendation') or parsed_result.get('overall_fit')
+                    recommend_bool = True
+                    if rec_value is not None:
+                        rec_lower = str(rec_value).lower()
+                        if any(word in rec_lower for word in ['reject', 'no', 'not', 'low', 'fail', 'negative']):
+                            recommend_bool = False
+                    return {
+                        "job_id": job_id,
+                        "data": parsed_result,
+                        "final": {
+                            "recommend": recommend_bool,
+                            "rationale": parsed_result.get("reason", ""),
+                            "confidence": parsed_result.get("overall_fit", "")
+                        },
+                        "personas": [],
+                        "tradeoffs": [],
+                        "actions": [],
+                        "sources": parsed_result.get("sources", ["job_posting_review_crew", "crewai_orchestration"])
+                    }
         except (json.JSONDecodeError, ValueError):
             pass
         

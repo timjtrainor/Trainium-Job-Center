@@ -168,6 +168,7 @@ inputs = {
 
 **JSON Parsing**:
 - Primary: Extract JSON object matching expected schema from task output
+- Also accepts simplified `{job_title, company, recommendation, ...}` payloads. These fields are preserved under `data` and `recommendation`/`overall_fit` map to boolean `final.recommend`.
 - Fallback: Text parsing for boolean recommendation and reason extraction
 - Error: Return `{recommend: false, reason: "insufficient signal", notes: ["task execution failed"]}`
 
