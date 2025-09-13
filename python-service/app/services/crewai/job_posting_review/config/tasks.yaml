@@ -1,269 +1,64 @@
-builder_evaluation:
-  description: |
-    Analyze the job posting to determine if it offers strong career growth and advancement opportunities.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    Helper Insights: {helper_snapshot}
-    
-    Focus on:
-    - Scope of ownership and responsibility
-    - Opportunities for leadership and advancement
-    - Learning potential and skill development
-    - Alignment with long-term mastery and career trajectory
-    - Signals of recognition and support for growth
-    - Any location factors that may influence advancement (e.g., HQ access, regional constraints)
-    
-    If helper_snapshot contains useful keys for your lens, cite them briefly in your reason; otherwise proceed without helpers.
-    If your agent knowledge provides additional context, you may reference it briefly.
-    
-    Return your evaluation strictly as JSON with this exact structure. Do not include any additional text or code fences:
-    {{
-      "persona_id": "builder",
-      "recommend": true/false,
-      "reason": "1-2 sentence explanation of recommendation",
-      "notes": ["key observation 1", "key observation 2"],
-      "sources": ["job_description", "agent_knowledge"]
-    }}
-  expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
-  agent: builder_agent
+intake_task:
+  description: >
+    Parse {{job_posting}} into structured JSON with keys: 
+    title, company, salary, location, seniority, job_type, description.
+  expected_output: >
+    A clean JSON object with job attributes extracted from the posting.
+  agent: job_intake_agent
 
-maximizer_evaluation:
-  description: |
-    Evaluate if this opportunity maximizes financial rewards and overall compensation package.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    Helper Insights: {helper_snapshot}
-    
-    Focus on:
-    - Base salary and pay transparency
-    - Equity refresh, stock options, or bonuses
-    - Benefits package (health, retirement, PTO, flexibility perks)
-    - Total compensation compared to market benchmarks
-    - Signals of strong financial upside or under-valuation
-    
-    If helper_snapshot contains useful compensation or market data, cite them briefly in your reason; otherwise proceed without helpers.
-    If your agent knowledge provides additional context, you may reference it briefly.
-    
-    Return your evaluation strictly as JSON with this exact structure. Do not include any additional text or code fences:
-    {{
-      "persona_id": "maximizer",
-      "recommend": true/false,
-      "reason": "1-2 sentence explanation of recommendation",
-      "notes": ["key observation 1", "key observation 2"],
-      "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
-    }}
-  expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
-  agent: maximizer_agent
+pre_filter_task:
+  description: >
+    Apply hard rejection rules to the parsed job JSON. Reject if highest salary is below 180,000 per year,
+    if salary is missing AND seniority is below "Senior", or if highest salary is below 210,000 per year and 
+    location/work model is in person.
+  expected_output: >
+    Either "reject" with reason, or "pass" if job should continue.
+  agent: pre_filter_agent
+  input: "{{intake_task.output}}"
 
-harmonizer_evaluation:
-  description: |
-    Assess whether the company culture, team environment, and values
-    align with the candidate’s personal preferences and working style.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    Helper Insights: {helper_snapshot}
-    
-    Focus on:
-    - Alignment of stated company values with personal values
-    - Team collaboration and working style
-    - Work-life balance signals
-    - Diversity, equity, and inclusion practices
-    - Management style and organizational structure
-    
-    If helper_snapshot contains useful signals (culture, values, balance), cite them briefly in your reason; otherwise proceed without helpers.
-    If your agent knowledge provides additional context, you may reference it briefly.
-    
-    Return your evaluation strictly as JSON with this exact structure. Do not include any additional text or code fences:
-    {{
-      "persona_id": "harmonizer",
-      "recommend": true/false,
-      "reason": "1-2 sentence explanation of recommendation",
-      "notes": ["key observation 1", "key observation 2"],
-      "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
-    }}
-  expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
-  agent: harmonizer_agent
-
-pathfinder_evaluation:
-  description: |
-    Assess whether this role supports the candidate’s desired lifestyle and work–life balance.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    Helper Insights: {helper_snapshot}
-    
-    Focus on:
-    - Flexibility in work hours and arrangements (remote, hybrid, onsite)
-    - Travel demands and impact on lifestyle
-    - Workload expectations and balance signals
-    - Location factors that influence daily life (commute, relocation, time zones)
-    - Overall sustainability of the role for the candidate’s preferred way of living
-    
-    If helper_snapshot contains useful lifestyle or flexibility signals, cite them briefly in your reason; otherwise proceed without helpers.
-    If your agent knowledge provides additional context, you may reference it briefly.
-    
-    Return your evaluation strictly as JSON with this exact structure. Do not include any additional text or code fences:
-    {{
-      "persona_id": "pathfinder",
-      "recommend": true/false,
-      "reason": "1-2 sentence explanation of recommendation",
-      "notes": ["key observation 1", "key observation 2"],
-      "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
-    }}
-  expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
-  agent: pathfinder_agent
-
-adventurer_evaluation:
-  description: |
-    Assess whether this opportunity offers meaningful purpose, impact, and inspiring challenges.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    Helper Insights: {helper_snapshot}
-    
-    Focus on:
-    - Alignment with mission or purpose-driven work
-    - Opportunities to create societal or organizational impact
-    - Inspiring challenges that go beyond routine tasks
-    - Contribution to innovation that matters
-    - Signals that the role can foster passion and long-term commitment
-    
-    If helper_snapshot contains useful purpose or impact signals, cite them briefly in your reason; otherwise proceed without helpers.
-    If your agent knowledge provides additional context, you may reference it briefly.
-    
-    Return your evaluation strictly as JSON with this exact structure. Do not include any additional text or code fences:
-    {{
-      "persona_id": "adventurer",
-      "recommend": true/false,
-      "reason": "1-2 sentence explanation of recommendation",
-      "notes": ["key observation 1", "key observation 2"],
-      "sources": ["job_description", "agent_knowledge", "helper_snapshot"]
-    }}
-  expected_output: "JSON object with persona_id, recommend boolean, reason, notes array, and sources array"
-  agent: adventurer_agent
-
-# Helper tasks for advisory analysis (compact JSON output ≤600 chars)
-data_analyst_task:
-  description: |
-    Analyze salary/TC benchmarks and company health indicators.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    
-    Provide compensation benchmarks and company health cues. Return compact JSON only (≤600 chars):
-    {{
-      "tc_range": "salary range estimate",
-      "refs": ["reference 1", "reference 2"]
-    }}
-    
-    On insufficient signal, return: {{"tc_range": "", "refs": []}}
-  expected_output: "Compact JSON with tc_range and refs fields (≤600 chars)"
-  agent: data_analyst
-
-strategist_task:
-  description: |
-    Assess trend fit including industry/platform shifts and AI adoption.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    
-    Analyze industry trends and strategic alignment. Return compact JSON only (≤600 chars):
-    {{
-      "signals": ["trend signal 1", "trend signal 2"],
-      "refs": ["reference 1", "reference 2"]
-    }}
-    
-    On insufficient signal, return: {{"signals": [], "refs": []}}
-  expected_output: "Compact JSON with signals and refs fields (≤600 chars)"
-  agent: strategist
-
-skeptic_task:
-  description: |
-    Perform red-flag scan for financial, legal, and culture warning signals.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    
-    Scan for potential risks and warning signals. Return compact JSON only (≤600 chars):
-    {{
-      "redflags": ["red flag 1", "red flag 2"]
-    }}
-    
-    On insufficient signal, return: {{"redflags": []}}
-  expected_output: "Compact JSON with redflags field (≤600 chars)"
-  agent: skeptic
-
-
-helper_snapshot:
-  description: |
-    Aggregate helper task results into a single compact snapshot.
-    
-    Job Details:
-    - Title: {job_title}
-    - Company: {job_company}
-    - Location: {job_location}
-    - Description: {job_description}
-    
-    Options: {options}
-    
-    If {options.use_helpers} is false or missing, return empty JSON: {{}}
-    
-    If {options.use_helpers} is true, run selected helper tasks and merge their JSON outputs into a single compact object (≤1.5 KB typical):
-    {% raw %}
+quick_fit_task:
+  description: >
+    For jobs that pass pre-filtering, analyze {{intake_task.output}} quickly for 
+    career growth, compensation, lifestyle fit, and purpose alignment.
+  expected_output: >
+    A JSON object:
     {
-      "data_analyst": {{"tc_range, refs"}},
-      "strategist": {{"signals, refs"}},
-      "stakeholder": {{"partners, risks"}},
-      "technical_leader": {{"notes"}},
-      "recruiter": {{"keyword_gaps"}},
-      "skeptic": {{"redflags"}},
-      "optimizer": {{"top3"}}
+      "career_growth_score": 0-10,
+      "compensation_score": 0-10,
+      "lifestyle_fit_score": 0-10,
+      "purpose_alignment_score": 0-10,
+      "overall_fit": "low | medium | high",
+      "quick_recommendation": "reject | review_deeper"
     }
-    {% endraw %}
-    
-    Handle any helper task failures by using empty JSON for that helper key. Keep the merged object valid and compact.
-  expected_output: "Compact merged JSON object from helper tasks (≤1.5 KB) or empty JSON if helpers disabled"
-  agent: data_analyst
+  agent: quick_fit_analyst
+  input: "{{intake_task.output}}"
+  tools:
+    - chroma_search
+
+brand_match_task:
+  description: >
+    Compare {{intake_task.output}} to the user's Career Brand Framework in ChromaDB. 
+    Return similarity scores and short alignment notes.
+  expected_output: >
+    A JSON object with brand similarity scores and alignment commentary.
+  agent: brand_framework_matcher
+  input: "{{intake_task.output}}"
+  tools:
+    - chroma_search
+
+orchestration_task:
+  description: >
+    Manage the pipeline for {{job_posting}}: 
+    1. Run intake_task → pre_filter_task. 
+    2. If {{pre_filter_task.output}} is "reject", stop. 
+    3. If {{pre_filter_task.output}} is "pass", run quick_fit_task. 
+    4. If {{quick_fit_task.output.quick_recommendation}} is "review_deeper", run brand_match_task. 
+    5. Provide a final recommendation: "green-light" or "reject" with reasons.
+  expected_output: >
+    A final JSON object with all relevant results and the decision.
+  agent: managing_agent
+  input:
+    job_posting: "{{job_posting}}"
+    pre_filter_result: "{{pre_filter_task.output}}"
+    quick_fit_result: "{{quick_fit_task.output}}"
+    brand_match_result: "{{brand_match_task.output}}"

@@ -207,7 +207,7 @@ class TestMotivationalWithHelpersYaml:
         from pathlib import Path
         import yaml
         
-        config_file = Path(crew.base_dir) / "config" / "crew.yaml"
+        #config_file = Path(crew.base_dir) / "config" / ""
         with open(config_file, 'r') as f:
             crew_config = yaml.safe_load(f)
         

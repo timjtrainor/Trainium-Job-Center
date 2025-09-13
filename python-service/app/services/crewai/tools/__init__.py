@@ -1,6 +1,7 @@
 import os
 from .custom_pg import PostgresQueryTool
 from .chroma_search import ChromaSearchTool
+from crewai_tools import tool
 
 
 def get_postgres_tool() -> PostgresQueryTool:
@@ -17,6 +18,7 @@ def get_chroma_search_tool(collection_name: str, n_results: int = 4) -> ChromaSe
 
 
 __all__ = [
+    "tool",
     "PostgresQueryTool",
     "get_postgres_tool",
     "ChromaSearchTool",
