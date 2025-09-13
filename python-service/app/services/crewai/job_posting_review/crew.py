@@ -4,7 +4,7 @@ from typing import Optional
 from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
 
-from tools.chroma_search_tool import ChromaSearchTool
+from ..tools.chroma_search import chroma_search
 
 _cached_crew: Optional[Crew] = None
 _crew_lock = Lock()
@@ -26,18 +26,16 @@ class JobPostingReviewCrew:
 
     @agent
     def quick_fit_analyst(self) -> Agent:
-        chroma_tool = ChromaSearchTool(collection_name="career_brand_framework")
         return Agent(
             config=self.agents_config["quick_fit_analyst"],  # type: ignore[index]
-            tools=[chroma_tool],
+            tools=[chroma_search],
         )
 
     @agent
     def brand_framework_matcher(self) -> Agent:
-        chroma_tool = ChromaSearchTool(collection_name="career_brand_framework")
         return Agent(
             config=self.agents_config["brand_framework_matcher"],  # type: ignore[index]
-            tools=[chroma_tool],
+            tools=[chroma_search],
         )
 
     # === Manager ===
