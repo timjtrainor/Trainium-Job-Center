@@ -25,28 +25,24 @@ class ResearchCompanyCrew:
     def financial_analyst(self) -> Agent:
         return Agent(
             config=self.agents_config["financial_analyst"],  # type: ignore[index]
-            tools=get_duckduckgo_tools()
         )
 
     @agent
     def culture_investigator(self) -> Agent:
         return Agent(
             config=self.agents_config["culture_investigator"],  # type: ignore[index]
-            tools=get_duckduckgo_tools()
         )
 
     @agent
     def leadership_analyst(self) -> Agent:
         return Agent(
             config=self.agents_config["leadership_analyst"],  # type: ignore[index]
-            tools=get_duckduckgo_tools()
         )
 
     @agent
     def career_growth_analyst(self) -> Agent:
         return Agent(
             config=self.agents_config["career_growth_analyst"],  # type: ignore[index]
-            tools=get_duckduckgo_tools()
         )
 
     @agent
@@ -121,11 +117,11 @@ class ResearchCompanyCrew:
                 self.report_writer()
             ],
             tasks=[
+                self.web_research_task(),
                 self.financial_analysis_task(),
                 self.culture_investigation_task(),
                 self.leadership_analysis_task(),
                 self.career_growth_analysis_task(),
-                self.web_research_task(),
                 self.report_compilation_task()
             ],
             process=Process.hierarchical,
