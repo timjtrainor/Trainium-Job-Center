@@ -1,14 +1,14 @@
 import { 
-    JobApplication, Company, BaseResume, Status, CompanyPayload, JobApplicationPayload, 
-    BaseResumePayload, Contact, ContactPayload, Message, MessagePayload, Interview, 
-    InterviewPayload, LinkedInPost, LinkedInPostPayload, UserProfile, 
-    UserProfilePayload, LinkedInEngagement, PostResponse, PostResponsePayload, 
+    JobApplication, Company, BaseResume, Status, CompanyPayload, JobApplicationPayload,
+    BaseResumePayload, Contact, ContactPayload, Message, MessagePayload, Interview,
+    InterviewPayload, LinkedInPost, LinkedInPostPayload, UserProfile,
+    UserProfilePayload, LinkedInEngagement, PostResponse, PostResponsePayload,
     LinkedInEngagementPayload, StandardJobRole, StandardJobRolePayload, Resume, ResumeHeader, DateInfo, Education, Certification,
     StrategicNarrative, StrategicNarrativePayload, Offer, OfferPayload,
     BragBankEntry, BragBankEntryPayload, SkillTrend, SkillTrendPayload,
     Sprint, SprintAction, CreateSprintPayload, SprintActionPayload, ApplicationQuestion,
     SiteSchedule, SiteDetails, SiteSchedulePayload,
-    CollectionInfo, UploadResponse
+    CollectionInfo, UploadResponse, CompanyReport
 } from '../types';
 import { API_BASE_URL, USER_ID, FASTAPI_BASE_URL } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -389,6 +389,16 @@ export const updateCompany = async (companyId: string, companyData: Partial<Comp
     
     // Re-fetch the full object for consistency
     return getCompany(companyId);
+};
+
+export const getCompanyReport = async (companyName: string): Promise<CompanyReport> => {
+    const response = await fetch(`${FASTAPI_BASE_URL}/company/report`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ company_name: companyName }),
+    });
+    const data = await handleResponse(response);
+    return data.report as CompanyReport;
 };
 
 // --- Resumes ---
