@@ -1260,8 +1260,23 @@ export const getSiteSchedules = async (): Promise<SiteSchedule[]> => {
 };
 
 export const getJobSites = async (): Promise<SiteDetails[]> => {
-    const response = await fetch(`${FASTAPI_BASE_URL}/sites`);
-    return handleResponse(response);
+    // Scraper configuration (site definitions) comes from the FastAPI backend.
+    const response = await fetch(`${FASTAPI_BASE_URL}/job-feed/sites`);
+    const data = await handleResponse(response);
+    
+    // Handle cases where the API returns an object with a 'sites' key
+    if (data && Array.isArray(data.sites)) {
+        return data.sites;
+    }
+    
+    // Handle cases where the API returns the array directly
+    if (Array.isArray(data)) {
+        return data;
+    }
+    
+    // If the response is unexpected, return an empty array to prevent crashes
+    console.warn('Unexpected data format for sites from API:', data);
+    return [];
 };
 
 export const createSiteSchedule = async (payload: SiteSchedulePayload): Promise<SiteSchedule> => {

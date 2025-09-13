@@ -21,7 +21,7 @@ financial_analysis_task:
     }
   
   agent: financial_analyst
-  context: [web_research_task]
+  #context: [web_research_task]
 
 culture_investigation_task:
   description: >
@@ -47,7 +47,7 @@ culture_investigation_task:
     }
     
   agent: culture_investigator
-  context: [web_research_task]
+  #context: [web_research_task]
 
 leadership_analysis_task:
   description: >
@@ -73,7 +73,7 @@ leadership_analysis_task:
     }
     
   agent: leadership_analyst
-  context: [web_research_task]
+  #context: [web_research_task]
 
 career_growth_analysis_task:
   description: >
@@ -99,7 +99,7 @@ career_growth_analysis_task:
     }
     
   agent: career_growth_analyst
-  context: [web_research_task]
+  #context: [web_research_task]
 
 web_research_task:
   description: >
@@ -141,7 +141,6 @@ report_compilation_task:
       "workplace_culture": {},
       "leadership_reputation": {},
       "career_growth": {},
-      "recent_news": {},
       "overall_summary": {
         "recommendation_score": "...",
         "key_strengths": ["..."],
@@ -152,4 +151,4 @@ report_compilation_task:
     }
     
   agent: report_writer
-  context: [financial_analysis_task, culture_investigation_task, leadership_analysis_task, career_growth_analysis_task, web_research_task]
+  context: [financial_analysis_task, culture_investigation_task, leadership_analysis_task, career_growth_analysis_task] #, web_research_task]

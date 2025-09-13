@@ -77,7 +77,7 @@ class CompanyReport(BaseModel):
     workplace_culture: WorkplaceCulture
     leadership_reputation: LeadershipReputation
     career_growth: CareerGrowth
-    recent_news: RecentNews
+    #recent_news: RecentNews
     overall_summary: OverallSummary
 
 

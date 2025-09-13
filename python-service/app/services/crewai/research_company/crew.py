@@ -58,6 +58,14 @@ class ResearchCompanyCrew:
             config=self.agents_config["report_writer"],  # type: ignore[index]
         )
 
+#    @task
+#    def web_research_task(self) -> Task:
+#        return Task(
+#            config=self.tasks_config["web_research_task"],  # type: ignore[index]
+#            agent=self.mcp_researcher(),
+#            async_execution=False
+#        )
+
     @task
     def financial_analysis_task(self) -> Task:
         return Task(
@@ -91,18 +99,11 @@ class ResearchCompanyCrew:
         )
 
     @task
-    def web_research_task(self) -> Task:
-        return Task(
-            config=self.tasks_config["web_research_task"],  # type: ignore[index]
-            agent=self.mcp_researcher(),
-            async_execution=True
-        )
-
-    @task
     def report_compilation_task(self) -> Task:
         return Task(
             config=self.tasks_config["report_compilation_task"],  # type: ignore[index]
-            agent=self.report_writer()
+            agent=self.report_writer(),
+            async_execution=False
         )
 
     @crew
@@ -117,14 +118,14 @@ class ResearchCompanyCrew:
                 self.report_writer()
             ],
             tasks=[
-                self.web_research_task(),
+                #self.web_research_task(),
                 self.financial_analysis_task(),
                 self.culture_investigation_task(),
                 self.leadership_analysis_task(),
                 self.career_growth_analysis_task(),
                 self.report_compilation_task()
             ],
-            process=Process.hierarchical,
+            process=Process.sequential,
             verbose=True,
         )
 

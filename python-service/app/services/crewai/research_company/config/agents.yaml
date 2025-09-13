@@ -11,7 +11,7 @@ financial_analyst:
   temperature: 0.2
   memory: false
   max_iter: 1
-  verbose: true
+  verbose: false
   allow_delegation: false
   mcp_tools:
     - duckduckgo
@@ -29,7 +29,7 @@ culture_investigator:
   temperature: 0.3
   memory: false
   max_iter: 1
-  verbose: true
+  verbose: false
   allow_delegation: false
   mcp_tools:
     - duckduckgo
@@ -46,7 +46,7 @@ leadership_analyst:
   temperature: 0.2
   memory: false
   max_iter: 1
-  verbose: true
+  verbose: false
   allow_delegation: false
   mcp_tools:
     - duckduckgo
@@ -63,7 +63,7 @@ career_growth_analyst:
   temperature: 0.2
   memory: false
   max_iter: 1
-  verbose: true
+  verbose: false
   allow_delegation: false
   mcp_tools:
     - duckduckgo
@@ -97,7 +97,7 @@ report_writer:
   temperature: 0.4
   memory: false
   max_iter: 1
-  verbose: true
+  verbose: false
   allow_delegation: false
   constraints:
     - "Write in a clear, candidate-friendly tone."
