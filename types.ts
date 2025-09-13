@@ -36,6 +36,7 @@ export enum AppView {
   INTERVIEW_STRATEGY_STUDIO,
   INTERVIEW_CO_PILOT,
   POST_INTERVIEW_DEBRIEF,
+  SCHEDULE_MANAGEMENT,
 }
 
 export type ApplicationDetailTab = 'overview' | 'analysis' | 'resume' | 'interviews';
