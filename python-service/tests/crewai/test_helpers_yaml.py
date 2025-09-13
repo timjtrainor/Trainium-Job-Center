@@ -14,10 +14,10 @@ from typing import Dict, Any, List
 
 # Import the crew implementation
 from app.services.crewai.job_posting_review.crew import (
-    MotivationalFanOutCrew, 
+    MotivationalFanOutCrew,
     run_crew,
-    _format_crew_result
 )
+from app.services.crewai.job_posting_review import _format_crew_result
 from app.services.crewai import base
 
 
