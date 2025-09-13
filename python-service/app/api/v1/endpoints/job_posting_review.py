@@ -101,17 +101,16 @@ async def analyze_job_posting_simple(job_posting: Union[str, Dict[str, Any]]):
         Analysis results from the CrewAI crew
     """
     try:
-        # Use the crew directly for simpler interface
-        crew = get_job_posting_review_crew()
-        
-        # Convert job posting to string for the crew input
-        job_posting_str = job_posting if isinstance(job_posting, str) else str(job_posting)
-        
-        # Run the crew with the job posting
-        result = crew.kickoff(inputs={"job_posting": job_posting_str})
-        
+        job_data = {"raw_text": job_posting} if isinstance(job_posting, str) else job_posting
+
+        result = run_crew(
+            job_posting_data=job_data,
+            options={},
+            correlation_id=None,
+        )
+
         return create_success_response(
-            data={"result": str(result), "crew_output": True},
+            data=result,
             message="Job posting analysis completed successfully"
         )
     

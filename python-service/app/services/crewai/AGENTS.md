@@ -626,6 +626,12 @@ export LOG_LEVEL=DEBUG
 
 This provides detailed execution logs without making external API calls.
 
+### Result Parsing
+
+- Use `parse_crew_result` to extract JSON from `crew.kickoff` outputs.
+- Parsed data must include `final`, `personas`, and at least one score field. Additional metrics are surfaced under a `data` key while `final.rationale` stays concise.
+- Text heuristics are used only when parsing fails.
+
 ---
 
 **Remember**: This AGENT.md file is a living document that must evolve with the codebase. Keep it updated, accurate, and actionable for future AI agents and developers working with CrewAI implementations.
