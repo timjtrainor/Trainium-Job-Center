@@ -123,6 +123,83 @@ export interface CompanyInfoResult {
   industry?: InfoField;
 }
 
+// Company research report
+export interface FinancialHealth {
+  revenue_trends: string;
+  profitability: string;
+  funding_history: string;
+  investor_information: string;
+  market_performance: string;
+  growth_indicators: string;
+  financial_stability_score: string;
+  key_financial_insights: string[];
+}
+
+export interface WorkplaceCulture {
+  company_values: string;
+  employee_satisfaction: string;
+  work_life_balance: string;
+  diversity_inclusion: string;
+  management_style: string;
+  career_support: string;
+  culture_score: string;
+  cultural_highlights: string[];
+  potential_concerns: string[];
+}
+
+export interface LeadershipReputation {
+  executive_team: string;
+  leadership_style: string;
+  industry_reputation: string;
+  media_coverage: string;
+  leadership_stability: string;
+  vision_clarity: string;
+  reputation_score: string;
+  leadership_strengths: string[];
+  reputation_risks: string[];
+}
+
+export interface CareerGrowth {
+  advancement_opportunities: string;
+  training_programs: string;
+  internal_mobility: string;
+  mentorship_support: string;
+  skill_development: string;
+  promotion_patterns: string;
+  growth_score: string;
+  career_highlights: string[];
+  growth_limitations: string[];
+}
+
+export interface RecentNews {
+  latest_developments: string;
+  press_releases: string;
+  acquisitions_partnerships: string;
+  major_events: string;
+  market_changes: string;
+  recent_announcements: string;
+  news_summary: string;
+  key_updates: string[];
+}
+
+export interface OverallSummary {
+  recommendation_score: string;
+  key_strengths: string[];
+  potential_concerns: string[];
+  best_fit_for: string;
+  summary: string;
+}
+
+export interface CompanyReport {
+  company_name: string;
+  financial_health: FinancialHealth;
+  workplace_culture: WorkplaceCulture;
+  leadership_reputation: LeadershipReputation;
+  career_growth: CareerGrowth;
+  recent_news: RecentNews;
+  overall_summary: OverallSummary;
+}
+
 // Based on the 'companies' table
 export interface Company {
   company_id: string; // uuid in DB
