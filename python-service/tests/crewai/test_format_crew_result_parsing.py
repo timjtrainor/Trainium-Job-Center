@@ -6,7 +6,7 @@ import pytest
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
-from app.services.crewai.job_posting_review.crew import _format_crew_result
+from app.services.crewai.job_posting_review import _format_crew_result
 
 
 @pytest.fixture

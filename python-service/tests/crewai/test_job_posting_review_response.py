@@ -35,15 +35,15 @@ def test_run_crew_returns_job_details():
     }
 
     crew_output = {
-        "final": {
-            "recommend": True,
-            "rationale": "Strong match across metrics",
-            "confidence": "high",
-        },
-        "personas": [],
-        "tradeoffs": ["high_competition"],
-        "actions": ["reach_out_recruiter"],
-        "sources": ["job_posting"],
+        "motivational_verdicts": [
+            {
+                "persona_id": "builder",
+                "recommend": True,
+                "reason": "Strong match across metrics",
+                "notes": [],
+                "sources": [],
+            }
+        ],
         "job_title": "Software Engineer",
         "company": "Acme",
         "fit_score": 0.9,
@@ -61,6 +61,6 @@ def test_run_crew_returns_job_details():
     assert result["data"]["job_title"] == "Software Engineer"
     assert result["data"]["company"] == "Acme"
     assert result["data"]["fit_score"] == 0.9
-    for key in ["final", "personas", "tradeoffs", "actions", "sources"]:
+    for key in ["final", "personas", "motivational_verdicts"]:
         assert key in result
 

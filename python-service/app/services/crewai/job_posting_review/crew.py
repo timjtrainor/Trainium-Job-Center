@@ -1,5 +1,8 @@
+import hashlib
+import json
+import re
 from threading import Lock
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
@@ -8,6 +11,107 @@ from ..tools.chroma_search import chroma_search
 
 _cached_crew: Optional[Crew] = None
 _crew_lock = Lock()
+
+
+def _format_crew_result(
+    result: str | Dict[str, Any],
+    job_posting: Dict[str, Any],
+    correlation_id: str | None,
+) -> Dict[str, Any]:
+    """Parse crew output and construct FitReviewResult structure.
+
+    Args:
+        result: Raw string or dict returned from crew.kickoff.
+        job_posting: Original job posting data.
+        correlation_id: Correlation identifier for tracing.
+
+    Returns:
+        Structured result dictionary.
+
+    Raises:
+        ValueError: If motivational_verdicts JSON cannot be parsed.
+    """
+
+    if isinstance(result, str):
+        try:
+            data = json.loads(result)
+        except json.JSONDecodeError:
+            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", result, re.DOTALL)
+            if not match:
+                match = re.search(r"(\{.*\})", result, re.DOTALL)
+            if not match:
+                raise ValueError("No JSON payload found in crew output")
+            data = json.loads(match.group(1))
+    else:
+        data = result
+
+    if "motivational_verdicts" not in data:
+        raise ValueError("Missing motivational_verdicts in crew output")
+
+    raw_verdicts = data.get("motivational_verdicts", [])
+    formatted_verdicts = []
+    positive = 0
+    for verdict in raw_verdicts:
+        vid = verdict.get("persona_id") or verdict.get("id")
+        recommend = bool(verdict.get("recommend"))
+        if recommend:
+            positive += 1
+        formatted_verdicts.append(
+            {
+                "id": vid,
+                "recommend": recommend,
+                "reason": verdict.get("reason", ""),
+                "notes": verdict.get("notes", []),
+                "sources": verdict.get("sources", []),
+            }
+        )
+
+    total = len(formatted_verdicts)
+    if total == 0:
+        raise ValueError("No motivational verdicts provided")
+
+    recommend_final = positive > (total / 2)
+    ratio_text = f"{positive}/{total} motivational agents"  # used in rationale
+    confidence_ratio = positive / total
+    if confidence_ratio >= 0.8:
+        confidence = "high"
+    elif confidence_ratio >= 0.6:
+        confidence = "medium"
+    else:
+        confidence = "low"
+
+    job_hash = hashlib.md5(json.dumps(job_posting, sort_keys=True).encode()).hexdigest()
+    job_id = f"job_{job_hash[:8]}"
+
+    metrics = {
+        k: v
+        for k, v in data.items()
+        if k not in {"motivational_verdicts", "helper_snapshot"}
+    }
+
+    result_obj: Dict[str, Any] = {
+        "job_id": job_id,
+        "correlation_id": correlation_id,
+        "final": {
+            "recommend": recommend_final,
+            "rationale": f"{ratio_text} recommend this job" if recommend_final else f"{ratio_text} advise caution",
+            "confidence": confidence,
+        },
+        "personas": [
+            {"id": v["id"], "recommend": v["recommend"], "reason": v.get("reason", "")}
+            for v in formatted_verdicts
+        ],
+        "motivational_verdicts": formatted_verdicts,
+        "tradeoffs": [],
+        "actions": [],
+        "sources": ["motivational_fanout"],
+        "data": metrics,
+    }
+
+    if "helper_snapshot" in data:
+        result_obj["helper_snapshot"] = data["helper_snapshot"]
+
+    return result_obj
 
 
 @CrewBase
@@ -118,107 +222,37 @@ def get_job_posting_review_crew() -> Crew:
 
 
 def run_crew(job_posting_data: dict, options: dict = None, correlation_id: str = None) -> dict:
-    """
-    Run the job posting review crew with the provided job posting data.
-    
-    This function executes the orchestrated CrewAI workflow:
-    1. Job intake and parsing
-    2. Pre-filtering based on requirements 
-    3. Quick fit analysis (if passed pre-filter)
-    4. Brand framework matching (if recommended for deeper review)
-    5. Final orchestration and recommendation
-    
-    Args:
-        job_posting_data: Dictionary containing job posting information
-        options: Optional configuration parameters
-        correlation_id: Optional correlation ID for tracking
-        
-    Returns:
-        Dictionary containing the crew analysis result in FitReviewResult format
-    """
+    """Run the motivational fan-out crew and return formatted results."""
     try:
         crew = get_job_posting_review_crew()
-
-        # Convert job posting to string for the crew input as expected by the YAML
         job_posting_str = str(job_posting_data)
-
-        # Run the crew with the job posting
-        result = crew.kickoff(inputs={"job_posting": job_posting_str})
-
-        raw_output = getattr(result, "raw", str(result))
-
-        # Generate a deterministic job ID
-        import hashlib
-        job_id = f"job_{hashlib.md5(job_posting_str.encode()).hexdigest()[:8]}"
-
-        # Try to parse structured output from the crew result
-        from app.services.crewai.parser import parse_crew_result
-
-        try:
-            parsed_result = parse_crew_result(raw_output)
-            parsed_result["job_id"] = job_id
-            return parsed_result
-        except ValueError:
-            pass
-
-        # Fallback: Create structured response from crew output
-        # This handles cases where the crew doesn't return perfect JSON
-
-        # Determine recommendation based on result content
-        result_lower = raw_output.lower()
-        recommend = not any(reject_word in result_lower for reject_word in ['reject', 'no', 'fail', 'negative'])
-
-        # Determine confidence based on result clarity
-        if any(high_conf in result_lower for high_conf in ['strong', 'excellent', 'clear', 'definitive']):
-            confidence = "high"
-        elif any(low_conf in result_lower for low_conf in ['weak', 'unclear', 'uncertain', 'maybe']):
-            confidence = "low"
-        else:
-            confidence = "medium"
-
-        summary = raw_output.split("\n")[0][:200]
-
-        return {
-            "job_id": job_id,
-            "final": {
-                "recommend": recommend,
-                "rationale": summary,
-                "confidence": confidence
-            },
-            "personas": [
-                {
-                    "id": "job_posting_review_crew",
-                    "recommend": recommend,
-                    "reason": "Analyzed by job posting review crew with hierarchical orchestration"
-                }
-            ],
-            "tradeoffs": [],
-            "actions": [],
-            "sources": ["job_posting_review_crew", "crewai_orchestration"]
-        }
-        
+        inputs: Dict[str, Any] = {"job_posting": job_posting_str}
+        if options:
+            inputs["options"] = options
+        result = crew.kickoff(inputs=inputs)
+        raw_output = getattr(result, "raw", result)
+        return _format_crew_result(raw_output, job_posting_data, correlation_id)
     except Exception as e:
-        # Return error information in the expected format
+        job_hash = hashlib.md5(json.dumps(job_posting_data, sort_keys=True).encode()).hexdigest()
         return {
-            "job_id": f"error_{hash(str(job_posting_data)) % 1000000}",
+            "job_id": f"error_{job_hash[:8]}",
+            "correlation_id": correlation_id,
             "final": {
                 "recommend": False,
                 "rationale": f"Analysis failed: {str(e)}",
-                "confidence": "low"
+                "confidence": "low",
             },
             "personas": [
                 {
                     "id": "error_handler",
                     "recommend": False,
-                    "reason": f"Crew execution failed: {str(e)}"
+                    "reason": f"Crew execution failed: {str(e)}",
                 }
             ],
             "tradeoffs": [],
             "actions": ["Review crew configuration", "Check system dependencies"],
-            "sources": ["error_handler"]
+            "sources": ["error_handler"],
         }
-
-
 if __name__ == "__main__":
     result = get_job_posting_review_crew().kickoff(inputs={
         "job_posting": "Senior Machine Learning Engineer at Acme Corp, salary $200k, remote eligible..."
