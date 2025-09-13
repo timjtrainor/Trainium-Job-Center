@@ -1,4 +1,6 @@
 import json
+import re
+
 from app.services.crewai.research_company.crew import get_research_company_crew
 from app.schemas.company import CompanyReport
 
@@ -7,12 +9,18 @@ def generate_company_report(company_name: str) -> CompanyReport:
     crew = get_research_company_crew()
     result = crew.kickoff(inputs={"company_name": company_name})
     raw_output = getattr(result, "raw", str(result))
-    start = raw_output.find("{")
-    end = raw_output.rfind("}")
-    if start == -1 or end == -1 or start > end:
-        raise ValueError("Invalid JSON output from CrewAI")
+
+    # Prefer fenced JSON code blocks; fall back to first JSON object.
+    match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_output, re.DOTALL)
+    if not match:
+        match = re.search(r"(\{.*\})", raw_output, re.DOTALL)
+    if not match:
+        raise ValueError("No JSON payload found in CrewAI output")
+
+    json_str = match.group(1)
     try:
-        data = json.loads(raw_output[start : end + 1])
+        data = json.loads(json_str)
     except json.JSONDecodeError as exc:
-        raise ValueError("Invalid JSON output from CrewAI") from exc
+        raise ValueError("Invalid JSON in CrewAI output") from exc
+
     return CompanyReport(**data)
