@@ -147,7 +147,8 @@ task_name:
 ### Task Configuration Guidelines
 
 1. **Description**: Use dynamic variables ({{company_name}}) for flexibility
-2. **Expected Output**: Always specify JSON format for structured data
+2. **Expected Output**: Embed a concise JSON schema using `model_json_schema()` so required
+   fields are explicit; field names must match the schema exactly.
 3. **Context Dependencies**: List prerequisite tasks that provide necessary data
 4. **Async Execution**: Enable for tasks that can run in parallel
 
