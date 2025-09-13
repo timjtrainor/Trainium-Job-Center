@@ -7,8 +7,9 @@ final_report_task:
       - workplace_culture
       - leadership_reputation
       - career_growth
-      - recent_news
+      - recent_news (array of strings like ['headline 1', 'headline 2'])
       - overall_summary
+    The recent_news field must be an array of plain strings; do not include objects.
     Ensure the JSON is valid and follows the schema.
   expected_output: >
     A valid JSON object containing the research findings in the specified schema.
