@@ -1,10 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Switch } from './Switch';
 import { LoadingSpinner, PlusCircleIcon, TrashIcon } from './IconComponents';
-import * as apiService from '../services/apiService';
+import {
+    useCheckPostgrestHealth,
+    useCheckFastApiHealth,
+    useGetSiteSchedules,
+    useGetJobSites,
+    useUpdateSiteSchedule,
+    useDeleteSiteSchedule,
+    useCreateSiteSchedule,
+} from '../hooks/apiHooks';
 // FIX: Import Prompt type.
 import { SiteSchedule, SiteDetails, SiteSchedulePayload, Prompt } from '../types';
-import { v4 as uuidv4 } from 'uuid';
 
 interface PromptEditorViewProps {
     // FIX: Add missing prompts prop to fix type error.
@@ -137,34 +144,16 @@ const ScheduleFormModal = ({ isOpen, onClose, onSave, sites, scheduleToEdit }: S
 
 // --- Schedule Manager Component ---
 const ScheduleManager = () => {
-    const [schedules, setSchedules] = useState<SiteSchedule[]>([]);
-    const [sites, setSites] = useState<SiteDetails[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const { data: schedules = [], isLoading, refetch } = useGetSiteSchedules();
+    const { data: sites = [] } = useGetJobSites();
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSchedule, setEditingSchedule] = useState<SiteSchedule | null>(null);
     const [expandedSite, setExpandedSite] = useState<string | null>(null);
 
-    const fetchData = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const [schedulesData, sitesData] = await Promise.all([
-                apiService.getSiteSchedules(),
-                apiService.getJobSites(),
-            ]);
-            setSchedules(schedulesData);
-            setSites(sitesData);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to fetch data.');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchData();
-    }, []);
+    const updateSchedule = useUpdateSiteSchedule();
+    const deleteSchedule = useDeleteSiteSchedule();
+    const createSchedule = useCreateSiteSchedule();
 
     const groupedSchedules = useMemo(() => {
         return schedules.reduce((acc, schedule) => {
@@ -176,53 +165,37 @@ const ScheduleManager = () => {
     }, [schedules]);
 
     const handleToggle = async (schedule: SiteSchedule) => {
-        const originalSchedules = [...schedules];
-        const updatedSchedules = schedules.map(s => s.id === schedule.id ? { ...s, enabled: !s.enabled } : s);
-        setSchedules(updatedSchedules);
         try {
-            await apiService.updateSiteSchedule(schedule.id, { enabled: !schedule.enabled });
+            await updateSchedule.mutateAsync({ scheduleId: schedule.id, payload: { enabled: !schedule.enabled } });
+            refetch();
         } catch (err) {
-            setError('Failed to update schedule. Reverting.');
-            setSchedules(originalSchedules);
+            setError('Failed to update schedule.');
         }
     };
 
     const handleDelete = async (scheduleId: string) => {
         if (!window.confirm("Are you sure you want to delete this schedule? This action cannot be undone.")) return;
-        const originalSchedules = [...schedules];
-        setSchedules(schedules.filter(s => s.id !== scheduleId));
         try {
-            await apiService.deleteSiteSchedule(scheduleId);
+            await deleteSchedule.mutateAsync(scheduleId);
+            refetch();
         } catch (err) {
-            setError('Failed to delete schedule. Reverting.');
-            setSchedules(originalSchedules);
+            setError('Failed to delete schedule.');
         }
     };
 
     const handleSave = async (payload: SiteSchedulePayload, scheduleId?: string) => {
-        const originalSchedules = [...schedules];
         setIsModalOpen(false);
         setEditingSchedule(null);
-
-        if (scheduleId) { // Update
-             setSchedules(schedules.map(s => s.id === scheduleId ? { ...s, ...payload } as SiteSchedule : s));
-            try {
-                await apiService.updateSiteSchedule(scheduleId, payload);
-            } catch (err) {
-                setError('Failed to update. Reverting.');
-                setSchedules(originalSchedules);
+        try {
+            if (scheduleId) {
+                await updateSchedule.mutateAsync({ scheduleId, payload });
+            } else {
+                await createSchedule.mutateAsync(payload);
             }
-        } else { // Create
-             const optimisticNewSchedule: SiteSchedule = { id: uuidv4(), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...payload } as SiteSchedule;
-             setSchedules([...schedules, optimisticNewSchedule]);
-            try {
-                await apiService.createSiteSchedule(payload);
-            } catch (err) {
-                setError('Failed to create. Reverting.');
-                setSchedules(originalSchedules);
-            }
+            refetch();
+        } catch (err) {
+            setError('Failed to save schedule.');
         }
-        await fetchData();
     };
 
     if (isLoading) return <div className="flex justify-center p-8"><LoadingSpinner /> Loading schedules...</div>;
@@ -335,10 +308,12 @@ const HealthCheckSection = ({ title, url, onCheck, healthState }: { title: strin
 export const PromptEditorView = ({ prompts, isDebugMode, onSetIsDebugMode, modelName, setModelName }: PromptEditorViewProps) => {
     const [postgrestHealth, setPostgrestHealth] = useState<HealthState>({ status: 'idle', result: null });
     const [fastApiHealth, setFastApiHealth] = useState<HealthState>({ status: 'idle', result: null });
+    const checkPostgrestHealth = useCheckPostgrestHealth();
+    const checkFastApiHealth = useCheckFastApiHealth();
 
     const handlePostgrestHealthCheck = async () => {
         setPostgrestHealth({ status: 'loading', result: null });
-        const result = await apiService.checkPostgrestHealth();
+        const result = await checkPostgrestHealth.mutateAsync();
         setPostgrestHealth({
             status: result.status === 200 ? 'success' : 'error',
             result: result,
@@ -347,7 +322,7 @@ export const PromptEditorView = ({ prompts, isDebugMode, onSetIsDebugMode, model
 
     const handleFastApiHealthCheck = async () => {
         setFastApiHealth({ status: 'loading', result: null });
-        const result = await apiService.checkFastApiHealth();
+        const result = await checkFastApiHealth.mutateAsync();
         setFastApiHealth({
             status: result.status === 200 ? 'success' : 'error',
             result: result,
