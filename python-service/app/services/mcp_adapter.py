@@ -329,14 +329,20 @@ class MCPServerAdapter:
                     return f"Error: Server '{server_name}' not connected"
                     
                 session_id = self._connected_servers[server_name]["session_id"]
-                
+
+                # MCP API requires both 'args' and 'kwargs' in the arguments payload
+                arguments = {
+                    "args": kwargs.get("args", {}),
+                    "kwargs": kwargs.get("kwargs", {}),
+                }
+
                 # Execute tool through gateway
                 response = await self._session.post(
                     f"{self.gateway_url}/servers/{server_name}/tools/{original_tool_name}/execute",
                     json={
                         "session_id": session_id,
-                        "arguments": kwargs
-                    }
+                        "arguments": arguments,
+                    },
                 )
                 response.raise_for_status()
                 
