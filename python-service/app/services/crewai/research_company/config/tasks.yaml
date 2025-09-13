@@ -1,103 +1,83 @@
 financial_analysis_task:
   description: >
-    Research and analyze {{company_name}}'s financial health, stability, and growth potential.
-    Focus on financial reports, market performance, revenue trends, funding history, 
-    investors, and growth indicators. Use web research to get the most recent financial 
-    information and news that might affect the company's financial outlook.
-    
+    Provide a quick financial snapshot of {{company_name}}. 
+    Focus only on major signals that could impact candidate fit, 
+    such as recent funding events, major investors, or clear signs of growth or instability.
+    Avoid detailed analysis — the goal is just to flag any important financial context.
+
   expected_output: >
-    A JSON object with financial analysis:
+    A short JSON object:
     {
-      "financial_health": {
-        "revenue_trends": "...",
-        "profitability": "...", 
-        "funding_history": "...",
-        "investor_information": "...",
-        "market_performance": "...",
-        "growth_indicators": "...",
-        "financial_stability_score": "...",
-        "key_financial_insights": ["..."]
-      }
+      "funding_events": "latest round if any, else 'none found'",
+      "notable_investors": ["top 1-2 investors if known"],
+      "financial_trend": "growing | stable | declining (based on quick scan)",
+      "risk_flag": "yes/no with 1 sentence reason"
     }
-  
+
   agent: financial_analyst
   #context: [web_research_task]
 
 culture_investigation_task:
   description: >
-    Investigate {{company_name}}'s workplace culture, values, and employee experience.
-    Research employee reviews, HR practices, diversity efforts, workplace policies,
-    work-life balance indicators, and inclusion metrics. Use web research to gather
-    recent employee feedback and cultural insights from multiple sources.
-    
+    Provide a quick cultural snapshot of {{company_name}}. 
+    Identify the official company values or mission statement from {{company_name}}'s website 
+    (or LinkedIn/Glassdoor if not available). 
+    Supplement this with recent employee sentiment and major cultural signals. 
+    Keep it lightweight — the goal is to quickly gauge cultural alignment, not a full HR report.
+
   expected_output: >
-    A JSON object with culture analysis:
+    A short JSON object:
     {
-      "workplace_culture": {
-        "company_values": "...",
-        "employee_satisfaction": "...",
-        "work_life_balance": "...",
-        "diversity_inclusion": "...",
-        "management_style": "...",
-        "career_support": "...",
-        "culture_score": "...",
-        "cultural_highlights": ["..."],
-        "potential_concerns": ["..."]
-      }
+      "company_values": ["list the official values or mission points if published"],
+      "employee_sentiment": "positive | mixed | negative (with 1-sentence context)",
+      "work_life_balance": "strong | average | weak (with 1-sentence context)",
+      "culture_signals": ["up to 3 quick highlights"],
+      "risk_flag": "yes/no with 1 sentence reason"
     }
-    
+
   agent: culture_investigator
   #context: [web_research_task]
 
 leadership_analysis_task:
   description: >
-    Research {{company_name}}'s leadership team and analyze the company's reputation.
-    Investigate leadership history, management styles, executive backgrounds,
-    media coverage, industry reputation, and how the company is perceived by
-    employees and industry peers. Use web research for recent leadership news and changes.
-    
+    Provide a quick snapshot of {{company_name}}'s leadership. 
+    Identify key executives (CEO, top leaders), recent leadership changes or news, 
+    and overall reputation signals from media or employee feedback. 
+    Keep this lightweight — the goal is to flag major leadership strengths or risks, 
+    not to provide a full executive dossier.
+
   expected_output: >
-    A JSON object with leadership analysis:
+    A short JSON object:
     {
-      "leadership_reputation": {
-        "executive_team": "...",
-        "leadership_style": "...",
-        "industry_reputation": "...",
-        "media_coverage": "...",
-        "leadership_stability": "...",
-        "vision_clarity": "...",
-        "reputation_score": "...",
-        "leadership_strengths": ["..."],
-        "reputation_risks": ["..."]
-      }
+      "executive_team": ["CEO + top 2-3 leaders with roles"],
+      "recent_news": "1-2 sentence summary of notable leadership news/changes",
+      "leadership_reputation": "positive | mixed | negative (with 1-sentence context)",
+      "leadership_strengths": ["up to 3 quick strengths"],
+      "reputation_risks": ["up to 3 quick risks"]
     }
-    
+
   agent: leadership_analyst
   #context: [web_research_task]
 
 career_growth_analysis_task:
   description: >
-    Investigate career development opportunities and employee growth support at {{company_name}}.
-    Research job postings, career progression patterns, training programs, internal mobility,
-    employee advancement stories, and professional development support. Use web research
-    to find recent information about career opportunities and employee growth.
-    
+    Provide a quick snapshot of career development opportunities at {{company_name}}. 
+    Look for signals in official company materials (careers page, job postings) and 
+    employee feedback (reviews, testimonials). 
+    Focus on whether growth opportunities exist, how training/mentorship is described, 
+    and whether employees perceive advancement as accessible. 
+    Keep this lightweight — the goal is to flag career growth signals, not a full HR analysis.
+
   expected_output: >
-    A JSON object with career growth analysis:
+    A short JSON object:
     {
-      "career_growth": {
-        "advancement_opportunities": "...",
-        "training_programs": "...",
-        "internal_mobility": "...",
-        "mentorship_support": "...",
-        "skill_development": "...",
-        "promotion_patterns": "...",
-        "growth_score": "...",
-        "career_highlights": ["..."],
-        "growth_limitations": ["..."]
-      }
+      "advancement_opportunities": "1-2 sentence summary from careers site or reviews",
+      "training_support": "brief note on training/mentorship if available",
+      "employee_sentiment": "positive | mixed | negative (with 1-sentence context)",
+      "growth_signals": ["up to 3 quick highlights"],
+      "growth_risks": ["up to 3 quick risks"]
     }
-    
+
   agent: career_growth_analyst
   #context: [web_research_task]
 

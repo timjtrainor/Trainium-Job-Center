@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Union
 
 
 class CompanyRequest(BaseModel):
@@ -6,50 +7,34 @@ class CompanyRequest(BaseModel):
 
 
 class FinancialHealth(BaseModel):
-    revenue_trends: str
-    profitability: str
-    funding_history: str
-    investor_information: str
-    market_performance: str
-    growth_indicators: str
-    financial_stability_score: str
-    key_financial_insights: list[str]
+    funding_events: str = Field(..., alias="funding_status")
+    notable_investors: str
+    financial_trend: str
+    risk_flag: str = Field(..., alias="risk_factors")
 
 
 class WorkplaceCulture(BaseModel):
-    company_values: str
-    employee_satisfaction: str
+    company_values: list[str] = Field(..., alias="company_values_emphasized")
+    employee_sentiment: str
     work_life_balance: str
-    diversity_inclusion: str
-    management_style: str
-    career_support: str
-    culture_score: str
-    cultural_highlights: list[str]
-    potential_concerns: list[str]
+    culture_signals: list[str] = Field(..., alias="key_culture_signals")
+    risk_flag: str = Field(..., alias="potential_culture_risks")
 
 
 class LeadershipReputation(BaseModel):
-    executive_team: str
-    leadership_style: str
-    industry_reputation: str
-    media_coverage: str
-    leadership_stability: str
-    vision_clarity: str
-    reputation_score: str
-    leadership_strengths: list[str]
-    reputation_risks: list[str]
+    executive_team: Union[list[str], str] = Field(..., alias="executive_team_overview")
+    recent_news: str = Field(..., alias="recent_news_summary")
+    leadership_reputation: str = Field(..., alias="overall_reputation")
+    leadership_strengths: Union[list[str], str] = Field(..., alias="potential_leadership_strengths_to_verify")
+    reputation_risks: Union[list[str], str] = Field(..., alias="potential_reputation_risks_to_verify")
 
 
 class CareerGrowth(BaseModel):
     advancement_opportunities: str
-    training_programs: str
-    internal_mobility: str
-    mentorship_support: str
-    skill_development: str
-    promotion_patterns: str
-    growth_score: str
-    career_highlights: list[str]
-    growth_limitations: list[str]
+    training_support: str = Field(..., alias="training_and_support")
+    employee_sentiment: str = Field(..., alias="employee_sentiment_on_growth")
+    growth_signals: list[str] = Field(..., alias="positive_growth_signals")
+    growth_risks: list[str] = Field(..., alias="potential_growth_risks")
 
 
 class RecentNews(BaseModel):
