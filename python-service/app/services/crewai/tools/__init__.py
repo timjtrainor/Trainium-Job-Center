@@ -6,7 +6,7 @@ from .chroma_search import (
     chroma_list_collections,
     chroma_search_across_collections,
 )
-from crewai_tools import tool
+from crewai.tools import tool
 
 
 def get_postgres_tool() -> PostgresQueryTool:
