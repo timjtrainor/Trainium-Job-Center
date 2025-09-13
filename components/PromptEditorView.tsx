@@ -4,6 +4,7 @@ import { LoadingSpinner, PlusCircleIcon, TrashIcon } from './IconComponents';
 import * as apiService from '../services/apiService';
 // FIX: Import Prompt type.
 import { SiteSchedule, SiteDetails, SiteSchedulePayload, Prompt } from '../types';
+import { useScheduleManager } from '../hooks/useSchedules';
 import { v4 as uuidv4 } from 'uuid';
 
 interface PromptEditorViewProps {
@@ -137,34 +138,19 @@ const ScheduleFormModal = ({ isOpen, onClose, onSave, sites, scheduleToEdit }: S
 
 // --- Schedule Manager Component ---
 const ScheduleManager = () => {
-    const [schedules, setSchedules] = useState<SiteSchedule[]>([]);
-    const [sites, setSites] = useState<SiteDetails[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const {
+        schedules,
+        sites,
+        isLoading,
+        error,
+        toggleSchedule,
+        deleteSchedule,
+        refetch,
+    } = useScheduleManager();
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSchedule, setEditingSchedule] = useState<SiteSchedule | null>(null);
     const [expandedSite, setExpandedSite] = useState<string | null>(null);
-
-    const fetchData = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const [schedulesData, sitesData] = await Promise.all([
-                apiService.getSiteSchedules(),
-                apiService.getJobSites(),
-            ]);
-            setSchedules(schedulesData);
-            setSites(sitesData);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to fetch data.');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchData();
-    }, []);
 
     const groupedSchedules = useMemo(() => {
         return schedules.reduce((acc, schedule) => {
@@ -176,60 +162,51 @@ const ScheduleManager = () => {
     }, [schedules]);
 
     const handleToggle = async (schedule: SiteSchedule) => {
-        const originalSchedules = [...schedules];
-        const updatedSchedules = schedules.map(s => s.id === schedule.id ? { ...s, enabled: !s.enabled } : s);
-        setSchedules(updatedSchedules);
         try {
-            await apiService.updateSiteSchedule(schedule.id, { enabled: !schedule.enabled });
+            await toggleSchedule(schedule);
         } catch (err) {
-            setError('Failed to update schedule. Reverting.');
-            setSchedules(originalSchedules);
+            // Error is already handled in the hook
         }
     };
 
     const handleDelete = async (scheduleId: string) => {
         if (!window.confirm("Are you sure you want to delete this schedule? This action cannot be undone.")) return;
-        const originalSchedules = [...schedules];
-        setSchedules(schedules.filter(s => s.id !== scheduleId));
         try {
-            await apiService.deleteSiteSchedule(scheduleId);
+            await deleteSchedule(scheduleId);
         } catch (err) {
-            setError('Failed to delete schedule. Reverting.');
-            setSchedules(originalSchedules);
+            // Error is already handled in the hook
         }
     };
 
     const handleSave = async (payload: SiteSchedulePayload, scheduleId?: string) => {
-        const originalSchedules = [...schedules];
         setIsModalOpen(false);
         setEditingSchedule(null);
 
-        if (scheduleId) { // Update
-             setSchedules(schedules.map(s => s.id === scheduleId ? { ...s, ...payload } as SiteSchedule : s));
-            try {
+        try {
+            if (scheduleId) {
                 await apiService.updateSiteSchedule(scheduleId, payload);
-            } catch (err) {
-                setError('Failed to update. Reverting.');
-                setSchedules(originalSchedules);
-            }
-        } else { // Create
-             const optimisticNewSchedule: SiteSchedule = { id: uuidv4(), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...payload } as SiteSchedule;
-             setSchedules([...schedules, optimisticNewSchedule]);
-            try {
+            } else {
                 await apiService.createSiteSchedule(payload);
-            } catch (err) {
-                setError('Failed to create. Reverting.');
-                setSchedules(originalSchedules);
             }
+            await refetch(); // Refresh the data
+        } catch (err) {
+            // Basic error handling - the hook provides toast notifications
+            console.error('Error saving schedule:', err);
         }
-        await fetchData();
     };
 
     if (isLoading) return <div className="flex justify-center p-8"><LoadingSpinner /> Loading schedules...</div>;
 
     return (
         <div>
-            {error && <p className="text-red-500 mb-4">{error}</p>}
+            {error && (
+                <p className="text-red-500 mb-4">
+                    {error}
+                    <button onClick={refetch} className="ml-2 text-red-600 hover:underline text-sm">
+                        Try Again
+                    </button>
+                </p>
+            )}
             <div className="flex justify-end mb-4">
                 <button onClick={() => { setEditingSchedule(null); setIsModalOpen(true); }} disabled={sites.length === 0} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-md bg-blue-600 text-white shadow-sm hover:bg-blue-500 disabled:opacity-50" title={sites.length === 0 ? "Cannot add schedule: no sites found from FastAPI." : ""}>
                     <PlusCircleIcon className="h-5 w-5"/>Add Schedule
