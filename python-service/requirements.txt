@@ -5,7 +5,7 @@ python-multipart==0.0.20
 loguru==0.7.3
 httpx==0.28.1
 python-json-logger==2.0.7
-python-dotenv==1.0.1
+python-dotenv==1.1.1
 
 # JobSpy for job scraping integration
 python-jobspy==1.1.82
@@ -29,8 +29,8 @@ google-genai==1.32.0
 ollama==0.5.3
 openai==1.104.2
 # Crew orchestration
-crewai==0.175.0
-crewai-tools==0.69.0
+crewai==0.186.1
+crewai-tools==0.71.0
 langchain>=0.3,<0.4
 # For web search tool
 tavily-python==0.7.11
