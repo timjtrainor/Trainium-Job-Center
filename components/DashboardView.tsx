@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { JobApplication, Contact, Message, LinkedInPost, UserProfile, Prompt, StrategicNarrative, LinkedInEngagement, BaseResume, StrategicNarrativePayload, SkillGapAnalysisResult, NarrativeSynthesisResult, SkillTrendPayload, AiFocusItem, Sprint, SkillTrend, Company, PromptContext, SprintActionPayload } from '../types';
 import * as geminiService from '../services/geminiService';
-import * as apiService from '../services/apiService';
 import { LoadingSpinner, CheckBadgeIcon, ClockIcon, StrategyIcon, RocketLaunchIcon, MagnifyingGlassPlusIcon, XCircleIcon, NetworkingIcon, SparklesIcon } from './IconComponents';
 import { SkillGapAnalysisModal } from './SkillGapAnalysisModal';
 import { CatalyzePathModal } from './CatalyzePathModal';

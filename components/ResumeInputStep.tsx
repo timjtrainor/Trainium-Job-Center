@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowRightIcon, LoadingSpinner } from './IconComponents';
 import { BaseResume, Resume, Prompt, KeywordsResult, UserProfile, ResumeHeader, StrategicNarrative } from '../types';
 import { BLANK_RESUME_CONTENT } from '../mockData';
-import * as apiService from '../services/apiService';
+import { useGetResumeContent } from '../hooks/apiHooks';
 import { ensureUniqueAchievementIds } from '../utils/resume';
 
 interface SelectResumeStepProps {
@@ -19,6 +19,7 @@ interface SelectResumeStepProps {
 
 export const SelectResumeStep = ({ baseResumes, onNext, isLoading, keywords, userProfile, applicationNarrative }: SelectResumeStepProps): React.ReactNode => {
     const [selectedResumeId, setSelectedResumeId] = useState<string>('');
+    const { refetch: fetchResumeContent } = useGetResumeContent(selectedResumeId, false);
     const [customResumeJson, setCustomResumeJson] = useState<string>(JSON.stringify(BLANK_RESUME_CONTENT, null, 2));
     const [error, setError] = useState<string | null>(null);
 
@@ -46,8 +47,8 @@ export const SelectResumeStep = ({ baseResumes, onNext, isLoading, keywords, use
         } else {
             const foundResume = baseResumes.find(r => r.resume_id.toString() === selectedResumeId);
             if(foundResume) {
-                const fullContent = await apiService.getResumeContent(foundResume.resume_id);
-                 if (userProfile) {
+                const { data: fullContent } = await fetchResumeContent();
+                 if (userProfile && fullContent) {
                     const header: ResumeHeader = {
                         ...fullContent.header, // Keep existing header data
                         // Override with profile data if available
@@ -62,7 +63,7 @@ export const SelectResumeStep = ({ baseResumes, onNext, isLoading, keywords, use
                     };
                     resumeToProcess = { ...fullContent, header };
                 } else {
-                    setError("User profile not loaded, cannot proceed.");
+                setError("User profile not loaded, cannot proceed.");
                     return;
                 }
             }
