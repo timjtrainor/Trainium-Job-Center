@@ -35,10 +35,15 @@ def test_run_crew_returns_job_details():
     }
 
     crew_output = {
+        "final": {
+            "recommend": True,
+            "rationale": "Strong match across metrics",
+            "confidence": "high",
+        },
+        "personas": [],
         "job_title": "Software Engineer",
         "company": "Acme",
-        "recommendation": "green-light",
-        "overall_fit": "high",
+        "fit_score": 0.9,
     }
 
     mock_crew = Mock()
@@ -52,5 +57,5 @@ def test_run_crew_returns_job_details():
 
     assert result["data"]["job_title"] == "Software Engineer"
     assert result["data"]["company"] == "Acme"
-    assert result["data"]["recommendation"] == "green-light"
+    assert result["data"]["fit_score"] == 0.9
 

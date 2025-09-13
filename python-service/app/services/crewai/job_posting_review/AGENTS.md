@@ -167,9 +167,10 @@ inputs = {
 - Size limits enforced to prevent token bloat (1.5 KB helper snapshot limit)
 
 **JSON Parsing**:
-- Primary: Extract JSON object matching expected schema from task output
-- Also accepts simplified `{job_title, company, recommendation, ...}` payloads. These fields are preserved under `data` and `recommendation`/`overall_fit` map to boolean `final.recommend`.
-- Fallback: Text parsing for boolean recommendation and reason extraction
+- Primary: Extract JSON object matching expected schema from task output.
+- Validator: Parsed object must include `final`, `personas`, and at least one key containing `score`.
+- Metrics: Non-standard keys (including score fields) are moved under a separate `data` object; `final.rationale` is trimmed to a concise summary.
+- Fallback: Text parsing for boolean recommendation and reason extraction when JSON parsing fails.
 - Error: Return `{recommend: false, reason: "insufficient signal", notes: ["task execution failed"]}`
 
 ## YAML Binding Rules

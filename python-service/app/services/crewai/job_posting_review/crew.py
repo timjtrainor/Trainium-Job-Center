@@ -138,79 +138,51 @@ def run_crew(job_posting_data: dict, options: dict = None, correlation_id: str =
     """
     try:
         crew = get_job_posting_review_crew()
-        
+
         # Convert job posting to string for the crew input as expected by the YAML
         job_posting_str = str(job_posting_data)
-        
+
         # Run the crew with the job posting
         result = crew.kickoff(inputs={"job_posting": job_posting_str})
-        
-        # The crew should return structured output from the orchestration_task
-        # For now, we'll parse and structure the result appropriately
-        result_str = str(result)
-        
+
+        raw_output = getattr(result, "raw", str(result))
+
         # Generate a deterministic job ID
         import hashlib
         job_id = f"job_{hashlib.md5(job_posting_str.encode()).hexdigest()[:8]}"
-        
+
         # Try to parse structured output from the crew result
-        # The orchestration task is expected to return a final JSON decision object
+        from app.services.crewai.parser import parse_crew_result
+
         try:
-            import json
-            import re
-            
-            # Look for JSON-like content in the result
-            json_match = re.search(r'\{.*\}', result_str, re.DOTALL)
-            if json_match:
-                parsed_result = json.loads(json_match.group())
-                # If the crew returns properly structured data, use it
-                if all(key in parsed_result for key in ['final', 'personas']):
-                    parsed_result['job_id'] = job_id
-                    return parsed_result
-                # Accept alternate structure with job details and recommendation
-                if 'job_title' in parsed_result and 'company' in parsed_result:
-                    rec_value = parsed_result.get('recommendation') or parsed_result.get('overall_fit')
-                    recommend_bool = True
-                    if rec_value is not None:
-                        rec_lower = str(rec_value).lower()
-                        if any(word in rec_lower for word in ['reject', 'no', 'not', 'low', 'fail', 'negative']):
-                            recommend_bool = False
-                    return {
-                        "job_id": job_id,
-                        "data": parsed_result,
-                        "final": {
-                            "recommend": recommend_bool,
-                            "rationale": parsed_result.get("reason", ""),
-                            "confidence": parsed_result.get("overall_fit", "")
-                        },
-                        "personas": [],
-                        "tradeoffs": [],
-                        "actions": [],
-                        "sources": parsed_result.get("sources", ["job_posting_review_crew", "crewai_orchestration"])
-                    }
-        except (json.JSONDecodeError, ValueError):
+            parsed_result = parse_crew_result(raw_output)
+            parsed_result["job_id"] = job_id
+            return parsed_result
+        except ValueError:
             pass
-        
+
         # Fallback: Create structured response from crew output
         # This handles cases where the crew doesn't return perfect JSON
-        
+
         # Determine recommendation based on result content
-        result_lower = result_str.lower()
+        result_lower = raw_output.lower()
         recommend = not any(reject_word in result_lower for reject_word in ['reject', 'no', 'fail', 'negative'])
-        
+
         # Determine confidence based on result clarity
         if any(high_conf in result_lower for high_conf in ['strong', 'excellent', 'clear', 'definitive']):
             confidence = "high"
         elif any(low_conf in result_lower for low_conf in ['weak', 'unclear', 'uncertain', 'maybe']):
-            confidence = "low"  
+            confidence = "low"
         else:
             confidence = "medium"
-        
+
+        summary = raw_output.split("\n")[0][:200]
+
         return {
             "job_id": job_id,
             "final": {
                 "recommend": recommend,
-                "rationale": result_str[:500],  # Truncate for readability
+                "rationale": summary,
                 "confidence": confidence
             },
             "personas": [
