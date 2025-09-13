@@ -8,6 +8,8 @@ import asyncio
 import json
 from typing import Dict, List, Any, Optional, Union
 from contextlib import asynccontextmanager
+from urllib.parse import parse_qs, urlparse
+
 from loguru import logger
 
 import httpx
@@ -92,30 +94,52 @@ class MCPServerAdapter:
         try:
             # Request server connection through gateway
             connect_response = await self._session.post(
-                f"{self.gateway_url}/servers/{server_name}/connect"
+                f"{self.gateway_url}/servers/{server_name}/connect",
+                follow_redirects=False,
             )
-            connect_response.raise_for_status()
-            
+
+            session_id: Optional[str] = None
+            if (
+                connect_response.status_code == 307
+                and "location" in connect_response.headers
+            ):
+                redirect_url = connect_response.headers["location"]
+                if redirect_url.startswith("/"):
+                    redirect_url = f"{self.gateway_url}{redirect_url}"
+                parsed = urlparse(redirect_url)
+                session_id = parse_qs(parsed.query).get("sessionid", [None])[0]
+
+                sse_response = await self._session.get(
+                    redirect_url,
+                    headers={"Accept": "text/event-stream"},
+                )
+                sse_response.raise_for_status()
+            else:
+                connect_response.raise_for_status()
+                session_id = connect_response.json().get("session_id")
+
             # Get server tools
             tools_response = await self._session.get(
-                f"{self.gateway_url}/servers/{server_name}/tools"
+                f"{self.gateway_url}/servers/{server_name}/tools",
             )
             tools_response.raise_for_status()
             tools_data = tools_response.json()
-            
+
             # Store server connection and tools
             self._connected_servers[server_name] = {
                 "config": server_config,
-                "session_id": connect_response.json().get("session_id")
+                "session_id": session_id,
             }
-            
+
             # Register tools from this server
             for tool_data in tools_data.get("tools", []):
                 tool_name = f"{server_name}_{tool_data['name']}"
                 self._available_tools[tool_name] = tool_data
-                
-            logger.info(f"Connected to MCP server '{server_name}' with {len(tools_data.get('tools', []))} tools")
-            
+
+            logger.info(
+                f"Connected to MCP server '{server_name}' with {len(tools_data.get('tools', []))} tools"
+            )
+
         except Exception as e:
             logger.error(f"Failed to connect to MCP server '{server_name}': {e}")
             
