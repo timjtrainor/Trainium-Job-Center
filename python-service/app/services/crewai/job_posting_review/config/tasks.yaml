@@ -1,6 +1,6 @@
 intake_task:
   description: >
-    Parse {{job_posting}} into structured JSON with keys: 
+    Parse the provided job posting text into structured JSON with keys: 
     title, company, salary, location, seniority, job_type, description.
   expected_output: >
     A clean JSON object with job attributes extracted from the posting.
@@ -8,20 +8,21 @@ intake_task:
 
 pre_filter_task:
   description: >
-    Apply hard rejection rules to the parsed job JSON. Reject if highest salary is below 180,000 per year,
-    if salary is missing AND seniority is below "Senior", or if highest salary is below 210,000 per year and 
+    Apply hard rejection rules to the structured job data. 
+    Reject if highest salary is below 180,000 per year,
+    if salary is missing AND seniority is below "Senior",
+    or if highest salary is below 210,000 per year and 
     location/work model is in person.
   expected_output: >
-    Either "reject" with reason, or "pass" if job should continue.
+    Either {"status": "reject", "reason": "..."} 
+    or {"status": "pass"} if job should continue.
   agent: pre_filter_agent
-  input: "{{intake_task.output}}"
 
 quick_fit_task:
   description: >
-    For jobs that pass pre-filtering, analyze {{intake_task.output}} quickly for 
+    For jobs that pass pre-filtering, evaluate the structured job data for 
     career growth, compensation, lifestyle fit, and purpose alignment.
   expected_output: >
-    A JSON object:
     {
       "career_growth_score": 0-10,
       "compensation_score": 0-10,
@@ -31,20 +32,17 @@ quick_fit_task:
       "quick_recommendation": "reject | review_deeper"
     }
   agent: quick_fit_analyst
-  input: "{{intake_task.output}}"
-  tools:
-    - chroma_search
 
 brand_match_task:
   description: >
-    Compare {{intake_task.output}} to the user's Career Brand Framework in ChromaDB. 
-    Return similarity scores and short alignment notes.
+    Compare the structured job data to the user's Career Brand Framework 
+    stored in ChromaDB. Return similarity scores and short alignment notes.
   expected_output: >
-    A JSON object with brand similarity scores and alignment commentary.
+    {
+      "brand_alignment_score": 0-10,
+      "alignment_notes": ["..."]
+    }
   agent: brand_framework_matcher
-  input: "{{intake_task.output}}"
-  tools:
-    - chroma_search
 
 orchestration_task:
   description: >

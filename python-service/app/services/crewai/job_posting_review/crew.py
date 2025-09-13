@@ -28,14 +28,14 @@ class JobPostingReviewCrew:
     def quick_fit_analyst(self) -> Agent:
         return Agent(
             config=self.agents_config["quick_fit_analyst"],  # type: ignore[index]
-            tools=[chroma_search],
+            #tools=[chroma_search],
         )
 
     @agent
     def brand_framework_matcher(self) -> Agent:
         return Agent(
             config=self.agents_config["brand_framework_matcher"],  # type: ignore[index]
-            tools=[chroma_search],
+            #tools=[chroma_search],
         )
 
     # === Manager ===
@@ -77,12 +77,12 @@ class JobPostingReviewCrew:
 
     @task
     def orchestration_task(self) -> Task:
-        """Manager controls the workflow: calls intake → pre-filter → quick-fit → brand match if needed."""
-        return Task(
-            config=self.tasks_config["orchestration_task"],  # type: ignore[index]
-            agent=self.managing_agent(),
-            async_execution=False,
-        )
+         """Manager controls the workflow: calls intake → pre-filter → quick-fit → brand match if needed."""
+         return Task(
+             config=self.tasks_config["orchestration_task"],  # type: ignore[index]
+             agent=self.managing_agent(),
+             async_execution=False,
+         )
 
     # === Crew ===
     @crew
@@ -93,16 +93,16 @@ class JobPostingReviewCrew:
                 self.pre_filter_agent(),
                 self.quick_fit_analyst(),
                 self.brand_framework_matcher(),
-                self.managing_agent(),
             ],
             tasks=[
+                self.orchestration_task(),
                 self.intake_task(),
                 self.pre_filter_task(),
                 self.quick_fit_task(),
                 self.brand_match_task(),
-                self.orchestration_task(),
             ],
             process=Process.hierarchical,  # 👈 manager runs the show
+            manager_agent=self.managing_agent(),
             verbose=True,
         )
 

@@ -1,6 +1,6 @@
 job_intake_agent:
   role: >
-    Job Intake Agent
+    Job Intake Specialist
   goal: >
     Extract structured data from raw job postings for downstream analysis.
   backstory: >
@@ -8,10 +8,12 @@ job_intake_agent:
     You never overanalyze, just prepare the input for others.
   verbose: false
   memory: false
+  max_iter: 1
+  llm: "openai/gpt-5-mini"
 
 pre_filter_agent:
   role: >
-    Job Pre-Filter Agent
+    Job Pre-Filter Specialist
   goal: >
     Quickly reject jobs that do not meet minimum requirements such as salary threshold,
     seniority, location, or work model.
@@ -20,10 +22,12 @@ pre_filter_agent:
     do not fit. You never hesitate to reject when conditions fail.
   verbose: false
   memory: false
+  max_iter: 1
+  llm: "openai/gpt-5-mini"
 
 quick_fit_analyst:
   role: >
-    Quick Fit Analyst
+    Quick Fit Specialist
   goal: >
     Provide lightweight scoring of jobs that pass pre-filtering, focusing on 
     career growth, compensation clues, lifestyle fit, and purpose alignment.
@@ -32,10 +36,12 @@ quick_fit_analyst:
     without going into full research mode. You provide scores and a quick recommendation.
   verbose: false
   memory: false
+  max_iter: 1
+  llm: "openai/gpt-5-mini"
 
 brand_framework_matcher:
   role: >
-    Career Brand Matcher
+    Career Brand Specialist
   goal: >
     Compare job attributes against the user's Career Brand Framework stored in ChromaDB,
     returning similarity scores and alignment notes.
@@ -44,17 +50,39 @@ brand_framework_matcher:
     with the candidate's career pillars and values.
   verbose: false
   memory: false
-  tools:
-    - chroma_tool  # custom tool to query ChromaDB
+  max_iter: 1
+  llm: "openai/gpt-5-mini"
+  #tools:
+  #  - chroma_search  # custom tool to query ChromaDB
 
 managing_agent:
   role: >
-    Job Screening Orchestrator
+    Job Application Orchestrator
   goal: >
-    Direct the crew to filter, score, and match jobs efficiently, only allowing
-    high-potential roles through to deeper analysis.
+    Manage the full evaluation pipeline for job postings. You must decide which tasks to run,
+    in what order, and when to stop early if rejection criteria are met. 
+    Your objective is to return a clear final decision: either "green-light" or "reject", with supporting reasons.
   backstory: >
-    You are the orchestrator, ensuring efficiency and coordination. You decide
-    which agents to invoke and when to stop analysis.
+    You are an experienced career advisor and project manager.
+    You oversee a team of specialized agents who parse, pre-filter, evaluate fit, 
+    and check brand alignment for job postings. You delegate to them, collect results, 
+    and make the final decision. Efficiency is key: do not run unnecessary tasks if an earlier
+    step already justifies rejection.
+  allow_delegation: true
   verbose: true
-  memory: false
+  llm: "openai/gpt-5-mini"
+  instructions: |
+    When delegating work:
+    - Always call the "Delegate work to coworker" tool.
+    - Pass the `task` argument as a plain string (not JSON or dict).
+    - Include ALL necessary context in the `context` argument, also as plain text.
+    - Use the `coworker` argument as the agent's role (e.g., "job_intake_agent").
+    - Do not send Python objects, JSON, or dicts as arguments — only strings.
+    - Example:
+        task: "Parse the given job posting into structured JSON with title, company, salary, etc."
+        context: "Here is the job posting: Senior ML Engineer at Acme Corp..."
+        coworker: "job_intake_agent"
+        ❌ Wrong:
+          task: {"description": "Parse...", "type": "str"}
+        ✅ Correct:
+          task: "Parse the job posting into structured JSON"
