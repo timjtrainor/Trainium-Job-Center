@@ -3,6 +3,7 @@ Scheduler service for managing periodic job scraping tasks.
 """
 import uuid
 import random
+import json
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
 from loguru import logger
@@ -96,7 +97,11 @@ class SchedulerService:
                         continue
                     
                     # Enqueue the job with site name included in payload
-                    payload = {**schedule["payload"], "site_name": schedule["site_name"]}
+                    payload_dict = schedule["payload"]
+                    if isinstance(payload_dict, str):
+                        payload_dict = json.loads(payload_dict)
+
+                    payload = {**payload_dict, "site_name": schedule["site_name"]}
                     job_info = self.queue_service.enqueue_scraping_job(
                         payload=payload,
                         site_schedule_id=schedule_id,
