@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 import traceback
+import json
 
 from app.core.config import configure_logging, get_settings
 from app.api.router import api_router
@@ -18,7 +19,10 @@ from app.services.jobspy.ingestion import JobSpyIngestionService
 from app.services.infrastructure.database import DatabaseService
 from app.services.infrastructure.queue import QueueService
 from app.services.infrastructure.scheduler import SchedulerService
+from app.services.crewai import JobReviewCrew
 from app.schemas.responses import create_error_response
+from app.services.crewai.research_company.crew import ResearchCompanyCrew
+from app.services.startup import startup_tasks
 
 
 @asynccontextmanager
@@ -42,6 +46,8 @@ async def lifespan(app: FastAPI):
     app.state.database_service = DatabaseService()
     app.state.queue_service = QueueService()
     app.state.scheduler_service = SchedulerService()
+    app.state.job_review_crew = JobReviewCrew()
+    app.state.company_crew = ResearchCompanyCrew()
     
     try:
         # Initialize existing services
@@ -53,6 +59,9 @@ async def lifespan(app: FastAPI):
         await app.state.database_service.initialize()
         await app.state.queue_service.initialize()
         await app.state.scheduler_service.initialize()
+        
+        # Initialize ChromaDB collections
+        await startup_tasks()
         
         logger.info("All services initialized successfully")
         
@@ -108,10 +117,16 @@ app.add_middleware(
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions with structured error responses."""
     logger.error(f"HTTP exception: {exc.status_code} - {exc.detail}")
-    
+    message = exc.detail
+    if not isinstance(message, str):
+        try:
+            message = json.dumps(message)
+        except TypeError:
+            message = str(message)
+
     response = create_error_response(
         error=f"HTTP {exc.status_code}",
-        message=exc.detail
+        message=message
     )
     
     return JSONResponse(

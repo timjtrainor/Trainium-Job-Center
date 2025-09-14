@@ -9,5 +9,7 @@ from .personal_branding.crew import PersonalBrandCrew, get_personal_brand_crew
 __all__ = [
     "PersonalBrandCrew",
     "get_personal_brand_crew",
+    "ResearchCompanyCrew",
+    "get_research_company_crew",
 ]
 

@@ -3,6 +3,7 @@ Scheduler service for managing periodic job scraping tasks.
 """
 import uuid
 import random
+import json
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
 from loguru import logger
@@ -96,7 +97,20 @@ class SchedulerService:
                         continue
                     
                     # Enqueue the job with site name included in payload
-                    payload = {**schedule["payload"], "site_name": schedule["site_name"]}
+                    payload_dict = schedule["payload"]
+                    if isinstance(payload_dict, str):
+                        try:
+                            payload_dict = json.loads(payload_dict)
+                        except json.JSONDecodeError as json_err:
+                            logger.error(f"Failed to parse payload JSON for {site_name}: {json_err}")
+                            continue
+                    
+                    # Ensure payload_dict is a dictionary
+                    if not isinstance(payload_dict, dict):
+                        logger.error(f"Payload is not a dictionary for {site_name}: {type(payload_dict)}")
+                        continue
+
+                    payload = {**payload_dict, "site_name": schedule["site_name"]}
                     job_info = self.queue_service.enqueue_scraping_job(
                         payload=payload,
                         site_schedule_id=schedule_id,
@@ -147,7 +161,15 @@ class SchedulerService:
                         )
                         
                 except Exception as e:
-                    logger.error(f"Error processing schedule for {schedule.get('site_name', 'unknown')}: {str(e)}")
+                    site_name = "unknown"
+                    try:
+                        if isinstance(schedule, dict):
+                            site_name = schedule.get('site_name', 'unknown')
+                        else:
+                            site_name = f"invalid_schedule_type_{type(schedule).__name__}"
+                    except:
+                        pass  # Keep default site_name if we can't extract it
+                    logger.error(f"Error processing schedule for {site_name}: {str(e)}")
                     continue
             
             if jobs_enqueued > 0:

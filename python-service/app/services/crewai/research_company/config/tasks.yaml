@@ -1,0 +1,309 @@
+financial_analysis_task:
+  description: >
+    Provide a quick financial snapshot of {{company_name}}. 
+    Focus only on major signals that could impact candidate fit, 
+    such as recent funding events, major investors, or clear signs of growth or instability.
+    Avoid detailed analysis — the goal is just to flag any important financial context.
+
+  expected_output: >
+    JSON object matching schema:
+    {
+      "type": "object",
+      "properties": {
+        "funding_status": {"type": "string"},
+        "notable_investors": {"type": "array", "items": {"type": "string"}},
+        "financial_trend": {"type": "string"},
+        "risk_factors": {"type": "string"}
+      },
+      "required": [
+        "funding_status",
+        "notable_investors",
+        "financial_trend",
+        "risk_factors"
+      ]
+    }
+  # Field names must match the schema exactly.
+
+  agent: financial_analyst
+  #context: [web_research_task]
+
+culture_investigation_task:
+  description: >
+    Provide a quick cultural snapshot of {{company_name}}. 
+    Identify the official company values or mission statement from {{company_name}}'s website 
+    (or LinkedIn/Glassdoor if not available). 
+    Supplement this with recent employee sentiment and major cultural signals. 
+    Keep it lightweight — the goal is to quickly gauge cultural alignment, not a full HR report.
+
+  expected_output: >
+    JSON object matching schema:
+    {
+      "type": "object",
+      "properties": {
+        "company_values_emphasized": {"type": "array", "items": {"type": "string"}},
+        "employee_sentiment": {"type": "string"},
+        "work_life_balance": {"type": "string"},
+        "key_culture_signals": {"type": "array", "items": {"type": "string"}},
+        "potential_culture_risks": {"type": "string"}
+      },
+      "required": [
+        "company_values_emphasized",
+        "employee_sentiment",
+        "work_life_balance",
+        "key_culture_signals",
+        "potential_culture_risks"
+      ]
+    }
+  # Field names must match the schema exactly.
+
+  agent: culture_investigator
+  #context: [web_research_task]
+
+leadership_analysis_task:
+  description: >
+    Provide a quick snapshot of {{company_name}}'s leadership. 
+    Identify key executives (CEO, top leaders), recent leadership changes or news, 
+    and overall reputation signals from media or employee feedback. 
+    Keep this lightweight — the goal is to flag major leadership strengths or risks, 
+    not to provide a full executive dossier.
+
+  expected_output: >
+    JSON object matching schema:
+    {
+      "type": "object",
+      "properties": {
+        "executive_team_overview": {
+          "anyOf": [
+            {"type": "array", "items": {"type": "string"}},
+            {"type": "string"}
+          ]
+        },
+        "recent_news_summary": {"type": "string"},
+        "overall_reputation": {"type": "string"},
+        "potential_leadership_strengths_to_verify": {
+          "anyOf": [
+            {"type": "array", "items": {"type": "string"}},
+            {"type": "string"}
+          ]
+        },
+        "potential_reputation_risks_to_verify": {
+          "anyOf": [
+            {"type": "array", "items": {"type": "string"}},
+            {"type": "string"}
+          ]
+        }
+      },
+      "required": [
+        "executive_team_overview",
+        "recent_news_summary",
+        "overall_reputation",
+        "potential_leadership_strengths_to_verify",
+        "potential_reputation_risks_to_verify"
+      ]
+    }
+  # Field names must match the schema exactly.
+
+  agent: leadership_analyst
+  #context: [web_research_task]
+
+career_growth_analysis_task:
+  description: >
+    Provide a quick snapshot of career development opportunities at {{company_name}}. 
+    Look for signals in official company materials (careers page, job postings) and 
+    employee feedback (reviews, testimonials). 
+    Focus on whether growth opportunities exist, how training/mentorship is described, 
+    and whether employees perceive advancement as accessible. 
+    Keep this lightweight — the goal is to flag career growth signals, not a full HR analysis.
+
+  expected_output: >
+    JSON object matching schema:
+    {
+      "type": "object",
+      "properties": {
+        "advancement_opportunities": {"type": "string"},
+        "training_and_support": {"type": "string"},
+        "employee_sentiment_on_growth": {"type": "string"},
+        "positive_growth_signals": {"type": "array", "items": {"type": "string"}},
+        "potential_growth_risks": {"type": "array", "items": {"type": "string"}}
+      },
+      "required": [
+        "advancement_opportunities",
+        "training_and_support",
+        "employee_sentiment_on_growth",
+        "positive_growth_signals",
+        "potential_growth_risks"
+      ]
+    }
+  # Field names must match the schema exactly.
+
+  agent: career_growth_analyst
+  #context: [web_research_task]
+
+web_research_task:
+  description: >
+    Conduct comprehensive web research for {{company_name}} to gather the latest
+    information including recent news, press releases, acquisitions, partnerships,
+    major events, and any other current developments. Focus on information that
+    would be relevant for job seekers and recent changes that might affect the
+    company's outlook.
+    
+  expected_output: >
+    JSON object matching schema:
+    {
+      "type": "object",
+      "properties": {
+        "recent_news": {
+          "type": "object",
+          "properties": {
+            "latest_developments": {"type": "string"},
+            "press_releases": {"type": "string"},
+            "acquisitions_partnerships": {"type": "string"},
+            "major_events": {"type": "string"},
+            "market_changes": {"type": "string"},
+            "recent_announcements": {"type": "string"},
+            "news_summary": {"type": "string"},
+            "key_updates": {"type": "array", "items": {"type": "string"}}
+          },
+          "required": [
+            "latest_developments",
+            "press_releases",
+            "acquisitions_partnerships",
+            "major_events",
+            "market_changes",
+            "recent_announcements",
+            "news_summary",
+            "key_updates"
+          ]
+        }
+      },
+      "required": ["recent_news"]
+    }
+  # Field names must match the schema exactly.
+
+  agent: mcp_researcher
+
+report_compilation_task:
+  description: >
+    Compile and synthesize all research findings about {{company_name}} into a 
+    comprehensive, job seeker-friendly company profile. Integrate insights from 
+    financial analysis, culture investigation, leadership analysis, career growth 
+    research, and recent news into a cohesive report with an overall assessment.
+    
+  expected_output: >
+    Complete JSON report matching schema:
+    {
+      "type": "object",
+      "properties": {
+        "company_name": {"type": "string"},
+        "financial_health": {
+          "type": "object",
+          "properties": {
+            "funding_status": {"type": "string"},
+            "notable_investors": {"type": "array", "items": {"type": "string"}},
+            "financial_trend": {"type": "string"},
+            "risk_factors": {"type": "string"}
+          },
+          "required": [
+            "funding_status",
+            "notable_investors",
+            "financial_trend",
+            "risk_factors"
+          ]
+        },
+        "workplace_culture": {
+          "type": "object",
+          "properties": {
+            "company_values_emphasized": {"type": "array", "items": {"type": "string"}},
+            "employee_sentiment": {"type": "string"},
+            "work_life_balance": {"type": "string"},
+            "key_culture_signals": {"type": "array", "items": {"type": "string"}},
+            "potential_culture_risks": {"type": "string"}
+          },
+          "required": [
+            "company_values_emphasized",
+            "employee_sentiment",
+            "work_life_balance",
+            "key_culture_signals",
+            "potential_culture_risks"
+          ]
+        },
+        "leadership_reputation": {
+          "type": "object",
+          "properties": {
+            "executive_team_overview": {
+              "anyOf": [
+                {"type": "array", "items": {"type": "string"}},
+                {"type": "string"}
+              ]
+            },
+            "recent_news_summary": {"type": "string"},
+            "overall_reputation": {"type": "string"},
+            "potential_leadership_strengths_to_verify": {
+              "anyOf": [
+                {"type": "array", "items": {"type": "string"}},
+                {"type": "string"}
+              ]
+            },
+            "potential_reputation_risks_to_verify": {
+              "anyOf": [
+                {"type": "array", "items": {"type": "string"}},
+                {"type": "string"}
+              ]
+            }
+          },
+          "required": [
+            "executive_team_overview",
+            "recent_news_summary",
+            "overall_reputation",
+            "potential_leadership_strengths_to_verify",
+            "potential_reputation_risks_to_verify"
+          ]
+        },
+        "career_growth": {
+          "type": "object",
+          "properties": {
+            "advancement_opportunities": {"type": "string"},
+            "training_and_support": {"type": "string"},
+            "employee_sentiment_on_growth": {"type": "string"},
+            "positive_growth_signals": {"type": "array", "items": {"type": "string"}},
+            "potential_growth_risks": {"type": "array", "items": {"type": "string"}}
+          },
+          "required": [
+            "advancement_opportunities",
+            "training_and_support",
+            "employee_sentiment_on_growth",
+            "positive_growth_signals",
+            "potential_growth_risks"
+          ]
+        },
+        "overall_summary": {
+          "type": "object",
+          "properties": {
+            "recommendation_score": {"type": "string"},
+            "key_strengths": {"type": "array", "items": {"type": "string"}},
+            "potential_concerns": {"type": "array", "items": {"type": "string"}},
+            "best_fit_for": {"type": "string"},
+            "summary": {"type": "string"}
+          },
+          "required": [
+            "recommendation_score",
+            "key_strengths",
+            "potential_concerns",
+            "best_fit_for",
+            "summary"
+          ]
+        }
+      },
+      "required": [
+        "company_name",
+        "financial_health",
+        "workplace_culture",
+        "leadership_reputation",
+        "career_growth",
+        "overall_summary"
+      ]
+    }
+  # Field names must match the schema exactly.
+
+  agent: report_writer
+  context: [financial_analysis_task, culture_investigation_task, leadership_analysis_task, career_growth_analysis_task] #, web_research_task]

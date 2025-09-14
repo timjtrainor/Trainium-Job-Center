@@ -1,0 +1,14 @@
+{
+  "servers": {
+    "duckduckgo": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "mcp/duckduckgo"],
+      "env": {},
+      "description": "DuckDuckGo search server for web searches"
+    }
+  },
+  "gateway": {
+    "port": 8811,
+    "host": "0.0.0.0"
+  }
+}

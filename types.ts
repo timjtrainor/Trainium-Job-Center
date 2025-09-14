@@ -123,6 +123,59 @@ export interface CompanyInfoResult {
   industry?: InfoField;
 }
 
+// Company research report
+export interface FinancialHealth {
+  funding_events: string;
+  notable_investors: string[];
+  financial_trend: string;
+  risk_flag: string;
+}
+
+export interface WorkplaceCulture {
+  company_values: string[];
+  employee_sentiment: string;
+  work_life_balance: string;
+  culture_signals: string[];
+  risk_flag: string;
+}
+
+export interface LeadershipReputation {
+  executive_team: string[] | string;
+  recent_news: string;
+  leadership_reputation: string;
+  leadership_strengths: string[] | string;
+  reputation_risks: string[] | string;
+}
+
+export interface CareerGrowth {
+  advancement_opportunities: string;
+  training_support: string;
+  employee_sentiment: string;
+  growth_signals: string[];
+  growth_risks: string[];
+}
+
+export interface OverallSummary {
+  recommendation_score: string;
+  key_strengths: string[];
+  potential_concerns: string[];
+  best_fit_for: string;
+  summary: string;
+}
+
+export interface CompanyReport {
+  company_name: string;
+  financial_health: FinancialHealth;
+  workplace_culture: WorkplaceCulture;
+  leadership_reputation: LeadershipReputation;
+  career_growth: CareerGrowth;
+  overall_summary: OverallSummary;
+}
+
+export interface CompanyRequest {
+  company_name: string;
+}
+
 // Based on the 'companies' table
 export interface Company {
   company_id: string; // uuid in DB
