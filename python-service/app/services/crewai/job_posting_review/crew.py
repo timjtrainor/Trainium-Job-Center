@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
 
+from app.schemas.job_posting_review import JobPostingReviewOutput
 from ..tools.chroma_search import chroma_search
 
 _cached_crew: Optional[Crew] = None
@@ -165,7 +166,7 @@ class JobPostingReviewCrew:
             #tools=[chroma_search],
         )
 
-    # === Manager ===
+    # === Legacy Manager (unused) ===
     @agent
     def managing_agent(self) -> Agent:
         return Agent(
@@ -204,12 +205,56 @@ class JobPostingReviewCrew:
 
     @task
     def orchestration_task(self) -> Task:
-         """Manager controls the workflow: calls intake → pre-filter → quick-fit → brand match if needed."""
-         return Task(
-             config=self.tasks_config["orchestration_task"],  # type: ignore[index]
-             agent=self.managing_agent(),
-             async_execution=False,
-         )
+        return Task(
+            config=self.tasks_config["orchestration_task"],  # type: ignore[index]
+            agent=self.managing_agent(),
+            async_execution=False,
+        )
+
+    # Unused manager/orchestration definitions are intentionally omitted.
+
+    def _parse_task_output(self, output: Any) -> Dict[str, Any]:
+        """Safely extract JSON from a task output."""
+        if getattr(output, "json_dict", None):
+            return output.json_dict  # type: ignore[return-value]
+        raw = getattr(output, "raw", None)
+        if isinstance(raw, (str, bytes)):
+            try:
+                return json.loads(raw)
+            except Exception:
+                pass
+        return {"raw": raw}
+
+    def run_orchestration(self, job_posting: dict) -> Dict[str, Any]:
+        """Execute pipeline: intake → pre-filter → quick-fit → brand match."""
+        job_str = json.dumps(job_posting)
+
+        intake_output = self.intake_task().execute_sync(context=job_str)
+        intake_json = self._parse_task_output(intake_output)
+
+        pre_output = self.pre_filter_task().execute_sync(context=json.dumps(intake_json))
+        pre_json = self._parse_task_output(pre_output)
+
+        if pre_json.get("status") == "reject":
+            return JobPostingReviewOutput(
+                job_intake=intake_json,
+                pre_filter=pre_json,
+                quick_fit=None,
+                brand_match=None,
+            ).model_dump()
+
+        quick_output = self.quick_fit_task().execute_sync(context=json.dumps(intake_json))
+        quick_json = self._parse_task_output(quick_output)
+
+        brand_output = self.brand_match_task().execute_sync(context=json.dumps(intake_json))
+        brand_json = self._parse_task_output(brand_output)
+
+        return JobPostingReviewOutput(
+            job_intake=intake_json,
+            pre_filter=pre_json,
+            quick_fit=quick_json,
+            brand_match=brand_json,
+        ).model_dump()
 
     # === Crew ===
     @crew
@@ -222,11 +267,13 @@ class JobPostingReviewCrew:
                 self.brand_framework_matcher(),
             ],
             tasks=[
-                self.orchestration_task(),  # Only run orchestration - it will delegate to others as needed
+                self.intake_task(),
+                self.pre_filter_task(),
+                self.quick_fit_task(),
+                self.brand_match_task(),
             ],
-            process=Process.hierarchical,
-            manager_agent=self.managing_agent(),
-            verbose=False,  # Disable verbose for better performance
+            process=Process.sequential,
+            verbose=False,
         )
 
 
@@ -241,41 +288,21 @@ def get_job_posting_review_crew() -> Crew:
 
 
 def run_crew(job_posting_data: dict, options: dict = None, correlation_id: str = None) -> dict:
-    """Run the motivational fan-out crew and return formatted results."""
+    """Run the job posting review crew using explicit orchestration."""
     try:
-        crew = get_job_posting_review_crew()
-        job_posting_str = str(job_posting_data)
-        inputs: Dict[str, Any] = {"job_posting": job_posting_str}
-        if options:
-            inputs["options"] = options
-        result = crew.kickoff(inputs=inputs)
-        raw_output = getattr(result, "raw", result)
-        return _format_crew_result(raw_output, job_posting_data, correlation_id)
+        crew = JobPostingReviewCrew()
+        return crew.run_orchestration(job_posting_data)
     except Exception as e:
         job_hash = hashlib.md5(json.dumps(job_posting_data, sort_keys=True).encode()).hexdigest()
         return {
             "job_id": f"error_{job_hash[:8]}",
             "correlation_id": correlation_id,
-            "final": {
-                "recommend": False,
-                "rationale": f"Analysis failed: {str(e)}",
-                "confidence": "low",
-            },
-            "personas": [
-                {
-                    "id": "error_handler",
-                    "recommend": False,
-                    "reason": f"Crew execution failed: {str(e)}",
-                }
-            ],
-            "tradeoffs": [],
-            "actions": ["Review crew configuration", "Check system dependencies"],
-            "sources": ["error_handler"],
+            "error": str(e),
         }
 if __name__ == "__main__":
-    result = get_job_posting_review_crew().kickoff(inputs={
-        "job_posting": "Senior Machine Learning Engineer at Acme Corp, salary $200k, remote eligible..."
-    })
-
-    print("\n=== FINAL DECISION ===")
-    print(result)
+    sample = {
+        "title": "Senior Machine Learning Engineer",
+        "company": "Acme Corp",
+        "description": "Build ML systems",
+    }
+    print(JobPostingReviewCrew().run_orchestration(sample))

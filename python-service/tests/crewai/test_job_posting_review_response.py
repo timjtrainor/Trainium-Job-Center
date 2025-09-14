@@ -1,10 +1,9 @@
 """Tests for job posting review response structure."""
 
-import json
 import os
 import sys
 import types
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 
 # Stub external dependency imported by crew module
@@ -22,7 +21,7 @@ sys.modules.setdefault("mcp.types", mcp_types_stub)
 # Required configuration for importing service modules
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
-from app.services.crewai.job_posting_review.crew import run_crew
+from app.services.crewai.job_posting_review.crew import JobPostingReviewCrew, run_crew
 
 
 def test_run_crew_returns_job_details():
@@ -35,32 +34,14 @@ def test_run_crew_returns_job_details():
     }
 
     crew_output = {
-        "motivational_verdicts": [
-            {
-                "persona_id": "builder",
-                "recommend": True,
-                "reason": "Strong match across metrics",
-                "notes": [],
-                "sources": [],
-            }
-        ],
-        "job_title": "Software Engineer",
-        "company": "Acme",
-        "fit_score": 0.9,
+        "job_intake": {"title": "Software Engineer", "company": "Acme"},
+        "pre_filter": {"status": "pass"},
+        "quick_fit": {"overall_fit": "high"},
+        "brand_match": {"brand_alignment_score": 7},
     }
 
-    mock_crew = Mock()
-    mock_crew.kickoff.return_value = json.dumps(crew_output)
-
-    with patch(
-        "app.services.crewai.job_posting_review.crew.get_job_posting_review_crew",
-        return_value=mock_crew,
-    ):
+    with patch.object(JobPostingReviewCrew, "run_orchestration", return_value=crew_output):
         result = run_crew(job_posting)
 
-    assert result["data"]["job_title"] == "Software Engineer"
-    assert result["data"]["company"] == "Acme"
-    assert result["data"]["fit_score"] == 0.9
-    for key in ["final", "personas", "motivational_verdicts"]:
-        assert key in result
+    assert result == crew_output
 

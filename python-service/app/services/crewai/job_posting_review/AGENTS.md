@@ -2,6 +2,23 @@
 
 **Purpose**: Orchestrates the motivational evaluator fan-out system using CrewAI multi-agent architecture with YAML-first design and optional helper agent insights.
 
+## Update: Explicit Python Orchestration
+
+This crew now runs its evaluation pipeline directly in Python via the
+`run_orchestration` method in `crew.py`. The YAML files still define all
+agents and tasks, but the `managing_agent` and `orchestration_task` entries
+are retained only for backward compatibility and are not registered in the
+crew. The sequence executed is:
+
+1. `intake_task` – parse raw job posting text
+2. `pre_filter_task` – early rejection check (terminates on `status="reject"`)
+3. `quick_fit_task`
+4. `brand_match_task`
+
+The method returns a JSON object validated by the `JobPostingReviewOutput`
+Pydantic model with keys `job_intake`, `pre_filter`, `quick_fit`, and
+`brand_match`.
+
 **Entrypoints**:
 - `run_crew(job_posting_data, options, correlation_id)` → main entry for FastAPI routes executing motivational fan-out
 - `MotivationalFanOutCrew.motivational_fanout()` → YAML-driven crew executing helper snapshot + five parallel evaluations  
