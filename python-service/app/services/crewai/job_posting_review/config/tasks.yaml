@@ -50,7 +50,7 @@ orchestration_task:
     Your workflow MUST be:
     1. First, delegate to job_intake_agent to parse the job posting into structured data
     2. Then, delegate to pre_filter_agent to apply rejection criteria (salary, seniority, location)
-    3. **STOP IMMEDIATELY** if pre_filter_agent returns status "reject" - do not run any more tasks
+    3. **STOP IMMEDIATELY** if pre_filter_agent returns recommend: false - do not run any more tasks
     4. Only if status is "pass", delegate to quick_fit_analyst for scoring
     5. Only run brand_framework_matcher if quick_fit_analyst recommends "review_deeper"
     
