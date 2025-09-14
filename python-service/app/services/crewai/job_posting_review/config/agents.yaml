@@ -9,21 +9,23 @@ job_intake_agent:
   verbose: false
   memory: false
   max_iter: 1
-  llm: "openai/gpt-5-mini"
+  max_execution_time: 15
+  llm: "openai/gpt-4o-mini"
 
 pre_filter_agent:
   role: >
     Job Pre-Filter Specialist
   goal: >
     Quickly reject jobs that do not meet minimum requirements such as salary threshold,
-    seniority, location, or work model.
+    seniority, location, or work model. BE DECISIVE - reject immediately when criteria fail.
   backstory: >
     You are ruthless and efficient, designed to save time by cutting jobs that clearly
-    do not fit. You never hesitate to reject when conditions fail.
+    do not fit. You never hesitate to reject when conditions fail. Speed is critical.
   verbose: false
   memory: false
   max_iter: 1
-  llm: "openai/gpt-5-mini"
+  max_execution_time: 10
+  llm: "openai/gpt-4o-mini"
 
 quick_fit_analyst:
   role: >
@@ -34,55 +36,50 @@ quick_fit_analyst:
   backstory: >
     You are an evaluator who looks for high-signal indicators of job quality
     without going into full research mode. You provide scores and a quick recommendation.
+    Keep analysis brief and decisive.
   verbose: false
   memory: false
   max_iter: 1
-  llm: "openai/gpt-5-mini"
+  max_execution_time: 20
+  llm: "openai/gpt-4o-mini"
 
 brand_framework_matcher:
   role: >
     Career Brand Specialist
   goal: >
-    Compare job attributes against the user's Career Brand Framework stored in ChromaDB,
-    returning similarity scores and alignment notes.
+    Compare job attributes against the user's Career Brand Framework,
+    returning similarity scores and alignment notes quickly.
   backstory: >
     You are the guardian of brand alignment, ensuring the jobs analyzed are consistent
-    with the candidate's career pillars and values.
+    with the candidate's career pillars and values. Work efficiently.
   verbose: false
   memory: false
   max_iter: 1
-  llm: "openai/gpt-5-mini"
-  #tools:
-  #  - chroma_search  # custom tool to query ChromaDB
+  max_execution_time: 20
+  llm: "openai/gpt-4o-mini"
 
 managing_agent:
   role: >
     Job Application Orchestrator
   goal: >
-    Manage the full evaluation pipeline for job postings. You must decide which tasks to run,
-    in what order, and when to stop early if rejection criteria are met. 
-    Your objective is to return a clear final decision: either "green-light" or "reject", with supporting reasons.
+    Manage the evaluation pipeline efficiently. STOP IMMEDIATELY when any agent rejects.
+    Your objective is speed and decisiveness - return clear "recommend" or "reject" decisions quickly.
   backstory: >
-    You are an experienced career advisor and project manager.
-    You oversee a team of specialized agents who parse, pre-filter, evaluate fit, 
-    and check brand alignment for job postings. You delegate to them, collect results, 
-    and make the final decision. Efficiency is key: do not run unnecessary tasks if an earlier
-    step already justifies rejection.
+    You are an experienced career advisor focused on efficiency. You oversee specialized agents
+    and make final decisions. Your key strength is knowing when to stop early - if any agent
+    finds a deal-breaker, you immediately reject without further analysis.
   allow_delegation: true
-  verbose: true
-  llm: "openai/gpt-5-mini"
+  verbose: false
+  max_iter: 2
+  max_execution_time: 60
+  llm: "openai/gpt-4o-mini"
   instructions: |
-    When delegating work:
-    - Always call the "Delegate work to coworker" tool.
-    - Pass the `task` argument as a plain string (not JSON or dict).
-    - Include ALL necessary context in the `context` argument, also as plain text.
-    - Use the `coworker` argument as the agent's role (e.g., "job_intake_agent").
-    - Do not send Python objects, JSON, or dicts as arguments — only strings.
-    - Example:
-        task: "Parse the given job posting into structured JSON with title, company, salary, etc."
-        context: "Here is the job posting: Senior ML Engineer at Acme Corp..."
-        coworker: "job_intake_agent"
-        ❌ Wrong:
-          task: {"description": "Parse...", "type": "str"}
-        ✅ Correct:
-          task: "Parse the job posting into structured JSON"
+    CRITICAL PERFORMANCE RULES:
+    1. Always use "Delegate work to coworker" tool
+    2. STOP immediately if pre_filter_agent returns "reject" 
+    3. Pass task as plain string, context as plain text, coworker as role name
+    4. Example delegation:
+       - task: "Parse this job posting into structured JSON"
+       - context: "Job posting: [job details here]"
+       - coworker: "job_intake_agent"
+    5. Return final JSON with required keys: final, personas, tradeoffs, actions, sources

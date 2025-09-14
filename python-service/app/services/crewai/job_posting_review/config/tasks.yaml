@@ -2,76 +2,85 @@ intake_task:
   description: >
     Parse the provided job posting text into structured JSON with keys: 
     title, company, salary, location, seniority, job_type, description.
+    Be fast and accurate - extract only the essential information needed for filtering.
   expected_output: >
-    A clean JSON object with job attributes extracted from the posting.
+    Clean JSON object: {"title": "...", "company": "...", "salary": "...", "location": "...", "seniority": "...", "job_type": "...", "description": "..."}
   agent: job_intake_agent
 
 pre_filter_task:
   description: >
-    Apply hard rejection rules to the structured job data. 
-    Reject if highest salary is below 180,000 per year,
-    if salary is missing AND seniority is below "Senior",
-    or if highest salary is below 210,000 per year and 
-    location/work model is in person.
+    Apply hard rejection rules to the structured job data. BE DECISIVE AND FAST.
+    REJECT if:
+    - Highest salary is below $180,000 per year
+    - Salary is missing AND seniority is below "Senior" 
+    - Highest salary is below $210,000 AND location requires in-person work
+    
+    Return status "reject" with clear reason, or "pass" to continue analysis.
+    DO NOT overthink - these are hard filters for efficiency.
   expected_output: >
-    Either {"status": "reject", "reason": "..."} 
-    or {"status": "pass"} if job should continue.
+    JSON: {"status": "reject", "reason": "specific rejection reason"} OR {"status": "pass"}
   agent: pre_filter_agent
 
 quick_fit_task:
   description: >
-    For jobs that pass pre-filtering, evaluate the structured job data for 
-    career growth, compensation, lifestyle fit, and purpose alignment.
+    For jobs that pass pre-filtering, quickly evaluate structured job data for 
+    career growth potential, compensation competitiveness, lifestyle fit, and purpose alignment.
+    Provide scores 0-10 and decisive recommendation.
   expected_output: >
-    {
-      "career_growth_score": 0-10,
-      "compensation_score": 0-10,
-      "lifestyle_fit_score": 0-10,
-      "purpose_alignment_score": 0-10,
-      "overall_fit": "low | medium | high",
-      "quick_recommendation": "reject | review_deeper"
-    }
+    JSON: {"career_growth_score": 0-10, "compensation_score": 0-10, "lifestyle_fit_score": 0-10, "purpose_alignment_score": 0-10, "overall_fit": "low|medium|high", "quick_recommendation": "reject|approve|review_deeper"}
   agent: quick_fit_analyst
 
 brand_match_task:
   description: >
-    Compare the structured job data to the user's Career Brand Framework 
-    stored in ChromaDB. Return similarity scores and short alignment notes.
+    Compare the structured job data to the user's Career Brand Framework. 
+    Return similarity score and concise alignment notes quickly.
   expected_output: >
-    {
-      "brand_alignment_score": 0-10,
-      "alignment_notes": ["..."]
-    }
+    JSON: {"brand_alignment_score": 0-10, "alignment_notes": ["brief note 1", "brief note 2"]}
   agent: brand_framework_matcher
 
 orchestration_task:
   description: >
-    Manage the pipeline for {{job_posting}}:
-    1. Run intake_task → pre_filter_task.
-    2. If {{pre_filter_task.output}} is "reject", stop.
-    3. If {{pre_filter_task.output}} is "pass", run quick_fit_task.
-    4. If {{quick_fit_task.output.quick_recommendation}} is "review_deeper", run brand_match_task.
-    5. Provide a final recommendation: "green-light" or "reject" with reasons.
+    You are the Job Application Orchestrator managing the evaluation pipeline for: {{job_posting}}
 
-    The final response **must** be a JSON object containing only these top-level keys:
-    `final`, `personas`, `tradeoffs`, `actions`, `sources`, and any additional metrics
-    grouped under a `data` object. If any mandatory key is missing, reply exactly with
-    `{"error": "missing mandatory keys"}`.
-
-    Example schema:
+    **CRITICAL: IMPLEMENT EARLY TERMINATION FOR PERFORMANCE**
+    
+    Your workflow MUST be:
+    1. First, delegate to job_intake_agent to parse the job posting into structured data
+    2. Then, delegate to pre_filter_agent to apply rejection criteria (salary, seniority, location)
+    3. **STOP IMMEDIATELY** if pre_filter_agent returns status "reject" - do not run any more tasks
+    4. Only if status is "pass", delegate to quick_fit_analyst for scoring
+    5. Only run brand_framework_matcher if quick_fit_analyst recommends "review_deeper"
+    
+    **EARLY TERMINATION RULE**: If ANY agent recommends rejection, immediately return a final decision without further analysis.
+    
+    **OUTPUT FORMAT REQUIREMENTS**:
+    Return exactly this JSON structure - no extra keys, no missing keys:
+    ```json
     {
-      "final": {"recommend": boolean, "rationale": string, "confidence": string},
-      "personas": [{"id": string, "recommend": boolean, "reason": string}],
-      "tradeoffs": [string],
-      "actions": [string],
-      "sources": [string],
-      "data": {"example_metric": number}
+      "final": {
+        "recommend": boolean,
+        "rationale": "Brief explanation based on agent findings", 
+        "confidence": "low|medium|high"
+      },
+      "personas": [
+        {
+          "id": "agent_name", 
+          "recommend": boolean,
+          "reason": "Brief agent-specific reason"
+        }
+      ],
+      "tradeoffs": ["list of key tradeoffs identified"],
+      "actions": ["list of recommended actions"],
+      "sources": ["list of information sources used"]
     }
+    ```
+    
+    **PERFORMANCE OPTIMIZATION**:
+    - Use "Delegate work to coworker" tool for each agent
+    - Stop as soon as any agent rejects (don't wait for all results)
+    - Set confidence based on how many agents provided input
+    - Include only agents that actually ran in the personas array
   expected_output: >
-    Final JSON object adhering to the schema above. Reject any output missing required keys.
+    JSON object with exactly these keys: final, personas, tradeoffs, actions, sources.
+    Must implement early termination on first rejection for optimal performance.
   agent: managing_agent
-  input:
-    job_posting: "{{job_posting}}"
-    pre_filter_result: "{{pre_filter_task.output}}"
-    quick_fit_result: "{{quick_fit_task.output}}"
-    brand_match_result: "{{brand_match_task.output}}"
