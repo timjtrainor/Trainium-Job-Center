@@ -11,7 +11,7 @@ are retained only for backward compatibility and are not registered in the
 crew. The sequence executed is:
 
 1. `intake_task` – parse raw job posting text
-2. `pre_filter_task` – early rejection check (terminates on `status="reject"`)
+2. `pre_filter_task` – early rejection check (terminates on `recommend=false`)
 3. `quick_fit_task`
 4. `brand_match_task`
 

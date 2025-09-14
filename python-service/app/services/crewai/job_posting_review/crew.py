@@ -237,7 +237,7 @@ class JobPostingReviewCrew:
         pre_output = pre.execute_sync(context=json.dumps(intake_json))
         pre_json = self._parse_task_output(pre_output)
 
-        if pre_json.get("status") == "reject":
+        if pre_json.get("recommend") is False:
             return JobPostingReviewOutput(
                 job_intake=intake_json,
                 pre_filter=pre_json,
