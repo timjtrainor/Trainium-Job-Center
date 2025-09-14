@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import Mock, patch
 import os
 
-from app.services.ai.llm_clients import (
+from python_service.app.services.ai.llm_clients import (
     LLMRouter, 
     OllamaClient, 
     OpenAIClient, 

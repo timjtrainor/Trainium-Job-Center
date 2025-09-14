@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Tuple
 
 import pytest
 
-from app.services.ai.evaluation_pipeline import EvaluationPipeline
-from app.services.ai.persona_llm import PersonaLLM
+from python_service.app.services.ai.evaluation_pipeline import EvaluationPipeline
+from python_service.app.services.ai.persona_llm import PersonaLLM
 
 
 MOTIVATORS = {"builder", "maximizer", "harmonizer", "pathfinder", "adventurer"}

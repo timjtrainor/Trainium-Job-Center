@@ -116,7 +116,6 @@ def main():
     
     print(f"\n3. Checking key imports...")
     import_checks = [
-        (crew_file, "from ..job_review.crew import JobReviewCrew"),
         (python_service_path / "app" / "routes" / "jobs_fit_review.py", "from ..services.crewai.job_posting_review.crew import run_crew"),
         (python_service_path / "app" / "api" / "router.py", "from app.routes.jobs_fit_review import router as jobs_fit_review_router")
     ]

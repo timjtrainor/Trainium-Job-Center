@@ -17,58 +17,67 @@ Shared resources are organized at the service level:
 
 ```
 app/services/crewai/
-├── base.py                    # Shared CrewBase utilities
-├── agents/                    # Shared agent YAML configurations
-│   ├── researcher.yaml        # Research and analysis agent
-│   ├── negotiator.yaml        # Compensation analysis agent
-│   └── skeptic.yaml           # Quality assessment agent
-├── tools/                     # Shared tool definitions (optional)
-├── job_review/                # Job analysis crew
-│   ├── crew.py                # JobReviewCrew class
-│   └── tasks.yaml             # Job review tasks configuration
-├── resume_review/             # Resume analysis crew (future)
-│   ├── crew.py
-│   └── tasks.yaml
-└── interview_prep/            # Interview preparation crew (future)
-    ├── crew.py
-    └── tasks.yaml
+├── base.py                       # Shared CrewBase utilities
+├── agents/                       # Shared agent YAML configurations
+├── tools/                        # Shared tool definitions (optional)
+├── job_posting_review/           # Job posting review crew
+│   ├── crew.py                   # JobPostingReviewCrew class
+│   └── config/                   # YAML configurations
+├── personal_branding/            # Personal branding crew
+│   ├── crew.py                   # PersonalBrandCrew class
+│   └── config/                   # YAML configurations
+└── research_company/             # Company research crew
+    ├── crew.py                   # ResearchCompanyCrew class
+    └── config/                   # YAML configurations
 ```
 
 ## Current Implementation
 
-### JobReviewCrew
+### JobPostingReviewCrew
 
-The `job_review` crew provides comprehensive analysis of job postings using three specialized agents:
+The `job_posting_review` crew provides structured analysis of job postings with multi-agent orchestration:
 
-1. **Researcher Agent** - Analyzes skills, requirements, and experience levels
-2. **Negotiator Agent** - Evaluates compensation, benefits, and market positioning  
-3. **Skeptic Agent** - Assesses quality, completeness, and identifies red/green flags
+1. **Job Intake Agent** - Parses and structures job posting data
+2. **Pre-filter Agent** - Applies rejection rules based on criteria  
+3. **Quick Fit Analyst** - Analyzes career fit and alignment scores
+4. **Brand Framework Matcher** - Evaluates brand alignment with career goals
+
+### PersonalBrandCrew
+
+The `personal_branding` crew helps with personal brand development and career positioning.
+
+### ResearchCompanyCrew
+
+The `research_company` crew provides comprehensive company research and analysis.
 
 #### Usage
 
 ```python
-from app.services.crewai import get_job_review_crew
+from app.services.crewai.job_posting_review.crew import get_job_posting_review_crew
+from app.services.crewai.personal_branding.crew import get_personal_brand_crew
+from app.services.crewai.research_company.crew import get_research_company_crew
 
-# Get crew instance
-crew = get_job_review_crew()
+# Get crew instances
+job_posting_crew = get_job_posting_review_crew()
+personal_brand_crew = get_personal_brand_crew()
+research_crew = get_research_company_crew()
 
-# Execute analysis
+# Execute job posting review
 job_data = {
     "title": "Senior Python Developer",
     "company": "Tech Corp",
     "description": "Looking for experienced Python developer..."
 }
 
-result = crew.job_review().kickoff(inputs={"job": job_data})
+result = job_posting_crew.run_orchestration(job_data)
 ```
 
 #### API Endpoints
 
-- `POST /jobs/review` - Analyze single job
-- `POST /jobs/review/batch` - Analyze multiple jobs
-- `GET /jobs/review/from-db` - Analyze jobs from database
-- `GET /jobs/review/agents` - Get available agents info
-- `GET /jobs/review/health` - Service health check
+Current working crews provide endpoints for:
+- Job posting review and fit analysis
+- Personal branding assistance  
+- Company research and analysis
 
 ## Configuration
 

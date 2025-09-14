@@ -19,9 +19,8 @@ from app.services.jobspy.ingestion import JobSpyIngestionService
 from app.services.infrastructure.database import DatabaseService
 from app.services.infrastructure.queue import QueueService
 from app.services.infrastructure.scheduler import SchedulerService
-from app.services.crewai import JobReviewCrew
-from app.schemas.responses import create_error_response
 from app.services.crewai.research_company.crew import ResearchCompanyCrew
+from app.schemas.responses import create_error_response
 from app.services.startup import startup_tasks
 
 
@@ -46,7 +45,6 @@ async def lifespan(app: FastAPI):
     app.state.database_service = DatabaseService()
     app.state.queue_service = QueueService()
     app.state.scheduler_service = SchedulerService()
-    app.state.job_review_crew = JobReviewCrew()
     app.state.company_crew = ResearchCompanyCrew()
     
     try:
