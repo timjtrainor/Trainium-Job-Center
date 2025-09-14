@@ -24,7 +24,6 @@ job_intake_agent:
   memory: false
   temperature: 0
   max_iter: 1
-  max_execution_time: 20
   llm: "openai/gpt-5-nano"
 
 pre_filter_agent:
