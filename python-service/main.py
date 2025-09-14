@@ -22,6 +22,7 @@ from app.services.infrastructure.scheduler import SchedulerService
 from app.services.crewai import JobReviewCrew
 from app.schemas.responses import create_error_response
 from app.services.crewai.research_company.crew import ResearchCompanyCrew
+from app.services.startup import startup_tasks
 
 
 @asynccontextmanager
@@ -58,6 +59,9 @@ async def lifespan(app: FastAPI):
         await app.state.database_service.initialize()
         await app.state.queue_service.initialize()
         await app.state.scheduler_service.initialize()
+        
+        # Initialize ChromaDB collections
+        await startup_tasks()
         
         logger.info("All services initialized successfully")
         

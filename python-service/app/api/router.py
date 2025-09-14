@@ -8,6 +8,7 @@ from .v1.endpoints.crewai_review import router as crewai_review_router
 from .v1.endpoints.crewai_personal_brand import router as crewai_personal_brand_router
 from .v1.endpoints.job_posting_review import router as job_posting_review_router
 from .v1.endpoints.chroma import router as chroma_router
+from .v1.endpoints.chroma_manager import router as chroma_manager_router
 from .v1.endpoints.company import router as company_router
 
 from ..routes.jobs_fit_review import router as jobs_fit_review_router
@@ -20,6 +21,7 @@ api_router.include_router(crewai_review_router, prefix="/crewai", tags=["CrewAI"
 api_router.include_router(crewai_personal_brand_router, prefix="/crewai", tags=["CrewAI"])
 api_router.include_router(job_posting_review_router, prefix="/crewai", tags=["CrewAI"])
 api_router.include_router(chroma_router, tags=["Vector-Database"])
+api_router.include_router(chroma_manager_router, tags=["ChromaDB Manager"])
 
 api_router.include_router(company_router, prefix="/company-research")
 
