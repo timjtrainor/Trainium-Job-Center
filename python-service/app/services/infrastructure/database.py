@@ -296,6 +296,143 @@ class DatabaseService:
                 "strategic_narratives": [],
             }
 
+    # Job Review Methods
+    async def get_pending_review_jobs(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get jobs that are pending review (status = 'pending_review')."""
+        if not self.initialized:
+            await self.initialize()
+
+        query = """
+        SELECT id, site, job_url, title, company, location, description, 
+               date_posted, ingested_at, status, updated_at
+        FROM public.jobs 
+        WHERE status = 'pending_review'
+        ORDER BY ingested_at ASC
+        LIMIT $1
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch(query, limit)
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Failed to get pending review jobs: {str(e)}")
+            return []
+
+    async def update_job_status(self, job_id: str, status: str) -> bool:
+        """Update job status and updated_at timestamp."""
+        if not self.initialized:
+            await self.initialize()
+
+        query = """
+        UPDATE public.jobs 
+        SET status = $2, updated_at = NOW()
+        WHERE id = $1
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                result = await conn.execute(query, job_id, status)
+                return result == "UPDATE 1"
+        except Exception as e:
+            logger.error(f"Failed to update job status: {str(e)}")
+            return False
+
+    async def get_job_by_id(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Get job details by ID."""
+        if not self.initialized:
+            await self.initialize()
+
+        query = """
+        SELECT id, site, job_url, title, company, company_url, location_country,
+               location_state, location_city, is_remote, job_type, compensation,
+               interval, min_amount, max_amount, currency, salary_source,
+               description, date_posted, ingested_at, status, updated_at, source_raw
+        FROM public.jobs 
+        WHERE id = $1
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow(query, job_id)
+                return dict(row) if row else None
+        except Exception as e:
+            logger.error(f"Failed to get job by ID: {str(e)}")
+            return None
+
+    async def insert_job_review(self, job_id: str, review_data: Dict[str, Any]) -> bool:
+        """Insert a job review result."""
+        if not self.initialized:
+            await self.initialize()
+
+        query = """
+        INSERT INTO public.job_reviews (
+            job_id, recommend, confidence, rationale, personas, tradeoffs, 
+            actions, sources, crew_output, processing_time_seconds, 
+            crew_version, model_used, error_message, retry_count
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        ON CONFLICT (job_id) DO UPDATE SET
+            recommend = EXCLUDED.recommend,
+            confidence = EXCLUDED.confidence,
+            rationale = EXCLUDED.rationale,
+            personas = EXCLUDED.personas,
+            tradeoffs = EXCLUDED.tradeoffs,
+            actions = EXCLUDED.actions,
+            sources = EXCLUDED.sources,
+            crew_output = EXCLUDED.crew_output,
+            processing_time_seconds = EXCLUDED.processing_time_seconds,
+            crew_version = EXCLUDED.crew_version,
+            model_used = EXCLUDED.model_used,
+            error_message = EXCLUDED.error_message,
+            retry_count = EXCLUDED.retry_count,
+            updated_at = NOW()
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute(
+                    query,
+                    job_id,
+                    review_data.get("recommend"),
+                    review_data.get("confidence"),
+                    review_data.get("rationale"),
+                    json.dumps(review_data.get("personas")) if review_data.get("personas") else None,
+                    json.dumps(review_data.get("tradeoffs")) if review_data.get("tradeoffs") else None,
+                    json.dumps(review_data.get("actions")) if review_data.get("actions") else None,
+                    json.dumps(review_data.get("sources")) if review_data.get("sources") else None,
+                    json.dumps(review_data.get("crew_output")) if review_data.get("crew_output") else None,
+                    review_data.get("processing_time_seconds"),
+                    review_data.get("crew_version"),
+                    review_data.get("model_used"),
+                    review_data.get("error_message"),
+                    review_data.get("retry_count", 0)
+                )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to insert job review: {str(e)}")
+            return False
+
+    async def get_job_review(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Get job review by job ID."""
+        if not self.initialized:
+            await self.initialize()
+
+        query = """
+        SELECT id, job_id, recommend, confidence, rationale, personas, tradeoffs,
+               actions, sources, crew_output, processing_time_seconds, crew_version,
+               model_used, error_message, retry_count, created_at, updated_at
+        FROM public.job_reviews 
+        WHERE job_id = $1
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow(query, job_id)
+                return dict(row) if row else None
+        except Exception as e:
+            logger.error(f"Failed to get job review: {str(e)}")
+            return None
+
 
 def get_database_service() -> DatabaseService:
     """Create a new database service instance."""
