@@ -15,7 +15,9 @@ crew. The sequence executed is:
 3. `quick_fit_task`
 4. `brand_match_task`
 
-The method returns a JSON object validated by the `JobPostingReviewOutput`
+The orchestration method constructs a fresh crew instance (`crew = self.crew()`) and
+retrieves task objects from `crew.tasks` so each agent is bound to the crew before
+sequential execution. The method returns a JSON object validated by the `JobPostingReviewOutput`
 Pydantic model with keys `job_intake`, `pre_filter`, `quick_fit`, and
 `brand_match`.
 
