@@ -227,12 +227,14 @@ class JobPostingReviewCrew:
 
     def run_orchestration(self, job_posting: dict) -> Dict[str, Any]:
         """Execute pipeline: intake → pre-filter → quick-fit → brand match."""
+        crew = self.crew()
+        intake, pre, quick, brand = crew.tasks
         job_str = json.dumps(job_posting)
 
-        intake_output = self.intake_task().execute_sync(context=job_str)
+        intake_output = intake.execute_sync(context=job_str)
         intake_json = self._parse_task_output(intake_output)
 
-        pre_output = self.pre_filter_task().execute_sync(context=json.dumps(intake_json))
+        pre_output = pre.execute_sync(context=json.dumps(intake_json))
         pre_json = self._parse_task_output(pre_output)
 
         if pre_json.get("status") == "reject":
@@ -243,10 +245,10 @@ class JobPostingReviewCrew:
                 brand_match=None,
             ).model_dump()
 
-        quick_output = self.quick_fit_task().execute_sync(context=json.dumps(intake_json))
+        quick_output = quick.execute_sync(context=json.dumps(intake_json))
         quick_json = self._parse_task_output(quick_output)
 
-        brand_output = self.brand_match_task().execute_sync(context=json.dumps(intake_json))
+        brand_output = brand.execute_sync(context=json.dumps(intake_json))
         brand_json = self._parse_task_output(brand_output)
 
         return JobPostingReviewOutput(
