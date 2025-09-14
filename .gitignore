@@ -52,3 +52,7 @@ MANIFEST
 *.sln
 *.sw?
 *.bak
+
+# Temporary test files
+*_manual.py
+test_*.tmp
