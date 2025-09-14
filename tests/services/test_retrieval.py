@@ -7,7 +7,7 @@ including job description normalization and ChromaDB career brand queries.
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
-from app.services.fit_review.retrieval import (
+from python_service.app.services.fit_review.retrieval import (
     normalize_jd,
     get_career_brand_digest,
     build_context,

@@ -1,6 +1,6 @@
 """Tests for the ChromaDB search tools."""
 
-from app.services.crewai.tools.chroma_search import (
+from python_service.app.services.crewai.tools.chroma_search import (
     chroma_search,
     chroma_list_collections,
     chroma_search_across_collections,

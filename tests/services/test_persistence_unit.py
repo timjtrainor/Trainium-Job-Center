@@ -1,7 +1,7 @@
 """Simple tests for job persistence functionality without database dependencies."""
 from datetime import datetime
 
-from app.schemas.jobspy import ScrapedJob
+from python_service.app.schemas.jobspy import ScrapedJob
 
 
 def test_scraped_job_model():

@@ -1,4 +1,4 @@
-from app.schemas.company_report import CompanyReport
+from python_service.app.schemas.company_report import CompanyReport
 
 
 def test_company_report_defaults():

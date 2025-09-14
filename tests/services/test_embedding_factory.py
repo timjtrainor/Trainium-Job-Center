@@ -5,8 +5,8 @@ from unittest.mock import patch, MagicMock
 from pathlib import Path
 from dotenv import dotenv_values
 
-from app.core.config import settings
-from app.services.embeddings.factory import create_embedding_function, get_embedding_function
+from python_service.app.core.config import settings
+from python_service.app.services.embeddings.factory import create_embedding_function, get_embedding_function
 
 
 def test_create_sentence_transformer_embedding():

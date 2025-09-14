@@ -21,7 +21,7 @@ sys.modules.setdefault("mcp.types", mcp_types_stub)
 # Required configuration for importing service modules
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
-from app.services.crewai.job_posting_review.crew import JobPostingReviewCrew, run_crew
+from python_service.app.services.crewai.job_posting_review.crew import JobPostingReviewCrew, run_crew
 
 
 def test_run_crew_returns_job_details():

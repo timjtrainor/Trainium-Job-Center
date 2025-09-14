@@ -3,8 +3,8 @@ import asyncio
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock
 
-from app.schemas.jobspy import ScrapedJob
-from app.services.infrastructure.job_persistence import JobPersistenceService, persist_jobs
+from python_service.app.schemas.jobspy import ScrapedJob
+from python_service.app.services.infrastructure.job_persistence import JobPersistenceService, persist_jobs
 
 
 class _DummyTx:

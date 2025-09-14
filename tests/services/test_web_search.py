@@ -5,7 +5,7 @@ Tests for the web search tool.
 import pytest
 from unittest.mock import Mock, patch
 
-from app.services.ai.web_search import WebSearchTool, get_web_search_tool
+from python_service.app.services.ai.web_search import WebSearchTool, get_web_search_tool
 
 
 class TestWebSearchTool:

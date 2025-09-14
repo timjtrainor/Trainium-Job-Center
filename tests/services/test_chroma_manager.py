@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 import asyncio
 
-from app.services.chroma_manager import ChromaManager, ChromaCollectionConfig, CollectionType, get_chroma_manager
+from python_service.app.services.chroma_manager import ChromaManager, ChromaCollectionConfig, CollectionType, get_chroma_manager
 
 
 class MockCollection:

@@ -1,6 +1,6 @@
 """Tests for PersonaCatalog default model loading."""
 
-from app.services.persona_loader import PersonaCatalog
+from python_service.app.services.persona_loader import PersonaCatalog
 
 
 def test_models_default_to_env_preference(tmp_path, monkeypatch):

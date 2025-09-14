@@ -16,7 +16,7 @@ mcp_module.types = mcp_types
 sys.modules["mcp"] = mcp_module
 sys.modules["mcp.types"] = mcp_types
 
-from app.services.mcp_adapter import MCPServerAdapter
+from python_service.app.services.mcp_adapter import MCPServerAdapter
 
 
 def test_follow_307_redirect_to_sse_and_fetch_tools():

@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 def test_basic_imports():
     """Test that basic imports work without full app initialization.""" 
-    from app.api.v1.endpoints.job_posting_review import router
+    from python_service.app.api.v1.endpoints.job_posting_review import router
     assert router is not None
 
 

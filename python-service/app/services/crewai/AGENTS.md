@@ -4,7 +4,7 @@
 
 This document provides comprehensive guidance for AI agents and developers working with CrewAI crews in the Trainium Job Center project. It establishes coding standards, architectural patterns, and maintenance requirements to ensure consistent implementation of multi-agent systems.
 
-**Purpose**: This guide enables AI agents to write structured, maintainable CrewAI code by following established patterns from our reference implementation (`research_company` crew). It ensures consistency across all crew implementations and provides clear standards for YAML configurations, task delegation, and FastAPI integration.
+**Purpose**: This guide enables AI agents to write structured, maintainable CrewAI code by following established patterns from our active implementations (`job_posting_review`, `personal_branding`, and `research_company` crews). It ensures consistency across all crew implementations and provides clear standards for YAML configurations, task delegation, and FastAPI integration.
 
 **Critical Requirement**: This AGENT.md file MUST be updated whenever any changes are made to crew structures, YAML configurations, FastAPI endpoints, or CrewAI implementation patterns.
 
@@ -15,21 +15,24 @@ All CrewAI crews follow a standardized directory structure based on the scalable
 ```
 app/services/crewai/
 ├── base.py                           # Shared CrewBase utilities and tools
-├── agents/                           # Shared agent YAML configurations
-│   ├── researcher.yaml               # Research and analysis agent
-│   ├── negotiator.yaml              # Compensation analysis agent
-│   └── skeptic.yaml                 # Quality assessment agent
+├── agents/                           # Shared agent YAML configurations (optional)
 ├── tools/                           # Shared tool definitions
 │   ├── __init__.py
 │   ├── chroma_search.py
 │   └── custom_pg.py
-├── {crew_name}/                     # Individual crew directory
+├── job_posting_review/              # Job posting review crew
 │   ├── __init__.py
-│   ├── crew.py                      # CrewBase class implementation
+│   ├── crew.py                      # JobPostingReviewCrew class
 │   └── config/                      # Crew-specific configurations
-│       ├── agents.yaml              # Agent definitions for this crew
-│       └── tasks.yaml               # Task definitions for this crew
-└── research_company/                # Reference implementation
+│       ├── agents.yaml              # Agent definitions for job posting review
+│       └── tasks.yaml               # Task definitions for job posting review
+├── personal_branding/               # Personal branding crew
+│   ├── __init__.py
+│   ├── crew.py                      # PersonalBrandCrew class
+│   └── config/                      # Crew-specific configurations
+│       ├── agents.yaml              # Agent definitions for personal branding
+│       └── tasks.yaml               # Task definitions for personal branding
+└── research_company/                # Company research crew
     ├── __init__.py
     ├── crew.py                      # ResearchCompanyCrew class
     └── config/

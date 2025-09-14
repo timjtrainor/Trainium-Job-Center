@@ -20,7 +20,7 @@ sys.modules.setdefault("mcp.types", mcp_types_stub)
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
-from app.services.crewai.job_posting_review.crew import _format_crew_result
+from python_service.app.services.crewai.job_posting_review.crew import _format_crew_result
 
 
 @pytest.fixture
