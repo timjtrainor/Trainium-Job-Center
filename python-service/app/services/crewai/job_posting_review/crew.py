@@ -7,8 +7,16 @@ from typing import Any, Dict, Optional
 from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
 
-from app.schemas.job_posting_review import JobPostingReviewOutput
-from ..tools.chroma_search import chroma_search
+from ....schemas.job_posting_review import (JobPostingReviewOutput)
+
+
+from ..tools.chroma_search import (
+    #chroma_search,
+    #search_job_postings,
+    #search_company_profiles,
+    #contextual_job_analysis,
+    search_career_brands
+)
 
 _cached_crew: Optional[Crew] = None
 _crew_lock = Lock()
@@ -156,14 +164,13 @@ class JobPostingReviewCrew:
     def quick_fit_analyst(self) -> Agent:
         return Agent(
             config=self.agents_config["quick_fit_analyst"],  # type: ignore[index]
-            #tools=[chroma_search],
         )
 
     @agent
     def brand_framework_matcher(self) -> Agent:
         return Agent(
             config=self.agents_config["brand_framework_matcher"],  # type: ignore[index]
-            #tools=[chroma_search],
+            tools=[search_career_brands],
         )
 
     # === Legacy Manager (unused) ===
