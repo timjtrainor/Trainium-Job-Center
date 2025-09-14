@@ -35,15 +35,25 @@ class Task:
 
 
 class Crew:
-    """Sequential executor for persona tasks."""
+    """Sequential executor for persona tasks with early termination support."""
 
-    def __init__(self, tasks: List[Task]):
+    def __init__(self, tasks: List[Task], enable_early_termination: bool = True):
         self.tasks = tasks
+        self.enable_early_termination = enable_early_termination
 
     async def run(self) -> List[Any]:
         results: List[Any] = []
         for task in self.tasks:
-            results.append(await task.run())
+            result = await task.run()
+            results.append(result)
+            
+            # Early termination: if this is a PersonaEvaluation with a rejection, stop
+            if (self.enable_early_termination and 
+                hasattr(result, 'vote_bool') and 
+                not result.vote_bool):
+                logger.info(f"Early termination: {task.name} rejected the job")
+                break
+                
         return results
 
 
@@ -331,16 +341,30 @@ class EvaluationPipeline:
         for persona in self.catalog.get_personas_by_group("motivational"):
             tasks.append(Task(name=persona.id, coro=build_motivator_task(persona)))
 
-        crew = Crew(tasks)
+        crew = Crew(tasks, enable_early_termination=True)
         results = await crew.run()
         analysis_results = {task.name: result for task, result in zip(pre_tasks, results)}
 
-        decision_evals = await self.evaluate_decision_personas(
-            job_id, job, motivator_evals, all_evals
-        )
-        final_decision = await self.aggregate_decision(
-            job_id, job, decision_evals, analysis_results
-        )
+        # If early termination occurred, we may have fewer results than expected
+        # Only proceed with decision personas if all motivational personas completed
+        motivational_personas = self.catalog.get_personas_by_group("motivational")
+        if len(motivator_evals) < len(motivational_personas):
+            logger.info("Early termination occurred - skipping decision personas")
+            # Create a simple rejection decision
+            final_decision = Decision(
+                job_id=job_id,
+                final_decision_bool=False,
+                confidence=0.9,
+                reason_text="Job rejected by motivational analysis - early termination",
+                created_at=datetime.now(timezone.utc),
+            )
+        else:
+            decision_evals = await self.evaluate_decision_personas(
+                job_id, job, motivator_evals, all_evals
+            )
+            final_decision = await self.aggregate_decision(
+                job_id, job, decision_evals, analysis_results
+            )
 
         summary = EvaluationSummary(
             job_id=job_id,
