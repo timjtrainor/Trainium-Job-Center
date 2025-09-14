@@ -146,3 +146,55 @@ def scrape_jobs_worker(site_schedule_id: Optional[str] = None,
             "completed_pages": 0,
             "errors_count": 1
         }
+
+
+def process_job_review(job_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Worker function for processing job review tasks.
+    
+    Args:
+        job_data: Dictionary containing job information to review
+        
+    Returns:
+        Dictionary with review results and status
+    """
+    job_id = job_data.get("job_id")
+    logger.info(f"Processing job review for job_id: {job_id}")
+    
+    try:
+        # TODO: Integrate with existing fit review services
+        # For now, this is a placeholder that logs the job details
+        
+        logger.info(f"Job review started - ID: {job_id}, Title: '{job_data.get('title')}', Company: {job_data.get('company')}")
+        
+        # Simulate processing time
+        import time
+        time.sleep(1)
+        
+        # TODO: Call CrewAI job fit review service here
+        # from ..fit_review.service import get_fit_review_service
+        # fit_service = get_fit_review_service()
+        # review_result = fit_service.review_job(job_data)
+        
+        # For now, return success
+        result = {
+            "status": "completed",
+            "job_id": job_id,
+            "processed_at": datetime.now(timezone.utc).isoformat(),
+            "message": f"Job review completed for {job_data.get('title')} at {job_data.get('company')}"
+        }
+        
+        logger.info(f"Job review completed successfully for job_id: {job_id}")
+        return result
+        
+    except Exception as e:
+        error_msg = f"Job review error for job_id {job_id}: {str(e)}"
+        logger.error(error_msg)
+        
+        return {
+            "status": "failed", 
+            "job_id": job_id,
+            "processed_at": datetime.now(timezone.utc).isoformat(),
+            "message": error_msg,
+            "error": str(e)
+        }

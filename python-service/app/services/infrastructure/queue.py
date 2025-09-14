@@ -9,7 +9,7 @@ from loguru import logger
 
 from ...core.config import get_settings
 from .database import get_database_service
-from .worker import scrape_jobs_worker
+from .worker import scrape_jobs_worker, process_job_review
 
 
 class QueueService:
@@ -18,7 +18,8 @@ class QueueService:
     def __init__(self):
         self.settings = get_settings()
         self.redis_conn: Optional[redis.Redis] = None
-        self.queue: Optional[Queue] = None
+        self.queue: Optional[Queue] = None  # Main scraping queue
+        self.review_queue: Optional[Queue] = None  # Job review queue
         self.initialized = False
 
     async def initialize(self) -> bool:
@@ -39,8 +40,15 @@ class QueueService:
                 default_timeout=self.settings.rq_job_timeout
             )
             
+            # Create job review queue
+            self.review_queue = Queue(
+                name=self.settings.job_review_queue_name,
+                connection=self.redis_conn,
+                default_timeout=self.settings.rq_job_timeout
+            )
+            
             self.initialized = True
-            logger.info(f"Queue service initialized - Queue: {self.settings.rq_queue_name}")
+            logger.info(f"Queue service initialized - Scraping queue: {self.settings.rq_queue_name}, Review queue: {self.settings.job_review_queue_name}")
             return True
             
         except Exception as e:
@@ -105,6 +113,35 @@ class QueueService:
             
         except Exception as e:
             logger.error(f"Failed to enqueue scraping job: {str(e)}")
+            return None
+
+    def enqueue_job_review(self, job_data: Dict[str, Any]) -> Optional[str]:
+        """
+        Enqueue a job for review processing.
+        
+        Args:
+            job_data: Dictionary containing job information
+            
+        Returns:
+            Task ID if successful, None if failed
+        """
+        if not self.initialized:
+            logger.error("Queue service not initialized")
+            return None
+            
+        try:
+            job = self.review_queue.enqueue(
+                process_job_review,
+                job_data,
+                job_timeout=self.settings.rq_job_timeout,
+                result_ttl=self.settings.rq_result_ttl
+            )
+            
+            logger.info(f"Enqueued job review - job_id: {job_data.get('job_id')}, task_id: {job.id}")
+            return job.id
+            
+        except Exception as e:
+            logger.error(f"Failed to enqueue job review: {str(e)}")
             return None
 
     def get_job_status(self, task_id: str) -> Optional[Dict[str, Any]]:

@@ -208,6 +208,33 @@ services:
       redis:
         condition: service_healthy
 
+  # Defines the poller daemon using the python-service image
+  poller:
+    build:
+      context: ./python-service
+      dockerfile: Dockerfile
+    image: python-service
+    container_name: trainium_poller
+    entrypoint: ["python", "poller_daemon.py"]
+    environment:
+      # Environment configuration for poller
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DEBUG: ${DEBUG:-false}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      # Poller-specific configuration
+      POLL_INTERVAL_MINUTES: ${POLL_INTERVAL_MINUTES:-5}
+      JOB_REVIEW_QUEUE_NAME: ${JOB_REVIEW_QUEUE_NAME:-job_review}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   # Docker MCP Gateway for managing MCP servers
   mcp-gateway:
     container_name: trainium_mcp_gateway
