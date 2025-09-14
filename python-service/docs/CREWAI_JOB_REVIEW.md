@@ -6,6 +6,43 @@ A multi-agent job analysis system inspired by CrewAI architecture that provides 
 
 The CrewAI Job Review Service implements a multi-agent approach where different specialized "agents" analyze various aspects of job postings to provide comprehensive insights, quality scores, and recommendations.
 
+## Performance Features
+
+### Early Termination
+The system implements **early termination** logic to improve performance:
+- When any persona/agent **rejects** a job posting, processing stops immediately
+- This prevents unnecessary computation on clearly unsuitable positions
+- Significantly improves response time for rejected jobs
+- Maintains full analysis for potentially suitable positions
+
+### Consistent Response Format
+All responses follow a standardized format suitable for API responses and database storage:
+```json
+{
+    "status": "success",
+    "data": {
+        "job_id": "string",
+        "correlation_id": null,
+        "final": {
+            "recommend": boolean,
+            "rationale": "string", 
+            "confidence": "low|medium|high"
+        },
+        "personas": [
+            {
+                "id": "persona_name",
+                "recommend": boolean,
+                "reason": "string"
+            }
+        ],
+        "tradeoffs": [],
+        "actions": ["string"],
+        "sources": ["string"]
+    },
+    "error": null,
+    "message": "Job posting analysis completed successfully"
+}
+
 ## Architecture
 
 ### Specialized Agents
