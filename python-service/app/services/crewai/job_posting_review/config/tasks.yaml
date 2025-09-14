@@ -20,8 +20,8 @@ pre_filter_task:
     - Ignore all other fields.
 
   expected_output: >
-    A strict JSON object with "status" and "reason". 
-    Example: {"status": "reject", "reason": "Highest salary below $180,000"}
+    A strict JSON object with "recommend" (boolean) and optional "reason" (string). 
+    Example: {"recommend": false, "reason": "Rule 1: salary below 180000"}
   agent: pre_filter_agent
 
 quick_fit_task:
