@@ -87,11 +87,11 @@ class MockMCPAdapter:
         return execute
         
 
-class MockJobReviewCrew:
-    """Mock JobReviewCrew that demonstrates MCP tool integration."""
+class MockJobPostingReviewCrew:
+    """Mock JobPostingReviewCrew that demonstrates MCP tool integration."""
     
     def __init__(self):
-        self.crew_name = "job_review"
+        self.crew_name = "job_posting_review"
         self.mcp_tools = []
         
     async def prepare_analysis(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
@@ -176,7 +176,7 @@ async def demonstrate_integration():
     inputs = {"job": job_data}
     
     # Create mock crew
-    crew = MockJobReviewCrew()
+    crew = MockJobPostingReviewCrew()
     
     # Demonstrate the integration flow
     try:

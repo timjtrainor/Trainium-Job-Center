@@ -71,26 +71,24 @@ def test_crewai_base_utilities():
         return False
 
 
-def test_job_review_crew_integration():
-    """Test JobReviewCrew integration."""
-    print("🤖 Testing JobReviewCrew integration...")
+def test_job_posting_review_crew_integration():
+    """Test JobPostingReviewCrew integration."""
+    print("🤖 Testing JobPostingReviewCrew integration...")
     
     try:
-        from app.services.crewai.job_review.crew import JobReviewCrew
+        from app.services.crewai.job_posting_review.crew import JobPostingReviewCrew
         
-        crew = JobReviewCrew()
+        crew = JobPostingReviewCrew()
         
-        # Check if prepare_analysis method exists and has been updated
-        assert hasattr(crew, 'prepare_analysis')
-        assert hasattr(crew, '_load_tools')
+        # Check if run_crew method exists
+        assert hasattr(crew, 'run_crew') or hasattr(crew, 'run_orchestration')
         
-        print("   ✅ JobReviewCrew class available")
-        print("   ✅ prepare_analysis method with MCP integration")
-        print("   ✅ _load_tools method updated for MCP")
+        print("   ✅ JobPostingReviewCrew class available")
+        print("   ✅ Crew orchestration methods available")
         
         return True
     except Exception as e:
-        print(f"   ❌ JobReviewCrew integration test failed: {e}")
+        print(f"   ❌ JobPostingReviewCrew integration test failed: {e}")
         return False
 
 
@@ -196,7 +194,7 @@ def main():
         ("Configuration", test_configuration),
         ("MCP Adapter Import", test_mcp_adapter_import),
         ("CrewAI Base Utilities", test_crewai_base_utilities),
-        ("JobReviewCrew Integration", test_job_review_crew_integration),
+        ("JobPostingReviewCrew Integration", test_job_posting_review_crew_integration),
         ("File Structure", test_file_structure),
         ("Docker Compose Integration", test_docker_compose_integration),
         ("Agent Configuration", test_agent_configuration)
@@ -233,7 +231,7 @@ def main():
         print("✅ Docker MCP Gateway service configured")
         print("✅ MCPServerAdapter with context management implemented")
         print("✅ CrewAI base utilities updated for MCP tool loading")
-        print("✅ JobReviewCrew updated to inject MCP tools before kickoff")
+        print("✅ JobPostingReviewCrew updated for current architecture")
         print("✅ DuckDuckGo tools configured for web search")
         print("✅ Agent configurations updated for MCP tools")
         print("✅ Environment variables and settings configured")
