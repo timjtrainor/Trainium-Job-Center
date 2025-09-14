@@ -216,7 +216,6 @@ class JobPostingReviewCrew:
     def crew(self) -> Crew:
         return Crew(
             agents=[
-                self.managing_agent(),
                 self.job_intake_agent(),
                 self.pre_filter_agent(),
                 self.quick_fit_analyst(),

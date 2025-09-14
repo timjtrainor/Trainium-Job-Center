@@ -9,16 +9,19 @@ intake_task:
 
 pre_filter_task:
   description: >
-    Apply hard rejection rules to the structured job data. BE DECISIVE AND FAST.
-    REJECT if:
-    - Highest salary is below $180,000 per year
-    - Salary is missing AND seniority is below "Senior" 
-    - Highest salary is below $210,000 AND location requires in-person work
-    
-    Return status "reject" with clear reason, or "pass" to continue analysis.
-    DO NOT overthink - these are hard filters for efficiency.
+    Apply ONLY these rules to the job data:
+    - Reject if highest_salary < 180000
+    - Reject if salary is missing AND seniority < "Senior"
+    - Reject if highest_salary < 210000 AND job_type = "in-person"
+
+    IMPORTANT:
+    - Do not invent new rejection rules (e.g., no "location mismatch" or "market comparison").
+    - Only check salary, seniority, and job_type.
+    - Ignore all other fields.
+
   expected_output: >
-    JSON: {"status": "reject", "reason": "specific rejection reason"} OR {"status": "pass"}
+    A strict JSON object with "status" and "reason". 
+    Example: {"status": "reject", "reason": "Highest salary below $180,000"}
   agent: pre_filter_agent
 
 quick_fit_task:
