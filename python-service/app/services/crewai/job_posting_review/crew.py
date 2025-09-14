@@ -29,7 +29,7 @@ def _format_crew_result(
         Structured result dictionary.
 
     Raises:
-        ValueError: If motivational_verdicts JSON cannot be parsed.
+        ValueError: If required fields cannot be parsed.
     """
 
     if isinstance(result, str):
@@ -45,8 +45,38 @@ def _format_crew_result(
     else:
         data = result
 
+    job_hash = hashlib.md5(json.dumps(job_posting, sort_keys=True).encode()).hexdigest()
+    job_id = f"job_{job_hash[:8]}"
+
+    # Handle new format from orchestration_task (preferred)
+    if "final" in data and "personas" in data:
+        result_obj = {
+            "job_id": job_id,
+            "correlation_id": correlation_id,
+            "final": data.get("final", {
+                "recommend": False,
+                "rationale": "Unknown decision",
+                "confidence": "low"
+            }),
+            "personas": data.get("personas", []),
+            "tradeoffs": data.get("tradeoffs", []),
+            "actions": data.get("actions", []),
+            "sources": data.get("sources", [])
+        }
+        
+        # Include any additional metrics under 'data' key
+        additional_data = {
+            k: v for k, v in data.items() 
+            if k not in {"final", "personas", "tradeoffs", "actions", "sources", "data"}
+        }
+        if data.get("data") or additional_data:
+            result_obj["data"] = {**data.get("data", {}), **additional_data}
+        
+        return result_obj
+
+    # Fallback: Handle legacy motivational_verdicts format
     if "motivational_verdicts" not in data:
-        raise ValueError("Missing motivational_verdicts in crew output")
+        raise ValueError("Missing required fields in crew output")
 
     raw_verdicts = data.get("motivational_verdicts", [])
     formatted_verdicts = []
@@ -68,10 +98,10 @@ def _format_crew_result(
 
     total = len(formatted_verdicts)
     if total == 0:
-        raise ValueError("No motivational verdicts provided")
+        raise ValueError("No persona verdicts provided")
 
     recommend_final = positive > (total / 2)
-    ratio_text = f"{positive}/{total} motivational agents"  # used in rationale
+    ratio_text = f"{positive}/{total} agents"
     confidence_ratio = positive / total
     if confidence_ratio >= 0.8:
         confidence = "high"
@@ -79,9 +109,6 @@ def _format_crew_result(
         confidence = "medium"
     else:
         confidence = "low"
-
-    job_hash = hashlib.md5(json.dumps(job_posting, sort_keys=True).encode()).hexdigest()
-    job_id = f"job_{job_hash[:8]}"
 
     metrics = {
         k: v
@@ -101,15 +128,11 @@ def _format_crew_result(
             {"id": v["id"], "recommend": v["recommend"], "reason": v.get("reason", "")}
             for v in formatted_verdicts
         ],
-        "motivational_verdicts": formatted_verdicts,
         "tradeoffs": [],
         "actions": [],
-        "sources": ["motivational_fanout"],
+        "sources": ["crew_analysis"],
         "data": metrics,
     }
-
-    if "helper_snapshot" in data:
-        result_obj["helper_snapshot"] = data["helper_snapshot"]
 
     return result_obj
 
@@ -193,21 +216,18 @@ class JobPostingReviewCrew:
     def crew(self) -> Crew:
         return Crew(
             agents=[
+                self.managing_agent(),
                 self.job_intake_agent(),
                 self.pre_filter_agent(),
                 self.quick_fit_analyst(),
                 self.brand_framework_matcher(),
             ],
             tasks=[
-                self.orchestration_task(),
-                self.intake_task(),
-                self.pre_filter_task(),
-                self.quick_fit_task(),
-                self.brand_match_task(),
+                self.orchestration_task(),  # Only run orchestration - it will delegate to others as needed
             ],
-            process=Process.hierarchical,  # 👈 manager runs the show
+            process=Process.hierarchical,
             manager_agent=self.managing_agent(),
-            verbose=True,
+            verbose=False,  # Disable verbose for better performance
         )
 
 
