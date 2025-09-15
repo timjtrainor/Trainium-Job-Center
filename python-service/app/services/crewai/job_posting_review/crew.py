@@ -54,7 +54,9 @@ def _format_crew_result(
     else:
         data = result
 
-    job_hash = hashlib.md5(json.dumps(job_posting, sort_keys=True).encode()).hexdigest()
+    job_hash = hashlib.md5(
+        json.dumps(job_posting, sort_keys=True, default=float).encode()
+    ).hexdigest()
     job_id = f"job_{job_hash[:8]}"
 
     # Handle new format from orchestration_task (preferred)
@@ -236,12 +238,12 @@ class JobPostingReviewCrew:
         """Execute pipeline: intake → pre-filter → quick-fit → brand match."""
         crew = self.crew()
         intake, pre, quick, brand = crew.tasks
-        job_str = json.dumps(job_posting)
+        job_str = json.dumps(job_posting, default=float)
 
         intake_output = intake.execute_sync(context=job_str)
         intake_json = self._parse_task_output(intake_output)
 
-        pre_output = pre.execute_sync(context=json.dumps(intake_json))
+        pre_output = pre.execute_sync(context=json.dumps(intake_json, default=float))
         pre_json = self._parse_task_output(pre_output)
 
         if pre_json.get("recommend") is False:
@@ -252,10 +254,10 @@ class JobPostingReviewCrew:
                 brand_match=None,
             ).model_dump()
 
-        quick_output = quick.execute_sync(context=json.dumps(intake_json))
+        quick_output = quick.execute_sync(context=json.dumps(intake_json, default=float))
         quick_json = self._parse_task_output(quick_output)
 
-        brand_output = brand.execute_sync(context=json.dumps(intake_json))
+        brand_output = brand.execute_sync(context=json.dumps(intake_json, default=float))
         brand_json = self._parse_task_output(brand_output)
 
         return JobPostingReviewOutput(
@@ -302,7 +304,9 @@ def run_crew(job_posting_data: dict, options: dict = None, correlation_id: str =
         crew = JobPostingReviewCrew()
         return crew.run_orchestration(job_posting_data)
     except Exception as e:
-        job_hash = hashlib.md5(json.dumps(job_posting_data, sort_keys=True).encode()).hexdigest()
+        job_hash = hashlib.md5(
+            json.dumps(job_posting_data, sort_keys=True, default=float).encode()
+        ).hexdigest()
         return {
             "job_id": f"error_{job_hash[:8]}",
             "correlation_id": correlation_id,
