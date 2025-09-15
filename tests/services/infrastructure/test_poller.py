@@ -115,10 +115,10 @@ class TestPollerService:
         
         # Test
         result = poller_service.enqueue_job_review(job_id, job_data)
-        
+
         # Assertions
         assert result == mock_task_id
-        poller_service.queue_service.enqueue_job_review.assert_called_once()
+        poller_service.queue_service.enqueue_job_review.assert_called_once_with(job_id)
 
     @pytest.mark.asyncio
     async def test_poll_and_enqueue_jobs_empty(self, poller_service):
