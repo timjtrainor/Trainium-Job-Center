@@ -4,6 +4,7 @@ from .postgrest import PostgRESTService, get_postgrest_service
 from .pg_search import PGSearchTool, get_pg_search_tool
 from .queue import QueueService, get_queue_service
 from .worker import scrape_jobs_worker
+from .event_bus import on_task_started
 from .scheduler import SchedulerService, get_scheduler_service
 from .job_persistence import (
     JobPersistenceService,
@@ -22,6 +23,7 @@ __all__ = [
     "QueueService",
     "get_queue_service",
     "scrape_jobs_worker",
+    "on_task_started",
     "SchedulerService",
     "get_scheduler_service",
     "JobPersistenceService",
