@@ -84,6 +84,59 @@ def test_process_job_review_with_mock():
         mock_run_crew.assert_called_once()
 
 
+def test_process_job_review_prefilter_reason_used_when_final_missing():
+    """Ensure pre-filter reason is used when final result is absent."""
+    job_id = str(uuid4())
+    prefilter_reason = "Pre-filter recommends proceeding"
+
+    mock_job_data = {
+        "id": job_id,
+        "title": "Frontend Engineer",
+        "company": "UI Labs",
+        "description": "Build engaging interfaces",
+    }
+
+    mock_crew_result = {
+        "pre_filter": {
+            "recommend": True,
+            "reason": prefilter_reason,
+        },
+        "personas": [],
+        "tradeoffs": [],
+        "actions": [],
+        "sources": [],
+    }
+
+    with patch('app.services.infrastructure.worker.get_database_service') as mock_get_db, \
+         patch('app.services.crewai.job_posting_review.crew.run_crew') as mock_run_crew:
+
+        mock_db_service = Mock()
+        mock_db_service.initialized = True
+        mock_db_service.initialize = AsyncMock(return_value=True)
+        mock_db_service.update_job_status = AsyncMock(return_value=True)
+        mock_db_service.get_job_by_id = AsyncMock(return_value=mock_job_data)
+        mock_db_service.get_job_review = AsyncMock(return_value=None)
+        mock_db_service.insert_job_review = AsyncMock(return_value=True)
+        mock_get_db.return_value = mock_db_service
+
+        mock_run_crew.return_value = mock_crew_result
+
+        with patch('asyncio.get_event_loop') as mock_get_loop:
+            mock_loop = Mock()
+            mock_loop.run_until_complete = Mock(side_effect=lambda coro: asyncio.run(coro))
+            mock_get_loop.return_value = mock_loop
+
+            result = process_job_review(job_id, max_retries=3)
+
+    await_args = mock_db_service.insert_job_review.await_args
+    assert await_args is not None
+    inserted_review = await_args.args[1]
+
+    assert inserted_review["rationale"] == prefilter_reason
+    assert result["status"] == "completed"
+    assert result["recommend"] is True
+
+
 def test_process_job_review_handles_decimal_salary_fields():
     """Ensure Decimal salary fields are coerced before crew execution."""
     job_id = str(uuid4())
