@@ -1,6 +1,7 @@
 import hashlib
 import json
 import re
+import os
 from threading import Lock
 from typing import Any, Dict, Optional
 
@@ -8,6 +9,10 @@ from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
 
 from ....schemas.job_posting_review import (JobPostingReviewOutput)
+
+# Set environment variables to minimize CrewAI logging and event issues
+os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "true")
+os.environ.setdefault("CREWAI_DISABLE_EVENTS", "true")
 
 
 from ..tools.chroma_search import (
@@ -492,7 +497,7 @@ class JobPostingReviewCrew:
                 self.brand_match_task(),
             ],
             process=Process.sequential,
-            verbose=False,
+            verbose=True,  # Enable verbose to ensure proper EventBus initialization
         )
 
 
