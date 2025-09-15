@@ -2,8 +2,12 @@
 Tests for job review worker function.
 """
 import asyncio
+import os
+from decimal import Decimal
 from unittest.mock import Mock, patch, AsyncMock
 from uuid import uuid4
+
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
 from app.services.infrastructure.worker import process_job_review
 
@@ -58,7 +62,7 @@ def test_process_job_review_with_mock():
              patch('asyncio.set_event_loop') as mock_set_loop:
             
             mock_loop = Mock()
-            mock_loop.run_until_complete = Mock(side_effect=lambda coro: coro)
+            mock_loop.run_until_complete = Mock(side_effect=lambda coro: asyncio.run(coro))
             mock_get_loop.return_value = mock_loop
             
             # Execute the worker function
@@ -78,6 +82,66 @@ def test_process_job_review_with_mock():
         
         # Verify CrewAI was called
         mock_run_crew.assert_called_once()
+
+
+def test_process_job_review_handles_decimal_salary_fields():
+    """Ensure Decimal salary fields are coerced before crew execution."""
+    job_id = str(uuid4())
+    decimal_min = Decimal("70000.50")
+    decimal_max = Decimal("90000.75")
+
+    mock_job_data = {
+        "id": job_id,
+        "title": "Backend Engineer",
+        "company": "DataWorks",
+        "description": "Work on robust APIs",
+        "min_amount": decimal_min,
+        "max_amount": decimal_max,
+        "currency": "USD",
+        "interval": "year",
+    }
+
+    mock_crew_result = {
+        "final": {
+            "recommend": True,
+            "confidence": "medium",
+            "rationale": "Salary range is competitive",
+        },
+        "personas": [],
+        "tradeoffs": [],
+        "actions": [],
+        "sources": [],
+    }
+
+    with patch('app.services.infrastructure.worker.get_database_service') as mock_get_db, \
+         patch('app.services.crewai.job_posting_review.crew.run_crew') as mock_run_crew:
+
+        mock_db_service = Mock()
+        mock_db_service.initialized = True
+        mock_db_service.initialize = AsyncMock(return_value=True)
+        mock_db_service.update_job_status = AsyncMock(return_value=True)
+        mock_db_service.get_job_by_id = AsyncMock(return_value=mock_job_data)
+        mock_db_service.get_job_review = AsyncMock(return_value=None)
+        mock_db_service.insert_job_review = AsyncMock(return_value=True)
+        mock_get_db.return_value = mock_db_service
+
+        mock_run_crew.return_value = mock_crew_result
+
+        with patch('asyncio.get_event_loop') as mock_get_loop:
+            mock_loop = Mock()
+            mock_loop.run_until_complete = Mock(side_effect=lambda coro: asyncio.run(coro))
+            mock_get_loop.return_value = mock_loop
+
+            result = process_job_review(job_id, max_retries=3)
+
+    assert result["status"] == "completed"
+    mock_run_crew.assert_called_once()
+
+    crew_payload = mock_run_crew.call_args[0][0]
+    assert isinstance(crew_payload["salary_info"]["min_amount"], float)
+    assert isinstance(crew_payload["salary_info"]["max_amount"], float)
+    assert crew_payload["salary_info"]["min_amount"] == float(decimal_min)
+    assert crew_payload["salary_info"]["max_amount"] == float(decimal_max)
 
 
 def test_process_job_review_logs_processing_message():
@@ -146,7 +210,7 @@ def test_process_job_review_job_not_found():
         
         with patch('asyncio.get_event_loop') as mock_get_loop:
             mock_loop = Mock()
-            mock_loop.run_until_complete = Mock(side_effect=lambda coro: coro)
+            mock_loop.run_until_complete = Mock(side_effect=lambda coro: asyncio.run(coro))
             mock_get_loop.return_value = mock_loop
             
             result = process_job_review(job_id)
@@ -187,7 +251,7 @@ def test_process_job_review_crew_error():
         
         with patch('asyncio.get_event_loop') as mock_get_loop:
             mock_loop = Mock()
-            mock_loop.run_until_complete = Mock(side_effect=lambda coro: coro)
+            mock_loop.run_until_complete = Mock(side_effect=lambda coro: asyncio.run(coro))
             mock_get_loop.return_value = mock_loop
             
             result = process_job_review(job_id, max_retries=3)
@@ -212,13 +276,18 @@ def test_job_review_max_retries_reached():
         mock_db_service.initialized = True
         mock_db_service.initialize = AsyncMock(return_value=True)
         mock_db_service.update_job_status = AsyncMock(return_value=True)
+        mock_db_service.get_job_by_id = AsyncMock(return_value={
+            "title": "Retry Blocked",
+            "company": "Retry Inc",
+            "description": "",
+        })
         mock_db_service.get_job_review = AsyncMock(return_value=mock_existing_review)
         mock_db_service.insert_job_review = AsyncMock(return_value=True)
         mock_get_db.return_value = mock_db_service
         
         with patch('asyncio.get_event_loop') as mock_get_loop:
             mock_loop = Mock()
-            mock_loop.run_until_complete = Mock(side_effect=lambda coro: coro)
+            mock_loop.run_until_complete = Mock(side_effect=lambda coro: asyncio.run(coro))
             mock_get_loop.return_value = mock_loop
             
             result = process_job_review(job_id, max_retries=3)

@@ -3,12 +3,24 @@ RQ worker functions for processing job scraping tasks.
 """
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Dict, Any, Optional
 from loguru import logger
 
 from ..jobspy.scraping import scrape_jobs_sync
 from .database import get_database_service
 from .job_persistence import persist_jobs
+
+
+def _coerce_decimals(value: Any) -> Any:
+    """Recursively convert Decimal values to floats for JSON compatibility."""
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, dict):
+        return {key: _coerce_decimals(val) for key, val in value.items()}
+    if isinstance(value, list):
+        return [_coerce_decimals(item) for item in value]
+    return value
 
 
 def scrape_jobs_worker(site_schedule_id: Optional[str] = None, 
@@ -239,6 +251,8 @@ def process_job_review(job_id: str, max_retries: int = 3) -> Dict[str, Any]:
                 "interval": job_data.get("interval")
             }
         }
+
+        crew_input = _coerce_decimals(crew_input)
         
         # Run CrewAI job posting review
         logger.info(f"Running CrewAI review for job {job_id}")
