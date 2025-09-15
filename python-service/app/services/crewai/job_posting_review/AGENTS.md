@@ -13,7 +13,7 @@ The crew runs its evaluation pipeline directly in Python via the `run_orchestrat
 3. `quick_fit_task` – lightweight scoring for jobs that pass the pre-filter.
 4. `brand_match_task` – compare job attributes to the candidate's career brand framework.
 
-`run_orchestration` constructs a fresh crew instance and retrieves tasks from `crew.tasks` so each agent is bound before sequential execution. It returns a JSON object validated by the `JobPostingReviewOutput` Pydantic model containing `job_intake`, `pre_filter`, `quick_fit`, and `brand_match`.
+`run_orchestration` constructs a fresh crew instance and retrieves tasks from `crew.tasks` so each agent is bound before sequential execution. It returns a JSON object validated by the `JobPostingReviewOutput` Pydantic model containing `job_intake`, `pre_filter`, `quick_fit`, `brand_match`, and a synthesized `final` block with supporting `personas`, `tradeoffs`, `actions`, and `sources` lists.
 
 ## Entrypoints
 
@@ -50,11 +50,22 @@ Agent and task identifiers in YAML must match method names in `crew.py`.
   "job_intake": {},
   "pre_filter": {"recommend": true, "reason": "..."},
   "quick_fit": {},
-  "brand_match": {}
+  "brand_match": {},
+  "final": {
+    "recommend": true,
+    "rationale": "Concise multi-agent summary",
+    "confidence": "low|medium|high"
+  },
+  "personas": [
+    {"id": "pre_filter_agent", "recommend": true, "reason": "..."}
+  ],
+  "tradeoffs": [],
+  "actions": [],
+  "sources": ["pre_filter_agent", "quick_fit_analyst"]
 }
 ```
 
-If `pre_filter.recommend` is `false`, `quick_fit` and `brand_match` are `null`. The result is validated by `JobPostingReviewOutput`.
+If `pre_filter.recommend` is `false`, `quick_fit` and `brand_match` are `null`, and the `final` block captures the rejection rationale with high confidence. The result is validated by `JobPostingReviewOutput`.
 
 ---
 
