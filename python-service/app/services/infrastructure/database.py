@@ -365,6 +365,14 @@ class DatabaseService:
         if not self.initialized:
             await self.initialize()
 
+        # Validate job_id format
+        import uuid
+        try:
+            uuid.UUID(job_id)
+        except ValueError:
+            logger.error(f"Invalid UUID format for job_id: {job_id}")
+            return False
+
         query = """
         INSERT INTO public.job_reviews (
             job_id, recommend, confidence, rationale, personas, tradeoffs, 
@@ -389,8 +397,13 @@ class DatabaseService:
         """
 
         try:
+            # Add detailed logging for debugging
+            logger.info(f"Attempting to insert job review for job_id: {job_id}")
+            logger.debug(f"Review data keys: {list(review_data.keys())}")
+            logger.debug(f"Recommend: {review_data.get('recommend')}, Confidence: {review_data.get('confidence')}")
+            
             async with self.pool.acquire() as conn:
-                await conn.execute(
+                result = await conn.execute(
                     query,
                     job_id,
                     review_data.get("recommend"),
@@ -407,9 +420,25 @@ class DatabaseService:
                     review_data.get("error_message"),
                     review_data.get("retry_count", 0)
                 )
-            return True
+                
+                logger.info(f"Job review insert result: {result}")
+                
+                # Verify the insert worked by querying the record
+                verify_query = "SELECT id FROM public.job_reviews WHERE job_id = $1"
+                verify_result = await conn.fetchval(verify_query, job_id)
+                
+                if verify_result:
+                    logger.info(f"Job review successfully inserted and verified for job_id: {job_id}")
+                    return True
+                else:
+                    logger.error(f"Job review insert succeeded but verification failed for job_id: {job_id}")
+                    return False
+                    
         except Exception as e:
-            logger.error(f"Failed to insert job review: {str(e)}")
+            logger.error(f"Failed to insert job review for job_id {job_id}: {str(e)}")
+            logger.error(f"Review data: {review_data}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return False
 
     async def get_job_review(self, job_id: str) -> Optional[Dict[str, Any]]:

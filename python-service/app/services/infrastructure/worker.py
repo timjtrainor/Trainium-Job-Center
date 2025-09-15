@@ -303,10 +303,15 @@ def process_job_review(job_id: str, max_retries: int = 3) -> Dict[str, Any]:
             "retry_count": retry_count
         }
         
+        logger.info(f"Prepared review data for job_id {job_id}: recommend={review_data['recommend']}, confidence={review_data['confidence']}")
+        
         # Store review results  
+        logger.info(f"Storing review results for job_id: {job_id}")
         success = loop.run_until_complete(db_service.insert_job_review(job_id, review_data))
         if not success:
-            raise RuntimeError("Failed to store review results")
+            error_msg = f"Failed to store review results in database for job_id: {job_id}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
         
         # Update job status to 'reviewed'
         success = loop.run_until_complete(db_service.update_job_status(job_id, "reviewed"))
