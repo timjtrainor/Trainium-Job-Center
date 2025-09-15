@@ -300,12 +300,30 @@ def process_job_review(job_id: str, max_retries: int = 3) -> Dict[str, Any]:
                 }
         
         # Parse successful crew result
-        final_result = crew_result.get("final", {}) if isinstance(crew_result, dict) else {}
-        
+        if isinstance(crew_result, dict):
+            final_result = crew_result.get("final", {})
+            prefilter = crew_result.get("pre_filter", {})
+        else:
+            final_result = {}
+            prefilter = {}
+
+        if not isinstance(final_result, dict):
+            final_result = {}
+        if not isinstance(prefilter, dict):
+            prefilter = {}
+
+        rationale = (
+            final_result.get("rationale")
+            or prefilter.get("reason")
+            or "No rationale provided"
+        )
+
         review_data = {
-            "recommend": final_result.get("recommend", False),
+            "recommend": final_result.get(
+                "recommend", prefilter.get("recommend", False)
+            ),
             "confidence": final_result.get("confidence", "low"),
-            "rationale": final_result.get("rationale", "No rationale provided"),
+            "rationale": rationale,
             "personas": crew_result.get("personas", []),
             "tradeoffs": crew_result.get("tradeoffs", []),
             "actions": crew_result.get("actions", []),
