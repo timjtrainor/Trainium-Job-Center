@@ -92,22 +92,20 @@ class PollerService:
             return None
 
         try:
-            # Create job payload for the review queue
-            payload = {
-                "job_id": job_id,
-                "title": job_data.get("title"),
-                "company": job_data.get("company"),
-                "site": job_data.get("site"),
-                "job_url": job_data.get("job_url"),
-                "ingested_at": job_data.get("ingested_at").isoformat() if job_data.get("ingested_at") else None
-            }
-            
-            # Use the queue service's job review method
-            task_id = self.queue_service.enqueue_job_review(payload)
-            
+            logger.debug(
+                "Submitting job for review",
+                job_id=job_id,
+                title=job_data.get("title"),
+                company=job_data.get("company"),
+                site=job_data.get("site"),
+            )
+
+            # Use the queue service's job review method with the job ID
+            task_id = self.queue_service.enqueue_job_review(job_id)
+
             if task_id:
                 logger.info(f"Enqueued job {job_id} for review - task_id: {task_id}")
-            
+
             return task_id
             
         except Exception as e:

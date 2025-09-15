@@ -1,7 +1,7 @@
 """
 Tests for job review worker function.
 """
-import pytest
+import asyncio
 from unittest.mock import Mock, patch, AsyncMock
 from uuid import uuid4
 
@@ -37,7 +37,7 @@ def test_process_job_review_with_mock():
     }
     
     with patch('app.services.infrastructure.worker.get_database_service') as mock_get_db, \
-         patch('app.services.infrastructure.worker.run_crew') as mock_run_crew:
+         patch('app.services.crewai.job_posting_review.crew.run_crew') as mock_run_crew:
         
         # Setup database service mock
         mock_db_service = Mock()
@@ -80,6 +80,58 @@ def test_process_job_review_with_mock():
         mock_run_crew.assert_called_once()
 
 
+def test_process_job_review_logs_processing_message():
+    """Ensure worker logs the expected processing message and completes."""
+    job_id = str(uuid4())
+
+    mock_job_data = {
+        "id": job_id,
+        "title": "Data Scientist",
+        "company": "Insight Analytics",
+        "description": "Analyze large datasets",
+    }
+
+    mock_crew_result = {
+        "final": {
+            "recommend": True,
+            "confidence": "medium",
+            "rationale": "Strong analytics fit",
+        },
+        "personas": [],
+        "tradeoffs": [],
+        "actions": [],
+        "sources": [],
+    }
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    try:
+        with patch('app.services.infrastructure.worker.get_database_service') as mock_get_db, \
+             patch('app.services.crewai.job_posting_review.crew.run_crew') as mock_run_crew, \
+             patch('app.services.infrastructure.worker.logger') as mock_logger:
+
+            mock_db_service = Mock()
+            mock_db_service.initialized = True
+            mock_db_service.initialize = AsyncMock(return_value=True)
+            mock_db_service.update_job_status = AsyncMock(return_value=True)
+            mock_db_service.get_job_by_id = AsyncMock(return_value=mock_job_data)
+            mock_db_service.get_job_review = AsyncMock(return_value=None)
+            mock_db_service.insert_job_review = AsyncMock(return_value=True)
+            mock_get_db.return_value = mock_db_service
+
+            mock_run_crew.return_value = mock_crew_result
+
+            result = process_job_review(job_id, max_retries=2)
+
+        mock_logger.info.assert_any_call(f"Processing job review for job_id: {job_id}")
+        assert result["status"] == "completed"
+        assert result["job_id"] == job_id
+    finally:
+        loop.close()
+        asyncio.set_event_loop(None)
+
+
 def test_process_job_review_job_not_found():
     """Test worker behavior when job is not found."""
     job_id = str(uuid4())
@@ -120,7 +172,7 @@ def test_process_job_review_crew_error():
     }
     
     with patch('app.services.infrastructure.worker.get_database_service') as mock_get_db, \
-         patch('app.services.infrastructure.worker.run_crew') as mock_run_crew:
+         patch('app.services.crewai.job_posting_review.crew.run_crew') as mock_run_crew:
         
         mock_db_service = Mock()
         mock_db_service.initialized = True
