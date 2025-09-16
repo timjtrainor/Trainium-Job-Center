@@ -95,7 +95,7 @@ class TestChromaManager:
         collection_names = [config.name for config in configs]
         assert "job_postings" in collection_names
         assert "company_profiles" in collection_names
-        assert "career_brands" in collection_names
+        assert "career_brand" in collection_names
         assert "documents" in collection_names
     
     @patch('app.services.chroma_manager.get_chroma_client')

@@ -31,10 +31,8 @@ quick_fit_analyst:
     You are an evaluator who looks for high-signal indicators of job quality
     without going into full research mode. You provide scores and a quick recommendation.
     Keep analysis brief and decisive.
-  verbose: false
   memory: false
   max_iter: 1
-  max_execution_time: 20
   llm: "openai/gpt-5-mini"
 
 brand_framework_matcher:
@@ -46,7 +44,6 @@ brand_framework_matcher:
   backstory: >
     You are the guardian of brand alignment, ensuring the jobs analyzed are consistent
     with the candidate's career pillars and values. Work efficiently.
-  verbose: false
   memory: false
   max_iter: 1
   max_execution_time: 20
@@ -67,10 +64,8 @@ managing_agent:
     - Stop immediately on rejection
     - Combine coworker outputs without altering them
   allow_delegation: true
-  verbose: false
   temperature: 0
   max_iter: 3
-  max_execution_time: 60
   llm: "ollama/gemma3:1b"
   instructions: |
     OPTIMIZED ORCHESTRATION RULES (job intake skipped):

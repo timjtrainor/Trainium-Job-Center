@@ -276,8 +276,41 @@ def search_career_brands(query: str, n_results: int = 5) -> str:
     Returns:
         str: Formatted career branding search results
     """
-    return chroma_search(query, "career_brands", n_results)
+    return chroma_search(query, "career_brand", n_results)
 
+
+@tool
+def search_career_paths(query: str, n_results: int = 5) -> str:
+    """
+    Search specifically for career path documents.
+
+    Specialized tool for searching personal career paths  content.
+
+    Args:
+        query (str): Career paths search query (skills, experience, positioning, etc.)
+        n_results (int): Maximum number of career paths documents to return (default: 5)
+
+    Returns:
+        str: Formatted career paths search results
+    """
+    return chroma_search(query, "career_paths", n_results)
+
+
+@tool
+def search_job_search_strategies(query: str, n_results: int = 5) -> str:
+    """
+    Search specifically for job search strategy documents.
+
+    Specialized tool for searching job search strategy documents.
+
+    Args:
+        query (str): Job search strategy query (skills, experience, positioning, etc.)
+        n_results (int): Maximum number of job search strategy documents to return (default: 5)
+
+    Returns:
+        str: Formatted career paths search results
+    """
+    return chroma_search(query, "job_search_strategies", n_results)
 
 @tool
 def contextual_job_analysis(job_title: str, company_name: str = "", skills: str = "", n_results: int = 3) -> str:

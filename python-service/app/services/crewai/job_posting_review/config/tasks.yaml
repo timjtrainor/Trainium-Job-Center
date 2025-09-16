@@ -5,6 +5,7 @@ pre_filter_task:
     Apply ONLY these rules to the job data:
     - Reject if highest_salary < 180000
     - Reject if salary is missing AND seniority < "Senior"
+    - Reject if Job title does not contain "Product" or "Program"
     - Reject if highest_salary < 210000 AND job_type = "in-person"
 
     IMPORTANT:
@@ -44,7 +45,7 @@ orchestration_task:
     1. Start directly with pre_filter_agent to apply rejection criteria (salary, seniority, job_type)
     2. **STOP IMMEDIATELY** if pre_filter_agent returns recommend: false - do not run any more tasks
     3. Only if pre-filter passes, delegate to quick_fit_analyst for assessment
-    4. Only run brand_framework_matcher if quick_fit_analyst recommends "review_deeper"
+    4. Only run brand_framework_matcher if quick_fit_analyst recommends "review_deeper" or "approve"
     
     **EARLY TERMINATION RULE**: If pre_filter_agent recommends rejection, immediately return final decision without further analysis.
     

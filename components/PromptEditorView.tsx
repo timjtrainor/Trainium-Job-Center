@@ -1,17 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Switch } from './Switch';
 import { LoadingSpinner, PlusCircleIcon, TrashIcon } from './IconComponents';
-import {
-    useCheckPostgrestHealth,
-    useCheckFastApiHealth,
-    useGetSiteSchedules,
-    useGetJobSites,
-    useUpdateSiteSchedule,
-    useDeleteSiteSchedule,
-    useCreateSiteSchedule,
-} from '../hooks/apiHooks';
+import * as apiService from '../services/apiService';
 // FIX: Import Prompt type.
 import { SiteSchedule, SiteDetails, SiteSchedulePayload, Prompt } from '../types';
+import { useScheduleManager } from '../hooks/useSchedules';
+import { v4 as uuidv4 } from 'uuid';
 
 interface PromptEditorViewProps {
     // FIX: Add missing prompts prop to fix type error.
@@ -60,12 +54,13 @@ const ScheduleFormModal = ({ isOpen, onClose, onSave, sites, scheduleToEdit }: S
 
     useEffect(() => {
         if (formData.site_name) {
-            const details = sites.find(s => s.site_name === formData.site_name) || null;
-            setSelectedSiteDetails(details);
+            const details = sites.find(s => s.site_name === formData.site_name);
+            setSelectedSiteDetails(details || null);
         } else {
             setSelectedSiteDetails(null);
         }
     }, [formData.site_name, sites]);
+
 
     if (!isOpen) return null;
 
@@ -144,16 +139,19 @@ const ScheduleFormModal = ({ isOpen, onClose, onSave, sites, scheduleToEdit }: S
 
 // --- Schedule Manager Component ---
 const ScheduleManager = () => {
-    const { data: schedules = [], isLoading, refetch } = useGetSiteSchedules();
-    const { data: sites = [] } = useGetJobSites();
-    const [error, setError] = useState<string | null>(null);
+    const {
+        schedules,
+        sites,
+        isLoading,
+        error,
+        toggleSchedule,
+        deleteSchedule,
+        refetch,
+    } = useScheduleManager();
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSchedule, setEditingSchedule] = useState<SiteSchedule | null>(null);
     const [expandedSite, setExpandedSite] = useState<string | null>(null);
-
-    const updateSchedule = useUpdateSiteSchedule();
-    const deleteSchedule = useDeleteSiteSchedule();
-    const createSchedule = useCreateSiteSchedule();
 
     const groupedSchedules = useMemo(() => {
         return schedules.reduce((acc, schedule) => {
@@ -166,35 +164,35 @@ const ScheduleManager = () => {
 
     const handleToggle = async (schedule: SiteSchedule) => {
         try {
-            await updateSchedule.mutateAsync({ scheduleId: schedule.id, payload: { enabled: !schedule.enabled } });
-            refetch();
+            await toggleSchedule(schedule);
         } catch (err) {
-            setError('Failed to update schedule.');
+            // Error is already handled in the hook
         }
     };
 
     const handleDelete = async (scheduleId: string) => {
         if (!window.confirm("Are you sure you want to delete this schedule? This action cannot be undone.")) return;
         try {
-            await deleteSchedule.mutateAsync(scheduleId);
-            refetch();
+            await deleteSchedule(scheduleId);
         } catch (err) {
-            setError('Failed to delete schedule.');
+            // Error is already handled in the hook
         }
     };
 
     const handleSave = async (payload: SiteSchedulePayload, scheduleId?: string) => {
         setIsModalOpen(false);
         setEditingSchedule(null);
+
         try {
             if (scheduleId) {
-                await updateSchedule.mutateAsync({ scheduleId, payload });
+                await apiService.updateSiteSchedule(scheduleId, payload);
             } else {
-                await createSchedule.mutateAsync(payload);
+                await apiService.createSiteSchedule(payload);
             }
-            refetch();
+            await refetch(); // Refresh the data
         } catch (err) {
-            setError('Failed to save schedule.');
+            // Basic error handling - the hook provides toast notifications
+            console.error('Error saving schedule:', err);
         }
     };
 
@@ -202,7 +200,14 @@ const ScheduleManager = () => {
 
     return (
         <div>
-            {error && <p className="text-red-500 mb-4">{error}</p>}
+            {error && (
+                <p className="text-red-500 mb-4">
+                    {error}
+                    <button onClick={refetch} className="ml-2 text-red-600 hover:underline text-sm">
+                        Try Again
+                    </button>
+                </p>
+            )}
             <div className="flex justify-end mb-4">
                 <button onClick={() => { setEditingSchedule(null); setIsModalOpen(true); }} disabled={sites.length === 0} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-md bg-blue-600 text-white shadow-sm hover:bg-blue-500 disabled:opacity-50" title={sites.length === 0 ? "Cannot add schedule: no sites found from FastAPI." : ""}>
                     <PlusCircleIcon className="h-5 w-5"/>Add Schedule
@@ -308,12 +313,10 @@ const HealthCheckSection = ({ title, url, onCheck, healthState }: { title: strin
 export const PromptEditorView = ({ prompts, isDebugMode, onSetIsDebugMode, modelName, setModelName }: PromptEditorViewProps) => {
     const [postgrestHealth, setPostgrestHealth] = useState<HealthState>({ status: 'idle', result: null });
     const [fastApiHealth, setFastApiHealth] = useState<HealthState>({ status: 'idle', result: null });
-    const checkPostgrestHealth = useCheckPostgrestHealth();
-    const checkFastApiHealth = useCheckFastApiHealth();
 
     const handlePostgrestHealthCheck = async () => {
         setPostgrestHealth({ status: 'loading', result: null });
-        const result = await checkPostgrestHealth.mutateAsync();
+        const result = await apiService.checkPostgrestHealth();
         setPostgrestHealth({
             status: result.status === 200 ? 'success' : 'error',
             result: result,
@@ -322,7 +325,7 @@ export const PromptEditorView = ({ prompts, isDebugMode, onSetIsDebugMode, model
 
     const handleFastApiHealthCheck = async () => {
         setFastApiHealth({ status: 'loading', result: null });
-        const result = await checkFastApiHealth.mutateAsync();
+        const result = await apiService.checkFastApiHealth();
         setFastApiHealth({
             status: result.status === 200 ? 'success' : 'error',
             result: result,

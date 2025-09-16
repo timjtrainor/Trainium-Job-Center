@@ -1,22 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { DocumentTextIcon, TrashIcon } from './IconComponents';
+import * as apiService from '../services/apiService';
+import { CollectionInfo, UploadResponse } from '../types';
 
 interface ChromaUploadProps {
     onBack?: () => void;
-}
-
-interface CollectionInfo {
-    name: string;
-    count: number;
-    metadata?: any;
-}
-
-interface UploadResponse {
-    success: boolean;
-    message: string;
-    collection_name: string;
-    document_id: string;
-    chunks_created: number;
 }
 
 export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
@@ -29,35 +17,8 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
     const [collections, setCollections] = useState<CollectionInfo[]>([]);
     const [isLoadingCollections, setIsLoadingCollections] = useState(false);
     const [showCollections, setShowCollections] = useState(false);
-    const [metadata, setMetadata] = useState<Record<string, string>>({});
-
+    
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const addMetadataField = () => {
-        setMetadata(prev => ({ ...prev, [`__key${Object.keys(prev).length}`]: '' }));
-    };
-
-    const updateMetadataKey = (oldKey: string, newKey: string) => {
-        setMetadata(prev => {
-            const updated = { ...prev } as Record<string, string>;
-            const value = updated[oldKey];
-            delete updated[oldKey];
-            updated[newKey] = value;
-            return updated;
-        });
-    };
-
-    const updateMetadataValue = (key: string, value: string) => {
-        setMetadata(prev => ({ ...prev, [key]: value }));
-    };
-
-    const removeMetadataField = (key: string) => {
-        setMetadata(prev => {
-            const updated = { ...prev } as Record<string, string>;
-            delete updated[key];
-            return updated;
-        });
-    };
 
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -95,41 +56,18 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
             formData.append('collection_name', collectionName.trim());
             formData.append('title', title.trim());
             formData.append('tags', tags.trim());
-            const filteredMetadata = Object.entries(metadata).reduce((acc, [k, v]) => {
-                if (k && !k.startsWith('__key') && v) {
-                    acc[k] = v;
-                }
-                return acc;
-            }, {} as Record<string, string>);
-            formData.append('metadata', JSON.stringify(filteredMetadata));
             formData.append('file', selectedFile);
 
-            const response = await fetch('http://localhost:8000/chroma/upload', {
-                method: 'POST',
-                body: formData,
-            });
-
-            const result: UploadResponse = await response.json();
+            const result = await apiService.uploadChromaDocument(formData);
             
-            if (response.ok) {
-                setUploadResult(result);
-                // Clear form on success
-                setCollectionName('');
-                setTitle('');
-                setTags('');
-                setSelectedFile(null);
-                setMetadata({});
-                if (fileInputRef.current) {
-                    fileInputRef.current.value = '';
-                }
-            } else {
-                setUploadResult({
-                    success: false,
-                    message: result.message || 'Upload failed',
-                    collection_name: collectionName,
-                    document_id: '',
-                    chunks_created: 0
-                });
+            setUploadResult(result);
+            // Clear form on success
+            setCollectionName('');
+            setTitle('');
+            setTags('');
+            setSelectedFile(null);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
             }
         } catch (error) {
             console.error('Upload error:', error);
@@ -148,15 +86,8 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
     const loadCollections = async () => {
         setIsLoadingCollections(true);
         try {
-            const response = await fetch('http://localhost:8000/chroma/collections');
-            const result = await response.json();
-            
-            if (response.ok) {
-                setCollections(result.collections || []);
-            } else {
-                console.error('Failed to load collections:', result);
-                setCollections([]);
-            }
+            const result = await apiService.getChromaCollections();
+            setCollections(result.collections || []);
         } catch (error) {
             console.error('Error loading collections:', error);
             setCollections([]);
@@ -171,17 +102,8 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
         }
 
         try {
-            const response = await fetch(`http://localhost:8000/chroma/collections/${encodeURIComponent(collectionName)}`, {
-                method: 'DELETE',
-            });
-
-            if (response.ok) {
-                // Reload collections after successful deletion
-                await loadCollections();
-            } else {
-                const result = await response.json();
-                alert(`Failed to delete collection: ${result.message || 'Unknown error'}`);
-            }
+            await apiService.deleteChromaCollection(collectionName);
+            await loadCollections();
         } catch (error) {
             console.error('Delete error:', error);
             alert(`Failed to delete collection: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -273,45 +195,6 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                             Separate multiple tags with commas
                         </p>
-                    </div>
-
-                    {/* Metadata */}
-                    <div className="space-y-2">
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                            Metadata (Optional)
-                        </label>
-                        {Object.entries(metadata).map(([key, value], idx) => (
-                            <div key={idx} className="flex items-center space-x-2">
-                                <input
-                                    type="text"
-                                    placeholder="Key"
-                                    value={key.startsWith('__key') ? '' : key}
-                                    onChange={(e) => updateMetadataKey(key, e.target.value)}
-                                    className="flex-1 p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                                <input
-                                    type="text"
-                                    placeholder="Value"
-                                    value={value}
-                                    onChange={(e) => updateMetadataValue(key, e.target.value)}
-                                    className="flex-1 p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => removeMetadataField(key)}
-                                    className="px-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                                >
-                                    Remove
-                                </button>
-                            </div>
-                        ))}
-                        <button
-                            type="button"
-                            onClick={addMetadataField}
-                            className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
-                        >
-                            Add Metadata
-                        </button>
                     </div>
 
                     {/* File Upload */}

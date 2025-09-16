@@ -69,12 +69,12 @@ class ChromaIntegrationService:
         additional_metadata: Dict[str, Any] = None
     ) -> ChromaUploadResponse:
         """Add a company profile to the company_profiles collection."""
-        
+
         # Combine description with culture info if available
         full_description = description
         if culture_info:
             full_description += f"\n\nCulture: {culture_info}"
-        
+
         metadata = {
             "company_name": company_name,
             "industry": industry,
@@ -82,10 +82,10 @@ class ChromaIntegrationService:
             "benefits": benefits or [],
             "values": values or []
         }
-        
+
         if additional_metadata:
             metadata.update(additional_metadata)
-        
+
         return await self.manager.upload_document(
             collection_name="company_profiles",
             title=f"{company_name} Company Profile",
@@ -99,31 +99,91 @@ class ChromaIntegrationService:
         title: str,
         content: str,
         profile_id: str,
-        skill_category: str = "",
-        experience_level: str = "",
-        industry_focus: str = "",
+        source: str = "",
+        author: str = "",
+        section: str = "",
         additional_metadata: Dict[str, Any] = None
     ) -> ChromaUploadResponse:
-        """Add a career branding document to the career_brands collection."""
-        
+        """Add a career branding document to the career_brand collection."""
+
         metadata = {
             "profile_id": profile_id,
-            "skill_category": skill_category,
-            "experience_level": experience_level,
-            "industry_focus": industry_focus
+            "source": source,
+            "author": author,
+            "section": section
         }
-        
+
         if additional_metadata:
             metadata.update(additional_metadata)
-        
+
         return await self.manager.upload_document(
-            collection_name="career_brands",
+            collection_name="career_brand",
             title=title,
             document_text=content,
             metadata=metadata,
-            tags=["career_brand", profile_id, skill_category.lower()]
+            tags=["career_brand", profile_id, section.lower()]
         )
-    
+
+    async def add_career_path_document(
+        self,
+        title: str,
+        content: str,
+        profile_id: str,
+        source: str = "",
+        author: str = "",
+        section: str = "",
+        additional_metadata: Dict[str, Any] = None
+    ) -> ChromaUploadResponse:
+        """Add a career branding document to the career_brand collection."""
+
+        metadata = {
+            "profile_id": profile_id,
+            "source": source,
+            "author": author,
+            "section": section
+        }
+
+        if additional_metadata:
+            metadata.update(additional_metadata)
+
+        return await self.manager.upload_document(
+            collection_name="career_paths",
+            title=title,
+            document_text=content,
+            metadata=metadata,
+            tags=["career_paths", profile_id, section.lower()]
+        )
+
+    async def add_job_search_strategies_document(
+        self,
+        title: str,
+        content: str,
+        profile_id: str,
+        source: str = "",
+        author: str = "",
+        section: str = "",
+        additional_metadata: Dict[str, Any] = None
+    ) -> ChromaUploadResponse:
+        """Add a career branding document to the career_brand collection."""
+
+        metadata = {
+            "profile_id": profile_id,
+            "source": source,
+            "author": author,
+            "section": section
+        }
+
+        if additional_metadata:
+            metadata.update(additional_metadata)
+
+        return await self.manager.upload_document(
+            collection_name="job_search_strategies",
+            title=title,
+            document_text=content,
+            metadata=metadata,
+            tags=["job_search_strategies", profile_id, section.lower()]
+        )
+
     async def bulk_upload_job_postings(
         self, 
         job_postings: List[Dict[str, Any]]
@@ -260,7 +320,7 @@ class ChromaIntegrationService:
         for query in queries:
             search_collections = ["job_postings", "company_profiles"]
             if profile_id:
-                search_collections.append("career_brands")
+                search_collections.append("career_brand")
             
             context = await self.search_for_crew_context(
                 query=query,
