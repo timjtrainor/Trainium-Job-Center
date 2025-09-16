@@ -25,16 +25,21 @@ class JobType(str, Enum):
 
 
 class JobSearchRequest(BaseModel):
-    """Request model for job scraping."""
+    """Request model for job scraping with enhanced pagination support."""
     site_name: JobSite = Field(default=JobSite.INDEED, description="Job site to scrape from")
     search_term: Optional[str] = Field(..., description="Job search term/keywords")
     location: Optional[str] = Field(default=None, description="Job location")
     is_remote: bool = Field(default=False, description="Search for remote jobs only")
     job_type: Optional[JobType] = Field(default=None, description="Job type filter")
-    results_wanted: int = Field(default=15, ge=1, le=100, description="Number of results to return")
+    results_wanted: int = Field(default=15, ge=1, le=500, description="Number of results to return (with pagination: up to 500)")
     distance: Optional[int] = Field(default=50, description="Search radius in miles")
     easy_apply: Optional[bool] = Field(default=None, description="Filter for easy apply jobs")
     hours_old: Optional[int] = Field(default=None, description="Filter jobs posted within X hours")
+    
+    # Pagination enhancement fields
+    enable_pagination: bool = Field(default=False, description="Enable pagination workarounds for >25 results")
+    max_results_target: Optional[int] = Field(default=None, description="Target result count when pagination enabled")
+    
     # Site-specific
     google_search_term: Optional[str] = Field(default=None, description="Google search term only used for Google Job Board")
     country_indeed: Optional[str] = Field(default="USA", description="Required for Indeed/Glassdoor and is the country USA")

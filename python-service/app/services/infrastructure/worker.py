@@ -87,10 +87,19 @@ def scrape_jobs_worker(site_schedule_id: Optional[str] = None,
         if result.get("jobs") and result.get("status") in ["succeeded", "partial"]:
             try:
                 site_name = payload.get("site_name", "unknown")
+                
+                # Use enhanced persistence with improved deduplication
                 persistence_summary = loop.run_until_complete(
                     persist_jobs(records=result["jobs"], site_name=site_name)
                 )
-                logger.info(f"Run {run_id}: Persisted jobs - {persistence_summary}")
+                
+                logger.info(
+                    f"Run {run_id}: Enhanced persistence completed - "
+                    f"inserted: {persistence_summary.get('inserted', 0)}, "
+                    f"updated: {persistence_summary.get('updated', 0)}, "
+                    f"duplicates: {persistence_summary.get('skipped_duplicates', 0)}, "
+                    f"errors: {len(persistence_summary.get('errors', []))}"
+                )
                 
                 # Add persistence info to result for logging
                 result["persistence_summary"] = persistence_summary
@@ -101,7 +110,9 @@ def scrape_jobs_worker(site_schedule_id: Optional[str] = None,
                 result["persistence_summary"] = {
                     "inserted": 0,
                     "skipped_duplicates": 0,
-                    "errors": [f"Persistence failed: {str(e)}"]
+                    "updated": 0,
+                    "errors": [f"Persistence failed: {str(e)}"],
+                    "deduplication": {"unique_count": 0, "total_duplicates_removed": 0}
                 }
         
         # Update final status

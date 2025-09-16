@@ -41,6 +41,7 @@ class SchedulerService:
     async def process_scheduled_sites(self) -> int:
         """
         Process all enabled site schedules that are due for execution.
+        Enhanced with comprehensive logging and reliability improvements.
         
         Returns:
             Number of jobs enqueued
@@ -49,6 +50,9 @@ class SchedulerService:
             logger.warning("Scheduler not initialized")
             return 0
         
+        start_time = datetime.now(timezone.utc)
+        logger.info(f"Starting scheduler check at {start_time.isoformat()}")
+        
         try:
             # Get all enabled sites that are due
             schedules = await self.db_service.get_enabled_site_schedules()
@@ -56,17 +60,37 @@ class SchedulerService:
             
             logger.info(f"Found {len(schedules)} site schedules to process")
             
+            if len(schedules) == 0:
+                logger.info("No enabled site schedules found or none are due for execution")
+                return 0
+            
+            # Log schedule details for diagnostics
+            for i, schedule in enumerate(schedules):
+                site_name = schedule.get("site_name", "unknown")
+                next_run = schedule.get("next_run_at")
+                last_run = schedule.get("last_run_at")
+                interval = schedule.get("interval_minutes", "unknown")
+                
+                logger.info(
+                    f"Schedule {i+1}/{len(schedules)}: {site_name} - "
+                    f"interval: {interval}min, "
+                    f"last_run: {last_run}, "
+                    f"next_run: {next_run}"
+                )
+            
             for schedule in schedules:
                 try:
                     site_name = schedule["site_name"]
                     schedule_id = str(schedule["id"])
+                    
+                    logger.info(f"Processing schedule for site: {site_name} (ID: {schedule_id})")
                     
                     # Check for existing running jobs for this site (per-site lock)
                     lock_key = f"scrape_lock:{site_name}"
                     existing_lock = self.queue_service.check_redis_lock(lock_key)
                     
                     if existing_lock:
-                        logger.info(f"Site {site_name} is already being scraped, skipping")
+                        logger.info(f"Site {site_name} is already being scraped (Redis lock exists), skipping")
                         continue
                     
                     # Check database for running jobs as backup
@@ -80,8 +104,10 @@ class SchedulerService:
                     # Acquire Redis lock for this site
                     lock_value = f"{run_id}:{datetime.now(timezone.utc).isoformat()}"
                     if not self.queue_service.acquire_redis_lock(lock_key, lock_value, timeout=1800):  # 30 min timeout
-                        logger.warning(f"Failed to acquire lock for site {site_name}")
+                        logger.warning(f"Failed to acquire Redis lock for site {site_name}")
                         continue
+                    
+                    logger.info(f"Acquired Redis lock for {site_name}: {lock_key}")
                     
                     # Create scrape run record
                     scrape_run_id = await self.db_service.create_scrape_run(
@@ -96,21 +122,36 @@ class SchedulerService:
                         self.queue_service.release_redis_lock(lock_key, lock_value)
                         continue
                     
-                    # Enqueue the job with site name included in payload
+                    logger.info(f"Created scrape run record: {scrape_run_id} for run_id: {run_id}")
+                    
+                    # Parse and validate payload
                     payload_dict = schedule["payload"]
                     if isinstance(payload_dict, str):
                         try:
                             payload_dict = json.loads(payload_dict)
                         except json.JSONDecodeError as json_err:
                             logger.error(f"Failed to parse payload JSON for {site_name}: {json_err}")
+                            self.queue_service.release_redis_lock(lock_key, lock_value)
                             continue
                     
                     # Ensure payload_dict is a dictionary
                     if not isinstance(payload_dict, dict):
                         logger.error(f"Payload is not a dictionary for {site_name}: {type(payload_dict)}")
+                        self.queue_service.release_redis_lock(lock_key, lock_value)
                         continue
 
+                    # Add pagination configuration to payload if not present
                     payload = {**payload_dict, "site_name": schedule["site_name"]}
+                    
+                    # Check if pagination should be enabled for this schedule
+                    if payload.get("results_wanted", 15) > 25:
+                        payload["enable_pagination"] = True
+                        payload["max_results_target"] = payload.get("results_wanted", 15)
+                        logger.info(f"Enabled pagination for {site_name} - target: {payload['max_results_target']} results")
+                    
+                    logger.info(f"Enqueuing scrape job for {site_name} with payload keys: {list(payload.keys())}")
+                    
+                    # Enqueue the job with site name included in payload
                     job_info = self.queue_service.enqueue_scraping_job(
                         payload=payload,
                         site_schedule_id=schedule_id,
@@ -139,7 +180,7 @@ class SchedulerService:
                         await self.db_service.update_site_schedule_next_run(schedule_id, next_run_at)
                         
                         logger.info(
-                            f"Enqueued scheduled job for {site_name} - "
+                            f"✅ Successfully enqueued scheduled job for {site_name} - "
                             f"run_id: {run_id}, task_id: {task_id}, "
                             f"next_run: {next_run_at.isoformat()}"
                         )
@@ -149,8 +190,9 @@ class SchedulerService:
                         # Release the lock - the worker will manage its own execution
                         # The lock was just to prevent duplicate scheduling
                         self.queue_service.release_redis_lock(lock_key, lock_value)
+                        logger.debug(f"Released Redis lock for {site_name}")
                     else:
-                        logger.error(f"Failed to enqueue job for {site_name}")
+                        logger.error(f"❌ Failed to enqueue job for {site_name}")
                         self.queue_service.release_redis_lock(lock_key, lock_value)
                         
                         # Update scrape run to failed
@@ -169,16 +211,22 @@ class SchedulerService:
                             site_name = f"invalid_schedule_type_{type(schedule).__name__}"
                     except:
                         pass  # Keep default site_name if we can't extract it
-                    logger.error(f"Error processing schedule for {site_name}: {str(e)}")
+                    logger.error(f"❌ Error processing schedule for {site_name}: {str(e)}")
                     continue
             
+            # Final summary logging
+            end_time = datetime.now(timezone.utc)
+            duration = (end_time - start_time).total_seconds()
+            
             if jobs_enqueued > 0:
-                logger.info(f"Scheduler enqueued {jobs_enqueued} jobs")
+                logger.info(f"🎉 Scheduler completed successfully - enqueued {jobs_enqueued} jobs in {duration:.2f}s")
+            else:
+                logger.info(f"⏸️ Scheduler completed - no jobs enqueued (duration: {duration:.2f}s)")
             
             return jobs_enqueued
             
         except Exception as e:
-            logger.error(f"Error in process_scheduled_sites: {str(e)}")
+            logger.error(f"💥 Critical error in process_scheduled_sites: {str(e)}")
             return 0
 
     async def get_scheduler_status(self) -> Dict[str, Any]:
