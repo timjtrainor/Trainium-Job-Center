@@ -143,11 +143,17 @@ class SchedulerService:
                     # Add pagination configuration to payload if not present
                     payload = {**payload_dict, "site_name": schedule["site_name"]}
                     
-                    # Check if pagination should be enabled for this schedule
-                    if payload.get("results_wanted", 15) > 25:
+                    # Auto-enable pagination for high result counts
+                    results_wanted = payload.get("results_wanted", 15)
+                    if results_wanted > 25:
                         payload["enable_pagination"] = True
-                        payload["max_results_target"] = payload.get("results_wanted", 15)
-                        logger.info(f"Enabled pagination for {site_name} - target: {payload['max_results_target']} results")
+                        payload["max_results_target"] = results_wanted
+                        logger.info(f"Auto-enabled pagination for {site_name} - target: {results_wanted} results")
+                    elif payload.get("enable_pagination", False):
+                        # Explicit pagination enabled, ensure max_results_target is set
+                        if "max_results_target" not in payload:
+                            payload["max_results_target"] = results_wanted
+                        logger.info(f"Explicit pagination enabled for {site_name} - target: {payload['max_results_target']} results")
                     
                     logger.info(f"Enqueuing scrape job for {site_name} with payload keys: {list(payload.keys())}")
                     

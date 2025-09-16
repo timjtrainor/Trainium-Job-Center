@@ -46,9 +46,14 @@ def scrape_jobs_sync(payload: Dict[str, Any], min_pause: int = 2, max_pause: int
     enable_pagination = payload.get("enable_pagination", False)
     max_results_target = payload.get("max_results_target", payload.get("results_wanted", 15))
     
+    # Auto-enable pagination if results_wanted > 25, even if not explicitly enabled
+    if max_results_target > 25:
+        enable_pagination = True
+        logger.info(f"Auto-enabling pagination for {max_results_target} results (exceeds 25-result limit)")
+    
     # If pagination is enabled and target is > 25, use multi-batch approach
     if enable_pagination and max_results_target > 25:
-        logger.info(f"Pagination mode enabled - targeting {max_results_target} results")
+        logger.info(f"Pagination mode active - targeting {max_results_target} results")
         return _scrape_jobs_paginated(payload, min_pause, max_pause, max_results_target)
     
     # Standard single-batch scraping
