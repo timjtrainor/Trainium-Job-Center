@@ -17,11 +17,13 @@ class CollectionType(Enum):
     """Enumeration of supported collection types for extensibility."""
     JOB_POSTINGS = "job_postings"
     COMPANY_PROFILES = "company_profiles"
-    CAREER_BRANDS = "career_brands"
+    CAREER_BRAND = "career_brand"
     INTERVIEW_FEEDBACK = "interview_feedback"
     MARKET_INSIGHTS = "market_insights"
     TECHNICAL_SKILLS = "technical_skills"
     GENERIC_DOCUMENTS = "documents"
+    CAREER_RESEARCH = "career_research"
+    JOB_SEARCH_RESEARCH = "job_search_research"
 
 
 class ChromaCollectionConfig:
@@ -94,19 +96,54 @@ class ChromaManager:
         
         # Career brand documents for personal branding
         self.register_collection_config(ChromaCollectionConfig(
-            name="career_brands",
-            collection_type=CollectionType.CAREER_BRANDS,
+            name="career_brand",
+            collection_type=CollectionType.CAREER_BRAND,
             description="Personal career branding and positioning documents",
             chunk_size=300,
             chunk_overlap=50,
             metadata_schema={
-                "profile_id": "str",
-                "skill_category": "str",
-                "experience_level": "str",
-                "industry_focus": "str"
+                "section": "str",
+                "tags": "str",
+                "title": "str",
+                "type": "str"
             }
         ))
-        
+
+        # Career research documents for users desired career research
+        self.register_collection_config(ChromaCollectionConfig(
+            name="career_research",
+            collection_type=CollectionType.CAREER_RESEARCH,
+            description="Personal career research documents for users desired career research",
+            chunk_size=300,
+            chunk_overlap=50,
+            metadata_schema={
+                "title": "str",
+                "source": "str",
+                "author": "str",
+                "section": "str",
+                "tags": "str",
+                "type": "str"
+            }
+        ))
+
+        # Job search research documents for users desired job search research
+        self.register_collection_config(ChromaCollectionConfig(
+            name="job_search_research",
+            collection_type=CollectionType.JOB_SEARCH_RESEARCH,
+            description="Holds research on candidate career trajectories, required skills, and industry trends.",
+            chunk_size=300,
+            chunk_overlap=50,
+            metadata_schema={
+                "section": "str",
+                "source": "str",
+                "author": "str",
+                "tags": "str",
+                "title": "str",
+                "type": "str"
+            }
+        ))
+
+
         # Generic documents collection for future use
         self.register_collection_config(ChromaCollectionConfig(
             name="documents",

@@ -205,3 +205,58 @@ async def delete_chroma_collection(
             status_code=500, 
             detail=f"Failed to delete collection: {str(e)}"
         )
+
+
+@router.get("/chroma/collections/{collection_name}/documents")
+async def list_collection_documents(
+    collection_name: str,
+    chroma_service: ChromaService = Depends(get_chroma_service)
+):
+    """List all documents in a ChromaDB collection."""
+    try:
+        # Initialize service if needed
+        await chroma_service.initialize()
+        
+        documents = await chroma_service.list_documents(collection_name)
+        
+        return {"documents": documents}
+        
+    except Exception as e:
+        logger.error(f"Failed to list documents in collection '{collection_name}': {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to list documents: {str(e)}"
+        )
+
+
+@router.delete("/chroma/collections/{collection_name}/documents/{document_id}")
+async def delete_collection_document(
+    collection_name: str,
+    document_id: str,
+    chroma_service: ChromaService = Depends(get_chroma_service)
+):
+    """Delete a specific document from a ChromaDB collection."""
+    try:
+        # Initialize service if needed
+        await chroma_service.initialize()
+        
+        success = await chroma_service.delete_document(collection_name, document_id)
+        
+        if success:
+            return create_success_response(
+                message=f"Successfully deleted document '{document_id}' from collection '{collection_name}'"
+            )
+        else:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Document '{document_id}' not found in collection '{collection_name}'"
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete document '{document_id}' from collection '{collection_name}': {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to delete document: {str(e)}"
+        )

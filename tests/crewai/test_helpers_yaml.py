@@ -5,6 +5,7 @@ from unittest.mock import patch
 import types
 import sys
 import os
+from pathlib import Path
 
 import pytest
 
@@ -21,6 +22,15 @@ sys.modules.setdefault("mcp", mcp_stub)
 sys.modules.setdefault("mcp.types", mcp_types_stub)
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+
+PYTHON_SERVICE_PATH = Path(__file__).resolve().parents[2] / "python-service"
+if str(PYTHON_SERVICE_PATH) not in sys.path:
+    sys.path.insert(0, str(PYTHON_SERVICE_PATH))
+
+if "python_service" not in sys.modules:
+    python_service_pkg = types.ModuleType("python_service")
+    python_service_pkg.__path__ = [str(PYTHON_SERVICE_PATH)]
+    sys.modules["python_service"] = python_service_pkg
 
 from python_service.app.services.crewai.job_posting_review.crew import JobPostingReviewCrew, run_crew
 
@@ -49,6 +59,15 @@ def test_run_orchestration_structure(sample_job_posting):
         "pre_filter": {"recommend": True},
         "quick_fit": None,
         "brand_match": None,
+        "final": {
+            "recommend": True,
+            "confidence": "medium",
+            "rationale": "Stubbed rationale",
+        },
+        "personas": [],
+        "tradeoffs": [],
+        "actions": [],
+        "sources": [],
     }
     with patch.object(JobPostingReviewCrew, "run_orchestration", return_value=expected):
         crew = JobPostingReviewCrew()
@@ -62,6 +81,15 @@ def test_run_crew_wrapper(sample_job_posting):
         "pre_filter": {"recommend": True},
         "quick_fit": None,
         "brand_match": None,
+        "final": {
+            "recommend": True,
+            "confidence": "medium",
+            "rationale": "Stubbed rationale",
+        },
+        "personas": [],
+        "tradeoffs": [],
+        "actions": [],
+        "sources": [],
     }
     with patch.object(JobPostingReviewCrew, "run_orchestration", return_value=expected):
         result = run_crew(sample_job_posting)

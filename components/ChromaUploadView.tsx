@@ -1,23 +1,33 @@
-import React, { useState, useRef } from 'react';
-import { DocumentTextIcon, TrashIcon } from './IconComponents';
+import React, { useState, useRef, useEffect } from 'react';
+import { DocumentTextIcon, TrashIcon, EyeIcon } from './IconComponents';
+import * as apiService from '../services/apiService';
+import { CollectionInfo, UploadResponse } from '../types';
 
 interface ChromaUploadProps {
     onBack?: () => void;
 }
 
-interface CollectionInfo {
-    name: string;
-    count: number;
-    metadata?: any;
+interface Document {
+    id: string;
+    title: string;
+    tags: string;
+    created_at: string;
+    chunk_count: number;
 }
 
-interface UploadResponse {
-    success: boolean;
-    message: string;
-    collection_name: string;
-    document_id: string;
-    chunks_created: number;
+interface CollectionDetails extends CollectionInfo {
+    documents?: Document[];
 }
+
+// Predefined collections that users can upload to
+const ALLOWED_COLLECTIONS = [
+    { name: 'job_postings', description: 'Job posting documents for analysis and matching' },
+    { name: 'company_profiles', description: 'Company information and culture analysis' },
+    { name: 'career_brand', description: 'Personal career branding and positioning documents' },
+    { name: 'career_research', description: 'Personal career research documents' },
+    { name: 'job_search_research', description: 'Job search research and strategy documents' },
+    { name: 'documents', description: 'Generic document storage' }
+];
 
 export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
     const [collectionName, setCollectionName] = useState('');
@@ -26,38 +36,13 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
-    const [collections, setCollections] = useState<CollectionInfo[]>([]);
+    const [collections, setCollections] = useState<CollectionDetails[]>([]);
     const [isLoadingCollections, setIsLoadingCollections] = useState(false);
     const [showCollections, setShowCollections] = useState(false);
-    const [metadata, setMetadata] = useState<Record<string, string>>({});
-
+    const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
+    const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
+    
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const addMetadataField = () => {
-        setMetadata(prev => ({ ...prev, [`__key${Object.keys(prev).length}`]: '' }));
-    };
-
-    const updateMetadataKey = (oldKey: string, newKey: string) => {
-        setMetadata(prev => {
-            const updated = { ...prev } as Record<string, string>;
-            const value = updated[oldKey];
-            delete updated[oldKey];
-            updated[newKey] = value;
-            return updated;
-        });
-    };
-
-    const updateMetadataValue = (key: string, value: string) => {
-        setMetadata(prev => ({ ...prev, [key]: value }));
-    };
-
-    const removeMetadataField = (key: string) => {
-        setMetadata(prev => {
-            const updated = { ...prev } as Record<string, string>;
-            delete updated[key];
-            return updated;
-        });
-    };
 
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -95,41 +80,18 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
             formData.append('collection_name', collectionName.trim());
             formData.append('title', title.trim());
             formData.append('tags', tags.trim());
-            const filteredMetadata = Object.entries(metadata).reduce((acc, [k, v]) => {
-                if (k && !k.startsWith('__key') && v) {
-                    acc[k] = v;
-                }
-                return acc;
-            }, {} as Record<string, string>);
-            formData.append('metadata', JSON.stringify(filteredMetadata));
             formData.append('file', selectedFile);
 
-            const response = await fetch('http://localhost:8000/chroma/upload', {
-                method: 'POST',
-                body: formData,
-            });
-
-            const result: UploadResponse = await response.json();
+            const result = await apiService.uploadChromaDocument(formData);
             
-            if (response.ok) {
-                setUploadResult(result);
-                // Clear form on success
-                setCollectionName('');
-                setTitle('');
-                setTags('');
-                setSelectedFile(null);
-                setMetadata({});
-                if (fileInputRef.current) {
-                    fileInputRef.current.value = '';
-                }
-            } else {
-                setUploadResult({
-                    success: false,
-                    message: result.message || 'Upload failed',
-                    collection_name: collectionName,
-                    document_id: '',
-                    chunks_created: 0
-                });
+            setUploadResult(result);
+            // Clear form on success
+            setCollectionName('');
+            setTitle('');
+            setTags('');
+            setSelectedFile(null);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
             }
         } catch (error) {
             console.error('Upload error:', error);
@@ -148,15 +110,8 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
     const loadCollections = async () => {
         setIsLoadingCollections(true);
         try {
-            const response = await fetch('http://localhost:8000/chroma/collections');
-            const result = await response.json();
-            
-            if (response.ok) {
-                setCollections(result.collections || []);
-            } else {
-                console.error('Failed to load collections:', result);
-                setCollections([]);
-            }
+            const result = await apiService.getChromaCollections();
+            setCollections(result.collections || []);
         } catch (error) {
             console.error('Error loading collections:', error);
             setCollections([]);
@@ -165,26 +120,53 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
         }
     };
 
-    const deleteCollection = async (collectionName: string) => {
-        if (!confirm(`Are you sure you want to delete collection "${collectionName}"? This action cannot be undone.`)) {
+    const loadDocuments = async (collectionName: string) => {
+        setIsLoadingDocuments(true);
+        try {
+            const documents = await apiService.getChromaDocuments(collectionName);
+            
+            setCollections(prev => prev.map(col => 
+                col.name === collectionName 
+                    ? { ...col, documents }
+                    : col
+            ));
+        } catch (error) {
+            console.error('Error loading documents:', error);
+        } finally {
+            setIsLoadingDocuments(false);
+        }
+    };
+
+    const deleteDocument = async (collectionName: string, documentId: string) => {
+        if (!confirm('Are you sure you want to delete this document? This action cannot be undone.')) {
             return;
         }
 
         try {
-            const response = await fetch(`http://localhost:8000/chroma/collections/${encodeURIComponent(collectionName)}`, {
-                method: 'DELETE',
-            });
-
-            if (response.ok) {
-                // Reload collections after successful deletion
-                await loadCollections();
-            } else {
-                const result = await response.json();
-                alert(`Failed to delete collection: ${result.message || 'Unknown error'}`);
-            }
+            await apiService.deleteChromaDocument(collectionName, documentId);
+            
+            // Remove from local state
+            setCollections(prev => prev.map(col => 
+                col.name === collectionName 
+                    ? { 
+                        ...col, 
+                        documents: col.documents?.filter(doc => doc.id !== documentId),
+                        count: Math.max(0, col.count - 1)
+                      }
+                    : col
+            ));
         } catch (error) {
             console.error('Delete error:', error);
-            alert(`Failed to delete collection: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            alert(`Failed to delete document: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    };
+
+    const toggleCollectionDocuments = async (collectionName: string) => {
+        if (selectedCollection === collectionName) {
+            setSelectedCollection(null);
+        } else {
+            setSelectedCollection(collectionName);
+            await loadDocuments(collectionName);
         }
     };
 
@@ -193,6 +175,7 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
             await loadCollections();
         }
         setShowCollections(!showCollections);
+        setSelectedCollection(null); // Close any open document views
     };
 
     return (
@@ -224,21 +207,26 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
                 </h2>
 
                 <div className="space-y-4">
-                    {/* Collection Name */}
+                    {/* Collection Selection */}
                     <div>
                         <label htmlFor="collection" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            Collection Name *
+                            Collection *
                         </label>
-                        <input
+                        <select
                             id="collection"
-                            type="text"
                             value={collectionName}
                             onChange={(e) => setCollectionName(e.target.value)}
                             className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="e.g., my-documents, knowledge-base"
-                        />
+                        >
+                            <option value="">Select a collection...</option>
+                            {ALLOWED_COLLECTIONS.map((collection) => (
+                                <option key={collection.name} value={collection.name}>
+                                    {collection.name} - {collection.description}
+                                </option>
+                            ))}
+                        </select>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            Collection will be created if it doesn't exist
+                            Choose from predefined collections optimized for different document types
                         </p>
                     </div>
 
@@ -273,45 +261,6 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                             Separate multiple tags with commas
                         </p>
-                    </div>
-
-                    {/* Metadata */}
-                    <div className="space-y-2">
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                            Metadata (Optional)
-                        </label>
-                        {Object.entries(metadata).map(([key, value], idx) => (
-                            <div key={idx} className="flex items-center space-x-2">
-                                <input
-                                    type="text"
-                                    placeholder="Key"
-                                    value={key.startsWith('__key') ? '' : key}
-                                    onChange={(e) => updateMetadataKey(key, e.target.value)}
-                                    className="flex-1 p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                                <input
-                                    type="text"
-                                    placeholder="Value"
-                                    value={value}
-                                    onChange={(e) => updateMetadataValue(key, e.target.value)}
-                                    className="flex-1 p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => removeMetadataField(key)}
-                                    className="px-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                                >
-                                    Remove
-                                </button>
-                            </div>
-                        ))}
-                        <button
-                            type="button"
-                            onClick={addMetadataField}
-                            className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
-                        >
-                            Add Metadata
-                        </button>
                     </div>
 
                     {/* File Upload */}
@@ -406,7 +355,7 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-200">
-                        Manage Collections
+                        Browse Collections & Documents
                     </h2>
                     <button
                         onClick={toggleCollections}
@@ -423,28 +372,72 @@ export const ChromaUploadView: React.FC<ChromaUploadProps> = ({ onBack }) => {
                         ) : collections.length > 0 ? (
                             <div className="space-y-3">
                                 {collections.map((collection) => (
-                                    <div
-                                        key={collection.name}
-                                        className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700 rounded-md"
-                                    >
-                                        <div className="flex items-center">
-                                            <DocumentTextIcon className="h-5 w-5 text-slate-400 mr-3" />
-                                            <div>
-                                                <p className="font-medium text-slate-800 dark:text-slate-200">
-                                                    {collection.name}
-                                                </p>
-                                                <p className="text-sm text-slate-600 dark:text-slate-400">
-                                                    {collection.count} documents
-                                                </p>
+                                    <div key={collection.name} className="border border-slate-200 dark:border-slate-600 rounded-lg">
+                                        <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700 rounded-t-lg">
+                                            <div className="flex items-center">
+                                                <DocumentTextIcon className="h-5 w-5 text-slate-400 mr-3" />
+                                                <div>
+                                                    <p className="font-medium text-slate-800 dark:text-slate-200">
+                                                        {collection.name}
+                                                    </p>
+                                                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                                                        {collection.count} documents
+                                                    </p>
+                                                </div>
                                             </div>
+                                            <button
+                                                onClick={() => toggleCollectionDocuments(collection.name)}
+                                                className="p-2 text-blue-500 hover:text-blue-700 dark:hover:text-blue-400"
+                                                title="View documents"
+                                            >
+                                                <EyeIcon className="h-4 w-4" />
+                                            </button>
                                         </div>
-                                        <button
-                                            onClick={() => deleteCollection(collection.name)}
-                                            className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400"
-                                            title="Delete collection"
-                                        >
-                                            <TrashIcon className="h-4 w-4" />
-                                        </button>
+                                        
+                                        {/* Documents List */}
+                                        {selectedCollection === collection.name && (
+                                            <div className="p-4 bg-white dark:bg-slate-800 rounded-b-lg border-t border-slate-200 dark:border-slate-600">
+                                                {isLoadingDocuments ? (
+                                                    <p className="text-slate-600 dark:text-slate-400 text-sm">Loading documents...</p>
+                                                ) : collection.documents && collection.documents.length > 0 ? (
+                                                    <div className="space-y-2">
+                                                        <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                                            Documents in {collection.name}:
+                                                        </h4>
+                                                        {collection.documents.map((document) => (
+                                                            <div
+                                                                key={document.id}
+                                                                className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700 rounded-md"
+                                                            >
+                                                                <div className="flex-1">
+                                                                    <p className="font-medium text-slate-800 dark:text-slate-200 text-sm">
+                                                                        {document.title}
+                                                                    </p>
+                                                                    <div className="flex items-center gap-4 text-xs text-slate-600 dark:text-slate-400 mt-1">
+                                                                        {document.tags && (
+                                                                            <span>Tags: {document.tags}</span>
+                                                                        )}
+                                                                        <span>{document.chunk_count} chunks</span>
+                                                                        <span>{new Date(document.created_at).toLocaleDateString()}</span>
+                                                                    </div>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => deleteDocument(collection.name, document.id)}
+                                                                    className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 ml-2"
+                                                                    title="Delete document"
+                                                                >
+                                                                    <TrashIcon className="h-4 w-4" />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-slate-600 dark:text-slate-400 text-sm">
+                                                        No documents found in this collection
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>

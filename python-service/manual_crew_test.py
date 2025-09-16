@@ -81,7 +81,7 @@ def test_crew_config_files():
         with open(agents_file, 'r') as f:
             agents_config = yaml.safe_load(f)
         
-        expected_agents = ['job_intake_agent', 'pre_filter_agent', 'quick_fit_analyst', 'brand_framework_matcher', 'managing_agent']
+        expected_agents = ['pre_filter_agent', 'quick_fit_analyst', 'brand_framework_matcher', 'managing_agent']  # job_intake_agent removed
         found_agents = list(agents_config.keys())
         
         print(f"✓ agents.yaml loaded successfully")
@@ -104,7 +104,7 @@ def test_crew_config_files():
         with open(tasks_file, 'r') as f:
             tasks_config = yaml.safe_load(f)
         
-        expected_tasks = ['intake_task', 'pre_filter_task', 'quick_fit_task', 'brand_match_task', 'orchestration_task']
+        expected_tasks = ['pre_filter_task', 'quick_fit_task', 'brand_match_task', 'orchestration_task']  # intake_task removed
         found_tasks = list(tasks_config.keys())
         
         print(f"✓ tasks.yaml loaded successfully")

@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { StrategicNarrative } from '../types';
-import { LogoIcon, DashboardIcon, ApplicationsIcon, AtomGearIcon, ChatBubbleLeftRightIcon, StrategyIcon, MicrophoneIcon, UsersIcon, ClipboardDocumentListIcon, ClipboardDocumentCheckIcon, CircleStackIcon } from './IconComponents';
+import { LogoIcon, DashboardIcon, ApplicationsIcon, AtomGearIcon, ChatBubbleLeftRightIcon, StrategyIcon, MicrophoneIcon, UsersIcon, ClipboardDocumentListIcon, ClipboardDocumentCheckIcon, CircleStackIcon, ClockIcon } from './IconComponents';
 import { GlobalNarrativeSwitcher } from './GlobalNarrativeSwitcher';
 
 interface SideNavProps {
@@ -28,6 +28,7 @@ const navItems: NavItem[] = [
     { path: '/applications', label: 'Application Lab', icon: ApplicationsIcon },
     { path: '/interview-studio', label: 'Interview Studio', icon: MicrophoneIcon },
     { path: '/brag-bank', label: 'Brag Bank', icon: ClipboardDocumentCheckIcon },
+    { path: '/schedule-management', label: 'Job Scheduler', icon: ClockIcon },
     { path: '/chroma-upload', label: 'ChromaDB Upload', icon: CircleStackIcon },
 ];
 

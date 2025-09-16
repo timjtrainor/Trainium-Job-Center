@@ -167,7 +167,7 @@ async def upload_company_profile(company_profile: CompanyProfileUpload):
 
 @router.post("/career-brand", response_model=ChromaUploadResponse)
 async def upload_career_brand(career_brand: CareerBrandUpload):
-    """Upload a career brand document to the career_brands collection."""
+    """Upload a career brand document to the career_brand collection."""
     try:
         service = get_chroma_integration_service()
         await service.initialize()
@@ -176,16 +176,54 @@ async def upload_career_brand(career_brand: CareerBrandUpload):
             title=career_brand.title,
             content=career_brand.content,
             profile_id=career_brand.profile_id,
-            skill_category=career_brand.skill_category,
-            experience_level=career_brand.experience_level,
-            industry_focus=career_brand.industry_focus,
-            additional_metadata=career_brand.metadata
+            section=career_brand.section
         )
         
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload career brand document: {str(e)}")
 
+
+@router.post("/career-paths", response_model=ChromaUploadResponse)
+async def upload_career_paths(career_paths: CareerBrandUpload):
+    """Upload a career path document to the career_paths collection."""
+    try:
+        service = get_chroma_integration_service()
+        await service.initialize()
+
+        result = await service.add_career_path_document(
+            title=career_paths.title,
+            content=career_paths.content,
+            source=career_paths.source,
+            author=career_paths.author,
+            section=career_paths.section,
+            profile_id=career_paths.profile_id
+        )
+
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload career path document: {str(e)}")
+
+
+@router.post("/job-search-strategies", response_model=ChromaUploadResponse)
+async def upload_job_search_strategies(job_search_strategies: CareerBrandUpload):
+    """Upload a job search strategy document to the job_search_strategies collection."""
+    try:
+        service = get_chroma_integration_service()
+        await service.initialize()
+
+        result = await service.add_job_search_strategies_document(
+            title=job_search_strategies.title,
+            content=job_search_strategies.content,
+            source=job_search_strategies.source,
+            author=job_search_strategies.author,
+            section=job_search_strategies.section,
+            profile_id=job_search_strategies.profile_id
+        )
+
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload job search strategy document: {str(e)}")
 
 @router.post("/bulk-job-postings")
 async def bulk_upload_job_postings(bulk_request: BulkJobPostingUpload, background_tasks: BackgroundTasks):
