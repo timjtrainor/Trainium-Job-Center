@@ -39,12 +39,11 @@ north_star_matcher:
   tools: []  # Tools provided via crew.py
   memory: false
   max_iter: 1
-  max_execution_time: 20
   llm: "openai/gpt-5-mini"
 
 trajectory_mastery_matcher:
   role: >
-    Trajectory & Mastery Alignment Specialist  
+    Trajectory & Mastery Alignment Specialist
   goal: >
     Evaluate job alignment with the candidate's skill development path and mastery goals.
     Focus specifically on Trajectory & Mastery career brand dimension.
@@ -59,7 +58,6 @@ trajectory_mastery_matcher:
   tools: []  # Tools provided via crew.py
   memory: false
   max_iter: 1
-  max_execution_time: 20
   llm: "openai/gpt-5-mini"
 
 values_compass_matcher:
@@ -79,7 +77,6 @@ values_compass_matcher:
   tools: []  # Tools provided via crew.py
   memory: false
   max_iter: 1
-  max_execution_time: 20
   llm: "openai/gpt-5-mini"
 
 lifestyle_alignment_matcher:
@@ -99,7 +96,6 @@ lifestyle_alignment_matcher:
   tools: []  # Tools provided via crew.py
   memory: false
   max_iter: 1
-  max_execution_time: 20
   llm: "openai/gpt-5-mini"
 
 compensation_philosophy_matcher:
@@ -119,7 +115,6 @@ compensation_philosophy_matcher:
   tools: []  # Tools provided via crew.py
   memory: false
   max_iter: 1
-  max_execution_time: 20
   llm: "openai/gpt-5-mini"
 
 # Manager Agent for combining specialist results
@@ -141,10 +136,12 @@ brand_match_manager:
     - lifestyle_alignment: 0.15 (15%)
     - compensation_philosophy: 0.25 (25%)
     
+    overall_alignment_score >= 8.5 recommended with high confidence
+    overall_alignment_score >= 7.0 recommended with medium confidence
+    
     Provide a balanced overall summary that highlights key strengths and concerns across dimensions.
   memory: false
   max_iter: 1
-  max_execution_time: 30
   llm: "openai/gpt-5-mini"
 
 managing_agent:
