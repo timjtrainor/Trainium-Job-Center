@@ -153,8 +153,7 @@ services:
     build:
       context: ./python-service
       dockerfile: Dockerfile
-    image: python-service
-    container_name: trainium_worker
+    image: python-service:latest
     entrypoint: ["python", "worker.py"]
     environment:
       # Environment configuration for worker
@@ -174,6 +173,8 @@ services:
       REDIS_DB: ${REDIS_DB:-0}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+    deploy:
+      replicas: 5   # Number of workers
     depends_on:
       redis:
         condition: service_healthy

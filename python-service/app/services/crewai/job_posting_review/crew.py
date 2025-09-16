@@ -157,24 +157,52 @@ class JobPostingReviewCrew:
     agents_config = "config/agents.yaml"
     tasks_config = "config/tasks.yaml"
 
-    # === Specialists (job_intake_agent removed - data already structured) ===
-    # job_intake_agent removed - job data is already structured from database
+    # === Specialists (quick_fit_analyst removed, pre_filter and brand specialist agents added) ===
 
     @agent
     def pre_filter_agent(self) -> Agent:
         return Agent(config=self.agents_config["pre_filter_agent"])  # type: ignore[index]
 
+    # === Brand Dimension Specialists ===
     @agent
-    def quick_fit_analyst(self) -> Agent:
+    def north_star_matcher(self) -> Agent:
         return Agent(
-            config=self.agents_config["quick_fit_analyst"],  # type: ignore[index]
+            config=self.agents_config["north_star_matcher"],  # type: ignore[index]
+            tools=get_career_brand_tools(),
         )
 
     @agent
-    def brand_framework_matcher(self) -> Agent:
+    def trajectory_mastery_matcher(self) -> Agent:
         return Agent(
-            config=self.agents_config["brand_framework_matcher"],  # type: ignore[index]
+            config=self.agents_config["trajectory_mastery_matcher"],  # type: ignore[index]
             tools=get_career_brand_tools(),
+        )
+
+    @agent
+    def values_compass_matcher(self) -> Agent:
+        return Agent(
+            config=self.agents_config["values_compass_matcher"],  # type: ignore[index]
+            tools=get_career_brand_tools(),
+        )
+
+    @agent
+    def lifestyle_alignment_matcher(self) -> Agent:
+        return Agent(
+            config=self.agents_config["lifestyle_alignment_matcher"],  # type: ignore[index]
+            tools=get_career_brand_tools(),
+        )
+
+    @agent
+    def compensation_philosophy_matcher(self) -> Agent:
+        return Agent(
+            config=self.agents_config["compensation_philosophy_matcher"],  # type: ignore[index]
+            tools=get_career_brand_tools(),
+        )
+
+    @agent
+    def brand_match_manager(self) -> Agent:
+        return Agent(
+            config=self.agents_config["brand_match_manager"],  # type: ignore[index]
         )
 
     # === Legacy Manager (unused) ===
@@ -185,8 +213,7 @@ class JobPostingReviewCrew:
             allow_delegation=True,
         )
 
-    # === Tasks (intake_task removed - data already structured) ===
-    # intake_task removed - job data is already structured from database
+    # === Tasks (quick_fit_task removed, pre_filter and specialized brand tasks added) ===
 
     @task
     def pre_filter_task(self) -> Task:
@@ -195,18 +222,59 @@ class JobPostingReviewCrew:
             agent=self.pre_filter_agent(),
         )
 
-    @task
-    def quick_fit_task(self) -> Task:
+    # === Brand Dimension Tasks (run in parallel) ===
+    @task  
+    def north_star_task(self) -> Task:
         return Task(
-            config=self.tasks_config["quick_fit_task"],  # type: ignore[index]
-            agent=self.quick_fit_analyst(),
+            config=self.tasks_config["north_star_task"],  # type: ignore[index]
+            agent=self.north_star_matcher(),
+            async_execution=True,
+        )
+
+    @task
+    def trajectory_mastery_task(self) -> Task:
+        return Task(
+            config=self.tasks_config["trajectory_mastery_task"],  # type: ignore[index]
+            agent=self.trajectory_mastery_matcher(),
+            async_execution=True,
+        )
+
+    @task
+    def values_compass_task(self) -> Task:
+        return Task(
+            config=self.tasks_config["values_compass_task"],  # type: ignore[index]
+            agent=self.values_compass_matcher(),
+            async_execution=True,
+        )
+
+    @task
+    def lifestyle_alignment_task(self) -> Task:
+        return Task(
+            config=self.tasks_config["lifestyle_alignment_task"],  # type: ignore[index]
+            agent=self.lifestyle_alignment_matcher(),
+            async_execution=True,
+        )
+
+    @task
+    def compensation_philosophy_task(self) -> Task:
+        return Task(
+            config=self.tasks_config["compensation_philosophy_task"],  # type: ignore[index]
+            agent=self.compensation_philosophy_matcher(),
+            async_execution=True,
         )
 
     @task
     def brand_match_task(self) -> Task:
         return Task(
             config=self.tasks_config["brand_match_task"],  # type: ignore[index]
-            agent=self.brand_framework_matcher(),
+            agent=self.brand_match_manager(),
+            context=[
+                self.north_star_task(),
+                self.trajectory_mastery_task(),
+                self.values_compass_task(),
+                self.lifestyle_alignment_task(),
+                self.compensation_philosophy_task(),
+            ],
         )
 
     @task
@@ -232,7 +300,7 @@ class JobPostingReviewCrew:
         return {"raw": raw}
 
     def run_orchestration(self, job_posting: dict) -> Dict[str, Any]:
-        """Execute optimized pipeline: pre-filter → quick-fit → brand match (if needed)."""
+        """Execute optimized pipeline: pre-filter → parallel brand matching → final recommendation."""
 
         def _dedupe(items: list[Any]) -> list[Any]:
             seen: set[Any] = set()
@@ -248,25 +316,38 @@ class JobPostingReviewCrew:
         def _persona_label(agent_id: str) -> str:
             labels = {
                 "pre_filter_agent": "Pre-filter",
-                "quick_fit_analyst": "Quick fit analyst",
-                "brand_framework_matcher": "Brand matcher",
+                "brand_match_manager": "Brand alignment specialist",
             }
             if agent_id in labels:
                 return labels[agent_id]
             return agent_id.replace("_", " ").title()
 
         crew = self.crew()
-        pre, quick, brand = crew.tasks  # Skip intake task - data already structured
         job_str = json.dumps(job_posting, default=float)
 
-        # Start directly with pre-filter since job data is already structured
-        pre_output = pre.execute_sync(context=job_str)
-        pre_json = self._parse_task_output(pre_output)
+        # Execute pre-filter first
+        pre_filter_task = None
+        brand_task = None
+        
+        for task in crew.tasks:
+            if hasattr(task, 'config') and 'pre_filter_task' in str(task.config):
+                pre_filter_task = task
+            elif hasattr(task, 'config') and 'brand_match_task' in str(task.config):
+                brand_task = task
+
+        if not pre_filter_task or not brand_task:
+            # Fallback to index-based access if we can't find by config
+            pre_filter_task = crew.tasks[0]  # pre_filter_task is first
+            brand_task = crew.tasks[-1]  # brand_match_task is last
 
         personas: list[Dict[str, Any]] = []
         tradeoffs: list[str] = []
         actions: list[str] = []
         sources: list[str] = []
+
+        # Execute pre-filter analysis
+        pre_output = pre_filter_task.execute_sync(context=job_str)
+        pre_json = self._parse_task_output(pre_output)
 
         pre_recommend = bool(pre_json.get("recommend"))
         pre_reason = pre_json.get("reason") or pre_json.get("rationale")
@@ -293,9 +374,9 @@ class JobPostingReviewCrew:
             }
 
             return JobPostingReviewOutput(
-                job_intake=job_posting,  # Use original data since intake agent removed
+                job_intake=job_posting,
                 pre_filter=pre_json,
-                quick_fit=None,
+                quick_fit=None, # Not used with new architecture
                 brand_match=None,
                 final=final_block,
                 personas=personas,
@@ -304,103 +385,49 @@ class JobPostingReviewCrew:
                 sources=sources,
             ).model_dump()
 
-        # Continue with quick fit analysis
-        quick_output = quick.execute_sync(context=job_str)
-        quick_json = self._parse_task_output(quick_output)
+        # Execute brand matching (parallel specialist tasks + manager)
+        brand_output = brand_task.execute_sync(context=job_str)
+        brand_json = self._parse_task_output(brand_output)
+        brand_has_structured = bool(brand_json) and set(brand_json.keys()) != {"raw"}
 
-        quick_has_structured = bool(quick_json) and set(quick_json.keys()) != {"raw"}
-        quick_recommendation = (
-            str(quick_json.get("quick_recommendation", "")).lower()
-            if quick_has_structured
-            else ""
-        )
-        quick_overall = (
-            str(quick_json.get("overall_fit", "")).lower()
-            if quick_has_structured
-            else ""
-        )
+        if brand_has_structured:
+            # Use brand_match_manager's recommendation and confidence directly
+            brand_recommend = brand_json.get("recommend", False)
+            brand_confidence = brand_json.get("confidence", "medium")
+            brand_summary = brand_json.get("overall_summary", "Brand assessment completed")
+            
+            # Fallback for legacy format if new format not present
+            if brand_summary == "Brand assessment completed":
+                brand_summary = brand_json.get("alignment_summary", "Brand assessment completed")
 
-        # Use concise reason from quick fit
-        quick_reason = quick_json.get("key_reason", "Quick assessment completed")
-        if not quick_reason and quick_overall:
-            quick_reason = f"Overall fit: {quick_overall}"
-
-        quick_persona_recommend = True
-        if quick_recommendation == "reject" or quick_overall == "low":
-            quick_persona_recommend = False
-        elif quick_recommendation == "review_deeper":
-            quick_persona_recommend = False
-
-        if quick_has_structured:
             personas.append(
                 {
-                    "id": "quick_fit_analyst",
-                    "recommend": quick_persona_recommend,
-                    "reason": quick_reason,
+                    "id": "brand_match_manager",
+                    "recommend": brand_recommend,
+                    "reason": brand_summary,
                 }
             )
-            sources.append("quick_fit_analyst")
+            sources.append("brand_match_manager")
 
-            # Minimal tradeoffs/actions for conciseness
-            if quick_overall == "low":
-                tradeoffs.append("Low overall fit rating")
-            if quick_recommendation == "approve":
-                actions.append("Proceed with application")
-            elif quick_recommendation == "reject":
-                actions.append("Skip this opportunity")
-
-        # Brand match only if needed
-        brand_json = {}
-        brand_has_structured = False
-        
-        if quick_recommendation == "review_deeper":
-            brand_output = brand.execute_sync(context=job_str)
-            brand_json = self._parse_task_output(brand_output)
-            brand_has_structured = bool(brand_json) and set(brand_json.keys()) != {"raw"}
-
-            if brand_has_structured:
-                brand_score = brand_json.get("brand_alignment_score")
-                brand_summary = brand_json.get("alignment_summary", "Brand assessment completed")
+            # Add tradeoffs based on score, not recommendation
+            overall_score = brand_json.get("overall_alignment_score") or brand_json.get("brand_alignment_score")
+            if isinstance(overall_score, (int, float)) and overall_score < 7:
+                tradeoffs.append("Brand alignment concerns")
                 
-                brand_support = True
-                if isinstance(brand_score, (int, float)) and brand_score <= 4:
-                    brand_support = False
+            # Include detailed brand analysis data
+            if "north_star" in brand_json:
+                brand_json["detailed_analysis"] = True
 
-                personas.append(
-                    {
-                        "id": "brand_framework_matcher",
-                        "recommend": brand_support,
-                        "reason": brand_summary,
-                    }
-                )
-                sources.append("brand_framework_matcher")
-
-                if isinstance(brand_score, (int, float)) and brand_score < 7:
-                    tradeoffs.append("Brand alignment concerns")
-
-        # Final decision logic
-        executed_personas = [p for p in personas if p.get("recommend") is not None]
-        total_votes = len(executed_personas)
-        positive_votes = sum(1 for p in executed_personas if p["recommend"])
-
-        final_recommend = positive_votes >= (total_votes / 2)
-        
-        # Override based on specific recommendations
-        if quick_recommendation == "reject":
-            final_recommend = False
-        elif quick_recommendation == "review_deeper" and brand_has_structured:
-            brand_score = brand_json.get("brand_alignment_score")
-            if isinstance(brand_score, (int, float)) and brand_score <= 4:
-                final_recommend = False
-
-        # Concise confidence calculation
-        if total_votes <= 1:
-            confidence = "medium"
+        # Final decision logic - use brand_match_manager's decision
+        if brand_has_structured:
+            final_recommend = brand_recommend
+            confidence = brand_confidence
         else:
-            consensus_ratio = abs(positive_votes * 2 - total_votes) / total_votes
-            confidence = "high" if consensus_ratio >= 0.5 else "medium"
+            # Fallback to pre-filter only if no brand matching
+            final_recommend = personas[0].get("recommend", False) if personas else False
+            confidence = "medium"
 
-        # Concise rationale - just the key reasons
+        # Concise rationale - key reasons
         key_reasons = []
         for persona in personas:
             if persona.get("reason") and len(key_reasons) < 2:  # Limit to 2 key reasons
@@ -415,9 +442,9 @@ class JobPostingReviewCrew:
         }
 
         return JobPostingReviewOutput(
-            job_intake=job_posting,  # Use original data since intake agent removed
+            job_intake=job_posting,
             pre_filter=pre_json,
-            quick_fit=quick_json,
+            quick_fit=None,  # Not used with new architecture
             brand_match=brand_json,
             final=final_block,
             personas=personas,
@@ -426,22 +453,32 @@ class JobPostingReviewCrew:
             sources=_dedupe(sources),
         ).model_dump()
 
-    # === Crew (optimized without job_intake_agent) ===
     @crew
     def crew(self) -> Crew:
         return Crew(
             agents=[
                 self.pre_filter_agent(),
-                self.quick_fit_analyst(),
-                self.brand_framework_matcher(),
+                # Brand dimension specialists
+                self.north_star_matcher(),
+                self.trajectory_mastery_matcher(),
+                self.values_compass_matcher(),
+                self.lifestyle_alignment_matcher(),
+                self.compensation_philosophy_matcher(),
+                self.brand_match_manager(),
             ],
             tasks=[
                 self.pre_filter_task(),
-                self.quick_fit_task(),
+                # Parallel brand dimension tasks
+                self.north_star_task(),
+                self.trajectory_mastery_task(),
+                self.values_compass_task(),
+                self.lifestyle_alignment_task(),
+                self.compensation_philosophy_task(),
+                # Manager task that combines parallel results
                 self.brand_match_task(),
             ],
-            process=Process.sequential,
-            verbose=True,  # Enable verbose to ensure proper EventBus initialization
+            process=Process.sequential,  # Tasks will handle async execution internally
+            verbose=True,
         )
 
 
