@@ -108,7 +108,7 @@ brand_match_task:
     
     Provide a balanced overall summary highlighting key strengths and concerns.
   expected_output: >
-    Comprehensive JSON with all dimensions plus weighted overall assessment:
+    Comprehensive JSON with all dimensions plus weighted overall assessment and recommendation:
     {
       "north_star": {"score": 0-10, "summary": "Brief North Star & Vision assessment"},
       "trajectory_mastery": {"score": 0-10, "summary": "Brief Trajectory & Mastery assessment"},
@@ -116,7 +116,9 @@ brand_match_task:
       "lifestyle_alignment": {"score": 0-10, "summary": "Brief Lifestyle Alignment assessment"},
       "compensation_philosophy": {"score": 0-10, "summary": "Brief Compensation Philosophy assessment"},
       "overall_alignment_score": 0-10,
-      "overall_summary": "Balanced 1-2 sentence summary highlighting key insights"
+      "overall_summary": "Balanced 1-2 sentence summary highlighting key insights",
+      "recommend": true/false,
+      "confidence": "high/medium/low"
     }
   agent: brand_match_manager
   context: [north_star_task, trajectory_mastery_task, values_compass_task, lifestyle_alignment_task, compensation_philosophy_task]

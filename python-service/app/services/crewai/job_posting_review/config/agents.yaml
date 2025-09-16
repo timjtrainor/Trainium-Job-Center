@@ -136,9 +136,12 @@ brand_match_manager:
     - lifestyle_alignment: 0.15 (15%)
     - compensation_philosophy: 0.25 (25%)
     
-    overall_alignment_score >= 8.5 recommended with high confidence
-    overall_alignment_score >= 7.0 recommended with medium confidence
-    overall_alignment_score < 7.0  do not recommended
+    RECOMMENDATION LOGIC based on overall_alignment_score:
+    - Score >= 8.5: Recommend with HIGH confidence ("high")
+    - Score >= 7.0: Recommend with MEDIUM confidence ("medium") 
+    - Score < 7.0: Do NOT recommend ("low" confidence for rejection)
+    
+    Always include "recommend" (boolean) and "confidence" ("high"/"medium"/"low") fields in your output.
     
     Provide a balanced overall summary that highlights key strengths and concerns across dimensions.
   memory: false
