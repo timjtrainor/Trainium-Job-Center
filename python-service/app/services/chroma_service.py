@@ -311,3 +311,71 @@ class ChromaService:
         except Exception as e:
             logger.error(f"Failed to delete collection '{collection_name}': {e}")
             return False
+    
+    async def list_documents(self, collection_name: str) -> List[dict]:
+        """List all documents in a ChromaDB collection."""
+        try:
+            client = self._get_client()
+            collection = client.get_collection(collection_name)
+            
+            # Get all documents (ChromaDB has a limit, so we might need to implement pagination)
+            result = collection.get(include=["metadatas", "documents"])
+            
+            documents = []
+            if result["ids"]:
+                for i, doc_id in enumerate(result["ids"]):
+                    metadata = result["metadatas"][i] if result["metadatas"] else {}
+                    
+                    # Extract document metadata for display
+                    documents.append({
+                        "id": metadata.get("doc_id", doc_id.split("::")[0] if "::" in doc_id else doc_id),
+                        "title": metadata.get("title", "Untitled"),
+                        "tags": metadata.get("tags", ""),
+                        "created_at": metadata.get("created_at", ""),
+                        "chunk_count": 1,  # This is a chunk, real count would need aggregation
+                        "type": metadata.get("type", "document")
+                    })
+            
+            # Group by doc_id to get accurate document counts
+            grouped_docs = {}
+            for doc in documents:
+                doc_id = doc["id"]
+                if doc_id in grouped_docs:
+                    grouped_docs[doc_id]["chunk_count"] += 1
+                else:
+                    grouped_docs[doc_id] = doc
+            
+            return list(grouped_docs.values())
+            
+        except Exception as e:
+            logger.error(f"Failed to list documents in collection '{collection_name}': {e}")
+            return []
+    
+    async def delete_document(self, collection_name: str, document_id: str) -> bool:
+        """Delete a specific document from a ChromaDB collection."""
+        try:
+            client = self._get_client()
+            collection = client.get_collection(collection_name)
+            
+            # Get all chunk IDs for this document
+            result = collection.get(include=["metadatas"])
+            chunk_ids_to_delete = []
+            
+            for i, chunk_id in enumerate(result["ids"]):
+                metadata = result["metadatas"][i] if result["metadatas"] else {}
+                doc_id = metadata.get("doc_id", chunk_id.split("::")[0] if "::" in chunk_id else chunk_id)
+                
+                if doc_id == document_id:
+                    chunk_ids_to_delete.append(chunk_id)
+            
+            if chunk_ids_to_delete:
+                collection.delete(ids=chunk_ids_to_delete)
+                logger.info(f"Successfully deleted document '{document_id}' ({len(chunk_ids_to_delete)} chunks) from collection '{collection_name}'")
+                return True
+            else:
+                logger.warning(f"Document '{document_id}' not found in collection '{collection_name}'")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Failed to delete document '{document_id}' from collection '{collection_name}': {e}")
+            return False

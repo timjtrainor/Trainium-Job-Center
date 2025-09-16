@@ -1,9 +1,9 @@
 // This file contains constants for the application.
 
-// Placeholder for the PostgREST server URL.
-// In a real-world scenario, this would come from an environment variable.
-export const API_BASE_URL = 'http://localhost:3000';
-export const FASTAPI_BASE_URL = 'http://localhost:8000'
+// Use absolute paths for development to bypass proxy issues.
+// NOTE: Your backend services must have CORS configured to allow requests from the frontend origin.
+export const API_BASE_URL = 'http://localhost:3000'; // PostgREST
+export const FASTAPI_BASE_URL = 'http://localhost:8000'; // FastAPI
 
 // Hardcoded user ID for the single-user version of the app.
 // This allows the data model to be ready for multi-user in the future.

@@ -1,14 +1,14 @@
 import { 
-    JobApplication, Company, BaseResume, Status, CompanyPayload, JobApplicationPayload,
-    BaseResumePayload, Contact, ContactPayload, Message, MessagePayload, Interview,
-    InterviewPayload, LinkedInPost, LinkedInPostPayload, UserProfile,
-    UserProfilePayload, LinkedInEngagement, PostResponse, PostResponsePayload,
+    JobApplication, Company, BaseResume, Status, CompanyPayload, JobApplicationPayload, 
+    BaseResumePayload, Contact, ContactPayload, Message, MessagePayload, Interview, 
+    InterviewPayload, LinkedInPost, LinkedInPostPayload, UserProfile, 
+    UserProfilePayload, LinkedInEngagement, PostResponse, PostResponsePayload, 
     LinkedInEngagementPayload, StandardJobRole, StandardJobRolePayload, Resume, ResumeHeader, DateInfo, Education, Certification,
     StrategicNarrative, StrategicNarrativePayload, Offer, OfferPayload,
     BragBankEntry, BragBankEntryPayload, SkillTrend, SkillTrendPayload,
     Sprint, SprintAction, CreateSprintPayload, SprintActionPayload, ApplicationQuestion,
     SiteSchedule, SiteDetails, SiteSchedulePayload,
-    CollectionInfo, UploadResponse, CompanyReport
+    CollectionInfo, UploadResponse
 } from '../types';
 import { API_BASE_URL, USER_ID, FASTAPI_BASE_URL } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -389,16 +389,6 @@ export const updateCompany = async (companyId: string, companyData: Partial<Comp
     
     // Re-fetch the full object for consistency
     return getCompany(companyId);
-};
-
-export const getCompanyReport = async (companyName: string): Promise<CompanyReport> => {
-    const response = await fetch(`${FASTAPI_BASE_URL}/company/report`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ company_name: companyName }),
-    });
-    const data = await handleResponse(response);
-    return data.report as CompanyReport;
 };
 
 // --- Resumes ---
@@ -1260,22 +1250,26 @@ export const getSiteSchedules = async (): Promise<SiteSchedule[]> => {
 };
 
 export const getJobSites = async (): Promise<SiteDetails[]> => {
-    // Scraper configuration (site definitions) comes from the FastAPI backend.
     const response = await fetch(`${FASTAPI_BASE_URL}/job-feed/sites`);
-    const data = await handleResponse(response);
-    
-    // Handle cases where the API returns an object with a 'sites' key
-    if (data && Array.isArray(data.sites)) {
-        return data.sites;
+    const rawData = await handleResponse(response);
+
+    if (rawData && rawData.status === 'success' && rawData.data) {
+        // The data is an object of objects, where the key is the site id (e.g., 'indeed')
+        // and the value is the site details.
+        // We need to convert this into an array of SiteDetails.
+        return Object.values(rawData.data).map((site: any) => ({
+            site_name: site.name,
+            supports_remote: site.supports_remote,
+            supports_salary_filter: site.supports_salary_filter,
+            requires: site.requires || [],
+            optional: site.optional || [],
+            conflicts: site.conflicts || [],
+            notes: site.notes || []
+        }));
     }
-    
-    // Handle cases where the API returns the array directly
-    if (Array.isArray(data)) {
-        return data;
-    }
-    
-    // If the response is unexpected, return an empty array to prevent crashes
-    console.warn('Unexpected data format for sites from API:', data);
+
+    console.warn('Unexpected data format for sites from API:', rawData);
+    // If the format is unexpected or status is not 'success', return an empty array.
     return [];
 };
 
@@ -1316,6 +1310,19 @@ export const getChromaCollections = async (): Promise<{ collections: CollectionI
 
 export const deleteChromaCollection = async (collectionName: string): Promise<void> => {
     const response = await fetch(`${FASTAPI_BASE_URL}/chroma/collections/${encodeURIComponent(collectionName)}`, {
+        method: 'DELETE',
+    });
+    await handleResponse(response);
+};
+
+export const getChromaDocuments = async (collectionName: string): Promise<any[]> => {
+    const response = await fetch(`${FASTAPI_BASE_URL}/chroma/collections/${encodeURIComponent(collectionName)}/documents`);
+    const result = await handleResponse(response);
+    return result?.documents || [];
+};
+
+export const deleteChromaDocument = async (collectionName: string, documentId: string): Promise<void> => {
+    const response = await fetch(`${FASTAPI_BASE_URL}/chroma/collections/${encodeURIComponent(collectionName)}/documents/${encodeURIComponent(documentId)}`, {
         method: 'DELETE',
     });
     await handleResponse(response);

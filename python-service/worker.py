@@ -40,10 +40,10 @@ def main():
         redis_conn.ping()
         logger.info("Redis connection established")
         
-        # Create and start worker
+        # Create and start worker for both queues
         with Connection(redis_conn):
-            worker = Worker([settings.rq_queue_name])
-            logger.info(f"Worker started for queue: {settings.rq_queue_name}")
+            worker = Worker([settings.rq_queue_name, settings.job_review_queue_name])
+            logger.info(f"Worker started for queues: {settings.rq_queue_name}, {settings.job_review_queue_name}")
             worker.work()
             
     except KeyboardInterrupt:

@@ -82,6 +82,15 @@ class Settings:
         self.rq_queue_name: str = os.getenv("RQ_QUEUE_NAME", "scraping")
         self.rq_result_ttl: int = int(os.getenv("RQ_RESULT_TTL", "3600"))  # 1 hour
         self.rq_job_timeout: int = int(os.getenv("RQ_JOB_TIMEOUT", "900"))  # 15 minutes
+        
+        # Job Review Queue Configuration
+        self.job_review_queue_name: str = os.getenv("JOB_REVIEW_QUEUE_NAME", "job_review")
+        self.job_review_batch_size: int = int(os.getenv("JOB_REVIEW_BATCH_SIZE", "20"))
+        self.job_review_max_retries: int = int(os.getenv("JOB_REVIEW_MAX_RETRIES", "3"))
+        self.job_review_retry_delay: int = int(os.getenv("JOB_REVIEW_RETRY_DELAY", "300"))  # 5 minutes
+        
+        # Poller Configuration
+        self.poll_interval_minutes: int = int(os.getenv("POLL_INTERVAL_MINUTES", "5"))  # Default 5 min
 
         # Environment-based configuration
         self.environment: str = os.getenv("ENVIRONMENT", "development")

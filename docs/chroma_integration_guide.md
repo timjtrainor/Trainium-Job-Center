@@ -31,11 +31,13 @@ The system supports multiple predefined collection types:
 
 - `job_postings` - Job posting documents for analysis and matching
 - `company_profiles` - Company information and culture analysis  
-- `career_brands` - Personal career branding and positioning documents
+- `career_brand` - Personal career branding and positioning document
 - `interview_feedback` - Interview experiences and feedback (future use)
 - `market_insights` - Industry and market analysis (future use)
 - `technical_skills` - Technical documentation and skill assessments (future use)
 - `documents` - Generic document storage
+- `career_paths` - Holds research on candidate career trajectories, required skills, and industry trends.
+- `job_search_stategies` Stores tactics, frameworks, and best practices for effective job hunting
 
 ## Quick Start
 

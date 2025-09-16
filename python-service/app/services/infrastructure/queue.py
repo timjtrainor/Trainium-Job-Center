@@ -9,7 +9,7 @@ from loguru import logger
 
 from ...core.config import get_settings
 from .database import get_database_service
-from .worker import scrape_jobs_worker
+from .worker import scrape_jobs_worker, process_job_review
 
 
 class QueueService:
@@ -18,7 +18,8 @@ class QueueService:
     def __init__(self):
         self.settings = get_settings()
         self.redis_conn: Optional[redis.Redis] = None
-        self.queue: Optional[Queue] = None
+        self.queue: Optional[Queue] = None  # Main scraping queue
+        self.review_queue: Optional[Queue] = None  # Job review queue
         self.initialized = False
 
     async def initialize(self) -> bool:
@@ -39,8 +40,15 @@ class QueueService:
                 default_timeout=self.settings.rq_job_timeout
             )
             
+            # Create job review queue
+            self.review_queue = Queue(
+                name=self.settings.job_review_queue_name,
+                connection=self.redis_conn,
+                default_timeout=self.settings.rq_job_timeout
+            )
+            
             self.initialized = True
-            logger.info(f"Queue service initialized - Queue: {self.settings.rq_queue_name}")
+            logger.info(f"Queue service initialized - Scraping queue: {self.settings.rq_queue_name}, Review queue: {self.settings.job_review_queue_name}")
             return True
             
         except Exception as e:
@@ -107,6 +115,61 @@ class QueueService:
             logger.error(f"Failed to enqueue scraping job: {str(e)}")
             return None
 
+    def enqueue_job_review(self, job_id: str, max_retries: int = 3) -> Optional[str]:
+        """
+        Enqueue a job for review processing.
+        
+        Args:
+            job_id: UUID of the job to review
+            max_retries: Maximum number of retry attempts
+            
+        Returns:
+            Task ID if successful, None if failed
+        """
+        if not self.initialized:
+            logger.error("Queue service not initialized")
+            return None
+            
+        try:
+            job = self.review_queue.enqueue(
+                process_job_review,
+                job_id,
+                max_retries,
+                job_timeout=self.settings.rq_job_timeout,
+                result_ttl=self.settings.rq_result_ttl
+            )
+            
+            logger.info(f"Enqueued job review - job_id: {job_id}, task_id: {job.id}")
+            return job.id
+            
+        except Exception as e:
+            logger.error(f"Failed to enqueue job review for {job_id}: {str(e)}")
+            return None
+
+    def enqueue_multiple_job_reviews(self, job_ids: List[str], max_retries: int = 3) -> Dict[str, Optional[str]]:
+        """
+        Enqueue multiple jobs for review processing.
+        
+        Args:
+            job_ids: List of job UUIDs to review
+            max_retries: Maximum number of retry attempts per job
+            
+        Returns:
+            Dictionary mapping job_id to task_id (or None if failed)
+        """
+        if not self.initialized:
+            logger.error("Queue service not initialized")
+            return {}
+        
+        results = {}
+        for job_id in job_ids:
+            task_id = self.enqueue_job_review(job_id, max_retries)
+            results[job_id] = task_id
+            
+        successful = sum(1 for task_id in results.values() if task_id is not None)
+        logger.info(f"Enqueued {successful}/{len(job_ids)} job reviews successfully")
+        return results
+
     def get_job_status(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Get status of a queued job."""
         if not self.initialized:
@@ -129,20 +192,52 @@ class QueueService:
             logger.error(f"Failed to get job status for {task_id}: {str(e)}")
             return None
 
-    def get_queue_info(self) -> Dict[str, Any]:
-        """Get information about the queue."""
+    def get_queue_info(self, queue_name: Optional[str] = None) -> Dict[str, Any]:
+        """Get information about the queue(s)."""
         if not self.initialized:
             return {}
         
         try:
-            return {
-                "name": self.queue.name,
-                "length": len(self.queue),
-                "started_jobs": self.queue.started_job_registry.count,
-                "finished_jobs": self.queue.finished_job_registry.count,
-                "failed_jobs": self.queue.failed_job_registry.count,
-                "deferred_jobs": self.queue.deferred_job_registry.count
-            }
+            if queue_name == "review" or queue_name == self.settings.job_review_queue_name:
+                # Return review queue info
+                return {
+                    "name": self.review_queue.name,
+                    "length": len(self.review_queue),
+                    "started_jobs": self.review_queue.started_job_registry.count,
+                    "finished_jobs": self.review_queue.finished_job_registry.count,
+                    "failed_jobs": self.review_queue.failed_job_registry.count,
+                    "deferred_jobs": self.review_queue.deferred_job_registry.count
+                }
+            elif queue_name == "scraping" or queue_name == self.settings.rq_queue_name:
+                # Return scraping queue info
+                return {
+                    "name": self.queue.name,
+                    "length": len(self.queue),
+                    "started_jobs": self.queue.started_job_registry.count,
+                    "finished_jobs": self.queue.finished_job_registry.count,
+                    "failed_jobs": self.queue.failed_job_registry.count,
+                    "deferred_jobs": self.queue.deferred_job_registry.count
+                }
+            else:
+                # Return info for both queues
+                return {
+                    "scraping_queue": {
+                        "name": self.queue.name,
+                        "length": len(self.queue),
+                        "started_jobs": self.queue.started_job_registry.count,
+                        "finished_jobs": self.queue.finished_job_registry.count,
+                        "failed_jobs": self.queue.failed_job_registry.count,
+                        "deferred_jobs": self.queue.deferred_job_registry.count
+                    },
+                    "review_queue": {
+                        "name": self.review_queue.name,
+                        "length": len(self.review_queue),
+                        "started_jobs": self.review_queue.started_job_registry.count,
+                        "finished_jobs": self.review_queue.finished_job_registry.count,
+                        "failed_jobs": self.review_queue.failed_job_registry.count,
+                        "deferred_jobs": self.review_queue.deferred_job_registry.count
+                    }
+                }
         except Exception as e:
             logger.error(f"Failed to get queue info: {str(e)}")
             return {}

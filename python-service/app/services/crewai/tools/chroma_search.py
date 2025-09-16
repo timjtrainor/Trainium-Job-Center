@@ -2,15 +2,16 @@
 
 from typing import List, Optional, Dict, Any
 import asyncio
-from crewai.tools import tool
+import json
+from crewai.tools import tool, BaseTool
 from ...infrastructure.chroma import get_chroma_client
 from ...chroma_manager import get_chroma_manager, CollectionType
 
 
 @tool
-def chroma_search(query: str, collection_name: str = "documents", n_results: int = 5) -> str:
+def chroma_search(query: str, collection_name: str = "documents", n_results: int = 5, where_filter: str = "") -> str:
     """
-    Search for relevant documents in a ChromaDB collection.
+    Search for relevant documents in a ChromaDB collection with optional metadata filtering.
     
     This tool searches a specified ChromaDB collection for documents that are semantically 
     similar to the provided query. It returns the most relevant document chunks that can
@@ -20,6 +21,7 @@ def chroma_search(query: str, collection_name: str = "documents", n_results: int
         query (str): The search query to find relevant documents
         collection_name (str): Name of the ChromaDB collection to search (default: "documents")
         n_results (int): Maximum number of results to return (default: 5)
+        where_filter (str): Optional JSON string for metadata filtering (e.g., '{"type": "resume"}')
     
     Returns:
         str: A formatted string containing the most relevant document content, 
@@ -27,8 +29,18 @@ def chroma_search(query: str, collection_name: str = "documents", n_results: int
     
     Example:
         result = chroma_search("machine learning job requirements", "job_postings", 3)
+        result = chroma_search("python skills", "career_brand", 5, '{"section": "technical_skills"}')
     """
     try:
+        # Parse where filter if provided
+        where_dict = None
+        if where_filter:
+            try:
+                import json
+                where_dict = json.loads(where_filter)
+            except json.JSONDecodeError:
+                return f"Error: Invalid JSON format in where_filter: {where_filter}"
+        
         # Use the enhanced manager for better error handling and collection management
         manager = get_chroma_manager()
         
@@ -41,7 +53,7 @@ def chroma_search(query: str, collection_name: str = "documents", n_results: int
             asyncio.set_event_loop(loop)
         
         result = loop.run_until_complete(
-            manager.search_collection(collection_name, query, n_results)
+            manager.search_collection(collection_name, query, n_results, where=where_dict)
         )
         
         if not result["success"]:
@@ -52,7 +64,8 @@ def chroma_search(query: str, collection_name: str = "documents", n_results: int
         distances = result["distances"]
         
         if not documents:
-            return f"No relevant documents found in collection '{collection_name}' for query: '{query}'"
+            filter_msg = f" with filter {where_filter}" if where_filter else ""
+            return f"No relevant documents found in collection '{collection_name}' for query: '{query}'{filter_msg}"
         
         # Format results with metadata for better context
         formatted_results = []
@@ -66,6 +79,10 @@ def chroma_search(query: str, collection_name: str = "documents", n_results: int
                     result_text += f"Company: {metadata['company']}\n"
                 if "collection_type" in metadata:
                     result_text += f"Type: {metadata['collection_type']}\n"
+                if "section" in metadata:
+                    result_text += f"Section: {metadata['section']}\n"
+                if "tags" in metadata:
+                    result_text += f"Tags: {metadata['tags']}\n"
                 result_text += f"Relevance: {1 - distance:.3f}\n"
             result_text += f"Content: {doc}\n"
             formatted_results.append(result_text)
@@ -228,9 +245,9 @@ def chroma_search_across_collections(query: str, collections: Optional[List[str]
 
 
 @tool
-def search_job_postings(query: str, n_results: int = 5) -> str:
+def search_job_postings(query: str, n_results: int = 5, where_filter: str = "") -> str:
     """
-    Search specifically for job posting documents.
+    Search specifically for job posting documents with optional metadata filtering.
     
     Specialized tool for searching job postings with optimized parameters
     for job-related content analysis.
@@ -238,46 +255,99 @@ def search_job_postings(query: str, n_results: int = 5) -> str:
     Args:
         query (str): Job-related search query (skills, role, company, etc.)
         n_results (int): Maximum number of job postings to return (default: 5)
+        where_filter (str): Optional JSON string for metadata filtering (e.g., '{"company": "Google"}')
     
     Returns:
         str: Formatted job posting search results
+    
+    Example:
+        search_job_postings("python developer", 3, '{"experience_level": "senior"}')
     """
-    return chroma_search(query, "job_postings", n_results)
+    return chroma_search(query, "job_postings", n_results, where_filter)
 
 
 @tool
-def search_company_profiles(query: str, n_results: int = 5) -> str:
+def search_company_profiles(query: str, n_results: int = 5, where_filter: str = "") -> str:
     """
-    Search specifically for company profile documents.
+    Search specifically for company profile documents with optional metadata filtering.
     
     Specialized tool for searching company information, culture, and organizational data.
     
     Args:
         query (str): Company-related search query (culture, values, benefits, etc.)
         n_results (int): Maximum number of company profiles to return (default: 5)
+        where_filter (str): Optional JSON string for metadata filtering (e.g., '{"industry": "tech"}')
     
     Returns:
         str: Formatted company profile search results
+    
+    Example:
+        search_company_profiles("startup culture", 2, '{"size": "startup"}')
     """
-    return chroma_search(query, "company_profiles", n_results)
+    return chroma_search(query, "company_profiles", n_results, where_filter)
 
 
 @tool
-def search_career_brands(query: str, n_results: int = 5) -> str:
+def search_career_brands(query: str, n_results: int = 5, where_filter: str = "") -> str:
     """
-    Search specifically for career branding documents.
+    Search specifically for career branding documents with optional metadata filtering.
     
     Specialized tool for searching personal career branding and positioning content.
     
     Args:
         query (str): Career branding search query (skills, experience, positioning, etc.)
         n_results (int): Maximum number of career brand documents to return (default: 5)
+        where_filter (str): Optional JSON string for metadata filtering (e.g., '{"section": "skills"}')
     
     Returns:
         str: Formatted career branding search results
+    
+    Example:
+        search_career_brands("python programming", 3, '{"section": "technical_skills"}')
     """
-    return chroma_search(query, "career_brands", n_results)
+    return chroma_search(query, "career_brand", n_results, where_filter)
 
+
+@tool
+def search_career_research(query: str, n_results: int = 5, where_filter: str = "") -> str:
+    """
+    Search specifically for career research documents with optional metadata filtering.
+
+    Specialized tool for searching personal career research content.
+
+    Args:
+        query (str): Career research search query (skills, experience, positioning, etc.)
+        n_results (int): Maximum number of career research documents to return (default: 5)
+        where_filter (str): Optional JSON string for metadata filtering (e.g., '{"type": "industry_analysis"}')
+
+    Returns:
+        str: Formatted career research search results
+    
+    Example:
+        search_career_research("AI career paths", 3, '{"author": "industry_expert"}')
+    """
+    return chroma_search(query, "career_research", n_results, where_filter)
+
+
+@tool
+def search_job_search_research(query: str, n_results: int = 5, where_filter: str = "") -> str:
+    """
+    Search specifically for job search research documents with optional metadata filtering.
+
+    Specialized tool for searching job search research documents.
+
+    Args:
+        query (str): Job search research query (skills, experience, positioning, etc.)
+        n_results (int): Maximum number of job search research documents to return (default: 5)
+        where_filter (str): Optional JSON string for metadata filtering (e.g., '{"source": "linkedin"}')
+
+    Returns:
+        str: Formatted job search research search results
+    
+    Example:
+        search_job_search_research("networking strategies", 5, '{"tags": "networking"}')
+    """
+    return chroma_search(query, "job_search_research", n_results, where_filter)
 
 @tool
 def contextual_job_analysis(job_title: str, company_name: str = "", skills: str = "", n_results: int = 3) -> str:
@@ -365,7 +435,15 @@ __all__ = [
     "search_job_postings",
     "search_company_profiles", 
     "search_career_brands",
+    "search_career_research",
+    "search_job_search_research",
     "contextual_job_analysis",
     "ChromaSearchTool",
+    "get_career_brand_tools",
 ]
+
+
+def get_career_brand_tools() -> List[BaseTool]:
+    """Get career brand search tools for CrewAI agents."""
+    return [search_career_brands]
 
