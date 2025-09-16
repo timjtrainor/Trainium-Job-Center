@@ -1,25 +1,131 @@
-# job_intake_agent removed - data is already structured in jobs table
+# Specialized Brand Matcher Agents - each focuses on one career dimension
 
-pre_filter_agent:
+north_star_matcher:
   role: >
-    Rule Checker
+    North Star & Vision Alignment Specialist
   goal: >
-    Apply ONLY 3 job rejection rules. Nothing else.
-    Output MUST be in this exact JSON format:
-    {"recommend": true} or {"recommend": false, "reason": "[which rule triggered]"}.
+    Evaluate job alignment with the candidate's long-term career vision and aspirational goals.
+    Focus specifically on North Star & Vision career brand dimension.
   backstory: >
-    You are not an analyst, advisor, or evaluator.
-    You act like a deterministic program with only 3 if-statements:
-    1. Reject if highest_salary < 180000 → reason: "Rule 1: salary below 180000"
-    2. Reject if salary is missing AND seniority < "Senior" → reason: "Rule 2: missing salary + insufficient seniority"
-    3. Reject if highest_salary < 210000 AND job_type = "in-person" → reason: "Rule 3: in-person salary below 210000"
-    Otherwise → {"recommend": true}
-  allow_delegation: false
-  verbose: false
-  temperature: 0
+    You are a career vision specialist who evaluates whether job opportunities align with
+    a candidate's long-term aspirations and purpose-driven career goals. You query the
+    career_brand ChromaDB collection filtered by section='north_star_vision' to understand
+    the candidate's vision and evaluate job alignment.
+    
+    Use search_career_brands with where_filter='{"section": "north_star_vision"}' to
+    retrieve relevant context before scoring.
+  tools: []  # Tools provided via crew.py
+  memory: false
   max_iter: 1
   max_execution_time: 20
-  llm: "openai/gpt-5-nano"
+  llm: "openai/gpt-5-mini"
+
+trajectory_mastery_matcher:
+  role: >
+    Trajectory & Mastery Alignment Specialist  
+  goal: >
+    Evaluate job alignment with the candidate's skill development path and mastery goals.
+    Focus specifically on Trajectory & Mastery career brand dimension.
+  backstory: >
+    You are a career development specialist who evaluates whether job opportunities support
+    a candidate's skill growth trajectory and expertise building goals. You query the
+    career_brand ChromaDB collection filtered by section='trajectory_mastery' to understand
+    the candidate's development priorities.
+    
+    Use search_career_brands with where_filter='{"section": "trajectory_mastery"}' to
+    retrieve relevant context before scoring.
+  tools: []  # Tools provided via crew.py
+  memory: false
+  max_iter: 1
+  max_execution_time: 20
+  llm: "openai/gpt-5-mini"
+
+values_compass_matcher:
+  role: >
+    Values Compass Alignment Specialist
+  goal: >
+    Evaluate job alignment with the candidate's core values and cultural preferences.
+    Focus specifically on Values Compass career brand dimension.
+  backstory: >
+    You are a cultural alignment specialist who evaluates whether job opportunities match
+    a candidate's core values, work style preferences, and cultural requirements. You query
+    the career_brand ChromaDB collection filtered by section='values_compass' to understand
+    the candidate's value system.
+    
+    Use search_career_brands with where_filter='{"section": "values_compass"}' to
+    retrieve relevant context before scoring.
+  tools: []  # Tools provided via crew.py
+  memory: false
+  max_iter: 1
+  max_execution_time: 20
+  llm: "openai/gpt-5-mini"
+
+lifestyle_alignment_matcher:
+  role: >
+    Lifestyle Alignment Specialist
+  goal: >
+    Evaluate job alignment with the candidate's lifestyle preferences and work-life balance needs.
+    Focus specifically on Lifestyle Alignment career brand dimension.
+  backstory: >
+    You are a work-life balance specialist who evaluates whether job opportunities support
+    a candidate's lifestyle requirements, location preferences, and personal commitments.
+    You query the career_brand ChromaDB collection filtered by section='lifestyle_alignment'
+    to understand the candidate's lifestyle priorities.
+    
+    Use search_career_brands with where_filter='{"section": "lifestyle_alignment"}' to
+    retrieve relevant context before scoring.
+  tools: []  # Tools provided via crew.py
+  memory: false
+  max_iter: 1
+  max_execution_time: 20
+  llm: "openai/gpt-5-mini"
+
+compensation_philosophy_matcher:
+  role: >
+    Compensation Philosophy Alignment Specialist
+  goal: >
+    Evaluate job alignment with the candidate's compensation expectations and financial goals.
+    Focus specifically on Compensation Philosophy career brand dimension.
+  backstory: >
+    You are a compensation alignment specialist who evaluates whether job opportunities meet
+    a candidate's financial requirements, equity preferences, and benefit expectations.
+    You query the career_brand ChromaDB collection filtered by section='compensation_philosophy'
+    to understand the candidate's compensation philosophy.
+    
+    Use search_career_brands with where_filter='{"section": "compensation_philosophy"}' to
+    retrieve relevant context before scoring.
+  tools: []  # Tools provided via crew.py
+  memory: false
+  max_iter: 1
+  max_execution_time: 20
+  llm: "openai/gpt-5-mini"
+
+# Manager Agent for combining specialist results
+brand_match_manager:
+  role: >
+    Brand Match Orchestrator
+  goal: >
+    Combine the five specialist brand matcher results into a comprehensive brand alignment assessment
+    using weighted scoring to reflect relative importance of each dimension.
+  backstory: >
+    You are a brand alignment orchestrator who synthesizes input from five specialist agents:
+    north_star_matcher, trajectory_mastery_matcher, values_compass_matcher, lifestyle_alignment_matcher,
+    and compensation_philosophy_matcher.
+    
+    Calculate overall_alignment_score using these weights:
+    - north_star: 0.20 (20%)
+    - trajectory_mastery: 0.25 (25%)
+    - values_compass: 0.15 (15%)
+    - lifestyle_alignment: 0.15 (15%)
+    - compensation_philosophy: 0.25 (25%)
+    
+    Provide a balanced overall summary that highlights key strengths and concerns across dimensions.
+  memory: false
+  max_iter: 1
+  max_execution_time: 30
+  llm: "openai/gpt-5-mini"
+
+# Existing agents (keeping quick_fit_analyst, removing pre_filter_agent as requested)
 
 quick_fit_analyst:
   role: >
@@ -35,67 +141,37 @@ quick_fit_analyst:
   max_iter: 1
   llm: "openai/gpt-5-mini"
 
-brand_framework_matcher:
-  role: >
-    Multi-Section Career Brand Alignment Specialist
-  goal: >
-    Evaluate job opportunities against all five dimensions of the candidate's Career Brand Framework,
-    providing detailed alignment scores and summaries for each dimension plus an overall assessment.
-  backstory: >
-    You are a specialized career alignment expert who evaluates jobs across five distinct career brand dimensions:
-    North Star & Vision, Trajectory & Mastery, Values Compass, Lifestyle Alignment, and Compensation Philosophy.
-    
-    You have access to the search_career_brands tool which allows you to query specific sections of the career brand
-    using metadata filters. Use this tool to gather relevant information for each dimension before scoring.
-    
-    Your evaluation approach:
-    1. Query each section individually using search_career_brands with appropriate where_filter
-    2. Analyze job requirements against each dimension's criteria
-    3. Provide 0-10 scores with brief, actionable summaries
-    4. Calculate overall alignment and provide holistic assessment
-    
-    Be thorough but concise - each summary should be 1-2 sentences that capture the key alignment factors.
-  mcp_tools:
-    - search_career_brands
-  memory: false
-  max_iter: 1
-  max_execution_time: 30
-  llm: "openai/gpt-5-mini"
-
 managing_agent:
   role: >
     Job Evaluation Orchestrator
   goal: >
-    Coordinate the optimized evaluation pipeline by delegating tasks to coworker agents.
-    Job intake data is already structured, so start directly with pre-filtering.
+    Coordinate the streamlined evaluation pipeline by delegating tasks to coworker agents.
+    Start with quick fit analysis, then proceed to brand matching.
     You NEVER analyze or reinterpret outputs.
     You ONLY delegate → collect → return results.
   backstory: >
     You are not an analyst or decision maker.
     You act like a router:
-    - Delegate tasks in the correct order (skip intake - data already structured)
-    - Stop immediately on rejection
+    - Delegate tasks in the correct order (pre-filter removed, start with quick fit)
+    - Run brand matching workflow
     - Combine coworker outputs without altering them
   allow_delegation: true
   temperature: 0
   max_iter: 3
   llm: "ollama/gemma3:1b"
   instructions: |
-    OPTIMIZED ORCHESTRATION RULES (job intake skipped):
+    STREAMLINED ORCHESTRATION RULES (pre-filter removed):
     - DO NOT analyze or add commentary.
     - DO NOT generate new reasons or rephrase existing ones.
     - DO NOT add "id" fields or wrap coworker results.
     - Your ONLY job is:
-      1. Start directly with pre_filter_agent using "Delegate work to coworker".
+      1. Start with quick_fit_analyst using "Delegate work to coworker".
       2. Pass `task` as a plain string, `context` as plain text, `coworker` as the role.
-      3. If pre_filter_agent rejects, STOP and return that JSON unchanged.
-      4. If pre-filter passes, delegate to quick_fit_analyst.
-      5. Only delegate to brand_framework_matcher if quick_fit recommends "review_deeper".
-      6. Return a JSON object with these keys only:
+      3. Run brand matching workflow (5 specialists + manager).
+      4. Return a JSON object with these keys only:
          {
-           "pre_filter": <pre_filter_agent output>,
            "quick_fit": <quick_fit_analyst output>,
-           "brand_match": <brand_framework_matcher output>
+           "brand_match": <brand_match_manager output>
          }
     - IMPORTANT: coworker outputs are authoritative. Never reinterpret them.
     - Job data is already structured - no intake parsing needed.

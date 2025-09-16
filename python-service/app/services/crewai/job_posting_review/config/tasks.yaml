@@ -1,22 +1,108 @@
-# intake_task removed - data is already structured in jobs table
+# Specialized Brand Dimension Tasks - run in parallel for efficiency
 
-pre_filter_task:
+north_star_task:
   description: >
-    Apply ONLY these rules to the job data:
-    - Reject if highest_salary < 180000
-    - Reject if salary is missing AND seniority < "Senior"
-    - Reject if Job title does not contain "Product" or "Program"
-    - Reject if highest_salary < 210000 AND job_type = "in-person"
-
-    IMPORTANT:
-    - Do not invent new rejection rules (e.g., no "location mismatch" or "market comparison").
-    - Only check salary, seniority, and job_type.
-    - Ignore all other fields.
-
+    Evaluate job alignment with the candidate's North Star & Vision using the career_brand ChromaDB collection.
+    
+    Use search_career_brands with where_filter='{"section": "north_star_vision"}' to retrieve
+    relevant career brand context about the candidate's long-term vision and aspirational goals.
+    
+    Analyze how well this job opportunity aligns with their vision, purpose, and long-term career direction.
+    Provide a score (0-10) and actionable summary (1-2 sentences).
   expected_output: >
-    A strict JSON object with "recommend" (boolean) and optional "reason" (string). 
-    Example: {"recommend": false, "reason": "Rule 1: salary below 180000"}
-  agent: pre_filter_agent
+    JSON with score and summary: {"score": 0-10, "summary": "Brief assessment of North Star & Vision alignment"}
+  agent: north_star_matcher
+  async_execution: true
+
+trajectory_mastery_task:
+  description: >
+    Evaluate job alignment with the candidate's Trajectory & Mastery using the career_brand ChromaDB collection.
+    
+    Use search_career_brands with where_filter='{"section": "trajectory_mastery"}' to retrieve
+    relevant career brand context about the candidate's skill development path and mastery goals.
+    
+    Analyze how well this job opportunity supports their learning trajectory, skill building, and expertise development.
+    Provide a score (0-10) and actionable summary (1-2 sentences).
+  expected_output: >
+    JSON with score and summary: {"score": 0-10, "summary": "Brief assessment of Trajectory & Mastery alignment"}
+  agent: trajectory_mastery_matcher
+  async_execution: true
+
+values_compass_task:
+  description: >
+    Evaluate job alignment with the candidate's Values Compass using the career_brand ChromaDB collection.
+    
+    Use search_career_brands with where_filter='{"section": "values_compass"}' to retrieve
+    relevant career brand context about the candidate's core values and cultural preferences.
+    
+    Analyze how well this job opportunity matches their values, work style, and cultural requirements.
+    Provide a score (0-10) and actionable summary (1-2 sentences).
+  expected_output: >
+    JSON with score and summary: {"score": 0-10, "summary": "Brief assessment of Values Compass alignment"}
+  agent: values_compass_matcher
+  async_execution: true
+
+lifestyle_alignment_task:
+  description: >
+    Evaluate job alignment with the candidate's Lifestyle Alignment using the career_brand ChromaDB collection.
+    
+    Use search_career_brands with where_filter='{"section": "lifestyle_alignment"}' to retrieve
+    relevant career brand context about the candidate's lifestyle preferences and work-life balance needs.
+    
+    Analyze how well this job opportunity supports their lifestyle requirements, location preferences, and personal commitments.
+    Provide a score (0-10) and actionable summary (1-2 sentences).
+  expected_output: >
+    JSON with score and summary: {"score": 0-10, "summary": "Brief assessment of Lifestyle Alignment"}
+  agent: lifestyle_alignment_matcher
+  async_execution: true
+
+compensation_philosophy_task:
+  description: >
+    Evaluate job alignment with the candidate's Compensation Philosophy using the career_brand ChromaDB collection.
+    
+    Use search_career_brands with where_filter='{"section": "compensation_philosophy"}' to retrieve
+    relevant career brand context about the candidate's compensation expectations and financial goals.
+    
+    Analyze how well this job opportunity meets their financial requirements, equity preferences, and benefit expectations.
+    Provide a score (0-10) and actionable summary (1-2 sentences).
+  expected_output: >
+    JSON with score and summary: {"score": 0-10, "summary": "Brief assessment of Compensation Philosophy alignment"}
+  agent: compensation_philosophy_matcher
+  async_execution: true
+
+# Manager task that combines specialist results
+brand_match_task:
+  description: >
+    Synthesize the results from all five brand dimension specialists into a comprehensive brand alignment assessment.
+    
+    You will receive context from: north_star_task, trajectory_mastery_task, values_compass_task, 
+    lifestyle_alignment_task, and compensation_philosophy_task.
+    
+    Calculate overall_alignment_score using weighted averages:
+    - north_star: 0.20 (20%)
+    - trajectory_mastery: 0.25 (25%) 
+    - values_compass: 0.15 (15%)
+    - lifestyle_alignment: 0.15 (15%)
+    - compensation_philosophy: 0.25 (25%)
+    
+    Formula: overall_score = (north_star * 0.20) + (trajectory_mastery * 0.25) + (values_compass * 0.15) + (lifestyle_alignment * 0.15) + (compensation_philosophy * 0.25)
+    
+    Provide a balanced overall summary highlighting key strengths and concerns.
+  expected_output: >
+    Comprehensive JSON with all dimensions plus weighted overall assessment:
+    {
+      "north_star": {"score": 0-10, "summary": "Brief North Star & Vision assessment"},
+      "trajectory_mastery": {"score": 0-10, "summary": "Brief Trajectory & Mastery assessment"},
+      "values_compass": {"score": 0-10, "summary": "Brief Values Compass assessment"},
+      "lifestyle_alignment": {"score": 0-10, "summary": "Brief Lifestyle Alignment assessment"},
+      "compensation_philosophy": {"score": 0-10, "summary": "Brief Compensation Philosophy assessment"},
+      "overall_alignment_score": 0-10,
+      "overall_summary": "Balanced 1-2 sentence summary highlighting key insights"
+    }
+  agent: brand_match_manager
+  context: [north_star_task, trajectory_mastery_task, values_compass_task, lifestyle_alignment_task, compensation_philosophy_task]
+
+# Existing tasks (pre_filter_task removed as requested)
 
 quick_fit_task:
   description: >
@@ -27,53 +113,18 @@ quick_fit_task:
     Concise JSON: {"overall_fit": "low|medium|high", "quick_recommendation": "reject|approve|review_deeper", "key_reason": "Brief 1-2 sentence explanation"}
   agent: quick_fit_analyst
 
-brand_match_task:
-  description: >
-    Compare the structured job data against the user's five Career Brand Framework dimensions.
-    
-    You have access to the search_career_brands tool which can filter by metadata sections.
-    Query each of the five career brand sections individually:
-    - north_star_vision → North Star & Vision
-    - trajectory_mastery → Trajectory & Mastery  
-    - values_compass → Values Compass
-    - lifestyle_alignment → Lifestyle Alignment
-    - compensation_philosophy → Compensation Philosophy
-    
-    For each section, use search_career_brands with the where_filter parameter:
-    search_career_brands("job requirements alignment", 3, '{"section": "north_star_vision"}')
-    
-    Evaluate job alignment for each dimension separately and return structured JSON.
-    Each dimension should receive a score (0-10) and a concise summary (1-2 sentences).
-    Calculate an overall alignment score and provide an overall summary.
-    
-  expected_output: >
-    Structured JSON with all five dimensions plus overall assessment:
-    {
-      "north_star": {"score": 0-10, "summary": "Brief alignment assessment for North Star & Vision"},
-      "trajectory_mastery": {"score": 0-10, "summary": "Brief alignment assessment for Trajectory & Mastery"},
-      "values_compass": {"score": 0-10, "summary": "Brief alignment assessment for Values Compass"},
-      "lifestyle_alignment": {"score": 0-10, "summary": "Brief alignment assessment for Lifestyle Alignment"},
-      "compensation_philosophy": {"score": 0-10, "summary": "Brief alignment assessment for Compensation Philosophy"},
-      "overall_alignment_score": 0-10,
-      "overall_summary": "Brief 1-2 sentence overall alignment summary"
-    }
-  agent: brand_framework_matcher
-
 orchestration_task:
   description: >
     You are the Job Review Orchestrator managing the evaluation pipeline for structured job data: {{job_posting}}
 
-    **OPTIMIZED WORKFLOW** (job intake already done):
+    **STREAMLINED WORKFLOW** (pre-filter removed as requested):
     
-    Your workflow MUST be:
-    1. Start directly with pre_filter_agent to apply rejection criteria (salary, seniority, job_type)
-    2. **STOP IMMEDIATELY** if pre_filter_agent returns recommend: false - do not run any more tasks
-    3. Only if pre-filter passes, delegate to quick_fit_analyst for assessment
-    4. Only run brand_framework_matcher if quick_fit_analyst recommends "review_deeper" or "approve"
+    Your workflow:
+    1. Start with quick_fit_analyst for initial assessment
+    2. Run brand matching workflow (5 specialist agents + manager in parallel)
+    3. Combine results for final recommendation
     
-    **EARLY TERMINATION RULE**: If pre_filter_agent recommends rejection, immediately return final decision without further analysis.
-    
-    **CONCISE OUTPUT FORMAT** for jobs that pass pre-filtering:
+    **CONCISE OUTPUT FORMAT**:
     Return exactly this JSON structure:
     ```json
     {
@@ -97,10 +148,8 @@ orchestration_task:
     
     **PERFORMANCE OPTIMIZATION**:
     - Use "Delegate work to coworker" tool for each agent
-    - Stop as soon as pre_filter_agent rejects
     - Keep all text concise - no verbose explanations
     - Include only agents that actually ran in the personas array
   expected_output: >
     Concise JSON object with keys: final, personas, tradeoffs, actions, sources.
-    Must implement early termination on pre-filter rejection for optimal performance.
   agent: managing_agent
