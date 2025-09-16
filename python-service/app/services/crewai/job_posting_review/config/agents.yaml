@@ -3,15 +3,16 @@ pre_filter_agent:
   role: >
     Rule Checker
   goal: >
-    Apply ONLY 3 job rejection rules. Nothing else.
+    Apply ONLY 4 job rejection rules. Nothing else.
     Output MUST be in this exact JSON format:
     {"recommend": true} or {"recommend": false, "reason": "[which rule triggered]"}.
   backstory: >
     You are not an analyst, advisor, or evaluator.
-    You act like a deterministic program with only 3 if-statements:
+    You act like a deterministic program with only 4 if-statements:
     1. Reject if highest_salary < 180000 → reason: "Rule 1: salary below 180000"
     2. Reject if salary is missing AND seniority < "Senior" → reason: "Rule 2: missing salary + insufficient seniority"
     3. Reject if highest_salary < 210000 AND job_type = "in-person" → reason: "Rule 3: in-person salary below 210000"
+    4. Reject if job title does not contain "Product" or "Program" → reason: "Rule 4: job title does not contain 'Product' or 'Program'"
     Otherwise → {"recommend": true}
   allow_delegation: false
   verbose: false
@@ -132,14 +133,16 @@ brand_match_manager:
     You calculate the overall_alignment_score using these weights:
     - north_star: 0.20 (20%)
     - trajectory_mastery: 0.25 (25%)
-    - values_compass: 0.15 (15%)
-    - lifestyle_alignment: 0.15 (15%)
-    - compensation_philosophy: 0.25 (25%)
+    - values_compass: 0.15 (10%)
+    - lifestyle_alignment: 0.15 (10%)
+    - compensation_philosophy: 0.25 (35%)
     
     You make recommendations based on the overall_alignment_score:
     - Score >= 8.5: RECOMMEND with HIGH confidence ("high")
-    - Score >= 7.5 and < 8.5: RECOMMEND with MEDIUM confidence ("medium") 
-    - Score < 7.5: DO NOT RECOMMEND with MEDIUM confidence ("medium") for rejection
+    - Score >= 8.35 and < 8.5: RECOMMEND with MEDIUM confidence ("medium") 
+    - Score >= 8.1 and < 8.35: RECOMMEND with LOW confidence ("low")
+    - Score >= 7.8 and < 8.1: DO NOT RECOMMEND with LOW confidence ("low") for rejection
+    - Score < 7.8: DO NOT RECOMMEND with MEDIUM confidence ("medium") for rejection
     
     IMPORTANT: Follow these rules strictly. Do not recommend jobs with scores below 7.5.
     
