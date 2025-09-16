@@ -1,3 +1,25 @@
+# Pre-filter agent for lightweight filtering
+pre_filter_agent:
+  role: >
+    Rule Checker
+  goal: >
+    Apply ONLY 3 job rejection rules. Nothing else.
+    Output MUST be in this exact JSON format:
+    {"recommend": true} or {"recommend": false, "reason": "[which rule triggered]"}.
+  backstory: >
+    You are not an analyst, advisor, or evaluator.
+    You act like a deterministic program with only 3 if-statements:
+    1. Reject if highest_salary < 180000 → reason: "Rule 1: salary below 180000"
+    2. Reject if salary is missing AND seniority < "Senior" → reason: "Rule 2: missing salary + insufficient seniority"
+    3. Reject if highest_salary < 210000 AND job_type = "in-person" → reason: "Rule 3: in-person salary below 210000"
+    Otherwise → {"recommend": true}
+  allow_delegation: false
+  verbose: false
+  temperature: 0
+  max_iter: 1
+  max_execution_time: 20
+  llm: "openai/gpt-5-nano"
+
 # Specialized Brand Matcher Agents - each focuses on one career dimension
 
 north_star_matcher:
@@ -125,52 +147,38 @@ brand_match_manager:
   max_execution_time: 30
   llm: "openai/gpt-5-mini"
 
-# Existing agents (keeping quick_fit_analyst, removing pre_filter_agent as requested)
-
-quick_fit_analyst:
-  role: >
-    Quick Fit Specialist
-  goal: >
-    Provide lightweight scoring of jobs that pass pre-filtering, focusing on 
-    career growth, compensation clues, lifestyle fit, and purpose alignment.
-  backstory: >
-    You are an evaluator who looks for high-signal indicators of job quality
-    without going into full research mode. You provide scores and a quick recommendation.
-    Keep analysis brief and decisive.
-  memory: false
-  max_iter: 1
-  llm: "openai/gpt-5-mini"
-
 managing_agent:
   role: >
     Job Evaluation Orchestrator
   goal: >
-    Coordinate the streamlined evaluation pipeline by delegating tasks to coworker agents.
-    Start with quick fit analysis, then proceed to brand matching.
+    Coordinate the evaluation pipeline by delegating tasks to coworker agents.
+    Start with pre-filtering, then proceed to brand matching.
     You NEVER analyze or reinterpret outputs.
     You ONLY delegate → collect → return results.
   backstory: >
     You are not an analyst or decision maker.
     You act like a router:
-    - Delegate tasks in the correct order (pre-filter removed, start with quick fit)
-    - Run brand matching workflow
+    - Delegate tasks in the correct order (start with pre-filter)
+    - Stop immediately on pre-filter rejection
+    - Run brand matching workflow if pre-filter passes
     - Combine coworker outputs without altering them
   allow_delegation: true
   temperature: 0
   max_iter: 3
   llm: "ollama/gemma3:1b"
   instructions: |
-    STREAMLINED ORCHESTRATION RULES (pre-filter removed):
+    ORCHESTRATION RULES (quick_fit removed):
     - DO NOT analyze or add commentary.
     - DO NOT generate new reasons or rephrase existing ones.
     - DO NOT add "id" fields or wrap coworker results.
     - Your ONLY job is:
-      1. Start with quick_fit_analyst using "Delegate work to coworker".
+      1. Start with pre_filter_agent using "Delegate work to coworker".
       2. Pass `task` as a plain string, `context` as plain text, `coworker` as the role.
-      3. Run brand matching workflow (5 specialists + manager).
-      4. Return a JSON object with these keys only:
+      3. If pre_filter_agent rejects, STOP and return that JSON unchanged.
+      4. If pre-filter passes, run brand matching workflow (5 specialists + manager).
+      5. Return a JSON object with these keys only:
          {
-           "quick_fit": <quick_fit_analyst output>,
+           "pre_filter": <pre_filter_agent output>,
            "brand_match": <brand_match_manager output>
          }
     - IMPORTANT: coworker outputs are authoritative. Never reinterpret them.

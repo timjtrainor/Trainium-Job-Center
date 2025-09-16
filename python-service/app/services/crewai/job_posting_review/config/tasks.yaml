@@ -1,3 +1,22 @@
+# Pre-filter task for lightweight filtering
+pre_filter_task:
+  description: >
+    Apply ONLY these rules to the job data:
+    - Reject if highest_salary < 180000
+    - Reject if salary is missing AND seniority < "Senior"
+    - Reject if Job title does not contain "Product" or "Program"
+    - Reject if highest_salary < 210000 AND job_type = "in-person"
+
+    IMPORTANT:
+    - Do not invent new rejection rules (e.g., no "location mismatch" or "market comparison").
+    - Only check salary, seniority, and job_type.
+    - Ignore all other fields.
+
+  expected_output: >
+    A strict JSON object with "recommend" (boolean) and optional "reason" (string). 
+    Example: {"recommend": false, "reason": "Rule 1: salary below 180000"}
+  agent: pre_filter_agent
+
 # Specialized Brand Dimension Tasks - run in parallel for efficiency
 
 north_star_task:
@@ -102,27 +121,19 @@ brand_match_task:
   agent: brand_match_manager
   context: [north_star_task, trajectory_mastery_task, values_compass_task, lifestyle_alignment_task, compensation_philosophy_task]
 
-# Existing tasks (pre_filter_task removed as requested)
-
-quick_fit_task:
-  description: >
-    For jobs that pass pre-filtering, quickly evaluate structured job data for 
-    career growth potential, compensation competitiveness, lifestyle fit, and purpose alignment.
-    Focus on the most important factors - be concise and decisive.
-  expected_output: >
-    Concise JSON: {"overall_fit": "low|medium|high", "quick_recommendation": "reject|approve|review_deeper", "key_reason": "Brief 1-2 sentence explanation"}
-  agent: quick_fit_analyst
-
 orchestration_task:
   description: >
     You are the Job Review Orchestrator managing the evaluation pipeline for structured job data: {{job_posting}}
 
-    **STREAMLINED WORKFLOW** (pre-filter removed as requested):
+    **OPTIMIZED WORKFLOW** (quick_fit removed):
     
     Your workflow:
-    1. Start with quick_fit_analyst for initial assessment
-    2. Run brand matching workflow (5 specialist agents + manager in parallel)
-    3. Combine results for final recommendation
+    1. Start with pre_filter_agent to apply rejection criteria (salary, seniority, job_type)
+    2. **STOP IMMEDIATELY** if pre_filter_agent returns recommend: false - do not run any more tasks
+    3. If pre-filter passes, run brand matching workflow (5 specialist agents + manager in parallel)
+    4. Combine results for final recommendation
+    
+    **EARLY TERMINATION RULE**: If pre_filter_agent recommends rejection, immediately return final decision without further analysis.
     
     **CONCISE OUTPUT FORMAT**:
     Return exactly this JSON structure:
