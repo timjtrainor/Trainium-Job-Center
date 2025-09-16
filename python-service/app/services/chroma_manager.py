@@ -22,8 +22,8 @@ class CollectionType(Enum):
     MARKET_INSIGHTS = "market_insights"
     TECHNICAL_SKILLS = "technical_skills"
     GENERIC_DOCUMENTS = "documents"
-    CAREER_PATHS = "career_paths"
-    JOB_SEARCH_STRATEGIES = "job_search_strategies"
+    CAREER_RESEARCH = "career_research"
+    JOB_SEARCH_RESEARCH = "job_search_research"
 
 
 class ChromaCollectionConfig:
@@ -109,11 +109,11 @@ class ChromaManager:
             }
         ))
 
-        # Career paths documents for users desired career path
+        # Career research documents for users desired career research
         self.register_collection_config(ChromaCollectionConfig(
-            name="career_paths",
-            collection_type=CollectionType.CAREER_PATHS,
-            description="Personal career path documents for users desired career path",
+            name="career_research",
+            collection_type=CollectionType.CAREER_RESEARCH,
+            description="Personal career research documents for users desired career research",
             chunk_size=300,
             chunk_overlap=50,
             metadata_schema={
@@ -126,10 +126,10 @@ class ChromaManager:
             }
         ))
 
-        # Job search strategies documents for users desired job search strategies
+        # Job search research documents for users desired job search research
         self.register_collection_config(ChromaCollectionConfig(
-            name="job_search_strategies",
-            collection_type=CollectionType.JOB_SEARCH_STRATEGIES,
+            name="job_search_research",
+            collection_type=CollectionType.JOB_SEARCH_RESEARCH,
             description="Holds research on candidate career trajectories, required skills, and industry trends.",
             chunk_size=300,
             chunk_overlap=50,

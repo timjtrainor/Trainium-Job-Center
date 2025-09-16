@@ -280,37 +280,37 @@ def search_career_brands(query: str, n_results: int = 5) -> str:
 
 
 @tool
-def search_career_paths(query: str, n_results: int = 5) -> str:
+def search_career_research(query: str, n_results: int = 5) -> str:
     """
-    Search specifically for career path documents.
+    Search specifically for career research documents.
 
-    Specialized tool for searching personal career paths  content.
+    Specialized tool for searching personal career research content.
 
     Args:
-        query (str): Career paths search query (skills, experience, positioning, etc.)
-        n_results (int): Maximum number of career paths documents to return (default: 5)
+        query (str): Career research search query (skills, experience, positioning, etc.)
+        n_results (int): Maximum number of career research documents to return (default: 5)
 
     Returns:
-        str: Formatted career paths search results
+        str: Formatted career research search results
     """
-    return chroma_search(query, "career_paths", n_results)
+    return chroma_search(query, "career_research", n_results)
 
 
 @tool
-def search_job_search_strategies(query: str, n_results: int = 5) -> str:
+def search_job_search_research(query: str, n_results: int = 5) -> str:
     """
-    Search specifically for job search strategy documents.
+    Search specifically for job search research documents.
 
-    Specialized tool for searching job search strategy documents.
+    Specialized tool for searching job search research documents.
 
     Args:
-        query (str): Job search strategy query (skills, experience, positioning, etc.)
-        n_results (int): Maximum number of job search strategy documents to return (default: 5)
+        query (str): Job search research query (skills, experience, positioning, etc.)
+        n_results (int): Maximum number of job search research documents to return (default: 5)
 
     Returns:
-        str: Formatted career paths search results
+        str: Formatted job search research search results
     """
-    return chroma_search(query, "job_search_strategies", n_results)
+    return chroma_search(query, "job_search_research", n_results)
 
 @tool
 def contextual_job_analysis(job_title: str, company_name: str = "", skills: str = "", n_results: int = 3) -> str:
@@ -398,6 +398,8 @@ __all__ = [
     "search_job_postings",
     "search_company_profiles", 
     "search_career_brands",
+    "search_career_research",
+    "search_job_search_research",
     "contextual_job_analysis",
     "ChromaSearchTool",
 ]

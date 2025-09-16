@@ -1315,6 +1315,19 @@ export const deleteChromaCollection = async (collectionName: string): Promise<vo
     await handleResponse(response);
 };
 
+export const getChromaDocuments = async (collectionName: string): Promise<any[]> => {
+    const response = await fetch(`${FASTAPI_BASE_URL}/chroma/collections/${encodeURIComponent(collectionName)}/documents`);
+    const result = await handleResponse(response);
+    return result?.documents || [];
+};
+
+export const deleteChromaDocument = async (collectionName: string, documentId: string): Promise<void> => {
+    const response = await fetch(`${FASTAPI_BASE_URL}/chroma/collections/${encodeURIComponent(collectionName)}/documents/${encodeURIComponent(documentId)}`, {
+        method: 'DELETE',
+    });
+    await handleResponse(response);
+};
+
 export const uploadChromaDocument = async (formData: FormData): Promise<UploadResponse> => {
     const response = await fetch(`${FASTAPI_BASE_URL}/chroma/upload`, {
         method: 'POST',

@@ -16,11 +16,9 @@ os.environ.setdefault("CREWAI_DISABLE_EVENTS", "true")
 
 
 from ..tools.chroma_search import (
-    #chroma_search,
-    #search_job_postings,
-    #search_company_profiles,
-    #contextual_job_analysis,
-    search_career_brands
+    search_career_brands,
+    search_career_research,
+    search_job_search_research
 )
 
 _cached_crew: Optional[Crew] = None
