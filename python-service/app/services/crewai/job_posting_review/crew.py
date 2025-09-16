@@ -158,10 +158,8 @@ class JobPostingReviewCrew:
     agents_config = "config/agents.yaml"
     tasks_config = "config/tasks.yaml"
 
-    # === Specialists ===
-    @agent
-    def job_intake_agent(self) -> Agent:
-        return Agent(config=self.agents_config["job_intake_agent"])  # type: ignore[index]
+    # === Specialists (job_intake_agent removed - data already structured) ===
+    # job_intake_agent removed - job data is already structured from database
 
     @agent
     def pre_filter_agent(self) -> Agent:
@@ -188,13 +186,8 @@ class JobPostingReviewCrew:
             allow_delegation=True,
         )
 
-    # === Tasks ===
-    @task
-    def intake_task(self) -> Task:
-        return Task(
-            config=self.tasks_config["intake_task"],  # type: ignore[index]
-            agent=self.job_intake_agent(),
-        )
+    # === Tasks (intake_task removed - data already structured) ===
+    # intake_task removed - job data is already structured from database
 
     @task
     def pre_filter_task(self) -> Task:
@@ -240,7 +233,7 @@ class JobPostingReviewCrew:
         return {"raw": raw}
 
     def run_orchestration(self, job_posting: dict) -> Dict[str, Any]:
-        """Execute pipeline: intake → pre-filter → quick-fit → brand match."""
+        """Execute optimized pipeline: pre-filter → quick-fit → brand match (if needed)."""
 
         def _dedupe(items: list[Any]) -> list[Any]:
             seen: set[Any] = set()
@@ -264,13 +257,11 @@ class JobPostingReviewCrew:
             return agent_id.replace("_", " ").title()
 
         crew = self.crew()
-        intake, pre, quick, brand = crew.tasks
+        pre, quick, brand = crew.tasks  # Skip intake task - data already structured
         job_str = json.dumps(job_posting, default=float)
 
-        intake_output = intake.execute_sync(context=job_str)
-        intake_json = self._parse_task_output(intake_output)
-
-        pre_output = pre.execute_sync(context=json.dumps(intake_json, default=float))
+        # Start directly with pre-filter since job data is already structured
+        pre_output = pre.execute_sync(context=job_str)
         pre_json = self._parse_task_output(pre_output)
 
         personas: list[Dict[str, Any]] = []
@@ -281,9 +272,9 @@ class JobPostingReviewCrew:
         pre_recommend = bool(pre_json.get("recommend"))
         pre_reason = pre_json.get("reason") or pre_json.get("rationale")
         pre_reason_text = pre_reason or (
-            "No salary or seniority guardrails were triggered."
+            "Passes basic requirements"
             if pre_recommend
-            else "Failed salary or seniority guardrails."
+            else "Failed basic requirements"
         )
         personas.append(
             {
@@ -294,45 +285,31 @@ class JobPostingReviewCrew:
         )
         sources.append("pre_filter_agent")
 
+        # Early termination for pre-filter rejections
         if not pre_recommend:
-            lower_reason = pre_reason_text.lower()
-            if "salary" in lower_reason:
-                tradeoffs.append("Compensation does not meet minimum salary requirements.")
-                actions.append("Target roles with stronger compensation before applying.")
-            elif "seniority" in lower_reason:
-                tradeoffs.append("Role seniority conflicts with required experience level.")
-                actions.append("Focus on senior-level opportunities to satisfy guardrails.")
-            else:
-                tradeoffs.append("Failed automated pre-filter evaluation.")
-                actions.append("Review pre-filter criteria against the job details.")
-
             final_block = {
                 "recommend": False,
-                "rationale": f"Pre-filter rejection: {pre_reason_text}",
+                "rationale": pre_reason_text,
                 "confidence": "high",
             }
 
             return JobPostingReviewOutput(
-                job_intake=intake_json,
+                job_intake=job_posting,  # Use original data since intake agent removed
                 pre_filter=pre_json,
                 quick_fit=None,
                 brand_match=None,
                 final=final_block,
                 personas=personas,
-                tradeoffs=_dedupe(tradeoffs),
-                actions=_dedupe(actions),
-                sources=_dedupe(sources),
+                tradeoffs=[],  # Keep minimal for pre-filter rejections
+                actions=[],    # Keep minimal for pre-filter rejections
+                sources=sources,
             ).model_dump()
 
-        quick_output = quick.execute_sync(context=json.dumps(intake_json, default=float))
+        # Continue with quick fit analysis
+        quick_output = quick.execute_sync(context=job_str)
         quick_json = self._parse_task_output(quick_output)
 
-        brand_output = brand.execute_sync(context=json.dumps(intake_json, default=float))
-        brand_json = self._parse_task_output(brand_output)
-
         quick_has_structured = bool(quick_json) and set(quick_json.keys()) != {"raw"}
-        brand_has_structured = bool(brand_json) and set(brand_json.keys()) != {"raw"}
-
         quick_recommendation = (
             str(quick_json.get("quick_recommendation", "")).lower()
             if quick_has_structured
@@ -343,12 +320,11 @@ class JobPostingReviewCrew:
             if quick_has_structured
             else ""
         )
-        quick_reason_parts = []
-        if quick_overall:
-            quick_reason_parts.append(f"overall fit {quick_overall}")
-        if quick_recommendation:
-            quick_reason_parts.append(f"recommends {quick_recommendation.replace('_', ' ')}")
-        quick_reason = "; ".join(quick_reason_parts) or "Quick fit analyst shared limited feedback."
+
+        # Use concise reason from quick fit
+        quick_reason = quick_json.get("key_reason", "Quick assessment completed")
+        if not quick_reason and quick_overall:
+            quick_reason = f"Overall fit: {quick_overall}"
 
         quick_persona_recommend = True
         if quick_recommendation == "reject" or quick_overall == "low":
@@ -366,101 +342,72 @@ class JobPostingReviewCrew:
             )
             sources.append("quick_fit_analyst")
 
-            if quick_overall == "medium":
-                tradeoffs.append("Quick fit analyst rated the role as a medium overall fit.")
-            elif quick_overall == "low":
-                tradeoffs.append("Quick fit analyst rated the role as a low overall fit.")
-
-            comp_score = quick_json.get("compensation_score")
-            if isinstance(comp_score, (int, float)) and comp_score < 7:
-                tradeoffs.append("Compensation score below 7/10.")
-
+            # Minimal tradeoffs/actions for conciseness
+            if quick_overall == "low":
+                tradeoffs.append("Low overall fit rating")
             if quick_recommendation == "approve":
-                actions.append("Move forward with the application process.")
-            elif quick_recommendation == "review_deeper":
-                actions.append("Schedule a deeper evaluation before committing.")
+                actions.append("Proceed with application")
             elif quick_recommendation == "reject":
-                actions.append("Skip applying based on quick fit assessment.")
+                actions.append("Skip this opportunity")
 
-        if brand_has_structured:
-            brand_notes = brand_json.get("alignment_notes") or []
-            brand_score = brand_json.get("brand_alignment_score")
-        else:
-            brand_notes = []
-            brand_score = None
-        brand_reason_parts = []
-        if isinstance(brand_score, (int, float)):
-            brand_reason_parts.append(f"brand alignment score {brand_score}/10")
-        if brand_notes:
-            brand_reason_parts.append(brand_notes[0])
-        brand_reason = "; ".join(brand_reason_parts) or "Brand matcher provided limited feedback."
+        # Brand match only if needed
+        brand_json = {}
+        brand_has_structured = False
+        
+        if quick_recommendation == "review_deeper":
+            brand_output = brand.execute_sync(context=job_str)
+            brand_json = self._parse_task_output(brand_output)
+            brand_has_structured = bool(brand_json) and set(brand_json.keys()) != {"raw"}
 
-        brand_support = True
-        if isinstance(brand_score, (int, float)):
-            if brand_score <= 4:
-                brand_support = False
-            elif brand_score >= 7:
+            if brand_has_structured:
+                brand_score = brand_json.get("brand_alignment_score")
+                brand_summary = brand_json.get("alignment_summary", "Brand assessment completed")
+                
                 brand_support = True
-            else:
-                brand_support = True
+                if isinstance(brand_score, (int, float)) and brand_score <= 4:
+                    brand_support = False
 
-        if brand_has_structured:
-            personas.append(
-                {
-                    "id": "brand_framework_matcher",
-                    "recommend": brand_support,
-                    "reason": brand_reason,
-                }
-            )
-            sources.append("brand_framework_matcher")
-
-            if isinstance(brand_score, (int, float)) and brand_score < 7:
-                tradeoffs.append(
-                    f"Brand alignment score {brand_score}/10 indicates potential fit concerns."
+                personas.append(
+                    {
+                        "id": "brand_framework_matcher",
+                        "recommend": brand_support,
+                        "reason": brand_summary,
+                    }
                 )
-            if isinstance(brand_score, (int, float)) and brand_score >= 7:
-                actions.append("Leverage strong brand alignment during outreach.")
+                sources.append("brand_framework_matcher")
 
-            for note in brand_notes[1:]:
-                tradeoffs.append(note)
+                if isinstance(brand_score, (int, float)) and brand_score < 7:
+                    tradeoffs.append("Brand alignment concerns")
 
+        # Final decision logic
         executed_personas = [p for p in personas if p.get("recommend") is not None]
         total_votes = len(executed_personas)
         positive_votes = sum(1 for p in executed_personas if p["recommend"])
-        negative_votes = total_votes - positive_votes
 
-        majority_recommend = positive_votes >= negative_votes
-
-        final_recommend = majority_recommend
+        final_recommend = positive_votes >= (total_votes / 2)
+        
+        # Override based on specific recommendations
         if quick_recommendation == "reject":
             final_recommend = False
-        elif quick_recommendation == "review_deeper":
-            if isinstance(brand_score, (int, float)):
-                final_recommend = brand_score >= 7
-            else:
+        elif quick_recommendation == "review_deeper" and brand_has_structured:
+            brand_score = brand_json.get("brand_alignment_score")
+            if isinstance(brand_score, (int, float)) and brand_score <= 4:
                 final_recommend = False
 
-        if final_recommend and isinstance(brand_score, (int, float)) and brand_score <= 4:
-            final_recommend = False
-
+        # Concise confidence calculation
         if total_votes <= 1:
-            confidence = "medium" if final_recommend else "high"
+            confidence = "medium"
         else:
-            consensus_ratio = abs(positive_votes - negative_votes) / total_votes
-            if consensus_ratio >= 0.66:
-                confidence = "high"
-            elif consensus_ratio >= 0.33:
-                confidence = "medium"
-            else:
-                confidence = "low"
+            consensus_ratio = abs(positive_votes * 2 - total_votes) / total_votes
+            confidence = "high" if consensus_ratio >= 0.5 else "medium"
 
-        rationale_parts = []
+        # Concise rationale - just the key reasons
+        key_reasons = []
         for persona in personas:
-            label = _persona_label(persona["id"])
-            reason_text = persona.get("reason")
-            if reason_text:
-                rationale_parts.append(f"{label}: {reason_text}")
-        rationale = " ".join(rationale_parts) or "No detailed rationale provided."
+            if persona.get("reason") and len(key_reasons) < 2:  # Limit to 2 key reasons
+                key_reasons.append(persona["reason"])
+        
+        rationale = ". ".join(key_reasons) or "Assessment completed"
 
         final_block = {
             "recommend": final_recommend,
@@ -469,7 +416,7 @@ class JobPostingReviewCrew:
         }
 
         return JobPostingReviewOutput(
-            job_intake=intake_json,
+            job_intake=job_posting,  # Use original data since intake agent removed
             pre_filter=pre_json,
             quick_fit=quick_json,
             brand_match=brand_json,
@@ -480,18 +427,16 @@ class JobPostingReviewCrew:
             sources=_dedupe(sources),
         ).model_dump()
 
-    # === Crew ===
+    # === Crew (optimized without job_intake_agent) ===
     @crew
     def crew(self) -> Crew:
         return Crew(
             agents=[
-                self.job_intake_agent(),
                 self.pre_filter_agent(),
                 self.quick_fit_analyst(),
                 self.brand_framework_matcher(),
             ],
             tasks=[
-                self.intake_task(),
                 self.pre_filter_task(),
                 self.quick_fit_task(),
                 self.brand_match_task(),

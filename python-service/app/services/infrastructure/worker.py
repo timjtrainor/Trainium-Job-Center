@@ -235,20 +235,19 @@ def process_job_review(job_id: str, max_retries: int = 3) -> Dict[str, Any]:
                 "retry_count": retry_count
             }
         
-        # Prepare job data for CrewAI
+        # Prepare structured job data for CrewAI (skip job_intake_agent - already structured)
         crew_input = {
             "title": job_data.get("title", ""),
             "company": job_data.get("company", ""),
             "location": job_data.get("location_city") or job_data.get("location_state") or "Remote",
             "description": job_data.get("description", ""),
-            "url": job_data.get("job_url", ""),
-            "is_remote": job_data.get("is_remote", False),
             "job_type": job_data.get("job_type", ""),
-            "salary_info": {
+            "seniority": "Senior",  # Default as this field may not exist in jobs table
+            "salary": {
                 "min_amount": job_data.get("min_amount"),
                 "max_amount": job_data.get("max_amount"),
-                "currency": job_data.get("currency"),
-                "interval": job_data.get("interval")
+                "currency": job_data.get("currency", "USD"),
+                "interval": job_data.get("interval", "yearly")
             }
         }
 
