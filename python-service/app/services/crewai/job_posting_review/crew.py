@@ -391,29 +391,26 @@ class JobPostingReviewCrew:
         brand_has_structured = bool(brand_json) and set(brand_json.keys()) != {"raw"}
 
         if brand_has_structured:
-            # Handle multi-section brand match format
-            overall_score = brand_json.get("overall_alignment_score")
+            # Use brand_match_manager's recommendation and confidence directly
+            brand_recommend = brand_json.get("recommend", False)
+            brand_confidence = brand_json.get("confidence", "medium")
             brand_summary = brand_json.get("overall_summary", "Brand assessment completed")
             
-            # Fallback to legacy format if new format not present
-            if overall_score is None:
-                overall_score = brand_json.get("brand_alignment_score")
-            if not brand_summary or brand_summary == "Brand assessment completed":
+            # Fallback for legacy format if new format not present
+            if brand_summary == "Brand assessment completed":
                 brand_summary = brand_json.get("alignment_summary", "Brand assessment completed")
-            
-            brand_support = True
-            if isinstance(overall_score, (int, float)) and overall_score <= 4:
-                brand_support = False
 
             personas.append(
                 {
                     "id": "brand_match_manager",
-                    "recommend": brand_support,
+                    "recommend": brand_recommend,
                     "reason": brand_summary,
                 }
             )
             sources.append("brand_match_manager")
 
+            # Add tradeoffs based on score, not recommendation
+            overall_score = brand_json.get("overall_alignment_score") or brand_json.get("brand_alignment_score")
             if isinstance(overall_score, (int, float)) and overall_score < 7:
                 tradeoffs.append("Brand alignment concerns")
                 
@@ -421,25 +418,14 @@ class JobPostingReviewCrew:
             if "north_star" in brand_json:
                 brand_json["detailed_analysis"] = True
 
-        # Final decision logic
-        executed_personas = [p for p in personas if p.get("recommend") is not None]
-        total_votes = len(executed_personas)
-        positive_votes = sum(1 for p in executed_personas if p["recommend"])
-
-        final_recommend = positive_votes >= (total_votes / 2)
-        
-        # Override based on brand matching if available
+        # Final decision logic - use brand_match_manager's decision
         if brand_has_structured:
-            brand_score = brand_json.get("overall_alignment_score") or brand_json.get("brand_alignment_score")
-            if isinstance(brand_score, (int, float)) and brand_score <= 4:
-                final_recommend = False
-
-        # Confidence calculation
-        if total_votes <= 1:
-            confidence = "medium"
+            final_recommend = brand_recommend
+            confidence = brand_confidence
         else:
-            consensus_ratio = abs(positive_votes * 2 - total_votes) / total_votes
-            confidence = "high" if consensus_ratio >= 0.5 else "medium"
+            # Fallback to pre-filter only if no brand matching
+            final_recommend = personas[0].get("recommend", False) if personas else False
+            confidence = "medium"
 
         # Concise rationale - key reasons
         key_reasons = []

@@ -137,9 +137,11 @@ brand_match_manager:
     - compensation_philosophy: 0.25 (25%)
     
     You make recommendations based on the overall_alignment_score:
-    - A overall_alignment_score above 8.5 you Recommend with HIGH confidence ("high")
-    - A overall_alignment_score between 7.5 and 8.5 you Recommend with MEDIUM confidence ("medium") 
-    - A overall_alignment_score below 7.5: you Do NOT recommend ("medium" confidence for rejection)
+    - Score >= 8.5: RECOMMEND with HIGH confidence ("high")
+    - Score >= 7.5 and < 8.5: RECOMMEND with MEDIUM confidence ("medium") 
+    - Score < 7.5: DO NOT RECOMMEND with MEDIUM confidence ("medium") for rejection
+    
+    IMPORTANT: Follow these rules strictly. Do not recommend jobs with scores below 7.5.
     
     Always include "recommend" (boolean) and "confidence" ("high"/"medium"/"low") fields in your output.
     
