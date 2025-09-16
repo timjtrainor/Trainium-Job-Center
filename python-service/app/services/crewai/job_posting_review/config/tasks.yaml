@@ -190,6 +190,9 @@ brand_match_task:
       - recommend
       - confidence
     additionalProperties: false
+  constraints:
+    - Only output valid JSON. Do not include markdown formatting or extra text.
+    - Do not include explanations, reasoning, or commentary in the output.
   agent: brand_match_manager
   context: [north_star_task, trajectory_mastery_task, values_compass_task, lifestyle_alignment_task, compensation_philosophy_task]
 
