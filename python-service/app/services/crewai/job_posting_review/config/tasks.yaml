@@ -120,6 +120,76 @@ brand_match_task:
       "recommend": true/false,
       "confidence": "high/medium/low"
     }
+  validation_schema:
+    type: object
+    properties:
+      north_star:
+        type: object
+        properties:
+          score:
+            type: int
+            minimum: 0
+            maximum: 10
+          summary:
+            type: string
+      trajectory_mastery:
+        type: object
+        properties:
+          score:
+            type: int
+            minimum: 0
+            maximum: 10
+          summary:
+            type: string
+      values_compass:
+        type: object
+        properties:
+          score:
+            type: int
+            minimum: 0
+            maximum: 10
+          summary:
+            type: string
+      lifestyle_alignment:
+        type: object
+        properties:
+          score:
+            type: int
+            minimum: 0
+            maximum: 10
+          summary:
+            type: string
+      compensation_philosophy:
+        type: object
+        properties:
+          score:
+            type: int
+            minimum: 0
+            maximum: 10
+          summary:
+            type: string
+      overall_alignment_score:
+        type: int
+        minimum: 0
+        maximum: 10
+      overall_summary:
+        type: string
+      recommend:
+        type: boolean
+      confidence:
+        type: string
+        enum: [low, medium, high]
+    required:
+      - north_star
+      - trajectory_mastery
+      - values_compass
+      - lifestyle_alignment
+      - compensation_philosophy
+      - overall_alignment_score
+      - overall_summary
+      - recommend
+      - confidence
+    additionalProperties: false
   agent: brand_match_manager
   context: [north_star_task, trajectory_mastery_task, values_compass_task, lifestyle_alignment_task, compensation_philosophy_task]
 

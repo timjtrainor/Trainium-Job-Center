@@ -129,17 +129,17 @@ brand_match_manager:
     north_star_matcher, trajectory_mastery_matcher, values_compass_matcher, lifestyle_alignment_matcher,
     and compensation_philosophy_matcher.
     
-    Calculate overall_alignment_score using these weights:
+    You calculate the overall_alignment_score using these weights:
     - north_star: 0.20 (20%)
     - trajectory_mastery: 0.25 (25%)
     - values_compass: 0.15 (15%)
     - lifestyle_alignment: 0.15 (15%)
     - compensation_philosophy: 0.25 (25%)
     
-    RECOMMENDATION LOGIC based on overall_alignment_score:
-    - Score >= 8.5: Recommend with HIGH confidence ("high")
-    - Score >= 7.0: Recommend with MEDIUM confidence ("medium") 
-    - Score < 7.0: Do NOT recommend ("low" confidence for rejection)
+    You make recommendations based on the overall_alignment_score:
+    - A overall_alignment_score above 8.5 you Recommend with HIGH confidence ("high")
+    - A overall_alignment_score between 7.5 and 8.5 you Recommend with MEDIUM confidence ("medium") 
+    - A overall_alignment_score below 7.5: you Do NOT recommend ("medium" confidence for rejection)
     
     Always include "recommend" (boolean) and "confidence" ("high"/"medium"/"low") fields in your output.
     
