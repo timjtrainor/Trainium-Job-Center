@@ -18,7 +18,8 @@ os.environ.setdefault("CREWAI_DISABLE_EVENTS", "true")
 from ..tools.chroma_search import (
     search_career_brands,
     search_career_research,
-    search_job_search_research
+    search_job_search_research,
+    get_career_brand_tools
 )
 
 _cached_crew: Optional[Crew] = None
@@ -173,7 +174,7 @@ class JobPostingReviewCrew:
     def brand_framework_matcher(self) -> Agent:
         return Agent(
             config=self.agents_config["brand_framework_matcher"],  # type: ignore[index]
-            tools=[search_career_brands],
+            tools=get_career_brand_tools(),
         )
 
     # === Legacy Manager (unused) ===
