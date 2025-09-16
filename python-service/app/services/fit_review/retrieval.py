@@ -294,6 +294,194 @@ def build_context(job_posting: Dict[str, Any], profile_id: Optional[str] = None)
     return context
 
 
+def get_multi_section_career_brand_digest(profile_id: Optional[str] = None, k: int = 3, threshold: float = 0.2) -> Dict[str, Any]:
+    """
+    Query ChromaDB 'career_brand' collection for all five career brand dimensions.
+    
+    Retrieves career brand documents for each of the five defined sections:
+    - north_star_vision → North Star & Vision
+    - trajectory_mastery → Trajectory & Mastery  
+    - values_compass → Values Compass
+    - lifestyle_alignment → Lifestyle Alignment
+    - compensation_philosophy → Compensation Philosophy
+    
+    Args:
+        profile_id: User profile ID for personalized queries (optional)
+        k: Number of top similar documents to retrieve per section
+        threshold: Minimum similarity score threshold for filtering
+        
+    Returns:
+        Dict with section-specific digests, doc_ids, scores, and metadata
+    """
+    logger.debug(f"Querying multi-section career_brand collection: profile_id={profile_id}, k={k}, threshold={threshold}")
+    
+    # Define the five career brand sections
+    sections = {
+        'north_star_vision': 'North Star & Vision',
+        'trajectory_mastery': 'Trajectory & Mastery',
+        'values_compass': 'Values Compass', 
+        'lifestyle_alignment': 'Lifestyle Alignment',
+        'compensation_philosophy': 'Compensation Philosophy'
+    }
+    
+    try:
+        # Connect to ChromaDB using project's configured client
+        client = get_chroma_client()
+        embedding_function = get_embedding_function()
+        
+        # Try to get the career_brand collection
+        try:
+            collection = client.get_collection(
+                name="career_brand",
+                embedding_function=embedding_function
+            )
+        except Exception as e:
+            logger.warning(f"Career brand collection not found or inaccessible: {e}")
+            return {
+                "sections": {},
+                "metadata": {
+                    "error": "Collection unavailable",
+                    "signal": "insufficient"
+                }
+            }
+        
+        # Check if collection has any documents
+        doc_count = collection.count()
+        if doc_count == 0:
+            logger.info("Career brand collection is empty")
+            return {
+                "sections": {},
+                "metadata": {
+                    "doc_count": 0,
+                    "signal": "insufficient"
+                }
+            }
+        
+        results = {}
+        
+        # Query each section individually
+        for section_key, section_name in sections.items():
+            # Build section-specific query text
+            if profile_id:
+                query_text = f"career development {section_name.lower()} profile {profile_id}"
+            else:
+                query_text = f"career development {section_name.lower()}"
+            
+            # Query collection with metadata filter for this section
+            try:
+                section_results = collection.query(
+                    query_texts=[query_text],
+                    n_results=min(k, doc_count),
+                    include=["documents", "metadatas", "distances"],
+                    where={"section": section_key}  # Filter by section
+                )
+                
+                if section_results["documents"] and section_results["documents"][0]:
+                    # Process results for this section
+                    documents = section_results["documents"][0]
+                    metadatas = section_results["metadatas"][0] if section_results["metadatas"] else []
+                    distances = section_results["distances"][0] if section_results["distances"] else []
+                    
+                    # Convert distances to similarity scores
+                    similarities = [1.0 - d for d in distances] if distances else [1.0] * len(documents)
+                    
+                    # Filter by threshold
+                    filtered_docs = []
+                    filtered_ids = []
+                    filtered_scores = []
+                    
+                    for i, (doc, score) in enumerate(zip(documents, similarities)):
+                        if score >= threshold:
+                            filtered_docs.append(doc)
+                            filtered_scores.append(score)
+                            # Extract doc_id from metadata or generate from index
+                            if metadatas and len(metadatas) > i and metadatas[i]:
+                                doc_id = metadatas[i].get('doc_id', f'{section_key}_{i}')
+                            else:
+                                doc_id = f'{section_key}_{i}'
+                            filtered_ids.append(doc_id)
+                    
+                    # Build digest for this section with token budget (400 chars per section)
+                    MAX_SECTION_CHARS = 400
+                    digest_parts = []
+                    current_length = 0
+                    
+                    for doc in filtered_docs:
+                        doc_snippet = doc[:150] + "..." if len(doc) > 150 else doc
+                        
+                        if current_length + len(doc_snippet) > MAX_SECTION_CHARS:
+                            break
+                            
+                        if digest_parts:  # Add separator between chunks
+                            digest_parts.append(" | ")
+                            current_length += 3
+                            
+                        digest_parts.append(doc_snippet)
+                        current_length += len(doc_snippet)
+                    
+                    digest = "".join(digest_parts)
+                    
+                    results[section_key] = {
+                        "digest": digest,
+                        "doc_ids": filtered_ids,
+                        "scores": filtered_scores,
+                        "retrieved": len(documents),
+                        "filtered": len(filtered_docs)
+                    }
+                    
+                    logger.debug(f"Section {section_key}: {len(filtered_docs)} docs, {len(digest)} chars")
+                else:
+                    # No documents found for this section
+                    results[section_key] = {
+                        "digest": "",
+                        "doc_ids": [],
+                        "scores": [],
+                        "retrieved": 0,
+                        "filtered": 0
+                    }
+                    
+            except Exception as e:
+                logger.warning(f"Error querying section {section_key}: {e}")
+                results[section_key] = {
+                    "digest": "",
+                    "doc_ids": [],
+                    "scores": [],
+                    "retrieved": 0,
+                    "filtered": 0,
+                    "error": str(e)
+                }
+        
+        # Calculate overall metadata
+        total_retrieved = sum(section.get("retrieved", 0) for section in results.values())
+        total_filtered = sum(section.get("filtered", 0) for section in results.values())
+        sections_with_data = sum(1 for section in results.values() if section.get("filtered", 0) > 0)
+        
+        logger.info(f"Multi-section career brand digest: {sections_with_data}/{len(sections)} sections with data")
+        
+        return {
+            "sections": results,
+            "metadata": {
+                "doc_count": doc_count,
+                "total_retrieved": total_retrieved,
+                "total_filtered": total_filtered,
+                "sections_with_data": sections_with_data,
+                "total_sections": len(sections),
+                "threshold": threshold,
+                "signal": "sufficient" if sections_with_data > 0 else "insufficient"
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error querying multi-section career_brand collection: {e}")
+        return {
+            "sections": {},
+            "metadata": {
+                "error": str(e),
+                "signal": "insufficient"
+            }
+        }
+
+
 def _extract_tags(job_posting: Dict[str, Any]) -> List[str]:
     """
     Extract minimal domain/seniority tags using simple heuristics.

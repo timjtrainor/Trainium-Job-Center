@@ -359,11 +359,18 @@ class JobPostingReviewCrew:
             brand_has_structured = bool(brand_json) and set(brand_json.keys()) != {"raw"}
 
             if brand_has_structured:
-                brand_score = brand_json.get("brand_alignment_score")
-                brand_summary = brand_json.get("alignment_summary", "Brand assessment completed")
+                # Handle new multi-section brand match format
+                overall_score = brand_json.get("overall_alignment_score")
+                brand_summary = brand_json.get("overall_summary", "Brand assessment completed")
+                
+                # Fallback to legacy format if new format not present
+                if overall_score is None:
+                    overall_score = brand_json.get("brand_alignment_score")
+                if not brand_summary or brand_summary == "Brand assessment completed":
+                    brand_summary = brand_json.get("alignment_summary", "Brand assessment completed")
                 
                 brand_support = True
-                if isinstance(brand_score, (int, float)) and brand_score <= 4:
+                if isinstance(overall_score, (int, float)) and overall_score <= 4:
                     brand_support = False
 
                 personas.append(
@@ -375,8 +382,13 @@ class JobPostingReviewCrew:
                 )
                 sources.append("brand_framework_matcher")
 
-                if isinstance(brand_score, (int, float)) and brand_score < 7:
+                if isinstance(overall_score, (int, float)) and overall_score < 7:
                     tradeoffs.append("Brand alignment concerns")
+                    
+                # Store the detailed brand analysis in final result
+                if "north_star" in brand_json:
+                    # Include detailed brand analysis data
+                    brand_json["detailed_analysis"] = True
 
         # Final decision logic
         executed_personas = [p for p in personas if p.get("recommend") is not None]
@@ -389,7 +401,8 @@ class JobPostingReviewCrew:
         if quick_recommendation == "reject":
             final_recommend = False
         elif quick_recommendation == "review_deeper" and brand_has_structured:
-            brand_score = brand_json.get("brand_alignment_score")
+            # Use new overall_alignment_score if available, fallback to legacy brand_alignment_score
+            brand_score = brand_json.get("overall_alignment_score") or brand_json.get("brand_alignment_score")
             if isinstance(brand_score, (int, float)) and brand_score <= 4:
                 final_recommend = False
 

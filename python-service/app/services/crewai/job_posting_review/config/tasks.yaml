@@ -29,10 +29,34 @@ quick_fit_task:
 
 brand_match_task:
   description: >
-    Compare the structured job data to the user's Career Brand Framework. 
-    Return alignment score and concise assessment quickly - focus on key alignment factors only.
+    Compare the structured job data against the user's five Career Brand Framework dimensions.
+    
+    You have access to the search_career_brands tool which can filter by metadata sections.
+    Query each of the five career brand sections individually:
+    - north_star_vision → North Star & Vision
+    - trajectory_mastery → Trajectory & Mastery  
+    - values_compass → Values Compass
+    - lifestyle_alignment → Lifestyle Alignment
+    - compensation_philosophy → Compensation Philosophy
+    
+    For each section, use search_career_brands with the where_filter parameter:
+    search_career_brands("job requirements alignment", 3, '{"section": "north_star_vision"}')
+    
+    Evaluate job alignment for each dimension separately and return structured JSON.
+    Each dimension should receive a score (0-10) and a concise summary (1-2 sentences).
+    Calculate an overall alignment score and provide an overall summary.
+    
   expected_output: >
-    Concise JSON: {"brand_alignment_score": 0-10, "alignment_summary": "Brief 1-2 sentence summary of key alignment factors"}
+    Structured JSON with all five dimensions plus overall assessment:
+    {
+      "north_star": {"score": 0-10, "summary": "Brief alignment assessment for North Star & Vision"},
+      "trajectory_mastery": {"score": 0-10, "summary": "Brief alignment assessment for Trajectory & Mastery"},
+      "values_compass": {"score": 0-10, "summary": "Brief alignment assessment for Values Compass"},
+      "lifestyle_alignment": {"score": 0-10, "summary": "Brief alignment assessment for Lifestyle Alignment"},
+      "compensation_philosophy": {"score": 0-10, "summary": "Brief alignment assessment for Compensation Philosophy"},
+      "overall_alignment_score": 0-10,
+      "overall_summary": "Brief 1-2 sentence overall alignment summary"
+    }
   agent: brand_framework_matcher
 
 orchestration_task:
