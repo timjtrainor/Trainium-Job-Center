@@ -138,6 +138,7 @@ brand_match_manager:
     
     overall_alignment_score >= 8.5 recommended with high confidence
     overall_alignment_score >= 7.0 recommended with medium confidence
+    overall_alignment_score < 7.0  do not recommended
     
     Provide a balanced overall summary that highlights key strengths and concerns across dimensions.
   memory: false
