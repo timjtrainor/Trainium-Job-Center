@@ -236,12 +236,28 @@ services:
       redis:
         condition: service_healthy
 
+  # LinkedIn MCP Server
+  linkedin-mcp-server:
+    container_name: trainium_linkedin_mcp
+    image: stickerdaniel/linkedin-mcp-server
+    environment:
+      LINKEDIN_EMAIL: ${LINKEDIN_EMAIL}
+      LINKEDIN_PASSWORD: ${LINKEDIN_PASSWORD}
+      LINKEDIN_SESSION_COOKIE: ${LINKEDIN_SESSION_COOKIE}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   # Docker MCP Gateway for managing MCP servers
   mcp-gateway:
     container_name: trainium_mcp_gateway
     image: docker/mcp-gateway
     command:
-      - --servers=duckduckgo
+      - --servers=duckduckgo,linkedin
       - --transport=sse
       - --port=8811
     volumes:
@@ -249,6 +265,9 @@ services:
     ports:
       - "${MCP_GATEWAY_PORT:-8811}:8811"
     restart: unless-stopped
+    depends_on:
+      linkedin-mcp-server:
+        condition: service_healthy
     healthcheck:
       test: wget -O- http://localhost:8811/health
       interval: 30s

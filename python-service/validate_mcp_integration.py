@@ -7,6 +7,7 @@ implemented without requiring Docker builds or network access.
 """
 import sys
 import os
+import json
 from pathlib import Path
 
 # Add the app directory to Python path
@@ -128,9 +129,13 @@ def test_docker_compose_integration():
             
             checks = [
                 ("mcp-gateway service", "mcp-gateway:" in content),
+                ("linkedin-mcp-server service", "linkedin-mcp-server:" in content),
                 ("MCP environment vars", "MCP_GATEWAY_URL" in content),
+                ("LinkedIn environment vars", "LINKEDIN_EMAIL" in content and "LINKEDIN_PASSWORD" in content),
                 ("MCP dependencies", "mcp-gateway:" in content and "condition: service_healthy" in content),
-                ("MCP port mapping", "8811:8811" in content)
+                ("LinkedIn dependencies", "linkedin-mcp-server:" in content and "condition: service_healthy" in content),
+                ("MCP port mapping", ":8811" in content),
+                ("LinkedIn and DuckDuckGo servers", "--servers=duckduckgo,linkedin" in content)
             ]
             
             all_passed = True
@@ -185,6 +190,47 @@ def test_agent_configuration():
         return False
 
 
+def test_mcp_servers_config():
+    """Test MCP servers configuration."""
+    print("🔧 Testing MCP servers configuration...")
+    
+    try:
+        servers_file = Path(__file__).parent / "mcp-config" / "servers.json"
+        
+        if servers_file.exists():
+            with open(servers_file, 'r') as f:
+                config = json.load(f)
+            
+            servers = config.get("servers", {})
+            
+            checks = [
+                ("DuckDuckGo server config", "duckduckgo" in servers),
+                ("LinkedIn server config", "linkedin" in servers),
+                ("LinkedIn environment variables", 
+                 "linkedin" in servers and 
+                 "env" in servers["linkedin"] and
+                 "LINKEDIN_EMAIL" in servers["linkedin"]["env"]),
+                ("Gateway configuration", "gateway" in config)
+            ]
+            
+            all_passed = True
+            for check_name, condition in checks:
+                if condition:
+                    print(f"   ✅ {check_name}")
+                else:
+                    print(f"   ❌ {check_name}")
+                    all_passed = False
+                    
+            return all_passed
+        else:
+            print("   ❌ servers.json not found")
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ MCP servers config test failed: {e}")
+        return False
+
+
 def main():
     """Run all validation tests."""
     print("🔍 MCP Gateway Integration Validation")
@@ -197,6 +243,7 @@ def main():
         ("JobPostingReviewCrew Integration", test_job_posting_review_crew_integration),
         ("File Structure", test_file_structure),
         ("Docker Compose Integration", test_docker_compose_integration),
+        ("MCP Servers Configuration", test_mcp_servers_config),
         ("Agent Configuration", test_agent_configuration)
     ]
     

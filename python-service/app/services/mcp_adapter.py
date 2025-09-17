@@ -150,6 +150,53 @@ class MCPServerAdapter:
                             }
                         ]
                     }
+                elif server_name == "linkedin":
+                    tools_data = {
+                        "tools": [
+                            {
+                                "name": "search_people",
+                                "description": "Search for people on LinkedIn",
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {
+                                        "query": {
+                                            "type": "string",
+                                            "description": "Search query for people"
+                                        },
+                                        "limit": {
+                                            "type": "integer",
+                                            "description": "Maximum number of results",
+                                            "default": 10
+                                        }
+                                    },
+                                    "required": ["query"]
+                                }
+                            },
+                            {
+                                "name": "search_jobs",
+                                "description": "Search for jobs on LinkedIn",
+                                "parameters": {
+                                    "type": "object", 
+                                    "properties": {
+                                        "query": {
+                                            "type": "string",
+                                            "description": "Job search query"
+                                        },
+                                        "location": {
+                                            "type": "string",
+                                            "description": "Location filter"
+                                        },
+                                        "limit": {
+                                            "type": "integer",
+                                            "description": "Maximum number of results",
+                                            "default": 10
+                                        }
+                                    },
+                                    "required": ["query"]
+                                }
+                            }
+                        ]
+                    }
                 else:
                     tools_data = {"tools": []}
                     
@@ -298,6 +345,23 @@ class MCPServerAdapter:
                 duckduckgo_tools.append(crewai_tool)
                 
         return duckduckgo_tools
+
+    def get_linkedin_tools(self) -> List[Dict[str, Any]]:
+        """
+        Get LinkedIn-specific tools for injection into CrewAI agents.
+        
+        Returns:
+            List of tool configurations compatible with CrewAI
+        """
+        linkedin_tools = []
+        
+        for tool_name, tool_config in self._available_tools.items():
+            if tool_name.startswith("linkedin_"):
+                # Convert MCP tool format to CrewAI tool format
+                crewai_tool = self._convert_mcp_tool_to_crewai(tool_name, tool_config)
+                linkedin_tools.append(crewai_tool)
+                
+        return linkedin_tools
         
     def _convert_mcp_tool_to_crewai(self, tool_name: str, mcp_tool: Dict[str, Any]) -> Dict[str, Any]:
         """

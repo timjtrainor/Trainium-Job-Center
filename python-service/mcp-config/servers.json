@@ -5,6 +5,16 @@
       "args": ["run", "-i", "--rm", "mcp/duckduckgo"],
       "env": {},
       "description": "DuckDuckGo search server for web searches"
+    },
+    "linkedin": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "stickerdaniel/linkedin-mcp-server"],
+      "env": {
+        "LINKEDIN_EMAIL": "${LINKEDIN_EMAIL}",
+        "LINKEDIN_PASSWORD": "${LINKEDIN_PASSWORD}",
+        "LINKEDIN_SESSION_COOKIE": "${LINKEDIN_SESSION_COOKIE}"
+      },
+      "description": "LinkedIn MCP server for LinkedIn operations and data access"
     }
   },
   "gateway": {
