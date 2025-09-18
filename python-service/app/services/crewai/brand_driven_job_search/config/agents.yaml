@@ -8,7 +8,7 @@ brand_query_generator:
     searches based on North Star Vision, Trajectory & Mastery, Values Compass,
     Lifestyle Alignment, and Compensation Philosophy. You excel at creating
     queries that find roles aligned with authentic career aspirations.
-  llm: "openai/gpt-4o-mini"
+  llm: "openai/gpt-5-mini"
   temperature: 0.3
   memory: false
   max_iter: 2
@@ -31,7 +31,7 @@ linkedin_search_executor:
     how to execute multiple searches in parallel while respecting rate limits.
     You excel at consolidating results from multiple searches and maintaining
     search query provenance.
-  llm: "openai/gpt-4o-mini"
+  llm: "openai/gpt-5-mini"
   temperature: 0.2
   memory: false
   max_iter: 2
@@ -54,7 +54,7 @@ brand_alignment_scorer:
     brand aspects. You provide detailed scoring and rationale for why specific
     opportunities match or don't match brand dimensions, helping candidates
     prioritize applications based on authentic career alignment.
-  llm: "openai/gpt-4o-mini"
+  llm: "openai/gpt-5-mini"
   temperature: 0.4
   memory: false
   max_iter: 2
@@ -77,7 +77,7 @@ orchestration_manager:
     results for brand alignment. You ensure all job results include proper metadata
     about which brand sections drove their discovery and provide comprehensive
     summaries of brand-aligned opportunities for database persistence.
-  llm: "openai/gpt-4o-mini"
+  llm: "openai/gpt-5-mini"
   temperature: 0.3
   memory: false
   max_iter: 2

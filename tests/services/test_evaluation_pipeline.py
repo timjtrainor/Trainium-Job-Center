@@ -73,7 +73,7 @@ class RecordingDB:
     "motivator_pair, decision_pair",
     [
         (("gemini", "gemini-pro"), ("ollama", "gemma3:1b")),
-        (("ollama", "gemma3:1b"), ("openai", "gpt-4o-mini")),
+        (("ollama", "gemma3:1b"), ("openai", "gpt-5-mini")),
     ],
 )
 def test_evaluate_job_pipeline_routes_clients(motivator_pair, decision_pair, monkeypatch):

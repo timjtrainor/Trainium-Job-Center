@@ -19,7 +19,7 @@ pre_filter_agent:
   temperature: 0
   max_iter: 1
   max_execution_time: 20
-  llm: "openai/gpt-5-nano"
+  llm: "ollama/gemma3:1b"
 
 # Specialized Brand Matcher Agents - each focuses on one career dimension
 
