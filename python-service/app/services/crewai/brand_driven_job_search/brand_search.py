@@ -7,7 +7,7 @@ from ChromaDB and generate LinkedIn search queries based on brand dimensions.
 from typing import Dict, List, Any, Optional
 from loguru import logger
 
-from ...crewai.tools.chroma_search import chroma_search_tool
+from ..tools.chroma_search import chroma_search_tool
 
 
 class BrandSearchHelper:
