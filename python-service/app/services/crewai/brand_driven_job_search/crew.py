@@ -13,7 +13,7 @@ from crewai.project import CrewBase, agent, task, crew
 from loguru import logger
 
 from ..base import load_mcp_tools_sync
-from ..tools.chroma_search import chroma_search_tool
+from ..tools.chroma_search import get_career_brand_tools
 from .brand_search import brand_search_helper
 
 _cached_crew: Optional[Crew] = None
@@ -46,11 +46,11 @@ class BrandDrivenJobSearchCrew:
             linkedin_tool_names = ["search_jobs"]
             self._linkedin_tools = load_mcp_tools_sync(linkedin_tool_names)
             
-            # ChromaDB tool is available as a function
-            self._chroma_tools = [chroma_search_tool]
-            
+            # Career brand search tools for querying ChromaDB content
+            self._chroma_tools = get_career_brand_tools()
+
             logger.info(f"Loaded {len(self._linkedin_tools)} LinkedIn tools and {len(self._chroma_tools)} ChromaDB tools")
-            
+
         except Exception as e:
             logger.warning(f"Failed to load tools: {e}")
             self._linkedin_tools = []

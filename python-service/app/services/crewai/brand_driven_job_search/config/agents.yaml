@@ -14,8 +14,6 @@ brand_query_generator:
   max_iter: 2
   verbose: true
   allow_delegation: false
-  tools:
-    - chroma_search_tool
   constraints:
     - "Generate diverse queries covering all brand dimensions"
     - "Ensure queries are specific enough to find relevant roles"
@@ -60,8 +58,6 @@ brand_alignment_scorer:
   max_iter: 2
   verbose: true
   allow_delegation: false
-  tools:
-    - chroma_search_tool
   constraints:
     - "Score jobs on multiple brand alignment dimensions"
     - "Provide clear rationale for alignment scores"
