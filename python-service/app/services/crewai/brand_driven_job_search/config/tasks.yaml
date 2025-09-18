@@ -1,0 +1,219 @@
+generate_brand_queries_task:
+  description: >
+    Generate LinkedIn search queries derived from career brand dimensions stored in ChromaDB.
+    Query the career_brand collection for the following sections:
+    - North Star & Vision: {{user_id}}
+    - Trajectory & Mastery: {{user_id}}  
+    - Values Compass: {{user_id}}
+    - Lifestyle Alignment: {{user_id}}
+    - Compensation Philosophy: {{user_id}}
+    
+    For each brand section, extract relevant keywords and generate targeted LinkedIn
+    search queries that would find roles aligned with that brand dimension.
+    Ensure each query includes the originating brand section for traceability.
+    
+  expected_output: >
+    A JSON object containing brand-derived search queries:
+    {
+      "success": true,
+      "brand_queries": {
+        "north_star_vision": {
+          "keywords": "leadership strategy vision",
+          "search_terms": ["leadership", "strategy", "vision"],
+          "job_types": ["full-time", "leadership"],
+          "brand_section": "north_star_vision",
+          "section_content": "Brief excerpt from brand content..."
+        },
+        "trajectory_mastery": {
+          "keywords": "engineering development technical",
+          "search_terms": ["engineering", "development", "technical"],
+          "job_types": ["full-time", "senior"], 
+          "brand_section": "trajectory_mastery",
+          "section_content": "Brief excerpt from brand content..."
+        },
+        "values_compass": {
+          "keywords": "impact mission culture",
+          "search_terms": ["impact", "mission", "culture"],
+          "job_types": ["full-time"],
+          "brand_section": "values_compass", 
+          "section_content": "Brief excerpt from brand content..."
+        }
+      },
+      "total_queries": 5,
+      "user_id": "{{user_id}}"
+    }
+  agent: brand_query_generator
+  async_execution: true
+
+execute_brand_searches_task:
+  description: >
+    Execute LinkedIn job searches using the brand-derived queries from generate_brand_queries_task.
+    For each query in the brand_queries object, execute a LinkedIn search using the search_jobs
+    LinkedIn MCP tool with the generated keywords and job type filters.
+    
+    Maintain traceability between search results and the originating brand section.
+    Handle LinkedIn API rate limits and errors gracefully. Consolidate all search
+    results while preserving brand section metadata.
+    
+  expected_output: >
+    A JSON object containing all brand-driven search results:
+    {
+      "success": true,
+      "brand_search_results": {
+        "north_star_vision": {
+          "jobs": [
+            {
+              "title": "Senior Engineering Manager",
+              "company": "TechCorp",
+              "location": "San Francisco, CA",
+              "job_type": "full-time",
+              "description": "Lead engineering teams...",
+              "job_url": "https://linkedin.com/jobs/123",
+              "site": "linkedin",
+              "brand_section": "north_star_vision",
+              "search_keywords": "leadership strategy vision"
+            }
+          ],
+          "jobs_found": 15,
+          "search_success": true
+        },
+        "trajectory_mastery": {
+          "jobs": [...],
+          "jobs_found": 20,
+          "search_success": true
+        }
+      },
+      "total_jobs_found": 65,
+      "successful_searches": 4,
+      "failed_searches": 1,
+      "search_metadata": {
+        "execution_time": "45 seconds",
+        "rate_limits_hit": false
+      }
+    }
+  agent: linkedin_search_executor
+  context: [generate_brand_queries_task]
+  async_execution: true
+
+score_brand_alignment_task:
+  description: >
+    Analyze and score each job from execute_brand_searches_task against career brand
+    dimensions for alignment. For each job, evaluate how well it matches the brand
+    section that led to its discovery, and provide cross-section scoring against
+    other brand dimensions.
+    
+    Use the career_brand ChromaDB collection to retrieve full brand context for
+    scoring. Provide detailed rationale for alignment scores and identify the
+    highest-value opportunities.
+    
+  expected_output: >
+    A JSON object containing brand alignment scores:
+    {
+      "success": true,
+      "scored_jobs": [
+        {
+          "job_id": "job_url_or_unique_identifier",
+          "title": "Senior Engineering Manager", 
+          "company": "TechCorp",
+          "location": "San Francisco, CA",
+          "originating_brand_section": "north_star_vision",
+          "brand_alignment_scores": {
+            "north_star_vision": {
+              "score": 85,
+              "rationale": "Strong leadership component aligns with vision..."
+            },
+            "trajectory_mastery": {
+              "score": 75,
+              "rationale": "Technical leadership matches skill trajectory..."
+            },
+            "values_compass": {
+              "score": 70,
+              "rationale": "Company values align moderately..."
+            },
+            "lifestyle_alignment": {
+              "score": 60,
+              "rationale": "Location and work style considerations..."
+            },
+            "compensation_philosophy": {
+              "score": 80,
+              "rationale": "Role level suggests appropriate compensation..."
+            }
+          },
+          "overall_brand_score": 74,
+          "recommendation_priority": "high",
+          "key_alignments": ["leadership opportunity", "technical growth"],
+          "potential_concerns": ["location requirement", "company size"]
+        }
+      ],
+      "top_opportunities": [
+        {"job_id": "...", "overall_score": 85, "priority": "high"},
+        {"job_id": "...", "overall_score": 78, "priority": "high"}
+      ],
+      "scoring_summary": {
+        "total_jobs_scored": 65,
+        "high_priority_count": 12,
+        "medium_priority_count": 28,
+        "low_priority_count": 25
+      }
+    }
+  agent: brand_alignment_scorer
+  context: [generate_brand_queries_task, execute_brand_searches_task]
+  async_execution: true
+
+compile_brand_driven_results_task:
+  description: >
+    Compile and finalize the brand-driven job search results from all previous tasks.
+    Consolidate brand queries, search results, and alignment scores into a comprehensive
+    report suitable for database persistence. Include metadata about which brand
+    sections were most productive for job discovery and provide actionable insights.
+    
+    Ensure all job data conforms to ScrapedJob schema with additional brand metadata.
+    
+  expected_output: >
+    A JSON object with complete brand-driven job search results:
+    {
+      "success": true,
+      "brand_driven_jobs": [
+        {
+          "title": "Senior Engineering Manager",
+          "company": "TechCorp", 
+          "location": "San Francisco, CA",
+          "job_type": "full-time",
+          "description": "Lead engineering teams...",
+          "job_url": "https://linkedin.com/jobs/123",
+          "site": "linkedin",
+          "is_remote": false,
+          "brand_metadata": {
+            "originating_section": "north_star_vision",
+            "search_keywords": "leadership strategy vision",
+            "overall_brand_score": 74,
+            "priority": "high",
+            "brand_alignments": {
+              "north_star_vision": 85,
+              "trajectory_mastery": 75,
+              "values_compass": 70,
+              "lifestyle_alignment": 60,
+              "compensation_philosophy": 80
+            }
+          }
+        }
+      ],
+      "execution_summary": {
+        "total_jobs_found": 65,
+        "brand_sections_queried": 5,
+        "successful_searches": 4,
+        "high_priority_jobs": 12,
+        "autonomous_search_success": true
+      },
+      "brand_insights": {
+        "most_productive_section": "trajectory_mastery",
+        "best_aligned_opportunities": 12,
+        "search_effectiveness": {
+          "north_star_vision": {"jobs": 15, "avg_score": 72},
+          "trajectory_mastery": {"jobs": 20, "avg_score": 76}
+        }
+      },
+      "user_id": "{{user_id}}"
+    }
+  agent: orchestration_manager
+  context: [generate_brand_queries_task, execute_brand_searches_task, score_brand_alignment_task]
