@@ -106,7 +106,7 @@ class TestLinkedInJobSearchCrew:
         crew = LinkedInJobSearchCrew()
         
         # Mock crew.kickoff to raise an exception
-        with patch.object(crew.crew(), 'kickoff', side_effect=Exception("LinkedIn API error")):
+        with patch.object(type(crew.crew()), 'kickoff', side_effect=Exception("LinkedIn API error")):
             result = crew.execute_search({"keywords": "test"})
             
             assert result["success"] is False
