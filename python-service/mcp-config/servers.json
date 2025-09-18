@@ -6,7 +6,7 @@
       "env": {},
       "description": "DuckDuckGo search server for web searches"
     },
-    "linkedin-mcp-serves": {
+    "linkedin-mcp-server": {
       "command": "docker",
       "args": ["run", "-i", "--rm", "-e", "LINKEDIN_COOKIE","stickerdaniel/linkedin-mcp-server"],
       "env": {
