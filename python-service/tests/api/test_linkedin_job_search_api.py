@@ -1,20 +1,28 @@
 """
 API tests for LinkedIn Job Search endpoints.
 """
+import os
+
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 
-from app.main import app
-from app.services.crewai.linkedin_job_search.crew import LinkedInJobSearchCrew
+os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/testdb")
 
-client = TestClient(app)
+from app.api.v1.endpoints.linkedin_job_search import router as linkedin_router
+
+
+api_app = FastAPI()
+api_app.include_router(linkedin_router, prefix="/crewai")
+
+client = TestClient(api_app)
 
 
 class TestLinkedInJobSearchAPI:
     """Test suite for LinkedIn Job Search API endpoints."""
     
-    @patch('app.services.crewai.linkedin_job_search.crew.get_linkedin_job_search_crew')
+    @patch('app.api.v1.endpoints.linkedin_job_search.get_linkedin_job_search_crew')
     def test_search_linkedin_jobs_success(self, mock_get_crew):
         """Test successful LinkedIn job search API call."""
         # Mock crew response
@@ -39,7 +47,7 @@ class TestLinkedInJobSearchAPI:
             "duplicates_removed": 0,
             "consolidation_metadata": {}
         }
-        mock_crew.execute_search.return_value = mock_result
+        mock_crew.kickoff.return_value = mock_result
         
         # Test API call
         request_data = {
@@ -53,12 +61,12 @@ class TestLinkedInJobSearchAPI:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["success"] is True
+        assert data["status"] == "success"
         assert "data" in data
         assert data["data"]["total_jobs"] == 1
         assert len(data["data"]["consolidated_jobs"]) == 1
     
-    @patch('app.services.crewai.linkedin_job_search.crew.get_linkedin_job_search_crew')
+    @patch('app.api.v1.endpoints.linkedin_job_search.get_linkedin_job_search_crew')
     def test_search_linkedin_jobs_failure(self, mock_get_crew):
         """Test LinkedIn job search API with failure."""
         # Mock crew failure
@@ -71,7 +79,7 @@ class TestLinkedInJobSearchAPI:
             "consolidated_jobs": [],
             "total_jobs": 0
         }
-        mock_crew.execute_search.return_value = mock_result
+        mock_crew.kickoff.return_value = mock_result
         
         request_data = {
             "keywords": "data scientist",
@@ -82,10 +90,10 @@ class TestLinkedInJobSearchAPI:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["success"] is False
+        assert data["status"] == "error"
         assert "LinkedIn job search failed" in data["error"]
     
-    @patch('app.services.crewai.linkedin_job_search.crew.get_linkedin_job_search_crew')
+    @patch('app.api.v1.endpoints.linkedin_job_search.get_linkedin_job_search_crew')
     def test_search_with_invalid_request(self, mock_get_crew):
         """Test API with invalid request data."""
         # Missing required keywords field
@@ -99,28 +107,26 @@ class TestLinkedInJobSearchAPI:
         # Should return validation error
         assert response.status_code == 422
     
-    @patch('app.services.crewai.linkedin_job_search.crew.get_linkedin_job_search_crew')
+    @patch('app.api.v1.endpoints.linkedin_job_search.get_linkedin_job_search_crew')
     def test_health_check_success(self, mock_get_crew):
         """Test LinkedIn job search health check."""
         mock_crew = MagicMock()
         mock_crew._linkedin_tools = [MagicMock(), MagicMock()]
-        mock_assembled_crew = MagicMock()
-        mock_assembled_crew.agents = [MagicMock(), MagicMock(), MagicMock()]
-        mock_assembled_crew.tasks = [MagicMock(), MagicMock(), MagicMock()]
-        mock_crew.crew.return_value = mock_assembled_crew
+        mock_crew.agents = [MagicMock(), MagicMock(), MagicMock()]
+        mock_crew.tasks = [MagicMock(), MagicMock(), MagicMock()]
         mock_get_crew.return_value = mock_crew
         
         response = client.get("/crewai/linkedin-job-search/health")
         
         assert response.status_code == 200
         data = response.json()
-        assert data["success"] is True
+        assert data["status"] == "success"
         assert data["data"]["crew_initialized"] is True
         assert data["data"]["linkedin_tools_loaded"] is True
         assert data["data"]["agents_count"] == 3
         assert data["data"]["tasks_count"] == 3
     
-    @patch('app.services.crewai.linkedin_job_search.crew.get_linkedin_job_search_crew')
+    @patch('app.api.v1.endpoints.linkedin_job_search.get_linkedin_job_search_crew')
     def test_get_crew_config(self, mock_get_crew):
         """Test crew configuration endpoint."""
         mock_crew = MagicMock()
@@ -131,7 +137,7 @@ class TestLinkedInJobSearchAPI:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["success"] is True
+        assert data["status"] == "success"
         assert data["data"]["crew_type"] == "linkedin_job_search"
         assert data["data"]["process"] == "sequential"
         assert len(data["data"]["agents"]) == 3

@@ -48,7 +48,7 @@ async def search_linkedin_jobs(request: LinkedInJobSearchRequest):
         
         # Execute LinkedIn job search crew
         crew = get_linkedin_job_search_crew()
-        result = crew.crew().kickoff(inputs=search_params)
+        result = crew.kickoff(inputs=search_params)
         
         # Check if search was successful
         if not result.get("success", False):
@@ -91,8 +91,8 @@ async def health_check():
         health_data = {
             "crew_initialized": crew is not None,
             "linkedin_tools_loaded": len(crew._linkedin_tools) > 0 if hasattr(crew, '_linkedin_tools') else False,
-            "agents_count": len(crew.crew().agents) if crew else 0,
-            "tasks_count": len(crew.crew().tasks) if crew else 0
+            "agents_count": len(crew.agents) if crew else 0,
+            "tasks_count": len(crew.tasks) if crew else 0
         }
         
         return create_success_response(
