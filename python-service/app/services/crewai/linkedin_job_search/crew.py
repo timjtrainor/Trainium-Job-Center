@@ -109,6 +109,7 @@ class LinkedInJobSearchCrew:
                 self.linkedin_report_compilation_task()
             ],
             process=Process.hierarchical,
+            manager_agent=self.linkedin_report_writer(),
             verbose=True,
         )
 

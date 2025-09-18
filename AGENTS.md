@@ -50,7 +50,7 @@ Some MCP services may not yet be available in the Docker MCP Toolkit. In such ca
 - Maintain consistency with the established pattern where possible
 
 ## CrewAI Services
-The Python service includes three active CrewAI multi-agent services:
+The Python service includes active CrewAI multi-agent services:
 
 ### 1. Job Posting Review (`job_posting_review`)
 - **Purpose**: Analyzes job postings for fit and alignment with candidate criteria
@@ -68,4 +68,16 @@ The Python service includes three active CrewAI multi-agent services:
 - **Location**: `python-service/app/services/crewai/research_company/`
 - **Usage**: Gathers and analyzes company information for job applications
 
+### 4. LinkedIn Job Search (`linkedin_job_search`)
+- **Purpose**: Coordinates LinkedIn job searches and recommendations
+- **Location**: `python-service/app/services/crewai/linkedin_job_search/`
+- **Process**: Hierarchical with manager agent coordination
+- **Usage**: LinkedIn-focused job discovery and networking strategies
+
 All CrewAI services follow YAML-first configuration and modular agent design patterns.
+
+### CrewAI Architecture Requirements
+- **Hierarchical Process**: Requires a `manager_agent` parameter in the crew definition to coordinate specialist agents and synthesize outputs
+- **Sequential Process**: Agents execute tasks in defined order without requiring a manager agent
+- **Manager Agent**: Must have appropriate role, goal, backstory, and tool access to effectively coordinate and synthesize outputs from specialist agents
+- **Configuration**: All agent definitions must be properly wired in both `agents.yaml` and `crew.py` files
