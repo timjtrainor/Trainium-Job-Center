@@ -1,3 +1,8 @@
+"""
+LinkedIn Job Search CrewAI implementation.
+
+This crew coordinates LinkedIn job searches and recommendations using LinkedIn MCP tools.
+"""
 from threading import Lock
 from typing import Optional
 
@@ -12,7 +17,7 @@ _crew_lock = Lock()
 class LinkedInJobSearchCrew:
     """
     LinkedIn Job Search crew for comprehensive LinkedIn job discovery and analysis.
-    
+
     This crew follows the standard multi-agent pattern with specialist
     agents coordinated by a manager agent for final synthesis.
     """
