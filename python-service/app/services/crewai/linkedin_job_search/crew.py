@@ -99,8 +99,7 @@ class LinkedInJobSearchCrew:
             agents=[
                 self.linkedin_job_searcher(),
                 self.job_opportunity_analyzer(),
-                self.networking_strategist(),
-                self.linkedin_report_writer()
+                self.networking_strategist()
             ],
             tasks=[
                 self.linkedin_job_search_task(),
