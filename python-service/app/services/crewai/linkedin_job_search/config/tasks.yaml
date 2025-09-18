@@ -1,0 +1,111 @@
+search_jobs_task:
+  description: >
+    Execute a LinkedIn job search using the provided search parameters.
+    Use the search_jobs LinkedIn MCP tool with the following parameters:
+    - keywords: {{keywords}}
+    - location: {{location}} 
+    - job_type: {{job_type}}
+    - date_posted: {{date_posted}}
+    - experience_level: {{experience_level}}
+    - remote: {{remote}}
+    - limit: {{limit}}
+    
+    Transform the LinkedIn search results into ScrapedJob schema format.
+    Handle any LinkedIn API errors or rate limits gracefully.
+    
+  expected_output: >
+    A JSON object containing search results:
+    {
+      "success": true,
+      "search_jobs": [
+        {
+          "title": "Job title",
+          "company": "Company name", 
+          "location": "Job location",
+          "job_type": "full-time/part-time/contract",
+          "date_posted": "ISO date string",
+          "description": "Job description text",
+          "job_url": "LinkedIn job URL",
+          "site": "linkedin",
+          "is_remote": true/false
+        }
+      ],
+      "total_found": 25,
+      "search_metadata": {
+        "keywords": "search keywords used",
+        "location": "location searched", 
+        "filters_applied": ["filter1", "filter2"]
+      }
+    }
+  agent: search_agent
+  async_execution: true
+
+get_recommendations_task:
+  description: >
+    Retrieve personalized job recommendations from LinkedIn for the authenticated user.
+    Use the get_recommended_jobs LinkedIn MCP tool to fetch recommendations.
+    Handle cases where the user is not authenticated or recommendations are unavailable.
+    Transform results into ScrapedJob schema format.
+    
+  expected_output: >
+    A JSON object containing recommendation results:
+    {
+      "success": true,
+      "recommended_jobs": [
+        {
+          "title": "Recommended job title",
+          "company": "Company name",
+          "location": "Job location", 
+          "job_type": "full-time/part-time/contract",
+          "date_posted": "ISO date string",
+          "description": "Job description text",
+          "job_url": "LinkedIn job URL",
+          "site": "linkedin",
+          "is_remote": true/false,
+          "recommendation_reason": "Why this job was recommended"
+        }
+      ],
+      "total_found": 10,
+      "authentication_status": "authenticated/not_authenticated"
+    }
+  agent: recommendation_agent
+  async_execution: true
+
+consolidate_results_task:
+  description: >
+    Consolidate and deduplicate job results from both search_jobs and get_recommended_jobs.
+    Combine the results from search_jobs_task and get_recommendations_task.
+    Remove duplicate jobs based on job_url and company+title combinations.
+    Ensure all job data conforms to ScrapedJob schema for database persistence.
+    Generate metadata about the consolidation process including duplicate count.
+    
+  expected_output: >
+    A JSON object with consolidated results:
+    {
+      "success": true,
+      "consolidated_jobs": [
+        {
+          "title": "Job title",
+          "company": "Company name",
+          "location": "Job location",
+          "job_type": "employment type", 
+          "date_posted": "ISO date string",
+          "description": "Job description",
+          "job_url": "Unique LinkedIn URL",
+          "site": "linkedin",
+          "is_remote": true/false,
+          "source": "search/recommendation/both"
+        }
+      ],
+      "total_jobs": 30,
+      "search_jobs_count": 25,
+      "recommended_jobs_count": 10, 
+      "duplicates_removed": 5,
+      "consolidation_metadata": {
+        "search_success": true,
+        "recommendations_success": true,
+        "deduplication_method": "url_and_title_company"
+      }
+    }
+  agent: orchestration_agent
+  context: [search_jobs_task, get_recommendations_task]
