@@ -1,0 +1,97 @@
+linkedin_search_task:
+  description: >
+    Search LinkedIn for job listings based on the provided search criteria.
+    Use the LinkedIn search tools to find jobs matching:
+    - Job title or keywords: {{job_title}}
+    - Location: {{location}}
+    - Company name (if specified): {{company}}
+    - Experience level (if specified): {{experience_level}}
+    - Job type (if specified): {{job_type}}
+    - Other filters: {{additional_filters}}
+    
+    Perform comprehensive searches to gather relevant job opportunities.
+    Focus on extracting complete job information including job descriptions,
+    company details, locations, compensation data, and application requirements.
+    
+  expected_output: >
+    A JSON object containing LinkedIn job search results:
+    {
+      "search_results": [
+        {
+          "title": "job title",
+          "company": "company name",
+          "location": "job location",
+          "job_type": "full-time/part-time/contract/etc",
+          "description": "full job description text",
+          "job_url": "direct LinkedIn job URL",
+          "date_posted": "posting date in ISO format",
+          "salary_min": "minimum salary if available",
+          "salary_max": "maximum salary if available",
+          "salary_source": "salary data source",
+          "interval": "yearly/monthly/hourly",
+          "is_remote": "boolean indicating remote work option",
+          "company_url": "company LinkedIn profile URL if available",
+          "application_url": "direct application URL if different from job_url"
+        }
+      ],
+      "search_metadata": {
+        "total_results": "number of jobs found",
+        "search_terms": "actual search terms used",
+        "location_searched": "location parameter used",
+        "filters_applied": "summary of search filters"
+      }
+    }
+  
+  agent: linkedin_job_searcher
+  async_execution: false
+
+job_processing_task:
+  description: >
+    Process and structure the LinkedIn job search results from the previous search task.
+    Transform the raw search results into clean, structured data suitable for database
+    persistence. This includes:
+    
+    - Validating and cleaning job data
+    - Standardizing location formats
+    - Parsing and structuring compensation information  
+    - Extracting relevant keywords and skills from job descriptions
+    - Ensuring all required fields are populated
+    - Creating unique identifiers for deduplication
+    
+    The processed data should be ready for insertion into the jobs database table
+    following the established schema and persistence patterns.
+    
+  expected_output: >
+    A JSON object with processed job data ready for database persistence:
+    {
+      "processed_jobs": [
+        {
+          "site": "linkedin",
+          "job_url": "direct job URL",
+          "title": "standardized job title",
+          "company": "company name",
+          "company_url": "company profile URL",
+          "location": "standardized location",
+          "is_remote": "boolean remote indicator", 
+          "job_type": "standardized job type",
+          "description": "full job description",
+          "date_posted": "ISO timestamp",
+          "salary_min": "numeric minimum salary",
+          "salary_max": "numeric maximum salary",
+          "salary_source": "salary data source",
+          "interval": "standardized interval (yearly/monthly/hourly)",
+          "currency": "currency code if available",
+          "keywords": ["extracted", "relevant", "keywords"],
+          "source_raw": "original raw job data for provenance"
+        }
+      ],
+      "processing_summary": {
+        "total_processed": "number of jobs processed",
+        "validation_errors": ["list of any validation issues"],
+        "duplicate_count": "number of potential duplicates identified"
+      }
+    }
+  
+  agent: job_processor
+  context: [linkedin_search_task]
+  async_execution: false
