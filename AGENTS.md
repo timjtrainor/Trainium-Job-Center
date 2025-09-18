@@ -36,7 +36,12 @@ The Python service integrates with MCP servers through the Docker MCP Gateway, p
 
 ### Available MCP Servers
 - **DuckDuckGo** (`mcp/duckduckgo`): Web search capabilities
-- **Future servers**: Check [Docker MCP Toolkit](https://hub.docker.com/u/mcp) for available official servers
+- **LinkedIn** (`stickerdaniel/linkedin-mcp-server`): LinkedIn people and job search capabilities
+
+### Implementation Requirements
+- **When a service is available in the toolkit** (DuckDuckGo, LinkedIn, etc.), it **must** be implemented via the Docker MCP Toolkit for consistency
+- **Only if a service is not supported** in the toolkit should standalone integration be considered
+- Check [Docker MCP Toolkit](https://hub.docker.com/u/mcp) for available official servers
 
 ### Exception Handling
 Some MCP services may not yet be available in the Docker MCP Toolkit. In such cases:
