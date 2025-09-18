@@ -95,7 +95,7 @@ class TestLinkedInJobSearchCrew:
         mock_crew.kickoff.return_value = mock_result
         
         search_params = {"keywords": "python developer", "location": "Remote"}
-        result = mock_crew_instance.execute_search(search_params)
+        result = mock_crew_instance.crew().kickoff(inputs=search_params)
         
         assert result["success"] is True
         assert "consolidated_jobs" in result
