@@ -24,13 +24,6 @@ class LinkedInJobSearchCrew:
     agents_config = 'config/agents.yaml'
     tasks_config = 'config/tasks.yaml'
 
-    mcp_server_params = [
-        {
-            "url": "http://mcp-gateway:8811/sse",
-            "transport": "sse"
-        }
-    ]
-
     @agent
     def linkedin_job_searcher(self) -> Agent:
         """Specialist agent for LinkedIn job search."""
