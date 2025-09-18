@@ -4,7 +4,7 @@ LinkedIn Job Search CrewAI implementation.
 This crew coordinates LinkedIn job searches and recommendations using LinkedIn MCP tools.
 """
 from threading import Lock
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
@@ -122,3 +122,89 @@ def get_linkedin_job_search_crew() -> Crew:
                 _cached_crew = LinkedInJobSearchCrew().crew()
     assert _cached_crew is not None
     return _cached_crew
+
+
+def _format_search_criteria(search_params: Dict[str, Any]) -> str:
+    """Create a readable description of the LinkedIn job search parameters."""
+
+    keywords = search_params.get("keywords", "")
+    parts = [f"Keywords: '{keywords}'" if keywords else "Keywords: ''"]
+
+    location = search_params.get("location")
+    if location:
+        parts.append(f"Location: {location}")
+
+    filter_parts = []
+    if search_params.get("remote"):
+        filter_parts.append("Remote only")
+    job_type = search_params.get("job_type")
+    if job_type:
+        filter_parts.append(f"Job type: {job_type}")
+    date_posted = search_params.get("date_posted")
+    if date_posted:
+        filter_parts.append(f"Date posted: {date_posted}")
+    experience_level = search_params.get("experience_level")
+    if experience_level:
+        filter_parts.append(f"Experience level: {experience_level}")
+
+    if filter_parts:
+        parts.append("Filters: " + ", ".join(filter_parts))
+
+    limit = search_params.get("limit")
+    if limit is not None:
+        parts.append(f"Limit: {limit}")
+
+    return "; ".join(parts)
+
+
+def _build_search_inputs(
+    *,
+    keywords: str,
+    location: Optional[str] = None,
+    job_type: Optional[str] = None,
+    date_posted: Optional[str] = None,
+    experience_level: Optional[str] = None,
+    remote: bool = False,
+    limit: int = 25,
+) -> Dict[str, Any]:
+    """Prepare crew inputs including a search criteria summary."""
+
+    raw_params: Dict[str, Any] = {
+        "keywords": keywords,
+        "location": location,
+        "job_type": job_type,
+        "date_posted": date_posted,
+        "experience_level": experience_level,
+        "remote": remote,
+        "limit": limit,
+    }
+
+    search_criteria = _format_search_criteria(raw_params)
+    filtered_params = {k: v for k, v in raw_params.items() if v is not None}
+    filtered_params["search_criteria"] = search_criteria
+    return filtered_params
+
+
+def run_linkedin_job_search(
+    *,
+    keywords: str,
+    location: Optional[str] = None,
+    job_type: Optional[str] = None,
+    date_posted: Optional[str] = None,
+    experience_level: Optional[str] = None,
+    remote: bool = False,
+    limit: int = 25,
+) -> Dict[str, Any]:
+    """Execute a LinkedIn job search using the shared crew instance."""
+
+    crew = get_linkedin_job_search_crew()
+    inputs = _build_search_inputs(
+        keywords=keywords,
+        location=location,
+        job_type=job_type,
+        date_posted=date_posted,
+        experience_level=experience_level,
+        remote=remote,
+        limit=limit,
+    )
+    return crew.kickoff(inputs=inputs)

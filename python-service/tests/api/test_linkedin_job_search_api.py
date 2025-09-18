@@ -58,14 +58,21 @@ class TestLinkedInJobSearchAPI:
         }
         
         response = client.post("/crewai/linkedin-job-search/search", json=request_data)
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "data" in data
         assert data["data"]["total_jobs"] == 1
         assert len(data["data"]["consolidated_jobs"]) == 1
-    
+
+        mock_crew.kickoff.assert_called_once()
+        kickoff_inputs = mock_crew.kickoff.call_args.kwargs["inputs"]
+        assert kickoff_inputs["search_criteria"] == (
+            "Keywords: 'python developer'; Location: Remote; Filters: Remote only; Limit: 10"
+        )
+        assert kickoff_inputs["remote"] is True
+
     @patch('app.api.v1.endpoints.linkedin_job_search.get_linkedin_job_search_crew')
     def test_search_linkedin_jobs_failure(self, mock_get_crew):
         """Test LinkedIn job search API with failure."""
@@ -85,13 +92,17 @@ class TestLinkedInJobSearchAPI:
             "keywords": "data scientist",
             "limit": 25
         }
-        
+
         response = client.post("/crewai/linkedin-job-search/search", json=request_data)
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "error"
         assert "LinkedIn job search failed" in data["error"]
+
+        mock_crew.kickoff.assert_called_once()
+        kickoff_inputs = mock_crew.kickoff.call_args.kwargs["inputs"]
+        assert kickoff_inputs["search_criteria"] == "Keywords: 'data scientist'; Limit: 25"
     
     @patch('app.api.v1.endpoints.linkedin_job_search.get_linkedin_job_search_crew')
     def test_search_with_invalid_request(self, mock_get_crew):
