@@ -18,6 +18,32 @@
 - Keep modules organized under `app/api`, `app/schemas`, and `app/services`.
 - Reserve `app/models` for future ORM models.
 
+## MCP (Model Context Protocol) Integration
+
+The Python service integrates with MCP servers through the Docker MCP Gateway, providing external tools and data sources to CrewAI agents.
+
+### Architecture Pattern
+- **Use Docker MCP Toolkit**: All MCP servers should be integrated through the Docker MCP Toolkit (`docker/mcp-gateway`) following the established pattern with DuckDuckGo.
+- **Dynamic Tool Discovery**: MCP tools are discovered dynamically from the gateway at runtime. Do not hard-code tool definitions in application code.
+- **Configuration-Driven**: Server configurations are defined in `python-service/mcp-config/servers.json`.
+- **Gateway Orchestration**: The MCP Gateway manages server lifecycles and provides a unified API endpoint.
+
+### Implementation Guidelines
+1. **Add MCP servers** to the `--servers` parameter in `docker-compose.yml` mcp-gateway service
+2. **Register server configurations** in `mcp-config/servers.json` with appropriate Docker commands and environment variables
+3. **Tools are loaded automatically** by `MCPServerAdapter` through dynamic discovery from the gateway
+4. **Do not modify** `mcp_adapter.py` for new servers - tools should be discovered at runtime
+
+### Available MCP Servers
+- **DuckDuckGo** (`mcp/duckduckgo`): Web search capabilities
+- **Future servers**: Check [Docker MCP Toolkit](https://hub.docker.com/u/mcp) for available official servers
+
+### Exception Handling
+Some MCP services may not yet be available in the Docker MCP Toolkit. In such cases:
+- Document the limitation and rationale for alternative approaches
+- Consider contributing to the MCP ecosystem or requesting official server creation
+- Maintain consistency with the established pattern where possible
+
 ## CrewAI Services
 The Python service includes three active CrewAI multi-agent services:
 

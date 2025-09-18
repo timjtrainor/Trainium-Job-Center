@@ -116,88 +116,16 @@ class MCPServerAdapter:
                 # For SSE transport servers, we can assume they're connected if the gateway reports them
                 session_id = f"sse_session_{server_name}"
                 
-                # Create default tools for known servers since tools endpoint may not work with SSE
-                if server_name == "duckduckgo":
-                    tools_data = {
-                        "tools": [
-                            {
-                                "name": "web_search",
-                                "description": "Search the web using DuckDuckGo",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "query": {
-                                            "type": "string",
-                                            "description": "Search query"
-                                        }
-                                    },
-                                    "required": ["query"]
-                                }
-                            },
-                            {
-                                "name": "search", 
-                                "description": "General search using DuckDuckGo",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "query": {
-                                            "type": "string",
-                                            "description": "Search query"
-                                        }
-                                    },
-                                    "required": ["query"]
-                                }
-                            }
-                        ]
-                    }
-                elif server_name == "linkedin":
-                    tools_data = {
-                        "tools": [
-                            {
-                                "name": "search_people",
-                                "description": "Search for people on LinkedIn",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "query": {
-                                            "type": "string",
-                                            "description": "Search query for people"
-                                        },
-                                        "limit": {
-                                            "type": "integer",
-                                            "description": "Maximum number of results",
-                                            "default": 10
-                                        }
-                                    },
-                                    "required": ["query"]
-                                }
-                            },
-                            {
-                                "name": "search_jobs",
-                                "description": "Search for jobs on LinkedIn",
-                                "parameters": {
-                                    "type": "object", 
-                                    "properties": {
-                                        "query": {
-                                            "type": "string",
-                                            "description": "Job search query"
-                                        },
-                                        "location": {
-                                            "type": "string",
-                                            "description": "Location filter"
-                                        },
-                                        "limit": {
-                                            "type": "integer",
-                                            "description": "Maximum number of results",
-                                            "default": 10
-                                        }
-                                    },
-                                    "required": ["query"]
-                                }
-                            }
-                        ]
-                    }
-                else:
+                # Try to get tools dynamically from the gateway
+                try:
+                    tools_response = await self._session.get(
+                        f"{self.gateway_url}/servers/{server_name}/tools",
+                    )
+                    tools_response.raise_for_status()
+                    tools_data = tools_response.json()
+                    logger.info(f"Dynamically loaded {len(tools_data.get('tools', []))} tools for {server_name}")
+                except Exception as e:
+                    logger.warning(f"Could not dynamically load tools for {server_name}: {e}")
                     tools_data = {"tools": []}
                     
                 # Store server connection and tools
@@ -252,30 +180,10 @@ class MCPServerAdapter:
                 )
                 tools_response.raise_for_status()
                 tools_data = tools_response.json()
+                logger.info(f"Dynamically loaded {len(tools_data.get('tools', []))} tools for {server_name}")
             except Exception as e:
-                logger.warning(f"Could not get tools for {server_name}: {e}")
-                # Create default tools for known servers
-                if server_name == "duckduckgo":
-                    tools_data = {
-                        "tools": [
-                            {
-                                "name": "web_search",
-                                "description": "Search the web using DuckDuckGo",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "query": {
-                                            "type": "string",
-                                            "description": "Search query"
-                                        }
-                                    },
-                                    "required": ["query"]
-                                }
-                            }
-                        ]
-                    }
-                else:
-                    tools_data = {"tools": []}
+                logger.warning(f"Could not dynamically load tools for {server_name}: {e}")
+                tools_data = {"tools": []}
 
             # Store server connection and tools
             self._connected_servers[server_name] = {
@@ -345,23 +253,6 @@ class MCPServerAdapter:
                 duckduckgo_tools.append(crewai_tool)
                 
         return duckduckgo_tools
-
-    def get_linkedin_tools(self) -> List[Dict[str, Any]]:
-        """
-        Get LinkedIn-specific tools for injection into CrewAI agents.
-        
-        Returns:
-            List of tool configurations compatible with CrewAI
-        """
-        linkedin_tools = []
-        
-        for tool_name, tool_config in self._available_tools.items():
-            if tool_name.startswith("linkedin_"):
-                # Convert MCP tool format to CrewAI tool format
-                crewai_tool = self._convert_mcp_tool_to_crewai(tool_name, tool_config)
-                linkedin_tools.append(crewai_tool)
-                
-        return linkedin_tools
         
     def _convert_mcp_tool_to_crewai(self, tool_name: str, mcp_tool: Dict[str, Any]) -> Dict[str, Any]:
         """
