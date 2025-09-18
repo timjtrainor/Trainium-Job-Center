@@ -7,7 +7,7 @@ from ChromaDB and generate LinkedIn search queries based on brand dimensions.
 from typing import Dict, List, Any, Optional
 from loguru import logger
 
-from ..tools.chroma_search import chroma_search_tool
+from ...chroma_manager import get_chroma_manager
 
 
 class BrandSearchHelper:
@@ -31,48 +31,87 @@ class BrandSearchHelper:
     async def get_brand_section(self, section: str, user_id: str = None) -> Dict[str, Any]:
         """
         Retrieve a specific brand section from ChromaDB.
-        
+
         Args:
             section: Brand section name (e.g., 'north_star_vision')
             user_id: Optional user ID for filtering
-            
+
         Returns:
             Dictionary containing brand section data
         """
         try:
-            # Create search query for the specific section
+            manager = get_chroma_manager()
+
+            metadata_filter: Dict[str, Any] = {"section": section}
+            if user_id:
+                metadata_filter["user_id"] = user_id
+
             search_query = f"section:{section}"
             if user_id:
                 search_query += f" user_id:{user_id}"
-            
-            # Use the existing chroma search tool
-            results = await chroma_search_tool(
+
+            results = await manager.search_collection(
                 collection_name=self.collection_name,
-                query_text=search_query,
+                query=search_query,
                 n_results=5,
-                metadata_filter={"section": section} if not user_id else {"section": section, "user_id": user_id}
+                where=metadata_filter,
             )
-            
-            if not results or not results.get("documents"):
+
+            if not results.get("success"):
+                logger.warning(
+                    "Chroma search for section '%s' failed: %s",
+                    section,
+                    results.get("error", "unknown error"),
+                )
+                return {
+                    "section": section,
+                    "content": "",
+                    "keywords": [],
+                    "documents": [],
+                    "metadatas": [],
+                    "distances": [],
+                    "metadata": {},
+                }
+
+            documents: List[str] = results.get("documents", []) or []
+            metadatas: List[Dict[str, Any]] = results.get("metadatas", []) or []
+            distances: List[float] = results.get("distances", []) or []
+
+            if not documents:
                 logger.warning(f"No brand data found for section: {section}")
-                return {"section": section, "content": "", "keywords": []}
-            
-            # Extract content and metadata
-            documents = results["documents"][0] if isinstance(results["documents"][0], list) else [results["documents"][0]]
-            metadatas = results.get("metadatas", [{}])[0] if results.get("metadatas") else [{}]
-            
+                return {
+                    "section": section,
+                    "content": "",
+                    "keywords": [],
+                    "documents": [],
+                    "metadatas": metadatas,
+                    "distances": distances,
+                    "metadata": metadatas[0] if metadatas else {},
+                }
+
             content = " ".join(documents)
-            
+
             return {
                 "section": section,
                 "content": content,
                 "keywords": self._extract_keywords_from_content(content),
-                "metadata": metadatas[0] if metadatas else {}
+                "documents": documents,
+                "metadatas": metadatas,
+                "distances": distances,
+                "metadata": metadatas[0] if metadatas else {},
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to retrieve brand section {section}: {str(e)}")
-            return {"section": section, "content": "", "keywords": []}
+            return {
+                "section": section,
+                "content": "",
+                "keywords": [],
+                "documents": [],
+                "metadatas": [],
+                "distances": [],
+                "metadata": {},
+            }
 
     def _extract_keywords_from_content(self, content: str) -> List[str]:
         """
@@ -95,7 +134,7 @@ class BrandSearchHelper:
             'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with',
             'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has',
             'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may',
-            'might', 'must', 'can', 'this', 'that', 'these', 'those', 'i', 'you',
+            'might', 'must', 'can', 'this', 'that', 'these', 'those', 'about', 'i', 'you',
             'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them'
         }
         

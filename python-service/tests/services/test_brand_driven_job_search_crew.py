@@ -1,9 +1,14 @@
 """
 Unit tests for Brand-Driven Job Search CrewAI functionality.
 """
+import os
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 import asyncio
+
+from crewai.tools import BaseTool
+
+os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/testdb")
 
 from app.services.crewai.brand_driven_job_search.crew import (
     BrandDrivenJobSearchCrew,
@@ -13,21 +18,37 @@ from app.services.crewai.brand_driven_job_search.crew import (
 from app.services.crewai.brand_driven_job_search.brand_search import BrandSearchHelper
 
 
+class DummyTool(BaseTool):
+    """Simple tool implementation for testing."""
+
+    name: str = "dummy_tool"
+    description: str = "Dummy tool for tests"
+
+    def _run(self, *args, **kwargs):  # type: ignore[override]
+        return "ok"
+
+
 class TestBrandDrivenJobSearchCrew:
     """Test suite for BrandDrivenJobSearchCrew functionality."""
     
+    @patch('app.services.crewai.brand_driven_job_search.crew.Crew')
     @patch.dict('os.environ', {'CREWAI_MOCK_MODE': 'true'})
-    def test_crew_initialization(self):
+    def test_crew_initialization(self, mock_crew):
         """Test that crew initializes properly in mock mode."""
+        mock_crew_instance = MagicMock()
+        mock_crew.return_value = mock_crew_instance
+
         crew = BrandDrivenJobSearchCrew()
         assert crew is not None
-        
+
         # Test crew assembly
         assembled_crew = crew.crew()
-        assert assembled_crew is not None
-        assert len(assembled_crew.agents) == 4
-        assert len(assembled_crew.tasks) == 4
-    
+        assert assembled_crew is mock_crew_instance
+
+        _, kwargs = mock_crew.call_args
+        assert len(kwargs["agents"]) == 4
+        assert len(kwargs["tasks"]) == 4
+
     def test_agent_creation(self):
         """Test that all agents are created properly."""
         crew = BrandDrivenJobSearchCrew()
@@ -67,18 +88,23 @@ class TestBrandDrivenJobSearchCrew:
         # Final task should be synchronous
         assert compile_task.async_execution is None or compile_task.async_execution is False
     
+    @patch('app.services.crewai.brand_driven_job_search.crew.get_career_brand_tools')
     @patch('app.services.crewai.brand_driven_job_search.crew.load_mcp_tools_sync')
-    def test_tools_loading(self, mock_load_tools):
+    def test_tools_loading(self, mock_load_tools, mock_get_brand_tools):
         """Test LinkedIn and ChromaDB tools loading."""
-        mock_linkedin_tools = [MagicMock(name="search_jobs")]
+        mock_linkedin_tools = [DummyTool()]
         mock_load_tools.return_value = mock_linkedin_tools
-        
+        mock_chroma_tools = [DummyTool()]
+        mock_get_brand_tools.return_value = mock_chroma_tools
+
         crew = BrandDrivenJobSearchCrew()
         assert hasattr(crew, '_linkedin_tools')
         assert hasattr(crew, '_chroma_tools')
-        
+
         # Verify LinkedIn tools were loaded
         mock_load_tools.assert_called_once_with(["search_jobs"])
+        mock_get_brand_tools.assert_called_once_with()
+        assert crew._chroma_tools == mock_chroma_tools
     
     def test_singleton_pattern(self):
         """Test that crew factory returns the same instance."""
@@ -86,9 +112,11 @@ class TestBrandDrivenJobSearchCrew:
         crew2 = get_brand_driven_job_search_crew()
         assert crew1 is crew2
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
     @patch('app.services.crewai.brand_driven_job_search.brand_search.brand_search_helper.generate_search_queries')
-    async def test_execute_brand_driven_search_success(self, mock_generate_queries):
+    @patch('app.services.crewai.brand_driven_job_search.crew.Crew')
+    async def test_execute_brand_driven_search_success(self, mock_crew_class, mock_generate_queries, anyio_backend):
         """Test successful brand-driven search execution."""
         # Mock brand query generation
         mock_queries = {
@@ -99,9 +127,12 @@ class TestBrandDrivenJobSearchCrew:
             }
         }
         mock_generate_queries.return_value = mock_queries
-        
+
+        mock_crew_instance = MagicMock()
+        mock_crew_class.return_value = mock_crew_instance
+
         crew = BrandDrivenJobSearchCrew()
-        
+
         # Mock crew execution
         mock_result = {
             "success": True,
@@ -112,16 +143,19 @@ class TestBrandDrivenJobSearchCrew:
             }
         }
         
-        with patch.object(crew.crew(), 'kickoff', return_value=mock_result):
-            result = await crew.execute_brand_driven_search("test_user_123")
-            
-            assert result["success"] is True
-            assert "brand_driven_jobs" in result
-            assert result["execution_summary"]["autonomous_search_success"] is True
+        mock_crew_instance.kickoff.return_value = mock_result
+
+        result = await crew.execute_brand_driven_search("test_user_123")
+
+        assert result["success"] is True
+        assert "brand_driven_jobs" in result
+        assert result["execution_summary"]["autonomous_search_success"] is True
+        mock_crew_instance.kickoff.assert_called_once()
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
     @patch('app.services.crewai.brand_driven_job_search.brand_search.brand_search_helper.generate_search_queries')
-    async def test_execute_search_no_brand_data(self, mock_generate_queries):
+    async def test_execute_search_no_brand_data(self, mock_generate_queries, anyio_backend):
         """Test search execution when no brand data is available."""
         # Mock empty brand queries
         mock_generate_queries.return_value = {}
@@ -134,8 +168,9 @@ class TestBrandDrivenJobSearchCrew:
         assert result["brand_driven_jobs"] == []
         assert result["execution_summary"]["autonomous_search_success"] is False
     
-    @pytest.mark.asyncio
-    async def test_execute_search_with_error_handling(self):
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_execute_search_with_error_handling(self, anyio_backend):
         """Test search execution with error handling."""
         crew = BrandDrivenJobSearchCrew()
         
@@ -242,35 +277,57 @@ class TestBrandSearchHelper:
         assert lifestyle_query["brand_section"] == "lifestyle_alignment"
         assert "remote" in lifestyle_query["job_types"] or "hybrid" in lifestyle_query["job_types"]
     
-    @pytest.mark.asyncio
-    @patch('app.services.crewai.brand_driven_job_search.brand_search.chroma_search_tool')
-    async def test_get_brand_section_success(self, mock_chroma_search):
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @patch('app.services.crewai.brand_driven_job_search.brand_search.get_chroma_manager')
+    async def test_get_brand_section_success(self, mock_get_chroma_manager, anyio_backend):
         """Test successful brand section retrieval."""
-        # Mock ChromaDB response
+        mock_manager = MagicMock()
         mock_response = {
-            "documents": [["Leadership and strategic vision content"]],
-            "metadatas": [{"section": "north_star_vision", "user_id": "test_user"}]
+            "success": True,
+            "documents": ["Leadership and strategic vision content"],
+            "metadatas": [{"section": "north_star_vision", "user_id": "test_user"}],
+            "distances": [0.05],
         }
-        mock_chroma_search.return_value = mock_response
-        
+        mock_manager.search_collection = AsyncMock(return_value=mock_response)
+        mock_get_chroma_manager.return_value = mock_manager
+
         helper = BrandSearchHelper()
         result = await helper.get_brand_section("north_star_vision", "test_user")
-        
+
+        mock_manager.search_collection.assert_awaited_once_with(
+            collection_name="career_brand",
+            query="section:north_star_vision user_id:test_user",
+            n_results=5,
+            where={"section": "north_star_vision", "user_id": "test_user"},
+        )
         assert result["section"] == "north_star_vision"
         assert len(result["content"]) > 0
         assert isinstance(result["keywords"], list)
         assert len(result["keywords"]) > 0
-    
-    @pytest.mark.asyncio
-    @patch('app.services.crewai.brand_driven_job_search.brand_search.chroma_search_tool')
-    async def test_get_brand_section_no_results(self, mock_chroma_search):
+        assert result["documents"] == mock_response["documents"]
+        assert result["metadatas"] == mock_response["metadatas"]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @patch('app.services.crewai.brand_driven_job_search.brand_search.get_chroma_manager')
+    async def test_get_brand_section_no_results(self, mock_get_chroma_manager, anyio_backend):
         """Test brand section retrieval with no results."""
-        # Mock empty ChromaDB response
-        mock_chroma_search.return_value = {"documents": []}
-        
+        mock_manager = MagicMock()
+        mock_response = {
+            "success": True,
+            "documents": [],
+            "metadatas": [],
+            "distances": [],
+        }
+        mock_manager.search_collection = AsyncMock(return_value=mock_response)
+        mock_get_chroma_manager.return_value = mock_manager
+
         helper = BrandSearchHelper()
         result = await helper.get_brand_section("nonexistent_section", "test_user")
-        
+
+        mock_manager.search_collection.assert_awaited_once()
         assert result["section"] == "nonexistent_section"
         assert result["content"] == ""
         assert result["keywords"] == []
+        assert result["documents"] == []
