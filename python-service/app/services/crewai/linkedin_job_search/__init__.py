@@ -1,6 +1,5 @@
-"""
-LinkedIn Job Search Crew initialization.
-"""
-from .crew import get_linkedin_job_search_crew
+"""LinkedIn job search crew module."""
 
-__all__ = ["get_linkedin_job_search_crew"]
+from .crew import LinkedInJobSearchCrew, get_linkedin_job_search_crew
+
+__all__ = ["LinkedInJobSearchCrew", "get_linkedin_job_search_crew"]

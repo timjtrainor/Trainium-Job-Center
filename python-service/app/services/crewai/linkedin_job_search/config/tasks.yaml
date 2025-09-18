@@ -1,111 +1,178 @@
-search_jobs_task:
+linkedin_job_search_task:
   description: >
-    Execute a LinkedIn job search using the provided search parameters.
-    Use the search_jobs LinkedIn MCP tool with the following parameters:
-    - keywords: {{keywords}}
-    - location: {{location}} 
-    - job_type: {{job_type}}
-    - date_posted: {{date_posted}}
-    - experience_level: {{experience_level}}
-    - remote: {{remote}}
-    - limit: {{limit}}
-    
-    Transform the LinkedIn search results into ScrapedJob schema format.
-    Handle any LinkedIn API errors or rate limits gracefully.
-    
+    Search LinkedIn for job opportunities matching the specified criteria for {{search_criteria}}.
+    Use LinkedIn's advanced search features to find relevant positions based on:
+    - Job title keywords and variations
+    - Company size and industry preferences
+    - Location requirements (remote, hybrid, specific cities)
+    - Experience level and seniority
+    - Date posted (prefer recent postings)
+    Focus on finding high-quality opportunities that align with the user's career goals.
+
   expected_output: >
-    A JSON object containing search results:
+    JSON object matching schema:
     {
-      "success": true,
-      "search_jobs": [
-        {
-          "title": "Job title",
-          "company": "Company name", 
-          "location": "Job location",
-          "job_type": "full-time/part-time/contract",
-          "date_posted": "ISO date string",
-          "description": "Job description text",
-          "job_url": "LinkedIn job URL",
-          "site": "linkedin",
-          "is_remote": true/false
-        }
-      ],
-      "total_found": 25,
-      "search_metadata": {
-        "keywords": "search keywords used",
-        "location": "location searched", 
-        "filters_applied": ["filter1", "filter2"]
-      }
+      "type": "object",
+      "properties": {
+        "search_summary": {"type": "string"},
+        "total_jobs_found": {"type": "integer"},
+        "top_opportunities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "job_title": {"type": "string"},
+              "company_name": {"type": "string"},
+              "location": {"type": "string"},
+              "job_url": {"type": "string"},
+              "date_posted": {"type": "string"},
+              "brief_description": {"type": "string"}
+            }
+          }
+        },
+        "search_insights": {"type": "array", "items": {"type": "string"}}
+      },
+      "required": [
+        "search_summary",
+        "total_jobs_found", 
+        "top_opportunities",
+        "search_insights"
+      ]
     }
-  agent: search_agent
+  # Field names must match the schema exactly.
+
+  agent: linkedin_job_searcher
+
+job_opportunity_analysis_task:
+  description: >
+    Analyze the top LinkedIn job opportunities identified in the search for {{search_criteria}}.
+    For each opportunity, evaluate:
+    - Job requirements alignment with user profile
+    - Company reputation and growth potential
+    - Role progression and career development opportunities
+    - Compensation competitiveness (when available)
+    - Cultural fit indicators from job posting and company page
+    Provide actionable insights about pursuit priority and application strategy.
+
+  expected_output: >
+    JSON object matching schema:
+    {
+      "type": "object",
+      "properties": {
+        "analyzed_opportunities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "job_title": {"type": "string"},
+              "company_name": {"type": "string"},
+              "fit_score": {"type": "integer"},
+              "pros": {"type": "array", "items": {"type": "string"}},
+              "cons": {"type": "array", "items": {"type": "string"}},
+              "application_priority": {"type": "string"},
+              "key_requirements": {"type": "array", "items": {"type": "string"}},
+              "growth_potential": {"type": "string"}
+            }
+          }
+        },
+        "overall_market_insights": {"type": "array", "items": {"type": "string"}}
+      },
+      "required": [
+        "analyzed_opportunities",
+        "overall_market_insights"
+      ]
+    }
+  # Field names must match the schema exactly.
+
+  agent: job_opportunity_analyzer
+  context: [linkedin_job_search_task]
+
+networking_strategy_task:
+  description: >
+    Develop networking strategies for the top LinkedIn job opportunities identified for {{search_criteria}}.
+    For each target company/role:
+    - Identify key employees and decision makers to connect with
+    - Suggest connection approach and personalized messaging
+    - Research shared connections or common interests
+    - Recommend LinkedIn engagement strategies (commenting, sharing, etc.)
+    - Identify company events, webinars, or content to engage with
+    Focus on authentic relationship building that can lead to job opportunities.
+
+  expected_output: >
+    JSON object matching schema:
+    {
+      "type": "object", 
+      "properties": {
+        "networking_strategies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "company_name": {"type": "string"},
+              "job_title": {"type": "string"},
+              "key_contacts": {"type": "array", "items": {"type": "string"}},
+              "connection_approach": {"type": "string"},
+              "message_templates": {"type": "array", "items": {"type": "string"}},
+              "engagement_opportunities": {"type": "array", "items": {"type": "string"}},
+              "timing_recommendations": {"type": "string"}
+            }
+          }
+        },
+        "general_networking_tips": {"type": "array", "items": {"type": "string"}}
+      },
+      "required": [
+        "networking_strategies",
+        "general_networking_tips"
+      ]
+    }
+  # Field names must match the schema exactly.
+
+  agent: networking_strategist
+  context: [linkedin_job_search_task, job_opportunity_analysis_task]
   async_execution: true
 
-get_recommendations_task:
+linkedin_report_compilation_task:
   description: >
-    Retrieve personalized job recommendations from LinkedIn for the authenticated user.
-    Use the get_recommended_jobs LinkedIn MCP tool to fetch recommendations.
-    Handle cases where the user is not authenticated or recommendations are unavailable.
-    Transform results into ScrapedJob schema format.
-    
-  expected_output: >
-    A JSON object containing recommendation results:
-    {
-      "success": true,
-      "recommended_jobs": [
-        {
-          "title": "Recommended job title",
-          "company": "Company name",
-          "location": "Job location", 
-          "job_type": "full-time/part-time/contract",
-          "date_posted": "ISO date string",
-          "description": "Job description text",
-          "job_url": "LinkedIn job URL",
-          "site": "linkedin",
-          "is_remote": true/false,
-          "recommendation_reason": "Why this job was recommended"
-        }
-      ],
-      "total_found": 10,
-      "authentication_status": "authenticated/not_authenticated"
-    }
-  agent: recommendation_agent
-  async_execution: true
+    Compile a comprehensive LinkedIn job search report for {{search_criteria}} that synthesizes
+    the job search results, opportunity analyses, and networking strategies into actionable guidance.
+    Create a prioritized action plan with specific next steps, timeline recommendations,
+    and success metrics. Focus on providing clear, implementable advice that maximizes
+    the user's LinkedIn job search effectiveness.
 
-consolidate_results_task:
-  description: >
-    Consolidate and deduplicate job results from both search_jobs and get_recommended_jobs.
-    Combine the results from search_jobs_task and get_recommendations_task.
-    Remove duplicate jobs based on job_url and company+title combinations.
-    Ensure all job data conforms to ScrapedJob schema for database persistence.
-    Generate metadata about the consolidation process including duplicate count.
-    
   expected_output: >
-    A JSON object with consolidated results:
+    JSON object matching schema:
     {
-      "success": true,
-      "consolidated_jobs": [
-        {
-          "title": "Job title",
-          "company": "Company name",
-          "location": "Job location",
-          "job_type": "employment type", 
-          "date_posted": "ISO date string",
-          "description": "Job description",
-          "job_url": "Unique LinkedIn URL",
-          "site": "linkedin",
-          "is_remote": true/false,
-          "source": "search/recommendation/both"
-        }
-      ],
-      "total_jobs": 30,
-      "search_jobs_count": 25,
-      "recommended_jobs_count": 10, 
-      "duplicates_removed": 5,
-      "consolidation_metadata": {
-        "search_success": true,
-        "recommendations_success": true,
-        "deduplication_method": "url_and_title_company"
-      }
+      "type": "object",
+      "properties": {
+        "executive_summary": {"type": "string"},
+        "priority_opportunities": {
+          "type": "array",
+          "items": {
+            "type": "object", 
+            "properties": {
+              "rank": {"type": "integer"},
+              "job_title": {"type": "string"},
+              "company_name": {"type": "string"},
+              "rationale": {"type": "string"},
+              "next_steps": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        },
+        "networking_action_plan": {"type": "array", "items": {"type": "string"}},
+        "timeline_recommendations": {"type": "array", "items": {"type": "string"}}, 
+        "success_metrics": {"type": "array", "items": {"type": "string"}},
+        "linkedin_profile_optimizations": {"type": "array", "items": {"type": "string"}}
+      },
+      "required": [
+        "executive_summary",
+        "priority_opportunities", 
+        "networking_action_plan",
+        "timeline_recommendations",
+        "success_metrics",
+        "linkedin_profile_optimizations"
+      ]
     }
-  agent: orchestration_agent
-  context: [search_jobs_task, get_recommendations_task]
+  # Field names must match the schema exactly.
+
+  agent: linkedin_report_writer
+  context: [linkedin_job_search_task, job_opportunity_analysis_task, networking_strategy_task]
