@@ -12,6 +12,33 @@ from ....services.crewai.linkedin_job_search.crew import get_linkedin_job_search
 router = APIRouter(prefix="/linkedin-job-search", tags=["LinkedIn Job Search"])
 
 
+def _format_search_criteria(request: LinkedInJobSearchRequest) -> str:
+    """Generate a human readable description of the provided search parameters."""
+
+    parts = [f"Keywords: '{request.keywords}'"]
+
+    if request.location:
+        parts.append(f"Location: {request.location}")
+
+    filter_parts = []
+    if request.remote:
+        filter_parts.append("Remote only")
+    if request.job_type:
+        filter_parts.append(f"Job type: {request.job_type}")
+    if request.date_posted:
+        filter_parts.append(f"Date posted: {request.date_posted}")
+    if request.experience_level:
+        filter_parts.append(f"Experience level: {request.experience_level}")
+
+    if filter_parts:
+        parts.append("Filters: " + ", ".join(filter_parts))
+
+    if request.limit is not None:
+        parts.append(f"Limit: {request.limit}")
+
+    return "; ".join(parts)
+
+
 @router.post("/search", response_model=StandardResponse)
 async def search_linkedin_jobs(request: LinkedInJobSearchRequest):
     """
@@ -33,16 +60,19 @@ async def search_linkedin_jobs(request: LinkedInJobSearchRequest):
         logger.info(f"Starting LinkedIn job search for keywords: '{request.keywords}'")
         
         # Convert request to search parameters
+        search_criteria = _format_search_criteria(request)
+
         search_params = {
             "keywords": request.keywords,
             "location": request.location,
-            "job_type": request.job_type, 
+            "job_type": request.job_type,
             "date_posted": request.date_posted,
             "experience_level": request.experience_level,
             "remote": request.remote,
-            "limit": request.limit
+            "limit": request.limit,
+            "search_criteria": search_criteria,
         }
-        
+
         # Remove None values
         search_params = {k: v for k, v in search_params.items() if v is not None}
         
