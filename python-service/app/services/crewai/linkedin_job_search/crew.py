@@ -16,6 +16,15 @@ from crewai.project import CrewBase, agent, task, crew
 _cached_crew: Optional[Crew] = None
 _crew_lock = Lock()
 
+_REPORT_SCHEMA_KEYS = {
+    "executive_summary",
+    "priority_opportunities",
+    "networking_action_plan",
+    "timeline_recommendations",
+    "success_metrics",
+    "linkedin_profile_optimizations",
+}
+
 @CrewBase
 class LinkedInJobSearchCrew:
     """
@@ -216,18 +225,28 @@ def _coerce_to_dict(candidate: Any) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _ensure_success_flag(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Ensure recognized report payloads include a success flag."""
+
+    if "success" not in payload and _REPORT_SCHEMA_KEYS.issubset(payload.keys()):
+        payload = dict(payload)
+        payload["success"] = True
+
+    return payload
+
+
 def normalize_linkedin_job_search_output(result: Any) -> Dict[str, Any]:
     """Normalize CrewAI outputs into a dictionary for consistent consumption."""
 
     normalized = _coerce_to_dict(result)
     if normalized is not None:
-        return normalized
+        return _ensure_success_flag(normalized)
 
     for attribute in ("raw", "output", "value"):
         if hasattr(result, attribute):
             normalized = _coerce_to_dict(getattr(result, attribute))
             if normalized is not None:
-                return normalized
+                return _ensure_success_flag(normalized)
 
     return {}
 

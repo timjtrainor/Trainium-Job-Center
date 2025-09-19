@@ -9,6 +9,7 @@ os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/tes
 from app.services.crewai.linkedin_job_search.crew import (  # noqa: E402
     LinkedInJobSearchCrew,
     get_linkedin_job_search_crew,
+    normalize_linkedin_job_search_output,
     run_linkedin_job_search,
 )
 
@@ -81,3 +82,27 @@ class TestLinkedInJobSearchCrew:
             "limit": 25,
             "search_criteria": "Keywords: 'data scientist'; Limit: 25",
         }
+
+    def test_normalize_injects_success_for_report_schema(self):
+        """Report-style payloads should receive a success flag."""
+        report_payload = {
+            "executive_summary": "Key findings",
+            "priority_opportunities": [
+                {
+                    "rank": 1,
+                    "job_title": "Lead Developer",
+                    "company_name": "DevSolutions",
+                    "rationale": "Matches leadership experience",
+                    "next_steps": ["Apply via referral"]
+                }
+            ],
+            "networking_action_plan": ["Connect with alumni"],
+            "timeline_recommendations": ["Week 1: outreach"],
+            "success_metrics": ["Attend 2 networking events"],
+            "linkedin_profile_optimizations": ["Refresh about section"]
+        }
+
+        normalized = normalize_linkedin_job_search_output(report_payload)
+
+        assert normalized["success"] is True
+        assert normalized["executive_summary"] == "Key findings"
