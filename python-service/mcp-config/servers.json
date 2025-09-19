@@ -8,7 +8,7 @@
     },
     "linkedin-mcp-server": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "-e", "LINKEDIN_COOKIE","stickerdaniel/linkedin-mcp-server"],
+      "args": ["run", "-i", "--rm", "-e", "LINKEDIN_COOKIE", "stickerdaniel/linkedin-mcp-server"],
       "env": {
         "LINKEDIN_COOKIE": "${LINKEDIN_COOKIE}"
       },
