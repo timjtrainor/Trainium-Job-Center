@@ -3,8 +3,11 @@ LinkedIn Job Search CrewAI implementation.
 
 This crew coordinates LinkedIn job searches and recommendations using LinkedIn MCP tools.
 """
+import json
+from collections.abc import Mapping
+from json import JSONDecodeError
 from threading import Lock
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
@@ -185,6 +188,50 @@ def _build_search_inputs(
     return filtered_params
 
 
+def _coerce_to_dict(candidate: Any) -> Optional[Dict[str, Any]]:
+    """Attempt to convert various CrewAI output payloads into a dictionary."""
+
+    if candidate is None:
+        return None
+
+    if isinstance(candidate, Mapping):
+        return dict(candidate)
+
+    if isinstance(candidate, str):
+        stripped = candidate.strip()
+        if not stripped:
+            return None
+
+        try:
+            parsed = json.loads(stripped)
+        except JSONDecodeError:
+            return None
+
+        if isinstance(parsed, Mapping):
+            return dict(parsed)
+
+        # Preserve non-mapping JSON payloads for downstream inspection.
+        return {"data": parsed}
+
+    return None
+
+
+def normalize_linkedin_job_search_output(result: Any) -> Dict[str, Any]:
+    """Normalize CrewAI outputs into a dictionary for consistent consumption."""
+
+    normalized = _coerce_to_dict(result)
+    if normalized is not None:
+        return normalized
+
+    for attribute in ("raw", "output", "value"):
+        if hasattr(result, attribute):
+            normalized = _coerce_to_dict(getattr(result, attribute))
+            if normalized is not None:
+                return normalized
+
+    return {}
+
+
 def run_linkedin_job_search(
     *,
     keywords: str,
@@ -207,4 +254,5 @@ def run_linkedin_job_search(
         remote=remote,
         limit=limit,
     )
-    return crew.kickoff(inputs=inputs)
+    raw_result = crew.kickoff(inputs=inputs)
+    return normalize_linkedin_job_search_output(raw_result)
