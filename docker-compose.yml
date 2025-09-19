@@ -253,6 +253,9 @@ services:
       - --servers=duckduckgo,linkedin-mcp-server
       - --transport=sse
       - --port=8811
+    environment:
+      # Ensure the gateway can forward LinkedIn secrets to docker-run commands
+      LINKEDIN_COOKIE: ${LINKEDIN_COOKIE}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     ports:

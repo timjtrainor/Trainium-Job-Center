@@ -9,9 +9,10 @@ subprocess based on configuration in ``/config/servers.json``.
 
 import json
 import os
+import re
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Match, Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, status
@@ -20,6 +21,24 @@ from loguru import logger
 from mcp import ClientSession
 from mcp.transport import SubprocessTransport
 from mcp.types import Tool as MCPTool
+
+
+_ENV_VAR_PATTERN = re.compile(
+    r"""
+    \$
+    (?:
+        \{
+            (?P<braced_name>[A-Za-z_][A-Za-z0-9_]*)
+            (?::(?P<modifier>[-?])(?P<default>[^}]*))?
+        \}
+        |
+        (?P<simple_name>[A-Za-z_][A-Za-z0-9_]*)
+    )
+    """,
+    re.VERBOSE,
+)
+
+_LITERAL_DOLLAR_MARKER = "\0"
 
 
 class MCPGateway:
@@ -71,10 +90,11 @@ class MCPGateway:
         cfg = self.servers_config[server_name]
         command = cfg.get("command")
         args = cfg.get("args", [])
-        env = cfg.get("env", {})
+        env_cfg = cfg.get("env", {})
+        expanded_env = self._build_environment(env_cfg, server_name)
 
         try:
-            transport = SubprocessTransport(command, args=args, env=env)
+            transport = SubprocessTransport(command, args=args, env=expanded_env)
             await transport.start()
             protocol = transport.open_session()
             client = ClientSession(protocol)
@@ -99,6 +119,72 @@ class MCPGateway:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to connect to server '{server_name}'",
             )
+
+    def _build_environment(
+        self, env_cfg: Dict[str, Any], server_name: str
+    ) -> Dict[str, str]:
+        """Expand environment variables for a server configuration."""
+
+        expanded_env: Dict[str, str] = {}
+        missing_vars: Dict[str, Optional[str]] = {}
+
+        for key, raw_value in env_cfg.items():
+            if isinstance(raw_value, str):
+                expanded_value = self._expand_env_string(raw_value, missing_vars)
+            else:
+                expanded_value = str(raw_value)
+            expanded_env[key] = expanded_value
+
+        if missing_vars:
+            missing_details = []
+            for var_name, message in missing_vars.items():
+                if message:
+                    missing_details.append(f"{var_name} ({message})")
+                else:
+                    missing_details.append(var_name)
+            detail = (
+                f"Missing required environment variables for server '{server_name}': "
+                + ", ".join(sorted(missing_details))
+            )
+            logger.error(detail)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=detail,
+            )
+
+        return expanded_env
+
+    def _expand_env_string(
+        self,
+        value: str,
+        missing_vars: Dict[str, Optional[str]],
+    ) -> str:
+        """Expand environment placeholders within a string value."""
+
+        value_with_sentinel = value.replace("$$", _LITERAL_DOLLAR_MARKER)
+
+        def replace(match: Match[str]) -> str:
+            var_name = match.group("braced_name") or match.group("simple_name")
+            modifier = match.group("modifier")
+            default = match.group("default")
+            env_val = os.environ.get(var_name)
+
+            if env_val not in (None, ""):
+                return env_val
+
+            if modifier == "-":
+                default_value = default or ""
+                return default_value.replace(_LITERAL_DOLLAR_MARKER, "$")
+
+            message: Optional[str] = None
+            if modifier == "?":
+                message = (default or "").replace(_LITERAL_DOLLAR_MARKER, "$")
+
+            missing_vars.setdefault(var_name, message)
+            return ""
+
+        expanded = _ENV_VAR_PATTERN.sub(replace, value_with_sentinel)
+        return expanded.replace(_LITERAL_DOLLAR_MARKER, "$")
 
     async def disconnect_server(self, server_name: str, session_id: str) -> Dict[str, str]:
         """Disconnect and terminate a server session."""
