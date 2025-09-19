@@ -173,10 +173,19 @@ services:
       REDIS_DB: ${REDIS_DB:-0}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      # MCP Gateway configuration
+      MCP_GATEWAY_URL: ${MCP_GATEWAY_URL:-http://mcp-gateway:8811}
+      MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED:-true}
+      # LinkedIn credentials for LinkedIn job search
+      LINKEDIN_EMAIL: ${LINKEDIN_EMAIL}
+      LINKEDIN_PASSWORD: ${LINKEDIN_PASSWORD}
+      LINKEDIN_COOKIE: ${LINKEDIN_COOKIE}
     deploy:
       replicas: 5   # Number of workers
     depends_on:
       redis:
+        condition: service_healthy
+      mcp-gateway:
         condition: service_healthy
 
   # Defines the scheduler daemon using the python-service image

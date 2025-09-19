@@ -402,3 +402,233 @@ def process_job_review(job_id: str, max_retries: int = 3) -> Dict[str, Any]:
             "error": str(e),
             "processing_time_seconds": processing_time
         }
+
+
+def run_linkedin_job_search(
+    site_schedule_id: Optional[str] = None,
+    payload: Optional[Dict[str, Any]] = None,
+    run_id: Optional[str] = None,
+    max_retries: int = 3
+) -> Dict[str, Any]:
+    """
+    Worker function for processing LinkedIn job search tasks using CrewAI.
+    
+    Args:
+        site_schedule_id: ID of site schedule (for scheduled runs)
+        payload: LinkedIn job search parameters
+        run_id: Unique run identifier for tracking
+        max_retries: Maximum number of retry attempts
+        
+    Returns:
+        Dictionary with search results and metadata
+    """
+    import time
+    import asyncio
+    from ..crewai.linkedin_job_search.crew import run_linkedin_job_search as execute_linkedin_search
+    
+    # Generate run_id if not provided
+    if not run_id:
+        run_id = f"linkedin_run_{uuid.uuid4().hex[:8]}"
+    
+    # Initialize database service
+    db_service = get_database_service()
+    
+    logger.info(f"LinkedIn job search worker started for run_id: {run_id}, site_schedule_id: {site_schedule_id}")
+    start_time = time.time()
+    
+    try:
+        # Set up async event loop
+        loop = None
+        try:
+            loop = asyncio.get_event_loop()
+        except:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        # Initialize database connection
+        if not db_service.initialized:
+            loop.run_until_complete(db_service.initialize())
+        
+        # Update run status to 'running'
+        started_at = datetime.now(timezone.utc)
+        loop.run_until_complete(
+            db_service.update_scrape_run_status(
+                run_id=run_id,
+                status="running", 
+                started_at=started_at
+            )
+        )
+        
+        logger.info(f"LinkedIn run {run_id}: Status updated to 'running'")
+        
+        # Parse search parameters from payload
+        if not payload:
+            payload = {}
+        
+        # Extract LinkedIn search parameters with defaults
+        keywords = payload.get("keywords", payload.get("search_term", "software engineer"))
+        location = payload.get("location", "remote")
+        job_type = payload.get("job_type")
+        date_posted = payload.get("date_posted")
+        experience_level = payload.get("experience_level")
+        remote = payload.get("is_remote", payload.get("remote", True))
+        limit = payload.get("results_wanted", payload.get("limit", 25))
+        
+        logger.info(f"LinkedIn run {run_id}: Executing search - keywords: '{keywords}', location: '{location}', limit: {limit}")
+        
+        # Execute the LinkedIn job search using CrewAI
+        search_result = execute_linkedin_search(
+            keywords=keywords,
+            location=location,
+            job_type=job_type,
+            date_posted=date_posted,
+            experience_level=experience_level,
+            remote=remote,
+            limit=limit
+        )
+        
+        processing_time = time.time() - start_time
+        
+        # Handle search errors
+        if not search_result.get("success", True) or "error" in search_result:
+            error_msg = f"LinkedIn search failed: {search_result.get('error', 'Unknown error')}"
+            logger.error(f"LinkedIn run {run_id}: {error_msg}")
+            
+            # Update status to failed
+            finished_at = datetime.now(timezone.utc)
+            loop.run_until_complete(
+                db_service.update_scrape_run_status(
+                    run_id=run_id,
+                    status="failed",
+                    finished_at=finished_at,
+                    errors_count=1,
+                    message=error_msg[:500]
+                )
+            )
+            
+            return {
+                "status": "failed",
+                "run_id": run_id,
+                "site_schedule_id": site_schedule_id,
+                "message": error_msg,
+                "total_found": 0,
+                "processing_time_seconds": processing_time,
+                "worker_completed_at": finished_at.isoformat()
+            }
+        
+        # Persist LinkedIn jobs if search was successful
+        jobs_found = search_result.get("consolidated_jobs", [])
+        total_jobs = search_result.get("total_jobs", len(jobs_found))
+        
+        persistence_summary = None
+        if jobs_found:
+            try:
+                # Convert LinkedIn search results to jobspy format for persistence
+                jobspy_jobs = []
+                for job in jobs_found:
+                    jobspy_job = {
+                        "title": job.get("title", ""),
+                        "company": job.get("company", ""),
+                        "location": {
+                            "city": job.get("location", {}).get("city"),
+                            "state": job.get("location", {}).get("state"),
+                            "country": job.get("location", {}).get("country")
+                        },
+                        "job_url": job.get("job_url", ""),
+                        "job_url_direct": job.get("job_url_direct"),
+                        "description": job.get("description", ""),
+                        "job_type": job.get("job_type"),
+                        "compensation": {
+                            "min_amount": job.get("salary", {}).get("min_amount"),
+                            "max_amount": job.get("salary", {}).get("max_amount"),
+                            "currency": job.get("salary", {}).get("currency", "USD"),
+                            "interval": job.get("salary", {}).get("interval", "yearly")
+                        },
+                        "date_posted": job.get("date_posted"),
+                        "site": "linkedin",
+                        "job_level": job.get("experience_level"),
+                        "is_remote": job.get("remote", False)
+                    }
+                    jobspy_jobs.append(jobspy_job)
+                
+                persistence_summary = loop.run_until_complete(
+                    persist_jobs(records=jobspy_jobs, site_name="linkedin")
+                )
+                logger.info(f"LinkedIn run {run_id}: Persisted jobs - {persistence_summary}")
+                
+            except Exception as e:
+                logger.error(f"LinkedIn run {run_id}: Failed to persist jobs: {e}")
+                persistence_summary = {
+                    "inserted": 0,
+                    "skipped_duplicates": 0,
+                    "errors": [f"Persistence failed: {str(e)}"]
+                }
+        
+        # Update final status
+        finished_at = datetime.now(timezone.utc)
+        final_status = "succeeded" if jobs_found else "partial"
+        
+        loop.run_until_complete(
+            db_service.update_scrape_run_status(
+                run_id=run_id,
+                status=final_status,
+                finished_at=finished_at,
+                requested_pages=1,  # LinkedIn searches are single requests
+                completed_pages=1 if search_result.get("success", True) else 0,
+                errors_count=0,
+                message=f"LinkedIn search completed: {total_jobs} jobs found"
+            )
+        )
+        
+        logger.info(f"LinkedIn run {run_id}: Completed with status '{final_status}', found {total_jobs} jobs")
+        
+        # Add worker metadata to result
+        result = {
+            "status": final_status,
+            "run_id": run_id,
+            "site_schedule_id": site_schedule_id,
+            "total_found": total_jobs,
+            "jobs": jobs_found,
+            "persistence_summary": persistence_summary,
+            "processing_time_seconds": processing_time,
+            "worker_completed_at": finished_at.isoformat(),
+            "linkedin_search_metadata": search_result.get("consolidation_metadata", {}),
+            "requested_pages": 1,
+            "completed_pages": 1 if search_result.get("success", True) else 0,
+            "errors_count": 0,
+            "message": f"LinkedIn search completed: {total_jobs} jobs found"
+        }
+        
+        return result
+        
+    except Exception as e:
+        processing_time = time.time() - start_time
+        error_msg = f"LinkedIn job search worker error for run_id {run_id}: {str(e)}"
+        logger.error(error_msg)
+        
+        # Update status to failed
+        try:
+            finished_at = datetime.now(timezone.utc)
+            loop.run_until_complete(
+                db_service.update_scrape_run_status(
+                    run_id=run_id,
+                    status="failed",
+                    finished_at=finished_at,
+                    errors_count=1,
+                    message=error_msg[:500]
+                )
+            )
+        except Exception as db_error:
+            logger.error(f"Failed to update run status for failed LinkedIn job {run_id}: {db_error}")
+        
+        return {
+            "status": "failed",
+            "run_id": run_id,
+            "site_schedule_id": site_schedule_id,
+            "message": error_msg,
+            "total_found": 0,
+            "processing_time_seconds": processing_time,
+            "requested_pages": 1,
+            "completed_pages": 0,
+            "errors_count": 1
+        }

@@ -9,7 +9,7 @@ from loguru import logger
 
 from ...core.config import get_settings
 from .database import get_database_service
-from .worker import scrape_jobs_worker, process_job_review
+from .worker import scrape_jobs_worker, process_job_review, run_linkedin_job_search
 
 
 class QueueService:
@@ -169,6 +169,62 @@ class QueueService:
         successful = sum(1 for task_id in results.values() if task_id is not None)
         logger.info(f"Enqueued {successful}/{len(job_ids)} job reviews successfully")
         return results
+
+    def enqueue_linkedin_job_search(self, 
+                                   payload: Dict[str, Any],
+                                   site_schedule_id: Optional[str] = None,
+                                   trigger: str = "manual",
+                                   run_id: Optional[str] = None) -> Optional[Dict[str, str]]:
+        """
+        Enqueue a LinkedIn job search task.
+        
+        Args:
+            payload: LinkedIn job search parameters
+            site_schedule_id: Site schedule ID for scheduled jobs
+            trigger: 'manual' or 'schedule'  
+            run_id: Optional custom run ID
+            
+        Returns:
+            Dictionary with task_id and run_id, or None if failed
+        """
+        if not self.initialized:
+            logger.error("Queue service not initialized")
+            return None
+        
+        try:
+            # Generate run_id if not provided
+            if not run_id:
+                run_id = f"linkedin_run_{uuid.uuid4().hex[:8]}"
+            
+            # Get retry settings from site schedule if available
+            max_retries = 3
+            
+            if site_schedule_id:
+                # TODO: Get these from site_schedules table
+                # For now, use defaults
+                pass
+            
+            # Enqueue the LinkedIn job search
+            job = self.queue.enqueue(
+                run_linkedin_job_search,
+                site_schedule_id=site_schedule_id,
+                payload=payload,
+                run_id=run_id,
+                max_retries=max_retries,
+                job_id=run_id,  # Use run_id as job_id for consistency
+                result_ttl=self.settings.rq_result_ttl
+            )
+            
+            logger.info(f"Enqueued LinkedIn job search - run_id: {run_id}, task_id: {job.id}, trigger: {trigger}")
+            
+            return {
+                "task_id": job.id,
+                "run_id": run_id
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to enqueue LinkedIn job search: {str(e)}")
+            return None
 
     def get_job_status(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Get status of a queued job."""
