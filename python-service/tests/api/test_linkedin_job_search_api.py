@@ -1,11 +1,13 @@
 """
 API tests for LinkedIn Job Search endpoints.
 """
+import json
 import os
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
 os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/testdb")
@@ -47,7 +49,7 @@ class TestLinkedInJobSearchAPI:
             "duplicates_removed": 0,
             "consolidation_metadata": {}
         }
-        mock_crew.kickoff.return_value = mock_result
+        mock_crew.kickoff.return_value = SimpleNamespace(raw=json.dumps(mock_result))
         
         # Test API call
         request_data = {
@@ -86,7 +88,7 @@ class TestLinkedInJobSearchAPI:
             "consolidated_jobs": [],
             "total_jobs": 0
         }
-        mock_crew.kickoff.return_value = mock_result
+        mock_crew.kickoff.return_value = SimpleNamespace(raw=json.dumps(mock_result))
         
         request_data = {
             "keywords": "data scientist",

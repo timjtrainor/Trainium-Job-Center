@@ -1,5 +1,7 @@
 """Unit tests for LinkedIn Job Search Crew helpers."""
+import json
 import os
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/testdb")
@@ -34,7 +36,8 @@ class TestLinkedInJobSearchCrew:
         """run_linkedin_job_search should pass readable criteria to the crew."""
         mock_crew = MagicMock()
         mock_get_crew.return_value = mock_crew
-        mock_crew.kickoff.return_value = {"success": True}
+        mock_payload = {"success": True}
+        mock_crew.kickoff.return_value = SimpleNamespace(raw=json.dumps(mock_payload))
 
         result = run_linkedin_job_search(
             keywords="python developer",
@@ -66,7 +69,8 @@ class TestLinkedInJobSearchCrew:
         """Optional filters should be omitted from inputs and description when missing."""
         mock_crew = MagicMock()
         mock_get_crew.return_value = mock_crew
-        mock_crew.kickoff.return_value = {"success": True}
+        mock_payload = {"success": True}
+        mock_crew.kickoff.return_value = SimpleNamespace(raw=json.dumps(mock_payload))
 
         run_linkedin_job_search(keywords="data scientist", remote=False, limit=25)
 

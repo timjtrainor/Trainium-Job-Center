@@ -7,7 +7,10 @@ from loguru import logger
 
 from ....schemas.responses import StandardResponse, create_success_response, create_error_response
 from ....schemas.linkedin_job_search import LinkedInJobSearchRequest, LinkedInJobSearchResponse
-from ....services.crewai.linkedin_job_search.crew import get_linkedin_job_search_crew
+from ....services.crewai.linkedin_job_search.crew import (
+    get_linkedin_job_search_crew,
+    normalize_linkedin_job_search_output,
+)
 
 router = APIRouter(prefix="/linkedin-job-search", tags=["LinkedIn Job Search"])
 
@@ -79,14 +82,15 @@ async def search_linkedin_jobs(request: LinkedInJobSearchRequest):
         # Execute LinkedIn job search crew
         crew = get_linkedin_job_search_crew()
         result = crew.kickoff(inputs=search_params)
-        
+        result = normalize_linkedin_job_search_output(result)
+
         # Check if search was successful
         if not result.get("success", False):
             return create_error_response(
                 error="LinkedIn job search failed",
                 message=result.get("error", "Unknown error occurred")
             )
-        
+
         # Transform result to response schema
         response_data = LinkedInJobSearchResponse(
             success=result.get("success", True),
