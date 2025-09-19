@@ -116,41 +116,16 @@ class MCPServerAdapter:
                 # For SSE transport servers, we can assume they're connected if the gateway reports them
                 session_id = f"sse_session_{server_name}"
                 
-                # Create default tools for known servers since tools endpoint may not work with SSE
-                if server_name == "duckduckgo":
-                    tools_data = {
-                        "tools": [
-                            {
-                                "name": "web_search",
-                                "description": "Search the web using DuckDuckGo",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "query": {
-                                            "type": "string",
-                                            "description": "Search query"
-                                        }
-                                    },
-                                    "required": ["query"]
-                                }
-                            },
-                            {
-                                "name": "search", 
-                                "description": "General search using DuckDuckGo",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "query": {
-                                            "type": "string",
-                                            "description": "Search query"
-                                        }
-                                    },
-                                    "required": ["query"]
-                                }
-                            }
-                        ]
-                    }
-                else:
+                # Try to get tools dynamically from the gateway
+                try:
+                    tools_response = await self._session.get(
+                        f"{self.gateway_url}/servers/{server_name}/tools",
+                    )
+                    tools_response.raise_for_status()
+                    tools_data = tools_response.json()
+                    logger.info(f"Dynamically loaded {len(tools_data.get('tools', []))} tools for {server_name}")
+                except Exception as e:
+                    logger.warning(f"Could not dynamically load tools for {server_name}: {e}")
                     tools_data = {"tools": []}
                     
                 # Store server connection and tools
@@ -205,30 +180,10 @@ class MCPServerAdapter:
                 )
                 tools_response.raise_for_status()
                 tools_data = tools_response.json()
+                logger.info(f"Dynamically loaded {len(tools_data.get('tools', []))} tools for {server_name}")
             except Exception as e:
-                logger.warning(f"Could not get tools for {server_name}: {e}")
-                # Create default tools for known servers
-                if server_name == "duckduckgo":
-                    tools_data = {
-                        "tools": [
-                            {
-                                "name": "web_search",
-                                "description": "Search the web using DuckDuckGo",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "query": {
-                                            "type": "string",
-                                            "description": "Search query"
-                                        }
-                                    },
-                                    "required": ["query"]
-                                }
-                            }
-                        ]
-                    }
-                else:
-                    tools_data = {"tools": []}
+                logger.warning(f"Could not dynamically load tools for {server_name}: {e}")
+                tools_data = {"tools": []}
 
             # Store server connection and tools
             self._connected_servers[server_name] = {

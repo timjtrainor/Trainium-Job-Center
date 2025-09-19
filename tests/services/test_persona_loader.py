@@ -15,13 +15,13 @@ def test_models_default_to_env_preference(tmp_path, monkeypatch):
     )
 
     monkeypatch.setenv(
-        "LLM_PREFERENCE", "openai:gpt-4,gemini:gemini-1.5-flash"
+        "LLM_PREFERENCE", "openai:gpt-5,gemini:gemini-2.5-flash"
     )
 
     loader = PersonaCatalog(catalog)
 
     assert loader.get_models("test") == [
-        {"provider": "openai", "model": "gpt-4"},
-        {"provider": "gemini", "model": "gemini-1.5-flash"},
+        {"provider": "openai", "model": "gpt-5"},
+        {"provider": "gemini", "model": "gemini-2.5-flash"},
     ]
 

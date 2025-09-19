@@ -241,7 +241,7 @@ services:
     container_name: trainium_mcp_gateway
     image: docker/mcp-gateway
     command:
-      - --servers=duckduckgo
+      - --servers=duckduckgo,linkedin-mcp-server
       - --transport=sse
       - --port=8811
     volumes:

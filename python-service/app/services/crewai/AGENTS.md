@@ -4,9 +4,39 @@
 
 This document provides comprehensive guidance for AI agents and developers working with CrewAI crews in the Trainium Job Center project. It establishes coding standards, architectural patterns, and maintenance requirements to ensure consistent implementation of multi-agent systems.
 
-**Purpose**: This guide enables AI agents to write structured, maintainable CrewAI code by following established patterns from our active implementations (`job_posting_review`, `personal_branding`, and `research_company` crews). It ensures consistency across all crew implementations and provides clear standards for YAML configurations, task delegation, and FastAPI integration.
+**Purpose**: This guide enables AI agents to write structured, maintainable CrewAI code by following established patterns from our active implementations (`job_posting_review`, `personal_branding`, `research_company`, and `linkedin_job_search` crews). It ensures consistency across all crew implementations and provides clear standards for YAML configurations, task delegation, and FastAPI integration.
 
 **Critical Requirement**: This AGENT.md file MUST be updated whenever any changes are made to crew structures, YAML configurations, FastAPI endpoints, or CrewAI implementation patterns.
+
+## Active CrewAI Services
+
+The Python service includes four active CrewAI multi-agent services:
+
+### 1. Job Posting Review (`job_posting_review`)
+- **Purpose**: Analyzes job postings for fit and alignment with candidate criteria
+- **Location**: `app/services/crewai/job_posting_review/`
+- **Agents**: Job Intake, Pre-filter, Quick Fit Analyst, Brand Framework Matcher
+- **Usage**: Orchestrated evaluation pipeline with YAML-driven configuration
+
+### 2. Personal Branding (`personal_branding`)
+- **Purpose**: Assists with personal brand development and career positioning
+- **Location**: `app/services/crewai/personal_branding/`
+- **Agents**: Branding Agent
+- **Usage**: Provides branding guidance and career development insights
+
+### 3. Research Company (`research_company`) 
+- **Purpose**: Comprehensive company research and analysis
+- **Location**: `app/services/crewai/research_company/`
+- **Agents**: Financial Analyst, Culture Investigator, Leadership Analyst, Career Growth Analyst, MCP Researcher, Report Writer
+- **Usage**: Gathers and analyzes company information for job applications
+
+### 4. LinkedIn Job Search (`linkedin_job_search`)
+- **Purpose**: Comprehensive LinkedIn job discovery, analysis, and networking strategy
+- **Location**: `app/services/crewai/linkedin_job_search/`
+- **Agents**: LinkedIn Job Searcher, Job Opportunity Analyzer, Networking Strategist, LinkedIn Report Writer
+- **Usage**: Searches LinkedIn for opportunities, analyzes fit, and develops networking strategies
+
+All CrewAI services follow YAML-first configuration and modular agent design patterns.
 
 ## File Structure Overview
 
@@ -32,12 +62,18 @@ app/services/crewai/
 │   └── config/                      # Crew-specific configurations
 │       ├── agents.yaml              # Agent definitions for personal branding
 │       └── tasks.yaml               # Task definitions for personal branding
-└── research_company/                # Company research crew
+├── research_company/                # Company research crew
+│   ├── __init__.py
+│   ├── crew.py                      # ResearchCompanyCrew class
+│   └── config/
+│       ├── agents.yaml              # Company research agents
+│       └── tasks.yaml               # Company research tasks
+└── linkedin_job_search/             # LinkedIn job search crew
     ├── __init__.py
-    ├── crew.py                      # ResearchCompanyCrew class
+    ├── crew.py                      # LinkedInJobSearchCrew class
     └── config/
-        ├── agents.yaml              # Company research agents
-        └── tasks.yaml               # Company research tasks
+        ├── agents.yaml              # LinkedIn job search agents
+        └── tasks.yaml               # LinkedIn job search tasks
 ```
 
 ### Required Files for Each Crew

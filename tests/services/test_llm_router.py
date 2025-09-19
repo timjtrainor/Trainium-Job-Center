@@ -20,24 +20,24 @@ class TestLLMRouter:
     
     def test_router_initialization(self):
         """Test router initializes with correct providers."""
-        preferences = "ollama:gemma3:1b,openai:gpt-4o-mini"
+        preferences = "ollama:gemma3:1b,openai:gpt-5-mini"
         router = LLMRouter(preferences)
         
         assert len(router.providers) == 2
         assert router.providers[0] == ("ollama", "gemma3:1b")
-        assert router.providers[1] == ("openai", "gpt-4o-mini")
+        assert router.providers[1] == ("openai", "gpt-5-mini")
     
     def test_preference_parsing(self):
         """Test preference string parsing."""
         router = LLMRouter()
         
         # Test valid preferences
-        providers = router._parse_preferences("ollama:gemma3:1b,openai:gpt-4")
-        assert providers == [("ollama", "gemma3:1b"), ("openai", "gpt-4")]
+        providers = router._parse_preferences("ollama:gemma3:1b,openai:gpt-5")
+        assert providers == [("ollama", "gemma3:1b"), ("openai", "gpt-5")]
         
         # Test with spaces
-        providers = router._parse_preferences(" ollama : gemma3:1b , openai : gpt-4 ")
-        assert providers == [("ollama", "gemma3:1b"), ("openai", "gpt-4")]
+        providers = router._parse_preferences(" ollama : gemma3:1b , openai : gpt-5 ")
+        assert providers == [("ollama", "gemma3:1b"), ("openai", "gpt-5")]
     
     @patch('app.services.ai.llm_clients.create_llm_client')
     def test_client_creation(self, mock_create_client):
@@ -74,7 +74,7 @@ class TestLLMRouter:
         
         mock_create_client.side_effect = [failing_client, working_client]
         
-        router = LLMRouter("ollama:gemma3:1b,openai:gpt-4")
+        router = LLMRouter("ollama:gemma3:1b,openai:gpt-5")
         response = router.generate("test prompt")
         
         assert response == "success response"
@@ -105,9 +105,9 @@ class TestClientFactory:
     
     def test_create_openai_client(self):
         """Test creating OpenAI client."""
-        client = create_llm_client("openai", "gpt-4")
+        client = create_llm_client("openai", "gpt-5")
         assert isinstance(client, OpenAIClient)
-        assert client.model == "gpt-4"
+        assert client.model == "gpt-5"
         assert client.provider == "openai"
     
     def test_create_gemini_client(self):
@@ -135,7 +135,7 @@ class TestClientAvailability:
     def test_openai_availability_no_api_key(self):
         """Test OpenAI availability when API key missing."""
         with patch('app.services.ai.llm_clients.resolve_api_key', return_value=None):
-            client = OpenAIClient("gpt-4")
+            client = OpenAIClient("gpt-5")
             assert not client.is_available()
     
     def test_gemini_availability_no_api_key(self):
