@@ -19,10 +19,8 @@ _crew_lock = Lock()
 _REPORT_SCHEMA_KEYS = {
     "executive_summary",
     "priority_opportunities",
-    "networking_action_plan",
-    "timeline_recommendations",
-    "success_metrics",
-    "linkedin_profile_optimizations",
+    "application_recommendations",
+    "market_insights",
 }
 
 @CrewBase
@@ -51,13 +49,6 @@ class LinkedInJobSearchCrew:
         )
 
     @agent
-    def networking_strategist(self) -> Agent:
-        """Specialist agent for LinkedIn networking strategies."""
-        return Agent(
-            config=self.agents_config["networking_strategist"],  # type: ignore[index]
-        )
-
-    @agent
     def linkedin_report_writer(self) -> Agent:
         """Manager agent that synthesizes LinkedIn job search results."""
         return Agent(
@@ -82,16 +73,6 @@ class LinkedInJobSearchCrew:
         )
 
     @task
-    def networking_strategy_task(self) -> Task:
-        """Develop networking strategies for LinkedIn opportunities."""
-        return Task(
-            config=self.tasks_config["networking_strategy_task"],  # type: ignore[index]
-            agent=self.networking_strategist(),
-            context=[self.linkedin_job_search_task(), self.job_opportunity_analysis_task()],
-            async_execution=True
-        )
-
-    @task
     def linkedin_report_compilation_task(self) -> Task:
         """Final compilation of LinkedIn job search intelligence."""
         return Task(
@@ -99,8 +80,7 @@ class LinkedInJobSearchCrew:
             agent=self.linkedin_report_writer(),
             context=[
                 self.linkedin_job_search_task(),
-                self.job_opportunity_analysis_task(),
-                self.networking_strategy_task()
+                self.job_opportunity_analysis_task()
             ]
         )
 
@@ -110,13 +90,11 @@ class LinkedInJobSearchCrew:
         return Crew(
             agents=[
                 self.linkedin_job_searcher(),
-                self.job_opportunity_analyzer(),
-                self.networking_strategist()
+                self.job_opportunity_analyzer()
             ],
             tasks=[
                 self.linkedin_job_search_task(),
                 self.job_opportunity_analysis_task(),
-                self.networking_strategy_task(),
                 self.linkedin_report_compilation_task()
             ],
             process=Process.hierarchical,

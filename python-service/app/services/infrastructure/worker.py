@@ -632,3 +632,202 @@ def run_linkedin_job_search(
             "completed_pages": 0,
             "errors_count": 1
         }
+
+
+def run_linkedin_recommendations(
+    site_schedule_id: Optional[str] = None,
+    payload: Optional[Dict[str, Any]] = None,
+    run_id: Optional[str] = None,
+    max_retries: int = 3
+) -> Dict[str, Any]:
+    """
+    Worker function for processing LinkedIn recommendations using CrewAI.
+    
+    Args:
+        site_schedule_id: ID of site schedule (for scheduled runs)
+        payload: Optional parameters (not used for recommendations)
+        run_id: Unique run identifier for tracking
+        max_retries: Maximum number of retry attempts
+        
+    Returns:
+        Dictionary with recommendation results and metadata
+    """
+    import time
+    import asyncio
+    from ..crewai.linkedin_recommendations.crew import run_linkedin_recommendations as execute_recommendations
+    
+    # Generate run_id if not provided
+    if not run_id:
+        run_id = f"linkedin_rec_{uuid.uuid4().hex[:8]}"
+    
+    # Initialize database service
+    db_service = get_database_service()
+    
+    logger.info(f"LinkedIn recommendations worker started for run_id: {run_id}, site_schedule_id: {site_schedule_id}")
+    start_time = time.time()
+    
+    try:
+        # Set up async event loop
+        loop = None
+        try:
+            loop = asyncio.get_event_loop()
+        except:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        # Initialize database connection
+        if not db_service.initialized:
+            loop.run_until_complete(db_service.initialize())
+        
+        # Update run status to 'running'
+        started_at = datetime.now(timezone.utc)
+        loop.run_until_complete(
+            db_service.update_scrape_run_status(
+                run_id=run_id,
+                status="running", 
+                started_at=started_at
+            )
+        )
+        
+        logger.info(f"LinkedIn recommendations run {run_id}: Status updated to 'running'")
+        
+        # Execute the LinkedIn recommendations using CrewAI
+        recommendations_result = execute_recommendations()
+        
+        processing_time = time.time() - start_time
+        
+        # Handle recommendations errors
+        if not recommendations_result.get("success", True) or "error" in recommendations_result:
+            error_msg = f"LinkedIn recommendations failed: {recommendations_result.get('error', 'Unknown error')}"
+            logger.error(f"LinkedIn recommendations run {run_id}: {error_msg}")
+            
+            # Update status to failed
+            finished_at = datetime.now(timezone.utc)
+            loop.run_until_complete(
+                db_service.update_scrape_run_status(
+                    run_id=run_id,
+                    status="failed",
+                    finished_at=finished_at,
+                    errors_count=1,
+                    message=error_msg[:500]
+                )
+            )
+            
+            return {
+                "status": "failed",
+                "run_id": run_id,
+                "site_schedule_id": site_schedule_id,
+                "message": error_msg,
+                "total_found": 0,
+                "processing_time_seconds": processing_time,
+                "worker_completed_at": finished_at.isoformat()
+            }
+        
+        # Persist LinkedIn recommended jobs if fetch was successful
+        jobs_found = recommendations_result.get("recommended_jobs", [])
+        total_jobs = recommendations_result.get("total_recommendations", len(jobs_found))
+        
+        persistence_summary = None
+        if jobs_found:
+            try:
+                # Convert LinkedIn recommendations to jobspy format for persistence
+                jobspy_jobs = []
+                for job in jobs_found:
+                    jobspy_job = {
+                        "title": job.get("title", ""),
+                        "company": job.get("company", ""),
+                        "location": job.get("location", ""),
+                        "job_url": job.get("job_url", ""),
+                        "job_url_direct": job.get("job_url_direct"),
+                        "description": job.get("description", ""),
+                        "job_type": job.get("job_type"),
+                        "date_posted": job.get("date_posted"),
+                        "site": "linkedin",
+                        "job_level": job.get("experience_level"),
+                        "is_remote": job.get("is_remote", False),
+                        # Add recommendation-specific metadata
+                        "recommendation_score": job.get("recommendation_score"),
+                        "recommendation_reasons": job.get("recommendation_reasons", [])
+                    }
+                    jobspy_jobs.append(jobspy_job)
+                
+                persistence_summary = loop.run_until_complete(
+                    persist_jobs(records=jobspy_jobs, site_name="linkedin")
+                )
+                logger.info(f"LinkedIn recommendations run {run_id}: Persisted jobs - {persistence_summary}")
+                
+            except Exception as e:
+                logger.error(f"LinkedIn recommendations run {run_id}: Failed to persist jobs: {e}")
+                persistence_summary = {
+                    "inserted": 0,
+                    "skipped_duplicates": 0,
+                    "errors": [f"Persistence failed: {str(e)}"]
+                }
+        
+        # Update final status
+        finished_at = datetime.now(timezone.utc)
+        final_status = "succeeded" if jobs_found else "partial"
+        
+        loop.run_until_complete(
+            db_service.update_scrape_run_status(
+                run_id=run_id,
+                status=final_status,
+                finished_at=finished_at,
+                requested_pages=1,  # LinkedIn recommendations are single requests
+                completed_pages=1 if recommendations_result.get("success", True) else 0,
+                errors_count=0,
+                message=f"LinkedIn recommendations completed: {total_jobs} jobs found"
+            )
+        )
+        
+        logger.info(f"LinkedIn recommendations run {run_id}: Completed with status '{final_status}', found {total_jobs} jobs")
+        
+        # Add worker metadata to result
+        result = {
+            "status": final_status,
+            "run_id": run_id,
+            "site_schedule_id": site_schedule_id,
+            "total_found": total_jobs,
+            "jobs": jobs_found,
+            "persistence_summary": persistence_summary,
+            "processing_time_seconds": processing_time,
+            "worker_completed_at": finished_at.isoformat(),
+            "requested_pages": 1,
+            "completed_pages": 1 if recommendations_result.get("success", True) else 0,
+            "errors_count": 0,
+            "message": f"LinkedIn recommendations completed: {total_jobs} jobs found"
+        }
+        
+        return result
+        
+    except Exception as e:
+        processing_time = time.time() - start_time
+        error_msg = f"LinkedIn recommendations worker error for run_id {run_id}: {str(e)}"
+        logger.error(error_msg)
+        
+        # Update status to failed
+        try:
+            finished_at = datetime.now(timezone.utc)
+            loop.run_until_complete(
+                db_service.update_scrape_run_status(
+                    run_id=run_id,
+                    status="failed",
+                    finished_at=finished_at,
+                    errors_count=1,
+                    message=error_msg[:500]
+                )
+            )
+        except Exception as db_error:
+            logger.error(f"Failed to update run status for failed LinkedIn recommendations {run_id}: {db_error}")
+        
+        return {
+            "status": "failed",
+            "run_id": run_id,
+            "site_schedule_id": site_schedule_id,
+            "message": error_msg,
+            "total_found": 0,
+            "processing_time_seconds": processing_time,
+            "requested_pages": 1,
+            "completed_pages": 0,
+            "errors_count": 1
+        }

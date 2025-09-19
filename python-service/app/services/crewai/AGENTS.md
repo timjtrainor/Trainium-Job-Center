@@ -10,7 +10,7 @@ This document provides comprehensive guidance for AI agents and developers worki
 
 ## Active CrewAI Services
 
-The Python service includes four active CrewAI multi-agent services:
+The Python service includes five active CrewAI multi-agent services:
 
 ### 1. Job Posting Review (`job_posting_review`)
 - **Purpose**: Analyzes job postings for fit and alignment with candidate criteria
@@ -31,10 +31,18 @@ The Python service includes four active CrewAI multi-agent services:
 - **Usage**: Gathers and analyzes company information for job applications
 
 ### 4. LinkedIn Job Search (`linkedin_job_search`)
-- **Purpose**: Comprehensive LinkedIn job discovery, analysis, and networking strategy
+- **Purpose**: LinkedIn job discovery and analysis focused on direct job searches
 - **Location**: `app/services/crewai/linkedin_job_search/`
-- **Agents**: LinkedIn Job Searcher, Job Opportunity Analyzer, Networking Strategist, LinkedIn Report Writer
-- **Usage**: Searches LinkedIn for opportunities, analyzes fit, and develops networking strategies
+- **Agents**: LinkedIn Job Search Specialist, Job Opportunity Analyzer, LinkedIn Report Writer
+- **Usage**: Searches LinkedIn for opportunities using search parameters, analyzes fit, and provides job recommendations
+- **Key Features**: Uses LinkedIn MCP 'search_jobs' tool, persists jobs to database, returns structured job data
+
+### 5. LinkedIn Recommendations (`linkedin_recommendations`)
+- **Purpose**: Fetch personalized job recommendations from LinkedIn's algorithm
+- **Location**: `app/services/crewai/linkedin_recommendations/`
+- **Agents**: LinkedIn Recommendations Fetcher, LinkedIn Recommendations Reporter
+- **Usage**: Uses LinkedIn MCP 'get_recommended_jobs' tool to fetch algorithmic recommendations, persists to database
+- **Key Features**: Complements direct searches with LinkedIn's personalized recommendations
 
 All CrewAI services follow YAML-first configuration and modular agent design patterns.
 
@@ -74,6 +82,12 @@ app/services/crewai/
     └── config/
         ├── agents.yaml              # LinkedIn job search agents
         └── tasks.yaml               # LinkedIn job search tasks
+└── linkedin_recommendations/       # LinkedIn recommendations crew
+    ├── __init__.py
+    ├── crew.py                      # LinkedInRecommendationsCrew class
+    └── config/
+        ├── agents.yaml              # LinkedIn recommendations agents
+        └── tasks.yaml               # LinkedIn recommendations tasks
 ```
 
 ### Required Files for Each Crew
