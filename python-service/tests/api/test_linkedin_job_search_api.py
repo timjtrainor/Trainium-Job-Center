@@ -105,7 +105,44 @@ class TestLinkedInJobSearchAPI:
         mock_crew.kickoff.assert_called_once()
         kickoff_inputs = mock_crew.kickoff.call_args.kwargs["inputs"]
         assert kickoff_inputs["search_criteria"] == "Keywords: 'data scientist'; Limit: 25"
-    
+
+    @patch('app.api.v1.endpoints.linkedin_job_search.get_linkedin_job_search_crew')
+    def test_search_linkedin_jobs_report_payload_success(self, mock_get_crew):
+        """Crew report payloads without explicit success flag should return success."""
+        mock_crew = MagicMock()
+        mock_get_crew.return_value = mock_crew
+
+        report_payload = {
+            "executive_summary": "Summary of opportunities",
+            "priority_opportunities": [
+                {
+                    "rank": 1,
+                    "job_title": "Engineering Manager",
+                    "company_name": "InnovateX",
+                    "rationale": "Strong alignment with leadership goals",
+                    "next_steps": ["Reach out to hiring manager", "Tailor resume"]
+                }
+            ],
+            "networking_action_plan": ["Schedule informational interviews"],
+            "timeline_recommendations": ["Week 1: research companies"],
+            "success_metrics": ["Submit 3 tailored applications"],
+            "linkedin_profile_optimizations": ["Update headline"]
+        }
+        mock_crew.kickoff.return_value = SimpleNamespace(raw=json.dumps(report_payload))
+
+        request_data = {
+            "keywords": "engineering manager",
+            "limit": 5
+        }
+
+        response = client.post("/crewai/linkedin-job-search/search", json=request_data)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert data["data"]["success"] is True
+        assert data["data"]["consolidated_jobs"] == []
+
     @patch('app.api.v1.endpoints.linkedin_job_search.get_linkedin_job_search_crew')
     def test_search_with_invalid_request(self, mock_get_crew):
         """Test API with invalid request data."""

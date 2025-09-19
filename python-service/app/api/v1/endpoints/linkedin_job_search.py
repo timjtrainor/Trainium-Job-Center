@@ -85,10 +85,20 @@ async def search_linkedin_jobs(request: LinkedInJobSearchRequest):
         result = normalize_linkedin_job_search_output(result)
 
         # Check if search was successful
-        if not result.get("success", False):
+        success_flag = result.get("success")
+        raw_error = result.get("error")
+
+        normalized_error = None
+        if isinstance(raw_error, str):
+            stripped_error = raw_error.strip()
+            normalized_error = stripped_error if stripped_error else None
+        elif raw_error:
+            normalized_error = str(raw_error)
+
+        if success_flag is False or normalized_error:
             return create_error_response(
                 error="LinkedIn job search failed",
-                message=result.get("error", "Unknown error occurred")
+                message=normalized_error or "Unknown error occurred"
             )
 
         # Transform result to response schema
