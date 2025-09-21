@@ -6,6 +6,7 @@ and retrieves tools from MCP servers for use with CrewAI agents.
 """
 import asyncio
 import json
+from pathlib import Path
 from typing import Dict, List, Any, Optional, Union
 from contextlib import asynccontextmanager
 from urllib.parse import parse_qs, urlparse
@@ -36,6 +37,36 @@ class MCPServerAdapter:
         self._session: Optional[httpx.AsyncClient] = None
         self._connected_servers: Dict[str, Any] = {}
         self._available_tools: Dict[str, MCPTool] = {}
+
+    def _load_configured_servers(self) -> Dict[str, Dict[str, Any]]:
+        """Load MCP server definitions from configuration."""
+        config_path = Path(__file__).resolve().parents[3] / "mcp-config" / "servers.json"
+
+        try:
+            with config_path.open("r", encoding="utf-8") as config_file:
+                config_data = json.load(config_file)
+
+            servers = config_data.get("servers", {})
+            if isinstance(servers, dict):
+                return servers
+
+            logger.warning(
+                f"Invalid servers configuration structure in {config_path}: expected a mapping"
+            )
+        except FileNotFoundError:
+            logger.warning(
+                f"Servers configuration file not found at {config_path}."
+            )
+        except json.JSONDecodeError as exc:
+            logger.warning(
+                f"Failed to parse servers configuration at {config_path}: {exc}"
+            )
+        except Exception as exc:
+            logger.warning(
+                f"Unexpected error loading servers configuration from {config_path}: {exc}"
+            )
+
+        return {}
         
     async def __aenter__(self):
         """Async context manager entry."""
@@ -67,12 +98,24 @@ class MCPServerAdapter:
                     redirect_url = f"{self.gateway_url}{redirect_location}"
                 else:
                     redirect_url = redirect_location
-                    
+
                 logger.info(f"MCP Gateway using SSE transport, endpoint: {redirect_url}")
-                
-                # For SSE transport with Docker MCP Gateway, we know duckduckgo server is configured
-                # We can assume it's available since the gateway started successfully
-                servers_data = {"duckduckgo": {"transport": "sse", "endpoint": redirect_url}}
+
+                configured_servers = self._load_configured_servers()
+                if configured_servers:
+                    servers_data = {}
+                    for server_name, server_details in configured_servers.items():
+                        merged_details = dict(server_details)
+                        merged_details["transport"] = "sse"
+                        merged_details["endpoint"] = redirect_url
+                        servers_data[server_name] = merged_details
+                else:
+                    logger.warning(
+                        "No configured MCP servers found; defaulting to DuckDuckGo for SSE transport"
+                    )
+                    servers_data = {
+                        "duckduckgo": {"transport": "sse", "endpoint": redirect_url}
+                    }
             else:
                 servers_response.raise_for_status()
                 servers_data = servers_response.json()
@@ -231,11 +274,15 @@ class MCPServerAdapter:
     def get_available_tools(self) -> Dict[str, Dict[str, Any]]:
         """
         Get all available tools from connected MCP servers.
-        
+
         Returns:
             Dictionary of tool name to tool configuration
         """
         return dict(self._available_tools)
+
+    def get_available_servers(self) -> List[str]:
+        """Return the list of connected MCP servers."""
+        return list(self._connected_servers.keys())
         
     def get_duckduckgo_tools(self) -> List[Dict[str, Any]]:
         """

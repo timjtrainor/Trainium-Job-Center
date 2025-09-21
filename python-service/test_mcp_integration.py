@@ -31,7 +31,18 @@ async def test_mcp_gateway_connection():
         async with get_mcp_adapter(gateway_url) as adapter:
             tools = adapter.get_available_tools()
             logger.info(f"Connected successfully! Available tools: {list(tools.keys())}")
-            
+
+            available_servers = adapter.get_available_servers()
+            logger.info(
+                f"Connected successfully! Available servers: {available_servers}"
+            )
+
+            normalized_servers = [server.lower() for server in available_servers]
+            assert "duckduckgo" in normalized_servers, "DuckDuckGo server not detected"
+            assert any(
+                "linkedin" in server for server in normalized_servers
+            ), "LinkedIn server not detected"
+
             # Test DuckDuckGo tools specifically
             duckduckgo_tools = adapter.get_duckduckgo_tools()
             logger.info(f"DuckDuckGo tools: {len(duckduckgo_tools)}")
