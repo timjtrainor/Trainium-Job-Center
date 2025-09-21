@@ -5,9 +5,10 @@ This module provides the MCPServerAdapter class that connects to the Docker MCP 
 and retrieves tools from MCP servers for use with CrewAI agents.
 """
 import asyncio
+import inspect
 import json
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional, Union
 from contextlib import asynccontextmanager
 from urllib.parse import parse_qs, urlparse
 
@@ -15,6 +16,7 @@ from loguru import logger
 
 import httpx
 from mcp import ClientSession
+from mcp.client.sse import sse_client
 from mcp.types import Tool as MCPTool
 
 
@@ -152,105 +154,181 @@ class MCPServerAdapter:
     async def _connect_to_server(self, server_name: str, server_config: Dict[str, Any]) -> None:
         """Connect to a specific MCP server through the gateway."""
         try:
-            # For SSE transport, we handle connection differently
-            if server_config.get("transport") == "sse":
-                logger.info(f"Connecting to SSE server: {server_name}")
-                
-                # For SSE transport servers, we can assume they're connected if the gateway reports them
-                session_id = f"sse_session_{server_name}"
-                
-                # Try to get tools dynamically from the gateway
-                try:
-                    tools_response = await self._session.get(
-                        f"{self.gateway_url}/servers/{server_name}/tools",
-                    )
-                    tools_response.raise_for_status()
-                    tools_data = tools_response.json()
-                    logger.info(f"Dynamically loaded {len(tools_data.get('tools', []))} tools for {server_name}")
-                except Exception as e:
-                    logger.warning(f"Could not dynamically load tools for {server_name}: {e}")
-                    tools_data = {"tools": []}
-                    
-                # Store server connection and tools
-                self._connected_servers[server_name] = {
-                    "config": server_config,
-                    "session_id": session_id,
-                }
+            if not self._session:
+                raise RuntimeError("HTTP session is not initialized")
 
-                # Register tools from this server
-                for tool_data in tools_data.get("tools", []):
-                    tool_name = f"{server_name}_{tool_data['name']}"
-                    self._available_tools[tool_name] = tool_data
-
-                logger.info(
-                    f"Connected to SSE server '{server_name}' with {len(tools_data.get('tools', []))} tools"
-                )
-                return
-                
-            # Original connection logic for non-SSE servers
-            # Request server connection through gateway
             connect_response = await self._session.post(
                 f"{self.gateway_url}/servers/{server_name}/connect",
                 follow_redirects=False,
             )
 
             session_id: Optional[str] = None
-            if (
-                connect_response.status_code == 307
-                and "location" in connect_response.headers
-            ):
-                redirect_url = connect_response.headers["location"]
-                if redirect_url.startswith("/"):
-                    redirect_url = f"{self.gateway_url}{redirect_url}"
+            client_handle: Optional[ClientSession] = None
+            sse_context = None
+
+            if connect_response.status_code == 307 and "location" in connect_response.headers:
+                redirect_location = connect_response.headers["location"]
+                if redirect_location.startswith("/"):
+                    redirect_url = f"{self.gateway_url}{redirect_location}"
+                else:
+                    redirect_url = redirect_location
+
                 parsed = urlparse(redirect_url)
                 session_id = parse_qs(parsed.query).get("sessionid", [None])[0]
+                if not session_id:
+                    raise ValueError(
+                        f"Missing session identifier in SSE redirect for server '{server_name}'"
+                    )
 
-                logger.info(f"SSE redirect for {server_name}: {redirect_url}")
+                logger.info(f"Establishing SSE session for {server_name} at {redirect_url}")
 
-                sse_response = await self._session.get(
-                    redirect_url,
-                    headers={"Accept": "text/event-stream"},
+                sse_context = sse_client(redirect_url)
+                try:
+                    read_stream, write_stream = await sse_context.__aenter__()
+                    client_handle = ClientSession(read_stream, write_stream)
+                    await client_handle.initialize()
+                    list_result = await client_handle.list_tools()
+                    tools = list(getattr(list_result, "tools", []))
+                except Exception as exc:
+                    if sse_context is not None:
+                        await sse_context.__aexit__(type(exc), exc, exc.__traceback__)
+                    raise
+
+                tool_count = self._register_tools(server_name, tools)
+                logger.info(
+                    f"Connected to SSE server '{server_name}' with {tool_count} tools"
                 )
-                sse_response.raise_for_status()
-            else:
-                connect_response.raise_for_status()
-                session_id = connect_response.json().get("session_id")
 
-            # Try to get server tools
+                self._connected_servers[server_name] = {
+                    "config": server_config,
+                    "session_id": session_id,
+                    "client": client_handle,
+                    "sse_context": sse_context,
+                }
+                return
+
+            connect_response.raise_for_status()
+            session_id = connect_response.json().get("session_id")
+
+            if not session_id:
+                raise ValueError(
+                    f"Gateway did not return a session identifier for server '{server_name}'"
+                )
+
+            tools_data: Dict[str, Any] = {"tools": []}
             try:
                 tools_response = await self._session.get(
                     f"{self.gateway_url}/servers/{server_name}/tools",
                 )
                 tools_response.raise_for_status()
                 tools_data = tools_response.json()
-                logger.info(f"Dynamically loaded {len(tools_data.get('tools', []))} tools for {server_name}")
-            except Exception as e:
-                logger.warning(f"Could not dynamically load tools for {server_name}: {e}")
-                tools_data = {"tools": []}
+                logger.info(
+                    f"Dynamically loaded {len(tools_data.get('tools', []))} tools for {server_name}"
+                )
+            except Exception as exc:
+                logger.warning(f"Could not dynamically load tools for {server_name}: {exc}")
 
-            # Store server connection and tools
+            tool_count = self._register_tools(server_name, tools_data.get("tools", []))
             self._connected_servers[server_name] = {
                 "config": server_config,
                 "session_id": session_id,
             }
 
-            # Register tools from this server
-            for tool_data in tools_data.get("tools", []):
-                tool_name = f"{server_name}_{tool_data['name']}"
-                self._available_tools[tool_name] = tool_data
-
             logger.info(
-                f"Connected to MCP server '{server_name}' with {len(tools_data.get('tools', []))} tools"
+                f"Connected to MCP server '{server_name}' with {tool_count} tools"
             )
 
         except Exception as e:
             logger.error(f"Failed to connect to MCP server '{server_name}': {e}")
-            
+
+    def _register_tools(self, server_name: str, tools: Iterable[Any]) -> int:
+        """Normalize and register tools for a server."""
+        count = 0
+
+        for raw_tool in tools:
+            normalized_tool = self._normalize_tool(raw_tool)
+            tool_name = normalized_tool.get("name")
+
+            if not tool_name:
+                logger.warning(
+                    f"Skipping tool without name from server '{server_name}'"
+                )
+                continue
+
+            stored_tool = dict(normalized_tool)
+            stored_tool["server"] = server_name
+            self._available_tools[f"{server_name}_{tool_name}"] = stored_tool
+            count += 1
+
+        return count
+
+    def _normalize_tool(self, tool: Union[Dict[str, Any], MCPTool, Any]) -> Dict[str, Any]:
+        """Convert a tool definition into a consistent dictionary structure."""
+        if isinstance(tool, dict):
+            parameters = tool.get("parameters")
+            if not isinstance(parameters, dict):
+                parameters = tool.get("input_schema") if isinstance(tool.get("input_schema"), dict) else {}
+            return {
+                "name": tool.get("name"),
+                "description": tool.get("description", "") or "",
+                "parameters": parameters or {},
+            }
+
+        name = getattr(tool, "name", None)
+        description = getattr(tool, "description", "") or ""
+
+        parameters: Any = getattr(tool, "parameters", None)
+        if not isinstance(parameters, dict):
+            parameters = getattr(tool, "input_schema", {})
+
+        if hasattr(tool, "model_dump"):
+            try:
+                dumped = tool.model_dump(by_alias=False, exclude_none=True)
+            except TypeError:
+                dumped = tool.model_dump()
+
+            name = dumped.get("name", name)
+            description = dumped.get("description", description) or ""
+            dumped_parameters = dumped.get("parameters") or dumped.get("input_schema")
+            if isinstance(dumped_parameters, dict):
+                parameters = dumped_parameters
+
+        if not isinstance(parameters, dict):
+            parameters = {}
+
+        return {
+            "name": name,
+            "description": description,
+            "parameters": parameters,
+        }
+
     async def _disconnect_from_server(self, server_name: str) -> None:
         """Disconnect from a specific MCP server."""
         if server_name in self._connected_servers:
             try:
-                session_id = self._connected_servers[server_name].get("session_id")
+                connection_info = self._connected_servers[server_name]
+                session_id = connection_info.get("session_id")
+
+                sse_context = connection_info.get("sse_context")
+                if sse_context:
+                    try:
+                        await sse_context.__aexit__(None, None, None)
+                    except Exception as exc:
+                        logger.warning(
+                            f"Error closing SSE stream for server '{server_name}': {exc}"
+                        )
+
+                client_handle = connection_info.get("client")
+                if client_handle and hasattr(client_handle, "close"):
+                    try:
+                        close_result = client_handle.close()
+                        if inspect.isawaitable(close_result):
+                            await close_result
+                    except Exception as exc:
+                        logger.warning(
+                            f"Error closing client session for server '{server_name}': {exc}"
+                        )
+
                 if session_id:
                     await self._session.post(
                         f"{self.gateway_url}/servers/{server_name}/disconnect",
@@ -319,11 +397,11 @@ class MCPServerAdapter:
     def _convert_mcp_tool_to_crewai(self, tool_name: str, mcp_tool: Dict[str, Any]) -> Dict[str, Any]:
         """
         Convert MCP tool format to CrewAI-compatible tool format.
-        
+
         Args:
             tool_name: Name of the tool
             mcp_tool: MCP tool configuration
-            
+
         Returns:
             CrewAI-compatible tool configuration
         """
@@ -333,27 +411,92 @@ class MCPServerAdapter:
             "parameters": mcp_tool.get("parameters", {}),
             "execute": self._create_tool_executor(tool_name, mcp_tool)
         }
-        
+
+    def _prepare_tool_arguments(self, provided_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize tool invocation arguments for MCP servers."""
+        if "arguments" in provided_kwargs:
+            raw_arguments = provided_kwargs["arguments"]
+            if not isinstance(raw_arguments, dict):
+                raise ValueError("Tool arguments must be provided as a dictionary")
+
+            args_payload = raw_arguments.get("args")
+            kwargs_payload = raw_arguments.get("kwargs")
+            extra_payload = {
+                key: value
+                for key, value in raw_arguments.items()
+                if key not in {"args", "kwargs"}
+            }
+
+            if args_payload is None and kwargs_payload is None:
+                return {"args": {}, "kwargs": extra_payload}
+
+            merged_kwargs = {**(kwargs_payload or {}), **extra_payload}
+            return {"args": args_payload or {}, "kwargs": merged_kwargs}
+
+        args_payload = provided_kwargs.get("args")
+        kwargs_payload = provided_kwargs.get("kwargs")
+        extra_kwargs = {
+            key: value
+            for key, value in provided_kwargs.items()
+            if key not in {"arguments", "args", "kwargs"}
+        }
+
+        if args_payload is None and kwargs_payload is None:
+            return {"args": {}, "kwargs": extra_kwargs}
+
+        merged_kwargs = {**(kwargs_payload or {}), **extra_kwargs}
+        return {"args": args_payload or {}, "kwargs": merged_kwargs}
+
     def _create_tool_executor(self, tool_name: str, mcp_tool: Dict[str, Any]):
         """Create an executor function for a tool."""
         async def execute_tool(**kwargs) -> str:
             """Execute the MCP tool through the gateway."""
             try:
-                server_name = tool_name.split("_")[0]
-                original_tool_name = "_".join(tool_name.split("_")[1:])
-                
-                if server_name not in self._connected_servers:
+                server_name = mcp_tool.get("server") or tool_name.split("_")[0]
+                original_tool_name = mcp_tool.get("name")
+                if not original_tool_name:
+                    parts = tool_name.split("_", 1)
+                    original_tool_name = parts[1] if len(parts) > 1 else tool_name
+
+                if not server_name or server_name not in self._connected_servers:
                     return f"Error: Server '{server_name}' not connected"
-                    
-                session_id = self._connected_servers[server_name]["session_id"]
 
-                # MCP API requires both 'args' and 'kwargs' in the arguments payload
-                arguments = {
-                    "args": kwargs.get("args", {}),
-                    "kwargs": kwargs.get("kwargs", {}),
-                }
+                connection_info = self._connected_servers[server_name]
+                arguments = self._prepare_tool_arguments(kwargs)
 
-                # Execute tool through gateway
+                client_handle = connection_info.get("client")
+                if client_handle is not None:
+                    call_result = await client_handle.call_tool(
+                        original_tool_name,
+                        arguments,
+                    )
+
+                    if getattr(call_result, "isError", False):
+                        return str(call_result)
+
+                    parts: List[str] = []
+                    for item in getattr(call_result, "content", []) or []:
+                        text = getattr(item, "text", None)
+                        if text:
+                            parts.append(text)
+
+                    if parts:
+                        return "\n".join(parts)
+
+                    if hasattr(call_result, "result"):
+                        result_value = getattr(call_result, "result")
+                        if isinstance(result_value, str):
+                            return result_value
+
+                    return str(call_result)
+
+                session_id = connection_info.get("session_id")
+                if not session_id:
+                    return f"Error: Session ID missing for server '{server_name}'"
+
+                if not self._session:
+                    return "Error: HTTP session not available for tool execution"
+
                 response = await self._session.post(
                     f"{self.gateway_url}/servers/{server_name}/tools/{original_tool_name}/execute",
                     json={
@@ -362,14 +505,14 @@ class MCPServerAdapter:
                     },
                 )
                 response.raise_for_status()
-                
+
                 result = response.json()
                 return result.get("result", "No result returned")
-                
+
             except Exception as e:
                 logger.error(f"Error executing tool '{tool_name}': {e}")
                 return f"Error executing {tool_name}: {str(e)}"
-                
+
         return execute_tool
         
     async def call_tool(self, tool_name: str, **kwargs) -> str:
