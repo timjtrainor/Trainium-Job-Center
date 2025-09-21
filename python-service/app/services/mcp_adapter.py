@@ -179,16 +179,23 @@ class MCPServerAdapter:
                 or server_config.get("options", {}).get("allow_rest_fallback")
             )
 
+            logger.info(f"Connecting to MCP server '{server_name}'...")
+
             connect_response = await self._session.post(
                 f"{self.gateway_url}/servers/{server_name}/connect",
                 follow_redirects=False,
                 timeout=10.0,
             )
 
+            logger.debug(f"Connect response for {server_name}: {connect_response.status_code}")
+
+            # Handle SSE transport (307 redirect or 200 with endpoint)
             if (
                 str(server_config.get("transport", "")).lower() == "sse"
                 or connect_response.status_code == 307
+                or (connect_response.status_code == 200 and self._response_contains_sse_endpoint(connect_response))
             ):
+                logger.debug(f"Using SSE transport for server '{server_name}'")
                 await self._connect_to_server_via_sse(
                     server_name,
                     server_config,
@@ -197,6 +204,7 @@ class MCPServerAdapter:
                 )
                 return
 
+            # Handle other transport types
             connect_response.raise_for_status()
 
             payload: Dict[str, Any] = {}
@@ -237,6 +245,7 @@ class MCPServerAdapter:
                 )
 
             if transport_hint in {"streamable-http", "http"} or endpoint_url:
+                logger.debug(f"Using Streamable HTTP transport for server '{server_name}'")
                 await self._connect_to_server_via_streamable_http(
                     server_name,
                     server_config,
@@ -249,10 +258,7 @@ class MCPServerAdapter:
 
             if allow_rest_fallback and session_id:
                 logger.warning(
-                    (
-                        f"Server '{server_name}' did not expose a protocol endpoint; "
-                        "enabling REST fallback for execution"
-                    )
+                    f"Server '{server_name}' did not expose a protocol endpoint; enabling REST fallback for execution"
                 )
                 self._connected_servers[server_name] = {
                     "config": server_config,
@@ -265,12 +271,35 @@ class MCPServerAdapter:
                 )
                 return
 
+            logger.error(f"Unable to determine transport endpoint for server '{server_name}'. Response: {payload}")
             raise ValueError(
                 f"Unable to determine transport endpoint for server '{server_name}'"
             )
 
         except Exception as e:
             logger.error(f"Failed to connect to MCP server '{server_name}': {e}")
+            # Store failed connection info for debugging
+            self._connected_servers[server_name] = {
+                "config": server_config,
+                "session_id": f"failed_session_{server_name}",
+                "transport": "failed",
+                "error": str(e),
+                "rest_fallback": allow_rest_fallback,
+            }
+
+    def _response_contains_sse_endpoint(self, response: httpx.Response) -> bool:
+        """Check if a 200 response contains an SSE endpoint."""
+        try:
+            if response.status_code != 200:
+                return False
+            
+            payload = response.json()
+            endpoint = payload.get("endpoint", "")
+            
+            # Check if endpoint contains SSE indicators
+            return "/sse" in str(endpoint) or "sse" in str(payload.get("transport", "")).lower()
+        except (ValueError, KeyError):
+            return False
 
     async def _initialize_and_register_tools(
         self, server_name: str, client_handle: ClientSession
@@ -422,91 +451,177 @@ class MCPServerAdapter:
     ) -> None:
         """Establish an SSE connection and discover tools via MCP protocol."""
 
-        if connect_response.status_code != 307 or "location" not in connect_response.headers:
-            connect_response.raise_for_status()
-            raise ValueError(
-                f"Missing redirect location for SSE server '{server_name}'"
-            )
-
-        redirect_location = connect_response.headers["location"]
-        redirect_url = urljoin(f"{self.gateway_url}/", redirect_location)
-
-        parsed = urlparse(redirect_url)
-        query_params = parse_qs(parsed.query)
-        normalized_query = {key.lower(): value for key, value in query_params.items()}
-        session_id = normalized_query.get("sessionid", [None])[0]
-
+        session_id: Optional[str] = None
+        redirect_url: Optional[str] = None
         session_cookie_header: Optional[str] = None
+
+        # Handle 307 Temporary Redirect
+        if connect_response.status_code == 307:
+            if "location" not in connect_response.headers:
+                raise ValueError(
+                    f"Missing redirect location for SSE server '{server_name}'"
+                )
+
+            redirect_location = connect_response.headers["location"]
+            redirect_url = urljoin(f"{self.gateway_url}/", redirect_location)
+            
+            logger.info(f"Received 307 redirect for {server_name} to: {redirect_url}")
+
+            # Extract sessionid from redirect URL
+            parsed = urlparse(redirect_url)
+            query_params = parse_qs(parsed.query)
+            normalized_query = {key.lower(): value for key, value in query_params.items()}
+            session_id = normalized_query.get("sessionid", [None])[0]
+
+            if not session_id:
+                logger.error(f"Missing sessionid in redirect URL for server '{server_name}': {redirect_url}")
+                if allow_rest_fallback:
+                    logger.warning(f"Falling back to REST for server '{server_name}' due to missing sessionid")
+                    session_id = f"fallback_session_{server_name}"
+                    self._connected_servers[server_name] = {
+                        "config": server_config,
+                        "session_id": session_id,
+                        "transport": "rest",
+                        "rest_fallback": True,
+                    }
+                    return
+                else:
+                    raise ValueError(f"Missing sessionid in redirect URL for server '{server_name}'")
+
+        # Handle 200 OK with JSON endpoint
+        elif connect_response.status_code == 200:
+            try:
+                payload = connect_response.json()
+                endpoint = payload.get("endpoint")
+                
+                if not endpoint:
+                    raise ValueError(f"Missing endpoint in JSON response for server '{server_name}'")
+                
+                redirect_url = urljoin(f"{self.gateway_url}/", endpoint.lstrip("/")) if endpoint.startswith("/") else endpoint
+                logger.info(f"Received JSON endpoint for {server_name}: {redirect_url}")
+
+                # Extract sessionid from endpoint URL
+                parsed = urlparse(redirect_url)
+                query_params = parse_qs(parsed.query)
+                normalized_query = {key.lower(): value for key, value in query_params.items()}
+                session_id = normalized_query.get("sessionid", [None])[0]
+
+                if not session_id:
+                    logger.error(f"Missing sessionid in endpoint URL for server '{server_name}': {redirect_url}")
+                    if allow_rest_fallback:
+                        logger.warning(f"Falling back to REST for server '{server_name}' due to missing sessionid")
+                        session_id = f"fallback_session_{server_name}"
+                        self._connected_servers[server_name] = {
+                            "config": server_config,
+                            "session_id": session_id,
+                            "transport": "rest",
+                            "rest_fallback": True,
+                        }
+                        return
+                    else:
+                        raise ValueError(f"Missing sessionid in endpoint URL for server '{server_name}'")
+
+            except (ValueError, KeyError) as e:
+                logger.error(f"Failed to parse JSON response for server '{server_name}': {e}")
+                raise ValueError(f"Invalid JSON response from gateway for server '{server_name}': {e}")
+
+        else:
+            connect_response.raise_for_status()
+            raise ValueError(f"Unexpected response status {connect_response.status_code} for SSE server '{server_name}'")
+
+        # Handle session cookies if present
         set_cookie_header = connect_response.headers.get("set-cookie")
         if set_cookie_header:
             cookie_jar = SimpleCookie()
             try:
                 cookie_jar.load(set_cookie_header)
-            except Exception as exc:  # pragma: no cover - defensive logging
-                logger.warning(
-                    "Failed to parse session cookie for server '{}': {}",
-                    server_name,
-                    exc,
-                )
-            else:
                 morsels = list(cookie_jar.values())
                 if morsels:
                     session_cookie_header = "; ".join(
                         f"{morsel.key}={morsel.value}" for morsel in morsels
                     )
-                    if not session_id:
-                        preferred_morsel = next(
-                            (
-                                morsel
-                                for morsel in morsels
-                                if morsel.key.lower() == "sessionid"
-                            ),
-                            morsels[0],
-                        )
-                        if preferred_morsel:
-                            session_id = preferred_morsel.value
+                    logger.debug(f"Using session cookie for {server_name}: {session_cookie_header}")
+            except Exception as exc:
+                logger.warning(f"Failed to parse session cookie for server '{server_name}': {exc}")
 
-        if not session_id:
-            logger.info(
-                "No session identifier returned for SSE server '{}'; generating fallback ID",
-                server_name,
-            )
-            session_id = f"sse_session_{server_name}"
+        # Ensure we have valid session ID and redirect URL
+        if not session_id or not redirect_url:
+            raise ValueError(f"Missing session ID or redirect URL for server '{server_name}'")
 
+        logger.info(f"Establishing SSE session for {server_name} at {redirect_url} with session ID: {session_id}")
+
+        # Prepare SSE headers
         sse_headers = {"Cookie": session_cookie_header} if session_cookie_header else None
 
-        logger.info(f"Establishing SSE session for {server_name} at {redirect_url}")
-
+        # Create SSE connection with proper error handling and timeouts
         sse_context = sse_client(redirect_url, headers=sse_headers)
         client_handle: Optional[ClientSession] = None
         tool_count = 0
 
         try:
-            read_stream, write_stream = await sse_context.__aenter__()
+            # Add timeout protection for SSE connection establishment
+            logger.debug(f"Opening SSE connection to {redirect_url}...")
+            
+            async def _establish_sse_connection():
+                return await sse_context.__aenter__()
+            
+            # Use asyncio.wait_for to add timeout protection
+            read_stream, write_stream = await asyncio.wait_for(
+                _establish_sse_connection(),
+                timeout=30.0  # 30 second timeout for SSE connection
+            )
+            
+            logger.debug(f"SSE connection established for {server_name}, initializing client session...")
+            
             client_handle = ClientSession(read_stream, write_stream)
-            tool_count = await self._initialize_and_register_tools(
-                server_name, client_handle
+            
+            # Add timeout protection for initialization and tool discovery
+            tool_count = await asyncio.wait_for(
+                self._initialize_and_register_tools(server_name, client_handle),
+                timeout=60.0  # 60 second timeout for tool discovery
             )
 
+            # Optional: Try to discover resources if available
             if hasattr(client_handle, "list_resources"):
                 try:
-                    resources_result = await client_handle.list_resources()
-                except Exception as resources_exc:  # pragma: no cover - optional capability
-                    logger.debug(
-                        f"Resource discovery not available for {server_name}: {resources_exc}"
+                    resources_result = await asyncio.wait_for(
+                        client_handle.list_resources(),
+                        timeout=30.0
                     )
-                else:
                     resources = getattr(resources_result, "resources", None) or []
                     if resources:
-                        logger.info(
-                            f"Discovered {len(resources)} resources for {server_name}"
-                        )
+                        logger.info(f"Discovered {len(resources)} resources for {server_name}")
+                except asyncio.TimeoutError:
+                    logger.warning(f"Resource discovery timed out for {server_name}")
+                except Exception as resources_exc:
+                    logger.debug(f"Resource discovery not available for {server_name}: {resources_exc}")
+
+        except asyncio.TimeoutError as exc:
+            logger.error(f"Timeout establishing SSE connection or discovering tools for server '{server_name}': {exc}")
+            # Clean up SSE context
+            with suppress(Exception):
+                await sse_context.__aexit__(type(exc), exc, exc.__traceback__)
+            
+            if allow_rest_fallback:
+                logger.warning(f"Falling back to REST for server '{server_name}' due to SSE timeout")
+                self._connected_servers[server_name] = {
+                    "config": server_config,
+                    "session_id": session_id,
+                    "transport": "rest",
+                    "rest_fallback": True,
+                }
+                return
+            else:
+                raise TimeoutError(f"SSE connection timeout for server '{server_name}'") from exc
 
         except Exception as exc:
+            logger.error(f"Failed to establish SSE connection for server '{server_name}': {exc}")
+            # Clean up SSE context
             with suppress(Exception):
                 await sse_context.__aexit__(type(exc), exc, exc.__traceback__)
             raise
 
+        # Store successful connection
         self._connected_servers[server_name] = {
             "config": server_config,
             "session_id": session_id,
@@ -518,7 +633,7 @@ class MCPServerAdapter:
         }
 
         logger.info(
-            f"Connected to MCP server '{server_name}' via SSE transport (session {session_id})"
+            f"Successfully connected to MCP server '{server_name}' via SSE transport (session {session_id}, {tool_count} tools)"
         )
 
     def _register_tools(self, server_name: str, tools: Iterable[Any]) -> int:
