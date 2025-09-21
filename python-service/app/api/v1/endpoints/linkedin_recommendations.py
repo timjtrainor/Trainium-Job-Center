@@ -1,14 +1,11 @@
-"""
-API endpoints for LinkedIn Recommendations CrewAI functionality.
-"""
-from typing import Dict, Any
-from fastapi import APIRouter, HTTPException
+"""API endpoints for LinkedIn Recommendations CrewAI functionality."""
+
+from fastapi import APIRouter
 from loguru import logger
 
 from ....schemas.responses import StandardResponse, create_success_response, create_error_response
 from ....services.crewai.linkedin_recommendations.crew import (
     get_linkedin_recommendations_crew,
-    normalize_linkedin_recommendations_output,
     run_linkedin_recommendations,
 )
 from ....services.crewai.base import test_linkedin_mcp_connection_sync
@@ -32,41 +29,38 @@ async def fetch_linkedin_recommendations():
     try:
         logger.info("Starting LinkedIn recommendations fetch")
         
-        # Execute LinkedIn recommendations crew
-        crew = get_linkedin_recommendations_crew()
-        result = crew.kickoff(inputs={})
-        result = normalize_linkedin_recommendations_output(result)
+        result = run_linkedin_recommendations()
 
-        # Check if fetch was successful
-        success_flag = result.get("success")
-        raw_error = result.get("error")
+        success_flag = bool(result.get("success"))
+        recommended_jobs = result.get("recommended_jobs") or []
+        total_recommendations = result.get("total_recommendations")
+        if total_recommendations is None:
+            total_recommendations = len(recommended_jobs)
 
-        normalized_error = None
-        if isinstance(raw_error, str):
-            stripped_error = raw_error.strip()
-            normalized_error = stripped_error if stripped_error else None
-        elif raw_error:
-            normalized_error = str(raw_error)
-
-        if success_flag is False or normalized_error:
+        if not success_flag or result.get("error"):
+            error_message = result.get("error") or "LinkedIn recommendations fetch failed"
             return create_error_response(
                 error="LinkedIn recommendations fetch failed",
-                message=normalized_error or "Unknown error occurred"
+                message=error_message,
+                data=result,
             )
 
-        # Extract job data - now expecting direct JSON array format
-        recommended_jobs = result.get("recommended_jobs", [])
-        total_recommendations = result.get("total_recommendations", len(recommended_jobs))
-        
+        if not recommended_jobs:
+            return create_error_response(
+                error="LinkedIn recommendations unavailable",
+                message="No LinkedIn recommendations were returned.",
+                data=result,
+            )
+
         response_data = {
-            "success": result.get("success", True),
+            **result,
             "recommended_jobs": recommended_jobs,
-            "total_recommendations": total_recommendations
+            "total_recommendations": total_recommendations,
         }
-        
+
         return create_success_response(
             data=response_data,
-            message=f"LinkedIn recommendations fetched: {total_recommendations} jobs found"
+            message=f"LinkedIn recommendations fetched: {total_recommendations} jobs found",
         )
         
     except Exception as e:
