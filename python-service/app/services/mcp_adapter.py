@@ -9,9 +9,9 @@ import inspect
 import json
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Union
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from http.cookies import SimpleCookie
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, urljoin
 
 from loguru import logger
 
@@ -163,162 +163,27 @@ class MCPServerAdapter:
     async def _connect_to_server(self, server_name: str, server_config: Dict[str, Any]) -> None:
         """Connect to a specific MCP server through the gateway."""
         try:
-            # For SSE transport in Docker MCP Gateway, try direct tool fetching first
-            if server_config.get("transport") == "sse":
-                logger.info(f"Connecting to SSE server: {server_name}")
-                
-                try:
-                    # Try to get tools directly from the gateway for this server
-                    tools_response = await self._session.get(
-                        f"{self.gateway_url}/servers/{server_name}/tools",
-                        timeout=5.0  # Add timeout to prevent hanging
-                    )
-                    tools_response.raise_for_status()
-                    tools_data = tools_response.json()
-                    
-                    logger.info(f"Dynamically loaded {len(tools_data.get('tools', []))} tools for {server_name}")
-                    
-                    # Use a generic SSE session ID since individual IDs aren't required
-                    session_id = f"sse_session_{server_name}"
-                    
-                    # Register tools from this server
-                    tool_count = self._register_tools(server_name, tools_data.get("tools", []))
-                    
-                    # Store server connection info
-                    self._connected_servers[server_name] = {
-                        "config": server_config,
-                        "session_id": session_id,
-                        "transport": "sse"
-                    }
-
-                    logger.info(f"Connected to SSE server '{server_name}' with {tool_count} tools")
-                    return
-                    
-                except Exception as e:
-                    logger.warning(f"Direct tool fetching failed for {server_name}: {e}")
-                    # Fall back to the original connection method
-            
-            # Original connection logic for non-SSE or fallback
             if not self._session:
                 raise RuntimeError("HTTP session is not initialized")
 
             connect_response = await self._session.post(
                 f"{self.gateway_url}/servers/{server_name}/connect",
                 follow_redirects=False,
-                timeout=10.0  # Add timeout to prevent hanging
+                timeout=10.0,
             )
 
-            session_id: Optional[str] = None
-            client_handle: Optional[ClientSession] = None
-            sse_context = None
-            session_cookie_header: Optional[str] = None
-
-            if connect_response.status_code == 307 and "location" in connect_response.headers:
-                redirect_location = connect_response.headers["location"]
-                if redirect_location.startswith("/"):
-                    redirect_url = f"{self.gateway_url}{redirect_location}"
-                else:
-                    redirect_url = redirect_location
-
-                parsed = urlparse(redirect_url)
-                query_params = parse_qs(parsed.query)
-                normalized_query = {
-                    key.lower(): value for key, value in query_params.items()
-                }
-                session_id = normalized_query.get("sessionid", [None])[0]
-
-                set_cookie_header = connect_response.headers.get("set-cookie")
-                if set_cookie_header:
-                    cookie_jar = SimpleCookie()
-                    try:
-                        cookie_jar.load(set_cookie_header)
-                    except Exception as exc:  # pragma: no cover - defensive logging
-                        logger.warning(
-                            "Failed to parse session cookie for server '{}': {}",
-                            server_name,
-                            exc,
-                        )
-                    else:
-                        morsels = list(cookie_jar.values())
-                        if morsels:
-                            session_cookie_header = "; ".join(
-                                f"{morsel.key}={morsel.value}" for morsel in morsels
-                            )
-
-                            preferred_morsel = next(
-                                (
-                                    morsel
-                                    for morsel in morsels
-                                    if morsel.key.lower() == "sessionid"
-                                ),
-                                morsels[0],
-                            )
-
-                            if preferred_morsel and not session_id:
-                                session_id = preferred_morsel.value
-
-                # For SSE transport, session ID might not be required
-                if not session_id and server_config.get("transport") == "sse":
-                    logger.info(f"No session ID found for SSE server {server_name}, using generic ID")
-                    session_id = f"sse_session_{server_name}"
-                elif not session_id:
-                    raise ValueError(
-                        f"Missing session identifier in redirect for server '{server_name}'"
-                    )
-
-                logger.info(f"Establishing SSE session for {server_name} at {redirect_url}")
-
-                # SIMPLIFIED APPROACH: Skip complex SSE streaming to avoid hangs
-                # Instead, create a basic connection and try to fetch tools directly
-                logger.info(f"Using simplified connection approach for {server_name} to avoid SSE hanging")
-                
-                # Use a generic session ID
-                session_id = f"sse_session_{server_name}"
-                
-                # Try to fetch tools directly from various possible endpoints
-                tools = []
-                tool_endpoints = [
-                    f"/servers/{server_name}/tools",
-                    f"/tools",
-                    f"/list_tools"
-                ]
-                
-                for endpoint in tool_endpoints:
-                    try:
-                        tools_response = await self._session.get(
-                            f"{self.gateway_url}{endpoint}",
-                            timeout=5.0  # Short timeout to prevent hanging
-                        )
-                        if tools_response.status_code == 200:
-                            tools_data = tools_response.json()
-                            tools = tools_data.get("tools", [])
-                            if tools:
-                                logger.info(f"Successfully fetched {len(tools)} tools from {endpoint}")
-                                break
-                    except Exception as e:
-                        logger.debug(f"Failed to fetch tools from {endpoint}: {e}")
-                        continue
-                
-                # If no tools found, create an empty list but don't fail
-                if not tools:
-                    logger.warning(f"No tools found for {server_name} via direct fetching, continuing with empty tool list")
-                    tools = []
-
-                tool_count = self._register_tools(server_name, tools)
-                logger.info(
-                    f"Connected to SSE server '{server_name}' with {tool_count} tools"
+            if (
+                server_config.get("transport") == "sse"
+                or connect_response.status_code == 307
+            ):
+                await self._connect_to_server_via_sse(
+                    server_name, server_config, connect_response
                 )
-
-                self._connected_servers[server_name] = {
-                    "config": server_config,
-                    "session_id": session_id,
-                    "transport": "sse_simplified",
-                    "connection_method": "direct_tool_fetching"
-                }
                 return
 
             connect_response.raise_for_status()
-            session_id = connect_response.json().get("session_id")
+            session_payload = connect_response.json()
+            session_id = session_payload.get("session_id") if isinstance(session_payload, dict) else None
 
             if not session_id:
                 raise ValueError(
@@ -329,7 +194,7 @@ class MCPServerAdapter:
             try:
                 tools_response = await self._session.get(
                     f"{self.gateway_url}/servers/{server_name}/tools",
-                    timeout=10.0  # Add timeout
+                    timeout=10.0,
                 )
                 tools_response.raise_for_status()
                 tools_data = tools_response.json()
@@ -337,7 +202,9 @@ class MCPServerAdapter:
                     f"Dynamically loaded {len(tools_data.get('tools', []))} tools for {server_name}"
                 )
             except Exception as exc:
-                logger.warning(f"Could not dynamically load tools for {server_name}: {exc}")
+                logger.warning(
+                    f"Could not dynamically load tools for {server_name}: {exc}"
+                )
 
             tool_count = self._register_tools(server_name, tools_data.get("tools", []))
             self._connected_servers[server_name] = {
@@ -351,6 +218,114 @@ class MCPServerAdapter:
 
         except Exception as e:
             logger.error(f"Failed to connect to MCP server '{server_name}': {e}")
+
+    async def _connect_to_server_via_sse(
+        self,
+        server_name: str,
+        server_config: Dict[str, Any],
+        connect_response: httpx.Response,
+    ) -> None:
+        """Establish an SSE connection and discover tools via MCP protocol."""
+
+        if connect_response.status_code != 307 or "location" not in connect_response.headers:
+            connect_response.raise_for_status()
+            raise ValueError(
+                f"Missing redirect location for SSE server '{server_name}'"
+            )
+
+        redirect_location = connect_response.headers["location"]
+        redirect_url = urljoin(f"{self.gateway_url}/", redirect_location)
+
+        parsed = urlparse(redirect_url)
+        query_params = parse_qs(parsed.query)
+        normalized_query = {key.lower(): value for key, value in query_params.items()}
+        session_id = normalized_query.get("sessionid", [None])[0]
+
+        session_cookie_header: Optional[str] = None
+        set_cookie_header = connect_response.headers.get("set-cookie")
+        if set_cookie_header:
+            cookie_jar = SimpleCookie()
+            try:
+                cookie_jar.load(set_cookie_header)
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.warning(
+                    "Failed to parse session cookie for server '{}': {}",
+                    server_name,
+                    exc,
+                )
+            else:
+                morsels = list(cookie_jar.values())
+                if morsels:
+                    session_cookie_header = "; ".join(
+                        f"{morsel.key}={morsel.value}" for morsel in morsels
+                    )
+                    if not session_id:
+                        preferred_morsel = next(
+                            (
+                                morsel
+                                for morsel in morsels
+                                if morsel.key.lower() == "sessionid"
+                            ),
+                            morsels[0],
+                        )
+                        if preferred_morsel:
+                            session_id = preferred_morsel.value
+
+        if not session_id:
+            logger.info(
+                "No session identifier returned for SSE server '{}'; generating fallback ID",
+                server_name,
+            )
+            session_id = f"sse_session_{server_name}"
+
+        sse_headers = {"Cookie": session_cookie_header} if session_cookie_header else None
+
+        logger.info(f"Establishing SSE session for {server_name} at {redirect_url}")
+
+        sse_context = sse_client(redirect_url, headers=sse_headers)
+        client_handle: Optional[ClientSession] = None
+        tool_count = 0
+
+        try:
+            read_stream, write_stream = await sse_context.__aenter__()
+            client_handle = ClientSession(read_stream, write_stream)
+            await client_handle.initialize()
+
+            tools_result = await client_handle.list_tools()
+            raw_tools = getattr(tools_result, "tools", None) or []
+            tool_count = self._register_tools(server_name, raw_tools)
+
+            if hasattr(client_handle, "list_resources"):
+                try:
+                    resources_result = await client_handle.list_resources()
+                except Exception as resources_exc:  # pragma: no cover - optional capability
+                    logger.debug(
+                        f"Resource discovery not available for {server_name}: {resources_exc}"
+                    )
+                else:
+                    resources = getattr(resources_result, "resources", None) or []
+                    if resources:
+                        logger.info(
+                            f"Discovered {len(resources)} resources for {server_name}"
+                        )
+
+        except Exception as exc:
+            with suppress(Exception):
+                await sse_context.__aexit__(type(exc), exc, exc.__traceback__)
+            raise
+
+        self._connected_servers[server_name] = {
+            "config": server_config,
+            "session_id": session_id,
+            "session_cookie": session_cookie_header,
+            "transport": "sse",
+            "client": client_handle,
+            "sse_context": sse_context,
+        }
+
+        logger.info(
+            f"Connected to SSE server '{server_name}' with {tool_count} tools via protocol discovery"
+        )
 
     def _register_tools(self, server_name: str, tools: Iterable[Any]) -> int:
         """Normalize and register tools for a server."""
