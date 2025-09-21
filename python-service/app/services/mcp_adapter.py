@@ -209,6 +209,7 @@ class MCPServerAdapter:
             session_id: Optional[str] = None
             client_handle: Optional[ClientSession] = None
             sse_context = None
+            session_cookie_header: Optional[str] = None
 
             if connect_response.status_code == 307 and "location" in connect_response.headers:
                 redirect_location = connect_response.headers["location"]
@@ -223,36 +224,36 @@ class MCPServerAdapter:
                     key.lower(): value for key, value in query_params.items()
                 }
                 session_id = normalized_query.get("sessionid", [None])[0]
-                session_cookie_header: Optional[str] = None
 
-                if not session_id:
-                    set_cookie_header = connect_response.headers.get("set-cookie")
-                    if set_cookie_header:
-                        cookie_jar = SimpleCookie()
-                        try:
-                            cookie_jar.load(set_cookie_header)
-                        except Exception as exc:  # pragma: no cover - defensive logging
-                            logger.warning(
-                                "Failed to parse session cookie for server '{}': {}",
-                                server_name,
-                                exc,
+                set_cookie_header = connect_response.headers.get("set-cookie")
+                if set_cookie_header:
+                    cookie_jar = SimpleCookie()
+                    try:
+                        cookie_jar.load(set_cookie_header)
+                    except Exception as exc:  # pragma: no cover - defensive logging
+                        logger.warning(
+                            "Failed to parse session cookie for server '{}': {}",
+                            server_name,
+                            exc,
+                        )
+                    else:
+                        morsels = list(cookie_jar.values())
+                        if morsels:
+                            session_cookie_header = "; ".join(
+                                f"{morsel.key}={morsel.value}" for morsel in morsels
                             )
-                        else:
-                            if cookie_jar:
-                                session_cookie_header = "; ".join(
-                                    f"{morsel.key}={morsel.value}"
-                                    for morsel in cookie_jar.values()
-                                )
-                                session_cookie = next(
-                                    (
-                                        morsel
-                                        for key, morsel in cookie_jar.items()
-                                        if key.lower() == "sessionid"
-                                    ),
-                                    next(iter(cookie_jar.values()), None),
-                                )
-                                if session_cookie is not None:
-                                    session_id = session_cookie.value
+
+                            preferred_morsel = next(
+                                (
+                                    morsel
+                                    for morsel in morsels
+                                    if morsel.key.lower() == "sessionid"
+                                ),
+                                morsels[0],
+                            )
+
+                            if preferred_morsel and not session_id:
+                                session_id = preferred_morsel.value
 
                 # For SSE transport, session ID might not be required
                 if not session_id and server_config.get("transport") == "sse":
