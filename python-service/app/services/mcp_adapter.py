@@ -252,7 +252,22 @@ class MCPServerAdapter:
                 crewai_tool = self._convert_mcp_tool_to_crewai(tool_name, tool_config)
                 duckduckgo_tools.append(crewai_tool)
                 
-        return duckduckgo_tools
+    def get_linkedin_tools(self) -> List[Dict[str, Any]]:
+        """
+        Get LinkedIn-specific tools for injection into CrewAI agents.
+        
+        Returns:
+            List of tool configurations compatible with CrewAI
+        """
+        linkedin_tools = []
+        
+        for tool_name, tool_config in self._available_tools.items():
+            if "linkedin" in tool_name.lower():
+                # Convert MCP tool format to CrewAI tool format
+                crewai_tool = self._convert_mcp_tool_to_crewai(tool_name, tool_config)
+                linkedin_tools.append(crewai_tool)
+                
+        return linkedin_tools
         
     def _convert_mcp_tool_to_crewai(self, tool_name: str, mcp_tool: Dict[str, Any]) -> Dict[str, Any]:
         """

@@ -208,6 +208,114 @@ def get_duckduckgo_tools() -> List[BaseTool]:
     return load_mcp_tools_sync(["web_search", "search"])
 
 
+@lru_cache(maxsize=1)
+def get_linkedin_tools() -> List[BaseTool]:
+    """Load LinkedIn MCP tools once and cache the result."""
+    linkedin_tools = [
+        "get_recommended_jobs",
+        "get_person_profile", 
+        "get_company_profile",
+        "get_job_details",
+        "search_jobs",
+        "close_session"
+    ]
+    return load_mcp_tools_sync(linkedin_tools)
+
+
+async def test_linkedin_mcp_connection() -> Dict[str, Any]:
+    """
+    Test LinkedIn MCP connection and tool availability.
+    
+    Returns:
+        Dictionary with connection status and available tools
+    """
+    settings = get_settings()
+    gateway_url = getattr(settings, 'mcp_gateway_url', 'http://localhost:8811')
+    
+    try:
+        async with get_mcp_adapter(gateway_url) as adapter:
+            available_tools = adapter.get_available_tools()
+            
+            # Check for LinkedIn-specific tools
+            linkedin_tools = [tool for tool in available_tools.keys() 
+                            if 'linkedin' in tool.lower()]
+            
+            # Validate that we have the expected LinkedIn tools
+            expected_tools = [
+                "get_recommended_jobs",
+                "get_person_profile", 
+                "get_company_profile",
+                "get_job_details",
+                "search_jobs",
+                "close_session"
+            ]
+            
+            found_tools = []
+            missing_tools = []
+            
+            for expected_tool in expected_tools:
+                # Check if tool exists with linkedin prefix or directly
+                found = False
+                for available_tool in available_tools.keys():
+                    if expected_tool in available_tool:
+                        found_tools.append(available_tool)
+                        found = True
+                        break
+                
+                if not found:
+                    missing_tools.append(expected_tool)
+            
+            return {
+                "success": True,
+                "total_tools": len(available_tools),
+                "linkedin_tools": linkedin_tools,
+                "expected_tools_found": found_tools,
+                "missing_tools": missing_tools,
+                "connection_status": "connected",
+                "gateway_url": gateway_url
+            }
+            
+    except Exception as e:
+        logger.error(f"LinkedIn MCP connection test failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "connection_status": "failed",
+            "gateway_url": gateway_url
+        }
+
+
+def test_linkedin_mcp_connection_sync() -> Dict[str, Any]:
+    """Synchronous wrapper for LinkedIn MCP connection testing."""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If loop is already running, create a new one in a thread
+            import concurrent.futures
+            import threading
+            
+            def run_in_thread():
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    return new_loop.run_until_complete(test_linkedin_mcp_connection())
+                finally:
+                    new_loop.close()
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_in_thread)
+                return future.result(timeout=30)
+        else:
+            return loop.run_until_complete(test_linkedin_mcp_connection())
+    except Exception as e:
+        logger.error(f"Error in sync LinkedIn MCP connection test: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "connection_status": "failed"
+        }
+
+
 def clear_mcp_tool_cache() -> None:
     """Clear cached MCP tools.
 
@@ -215,6 +323,7 @@ def clear_mcp_tool_cache() -> None:
     changes to ensure stale tools aren't reused.
     """
     get_duckduckgo_tools.cache_clear()
+    get_linkedin_tools.cache_clear()
 
 
 # Clear any cached tools on import to avoid stale configuration

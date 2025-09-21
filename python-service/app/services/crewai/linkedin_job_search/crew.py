@@ -1,7 +1,7 @@
 """
 LinkedIn Job Search CrewAI implementation.
 
-This crew coordinates LinkedIn job searches and recommendations using LinkedIn MCP tools.
+This crew coordinates LinkedIn job searches using dynamically loaded LinkedIn MCP tools.
 """
 import json
 from collections.abc import Mapping
@@ -11,6 +11,9 @@ from typing import Any, Dict, Optional
 
 from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
+from loguru import logger
+
+from ..base import get_linkedin_tools, test_linkedin_mcp_connection_sync
 
 
 _cached_crew: Optional[Crew] = None
@@ -30,22 +33,40 @@ class LinkedInJobSearchCrew:
 
     This crew follows the standard multi-agent pattern with specialist
     agents coordinated by a manager agent for final synthesis.
+    Dynamically loads all LinkedIn MCP tools for comprehensive access.
     """
     agents_config = 'config/agents.yaml'
     tasks_config = 'config/tasks.yaml'
 
+    def __init__(self):
+        """Initialize crew with LinkedIn MCP tool integration."""
+        # Test LinkedIn MCP connection on initialization
+        connection_status = test_linkedin_mcp_connection_sync()
+        if connection_status.get("success"):
+            logger.info(f"LinkedIn MCP connection successful. Found {len(connection_status.get('linkedin_tools', []))} LinkedIn tools")
+            if connection_status.get("missing_tools"):
+                logger.warning(f"Missing LinkedIn tools: {connection_status.get('missing_tools')}")
+        else:
+            logger.error(f"LinkedIn MCP connection failed: {connection_status.get('error')}")
+        
+        # Load LinkedIn tools dynamically
+        self._linkedin_tools = get_linkedin_tools()
+        logger.info(f"Loaded {len(self._linkedin_tools)} LinkedIn MCP tools for job search crew")
+
     @agent
     def linkedin_job_searcher(self) -> Agent:
-        """Specialist agent for LinkedIn job search."""
+        """Specialist agent for LinkedIn job search with all LinkedIn MCP tools."""
         return Agent(
             config=self.agents_config["linkedin_job_searcher"],  # type: ignore[index]
+            tools=self._linkedin_tools,  # Dynamically provide all LinkedIn tools
         )
 
     @agent
     def job_opportunity_analyzer(self) -> Agent:
-        """Specialist agent for analyzing LinkedIn job opportunities."""
+        """Specialist agent for analyzing LinkedIn job opportunities with LinkedIn tools."""
         return Agent(
             config=self.agents_config["job_opportunity_analyzer"],  # type: ignore[index]
+            tools=self._linkedin_tools,  # Provide LinkedIn tools for company/job research
         )
 
     @agent
@@ -53,6 +74,7 @@ class LinkedInJobSearchCrew:
         """Manager agent that synthesizes LinkedIn job search results."""
         return Agent(
             config=self.agents_config["linkedin_report_writer"],  # type: ignore[index]
+            tools=self._linkedin_tools,  # Manager can access tools for final validation
         )
 
     @task
@@ -239,8 +261,20 @@ def run_linkedin_job_search(
     remote: bool = False,
     limit: int = 25,
 ) -> Dict[str, Any]:
-    """Execute a LinkedIn job search using the shared crew instance."""
+    """Execute a LinkedIn job search using the shared crew instance with comprehensive logging."""
 
+    # Test LinkedIn MCP connection before execution
+    connection_status = test_linkedin_mcp_connection_sync()
+    if not connection_status.get("success"):
+        logger.error(f"LinkedIn MCP connection failed before job search: {connection_status.get('error')}")
+        return {
+            "success": False,
+            "error": f"LinkedIn MCP connection failed: {connection_status.get('error')}",
+            "connection_status": connection_status
+        }
+
+    logger.info(f"LinkedIn job search starting with {len(connection_status.get('linkedin_tools', []))} available LinkedIn tools")
+    
     crew = get_linkedin_job_search_crew()
     inputs = _build_search_inputs(
         keywords=keywords,
@@ -251,5 +285,39 @@ def run_linkedin_job_search(
         remote=remote,
         limit=limit,
     )
-    raw_result = crew.kickoff(inputs=inputs)
-    return normalize_linkedin_job_search_output(raw_result)
+    
+    try:
+        logger.info(f"Executing LinkedIn job search crew with inputs: {list(inputs.keys())}")
+        raw_result = crew.kickoff(inputs=inputs)
+        
+        # Validate result format
+        normalized_result = normalize_linkedin_job_search_output(raw_result)
+        
+        # Enhanced logging for result validation
+        if normalized_result.get("consolidated_jobs"):
+            jobs_count = len(normalized_result["consolidated_jobs"])
+            logger.info(f"LinkedIn job search completed successfully: {jobs_count} jobs found")
+            
+            # Validate job data structure
+            sample_job = normalized_result["consolidated_jobs"][0] if jobs_count > 0 else {}
+            required_fields = ["title", "company", "job_url"]
+            missing_fields = [field for field in required_fields if not sample_job.get(field)]
+            
+            if missing_fields:
+                logger.warning(f"Sample job missing required fields: {missing_fields}")
+            else:
+                logger.info("Job data structure validation passed")
+                
+        else:
+            logger.warning("LinkedIn job search completed but no jobs found in result")
+            
+        return normalized_result
+        
+    except Exception as e:
+        logger.error(f"LinkedIn job search execution failed: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Job search execution failed: {str(e)}",
+            "consolidated_jobs": [],
+            "total_jobs": 0
+        }

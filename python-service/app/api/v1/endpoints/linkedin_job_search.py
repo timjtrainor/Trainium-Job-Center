@@ -11,6 +11,7 @@ from ....services.crewai.linkedin_job_search.crew import (
     get_linkedin_job_search_crew,
     normalize_linkedin_job_search_output,
 )
+from ....services.crewai.base import test_linkedin_mcp_connection_sync
 
 router = APIRouter(prefix="/linkedin-job-search", tags=["LinkedIn Job Search"])
 
@@ -127,21 +128,46 @@ async def search_linkedin_jobs(request: LinkedInJobSearchRequest):
 
 @router.get("/health", response_model=StandardResponse)
 async def health_check():
-    """Health check for LinkedIn job search crew."""
+    """Health check for LinkedIn job search crew with MCP tool verification."""
     try:
+        # Test LinkedIn MCP connection
+        connection_status = test_linkedin_mcp_connection_sync()
+        
         crew = get_linkedin_job_search_crew()
         
-        # Basic health check - ensure crew can be instantiated
+        # Enhanced health check with MCP tool verification
         health_data = {
             "crew_initialized": crew is not None,
-            "linkedin_tools_loaded": len(crew._linkedin_tools) > 0 if hasattr(crew, '_linkedin_tools') else False,
             "agents_count": len(crew.agents) if crew else 0,
-            "tasks_count": len(crew.tasks) if crew else 0
+            "tasks_count": len(crew.tasks) if crew else 0,
+            "mcp_connection": {
+                "status": "connected" if connection_status.get("success") else "failed",
+                "total_tools": connection_status.get("total_tools", 0),
+                "linkedin_tools_found": connection_status.get("linkedin_tools", []),
+                "expected_tools_found": connection_status.get("expected_tools_found", []),
+                "missing_tools": connection_status.get("missing_tools", []),
+                "gateway_url": connection_status.get("gateway_url", "unknown")
+            }
         }
+        
+        # Determine overall health
+        is_healthy = (
+            health_data["crew_initialized"] and 
+            connection_status.get("success") and 
+            len(connection_status.get("linkedin_tools", [])) > 0
+        )
+        
+        message = "LinkedIn job search crew is healthy with MCP tools" if is_healthy else "LinkedIn job search crew has issues"
+        
+        if not is_healthy and connection_status.get("error"):
+            return create_error_response(
+                error="Health check failed",
+                message=f"MCP connection issue: {connection_status.get('error')}"
+            )
         
         return create_success_response(
             data=health_data,
-            message="LinkedIn job search crew is healthy"
+            message=message
         )
         
     except Exception as e:
