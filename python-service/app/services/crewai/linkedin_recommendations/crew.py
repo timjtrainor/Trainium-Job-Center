@@ -46,6 +46,12 @@ class LinkedInRecommendationsCrew:
         # Load LinkedIn tools dynamically
         self._linkedin_tools = get_linkedin_tools()
         logger.info(f"Loaded {len(self._linkedin_tools)} LinkedIn MCP tools for recommendations crew")
+        
+        # CRITICAL: Fail if no LinkedIn tools are available to prevent hallucination
+        if not self._linkedin_tools:
+            error_msg = "CRITICAL: No LinkedIn MCP tools loaded. Agents will hallucinate data without tools."
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
     @agent
     def linkedin_recommendations_fetcher(self) -> Agent:
@@ -175,7 +181,26 @@ def run_linkedin_recommendations() -> Dict[str, Any]:
 
     logger.info(f"LinkedIn recommendations starting with {len(connection_status.get('linkedin_tools', []))} available LinkedIn tools")
     
-    crew = get_linkedin_recommendations_crew()
+    # CRITICAL: Check if any LinkedIn tools were actually found
+    if not connection_status.get("linkedin_tools"):
+        error_msg = "CRITICAL: No LinkedIn MCP tools available. Cannot fetch authentic LinkedIn data. Check MCP gateway connection."
+        logger.error(error_msg)
+        return {
+            "success": False,
+            "error": error_msg,
+            "connection_status": connection_status
+        }
+    
+    try:
+        crew = get_linkedin_recommendations_crew()
+    except RuntimeError as e:
+        logger.error(f"Failed to initialize LinkedIn recommendations crew: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "connection_status": connection_status
+        }
+    
     inputs = {}  # No specific inputs needed for recommendations
     
     try:
@@ -215,6 +240,12 @@ def run_linkedin_recommendations() -> Dict[str, Any]:
                     logger.info(f"✅ Sparse data pattern detected ({null_fields}/{total_fields} null) - typical of LinkedIn API")
                 else:
                     logger.warning("⚠️ Suspiciously complete data - may be hallucinated")
+                    
+                # Check for authentic LinkedIn URL patterns (long collection URLs)
+                if "collections/recommended" in str(sample_job.get("job_url", "")):
+                    logger.info("✅ Authentic LinkedIn collection URL detected")
+                else:
+                    logger.warning("⚠️ Missing authentic LinkedIn collection URL pattern")
                     
         else:
             logger.warning("LinkedIn recommendations completed but no jobs found in result")

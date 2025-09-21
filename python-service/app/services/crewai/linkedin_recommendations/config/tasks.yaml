@@ -1,45 +1,50 @@
 fetch_recommended_jobs:
   description: >
-    Fetch personalized job recommendations from LinkedIn using the 'get_recommended_jobs' MCP tool.
-    Parse and structure the raw data to populate the jobs database table. Focus on extracting
-    all available data from the LinkedIn response and mapping it to the appropriate database fields.
+    **CRITICAL: You MUST use the LinkedIn MCP tool 'get_recommended_jobs' to fetch authentic LinkedIn data.**
+    Do NOT generate or create fake job data. Only return data received from the actual MCP tool call.
     
-    Key data extraction tasks:
+    Use the 'get_recommended_jobs' MCP tool to fetch personalized job recommendations from LinkedIn.
+    This tool returns raw LinkedIn API data which will contain:
+    - Long collection URLs like "linkedin.com/jobs/collections/recommended/?currentJobId=..."
+    - Many null/empty fields (typical of LinkedIn API responses)
+    - Job titles with "with verification" text
+    - Company strings like "Company Name · Location · Salary"
+    
+    Process the raw LinkedIn response to structure it for database insertion:
     - Parse company field to extract company name, location, and salary info
-    - Clean job titles (remove "with verification" text)
-    - Extract location components (city, state) when possible
+    - Clean job titles (remove "with verification" text) 
+    - Extract location components from company string when possible
     - Determine if position is remote/hybrid/on-site from location text
     - Parse salary ranges into min/max amounts when available
-    - Store complete raw response in source_raw field
+    - Preserve complete raw response in source_raw field
+    
+    **VALIDATION: If you cannot access the get_recommended_jobs MCP tool, return an error instead of generating fake data.**
 
   expected_output: >
-    JSON array of job objects ready for database insertion with the following structure:
+    JSON array of job objects with authentic LinkedIn data structure:
     [
       {
         "site": "linkedin",
-        "job_url": "extracted_linkedin_url",
-        "title": "cleaned_job_title", 
-        "company": "extracted_company_name",
-        "location_city": "parsed_city_or_null",
-        "location_state": "parsed_state_or_null", 
-        "location_country": "US_or_null",
-        "is_remote": "boolean_based_on_location",
-        "compensation": "salary_text_if_available",
-        "min_amount": "numeric_min_salary_or_null",
-        "max_amount": "numeric_max_salary_or_null",
-        "currency": "USD_if_salary_present",
-        "description": "job_description_if_available",
-        "source_raw": "complete_original_linkedin_response_object"
+        "linkedin_url": "complete_collection_url_from_mcp_response",
+        "job_title": "raw_job_title_from_linkedin_including_verification_text",
+        "company": "raw_company_string_from_linkedin",
+        "location": "extracted_location_or_empty_string",
+        "posted_date": null,
+        "applicant_count": null,
+        "job_description": null,
+        "benefits": null,
+        "company_linkedin_url": null,
+        "source_raw": "complete_original_linkedin_mcp_response"
       }
     ]
     
-    Important: 
-    - Return ONLY the JSON array, no additional text or formatting
-    - Include source_raw field with complete original data from LinkedIn
-    - Set site to "linkedin" for all records
-    - Parse location strings like "Seattle, WA" into city/state components
-    - Extract salary ranges like "$150K - $200K" into min_amount/max_amount
-    - Set is_remote based on location containing "Remote" or "Hybrid"
-    - Leave fields null if data is not available rather than making assumptions
+    **IMPORTANT REQUIREMENTS:**
+    - Return ONLY authentic data from the get_recommended_jobs MCP tool call
+    - Preserve LinkedIn's sparse data structure (many null fields expected)
+    - Include complete collection URLs, not simple job view URLs
+    - Keep original job titles with "with verification" text
+    - Store complete MCP response in source_raw field
+    - If MCP tool fails or is unavailable, return error, do NOT generate fake data
+    - Match the expected LinkedIn API response format exactly
 
   agent: linkedin_recommendations_fetcher

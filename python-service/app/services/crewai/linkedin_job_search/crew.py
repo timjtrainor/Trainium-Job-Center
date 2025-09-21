@@ -52,6 +52,12 @@ class LinkedInJobSearchCrew:
         # Load LinkedIn tools dynamically
         self._linkedin_tools = get_linkedin_tools()
         logger.info(f"Loaded {len(self._linkedin_tools)} LinkedIn MCP tools for job search crew")
+        
+        # CRITICAL: Fail if no LinkedIn tools are available to prevent hallucination
+        if not self._linkedin_tools:
+            error_msg = "CRITICAL: No LinkedIn MCP tools loaded. Agents will hallucinate data without tools."
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
     @agent
     def linkedin_job_searcher(self) -> Agent:
