@@ -376,6 +376,8 @@ class MCPServerAdapter:
                 # Convert MCP tool format to CrewAI tool format
                 crewai_tool = self._convert_mcp_tool_to_crewai(tool_name, tool_config)
                 duckduckgo_tools.append(crewai_tool)
+
+        return duckduckgo_tools
                 
     def get_linkedin_tools(self) -> List[Dict[str, Any]]:
         """
