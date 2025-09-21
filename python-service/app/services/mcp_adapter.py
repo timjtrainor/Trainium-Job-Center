@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Union
 from contextlib import asynccontextmanager
+from http.cookies import SimpleCookie
 from urllib.parse import parse_qs, urlparse
 
 from loguru import logger
@@ -222,7 +223,37 @@ class MCPServerAdapter:
                     key.lower(): value for key, value in query_params.items()
                 }
                 session_id = normalized_query.get("sessionid", [None])[0]
-                
+                session_cookie_header: Optional[str] = None
+
+                if not session_id:
+                    set_cookie_header = connect_response.headers.get("set-cookie")
+                    if set_cookie_header:
+                        cookie_jar = SimpleCookie()
+                        try:
+                            cookie_jar.load(set_cookie_header)
+                        except Exception as exc:  # pragma: no cover - defensive logging
+                            logger.warning(
+                                "Failed to parse session cookie for server '{}': {}",
+                                server_name,
+                                exc,
+                            )
+                        else:
+                            if cookie_jar:
+                                session_cookie_header = "; ".join(
+                                    f"{morsel.key}={morsel.value}"
+                                    for morsel in cookie_jar.values()
+                                )
+                                session_cookie = next(
+                                    (
+                                        morsel
+                                        for key, morsel in cookie_jar.items()
+                                        if key.lower() == "sessionid"
+                                    ),
+                                    next(iter(cookie_jar.values()), None),
+                                )
+                                if session_cookie is not None:
+                                    session_id = session_cookie.value
+
                 # For SSE transport, session ID might not be required
                 if not session_id and server_config.get("transport") == "sse":
                     logger.info(f"No session ID found for SSE server {server_name}, using generic ID")
@@ -234,7 +265,11 @@ class MCPServerAdapter:
 
                 logger.info(f"Establishing SSE session for {server_name} at {redirect_url}")
 
-                sse_context = sse_client(redirect_url)
+                sse_headers: Optional[Dict[str, Any]] = None
+                if session_cookie_header:
+                    sse_headers = {"Cookie": session_cookie_header}
+
+                sse_context = sse_client(redirect_url, headers=sse_headers)
                 try:
                     read_stream, write_stream = await sse_context.__aenter__()
                     client_handle = ClientSession(read_stream, write_stream)
@@ -256,6 +291,7 @@ class MCPServerAdapter:
                     "session_id": session_id,
                     "client": client_handle,
                     "sse_context": sse_context,
+                    "session_cookie": session_cookie_header,
                 }
                 return
 
