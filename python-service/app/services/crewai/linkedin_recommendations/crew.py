@@ -41,12 +41,6 @@ class LinkedInRecommendationsCrew:
             config=self.agents_config["linkedin_recommendations_fetcher"],  # type: ignore[index]
         )
 
-    @agent
-    def linkedin_recommendations_reporter(self) -> Agent:
-        """Manager agent that synthesizes LinkedIn recommendation results."""
-        return Agent(
-            config=self.agents_config["linkedin_recommendations_reporter"],  # type: ignore[index]
-        )
 
     @task
     def fetch_recommended_jobs(self) -> Task:
@@ -56,14 +50,6 @@ class LinkedInRecommendationsCrew:
             agent=self.linkedin_recommendations_fetcher(),
         )
 
-    @task
-    def compile_recommendations_report(self) -> Task:
-        """Compile recommendations into a structured report."""
-        return Task(
-            config=self.tasks_config["compile_recommendations_report"],  # type: ignore[index]
-            agent=self.linkedin_recommendations_reporter(),
-            context=[self.fetch_recommended_jobs()]
-        )
 
     @crew
     def crew(self) -> Crew:
@@ -73,11 +59,9 @@ class LinkedInRecommendationsCrew:
                 self.linkedin_recommendations_fetcher()
             ],
             tasks=[
-                self.fetch_recommended_jobs(),
-                self.compile_recommendations_report()
+                self.fetch_recommended_jobs()
             ],
-            process=Process.hierarchical,
-            manager_agent=self.linkedin_recommendations_reporter(),
+            process=Process.sequential,
             verbose=True,
         )
 

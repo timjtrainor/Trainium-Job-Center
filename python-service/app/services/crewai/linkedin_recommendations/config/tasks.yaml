@@ -1,93 +1,45 @@
 fetch_recommended_jobs:
   description: >
     Fetch personalized job recommendations from LinkedIn using the 'get_recommended_jobs' MCP tool.
-    This tool retrieves jobs that LinkedIn's algorithm recommends based on the user's profile,
-    activity, and job preferences. Return structured job data suitable for database persistence.
+    Parse and structure the raw data to populate the jobs database table. Focus on extracting
+    all available data from the LinkedIn response and mapping it to the appropriate database fields.
     
-    Focus on retrieving complete job information including:
-    - Job title and company details  
-    - Location and remote work options
-    - Job URLs for direct application
-    - Job descriptions and requirements
-    - Date posted and recommendation metadata
+    Key data extraction tasks:
+    - Parse company field to extract company name, location, and salary info
+    - Clean job titles (remove "with verification" text)
+    - Extract location components (city, state) when possible
+    - Determine if position is remote/hybrid/on-site from location text
+    - Parse salary ranges into min/max amounts when available
+    - Store complete raw response in source_raw field
 
   expected_output: >
-    JSON object with recommended job results for database persistence:
-    {
-      "type": "object",
-      "properties": {
-        "recommendation_summary": {"type": "string"},
-        "recommended_jobs": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "title": {"type": "string"},
-              "company": {"type": "string"},
-              "location": {"type": "string"},
-              "job_url": {"type": "string"},
-              "job_url_direct": {"type": "string"},
-              "description": {"type": "string"},
-              "job_type": {"type": "string"},
-              "date_posted": {"type": "string"},
-              "site": {"type": "string"},
-              "is_remote": {"type": "boolean"},
-              "recommendation_score": {"type": "number"},
-              "recommendation_reasons": {"type": "array", "items": {"type": "string"}}
-            }
-          }
-        },
-        "total_recommendations": {"type": "integer"},
-        "success": {"type": "boolean"}
-      },
-      "required": [
-        "recommendation_summary",
-        "recommended_jobs",
-        "total_recommendations",
-        "success"
-      ]
-    }
-  # Field names must match the schema exactly for database persistence.
+    JSON array of job objects ready for database insertion with the following structure:
+    [
+      {
+        "site": "linkedin",
+        "job_url": "extracted_linkedin_url",
+        "title": "cleaned_job_title", 
+        "company": "extracted_company_name",
+        "location_city": "parsed_city_or_null",
+        "location_state": "parsed_state_or_null", 
+        "location_country": "US_or_null",
+        "is_remote": "boolean_based_on_location",
+        "compensation": "salary_text_if_available",
+        "min_amount": "numeric_min_salary_or_null",
+        "max_amount": "numeric_max_salary_or_null",
+        "currency": "USD_if_salary_present",
+        "description": "job_description_if_available",
+        "source_raw": "complete_original_linkedin_response_object"
+      }
+    ]
+    
+    Important: 
+    - Return ONLY the JSON array, no additional text or formatting
+    - Include source_raw field with complete original data from LinkedIn
+    - Set site to "linkedin" for all records
+    - Parse location strings like "Seattle, WA" into city/state components
+    - Extract salary ranges like "$150K - $200K" into min_amount/max_amount
+    - Set is_remote based on location containing "Remote" or "Hybrid"
+    - Leave fields null if data is not available rather than making assumptions
 
   agent: linkedin_recommendations_fetcher
-
-compile_recommendations_report:
-  description: >
-    Compile a comprehensive LinkedIn recommendations report that organizes the fetched
-    job recommendations into actionable insights for job candidates. Focus on explaining
-    why jobs were recommended and providing clear next steps for each opportunity.
-    This complements direct job searches with LinkedIn's algorithmic suggestions.
-
-  expected_output: >
-    JSON object matching schema:
-    {
-      "type": "object",
-      "properties": {
-        "executive_summary": {"type": "string"},
-        "top_recommendations": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "rank": {"type": "integer"},
-              "job_title": {"type": "string"},
-              "company_name": {"type": "string"},
-              "recommendation_rationale": {"type": "string"},
-              "action_items": {"type": "array", "items": {"type": "string"}}
-            }
-          }
-        },
-        "recommendation_insights": {"type": "array", "items": {"type": "string"}},
-        "profile_optimization_tips": {"type": "array", "items": {"type": "string"}}
-      },
-      "required": [
-        "executive_summary",
-        "top_recommendations",
-        "recommendation_insights",
-        "profile_optimization_tips"
-      ]
-    }
-  # Field names must match the schema exactly.
-
-  agent: linkedin_recommendations_reporter
-  context: [fetch_recommended_jobs]
