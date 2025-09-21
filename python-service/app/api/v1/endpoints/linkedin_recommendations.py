@@ -20,13 +20,13 @@ async def fetch_linkedin_recommendations():
     """
     Fetch personalized job recommendations from LinkedIn.
     
-    This endpoint uses CrewAI agents to:
+    This endpoint uses a single CrewAI agent to:
     1. Call LinkedIn's get_recommended_jobs MCP tool
     2. Retrieve personalized job recommendations based on user profile
-    3. Return structured job data suitable for database persistence
+    3. Return structured job data ready for database persistence
     
     Returns:
-        Personalized job recommendations with metadata
+        JSON array of job objects with database-ready fields
     """
     try:
         logger.info("Starting LinkedIn recommendations fetch")
@@ -53,21 +53,14 @@ async def fetch_linkedin_recommendations():
                 message=normalized_error or "Unknown error occurred"
             )
 
-        # Extract job data
+        # Extract job data - now expecting direct JSON array format
         recommended_jobs = result.get("recommended_jobs", [])
         total_recommendations = result.get("total_recommendations", len(recommended_jobs))
         
         response_data = {
             "success": result.get("success", True),
             "recommended_jobs": recommended_jobs,
-            "total_recommendations": total_recommendations,
-            "recommendation_summary": result.get("recommendation_summary", ""),
-            "report": {
-                "executive_summary": result.get("executive_summary", ""),
-                "top_recommendations": result.get("top_recommendations", []),
-                "recommendation_insights": result.get("recommendation_insights", []),
-                "profile_optimization_tips": result.get("profile_optimization_tips", [])
-            }
+            "total_recommendations": total_recommendations
         }
         
         return create_success_response(
@@ -118,14 +111,12 @@ async def get_crew_config():
         
         config_data = {
             "crew_type": "linkedin_recommendations",
-            "process": "hierarchical", 
+            "process": "sequential", 
             "agents": [
-                {"name": "linkedin_recommendations_fetcher", "role": "LinkedIn Recommendations Specialist"},
-                {"name": "linkedin_recommendations_reporter", "role": "LinkedIn Recommendations Report Coordinator"}
+                {"name": "linkedin_recommendations_fetcher", "role": "LinkedIn Recommendations Specialist"}
             ],
             "tasks": [
-                {"name": "fetch_recommended_jobs", "async": False},
-                {"name": "compile_recommendations_report", "async": False}
+                {"name": "fetch_recommended_jobs", "async": False}
             ],
             "linkedin_tools_available": len(crew._linkedin_tools) if hasattr(crew, '_linkedin_tools') else 0
         }

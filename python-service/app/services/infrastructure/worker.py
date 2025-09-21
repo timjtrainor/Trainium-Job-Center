@@ -730,24 +730,28 @@ def run_linkedin_recommendations(
         persistence_summary = None
         if jobs_found:
             try:
-                # Convert LinkedIn recommendations to jobspy format for persistence
+                # Jobs are already in database-ready format from the crew
+                # Convert to ScrapedJob-compatible format for persistence
                 jobspy_jobs = []
                 for job in jobs_found:
+                    # Map the database-ready format to ScrapedJob format
                     jobspy_job = {
                         "title": job.get("title", ""),
                         "company": job.get("company", ""),
-                        "location": job.get("location", ""),
+                        "location": f"{job.get('location_city', '')}, {job.get('location_state', '')}".replace(", ", ", ").strip(", ") or job.get("location", ""),
                         "job_url": job.get("job_url", ""),
-                        "job_url_direct": job.get("job_url_direct"),
+                        "job_url_direct": job.get("job_url_direct") or job.get("job_url", ""),
                         "description": job.get("description", ""),
                         "job_type": job.get("job_type"),
                         "date_posted": job.get("date_posted"),
                         "site": "linkedin",
-                        "job_level": job.get("experience_level"),
                         "is_remote": job.get("is_remote", False),
-                        # Add recommendation-specific metadata
-                        "recommendation_score": job.get("recommendation_score"),
-                        "recommendation_reasons": job.get("recommendation_reasons", [])
+                        "salary_min": job.get("min_amount"),
+                        "salary_max": job.get("max_amount"),
+                        "salary_source": "employer" if job.get("min_amount") or job.get("max_amount") else None,
+                        "interval": "yearly" if job.get("currency") else None,
+                        # Store the original LinkedIn data
+                        "source_raw": job.get("source_raw", job)
                     }
                     jobspy_jobs.append(jobspy_job)
                 

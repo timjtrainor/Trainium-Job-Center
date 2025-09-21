@@ -16,12 +16,7 @@ from crewai.project import CrewBase, agent, task, crew
 _cached_crew: Optional[Crew] = None
 _crew_lock = Lock()
 
-_REPORT_SCHEMA_KEYS = {
-    "executive_summary",
-    "top_recommendations",
-    "recommendation_insights",
-    "profile_optimization_tips",
-}
+# No longer using report schema - expecting JSON array directly
 
 @CrewBase
 class LinkedInRecommendationsCrew:
@@ -105,30 +100,45 @@ def _coerce_to_dict(candidate: Any) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _ensure_success_flag(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Ensure recognized report payloads include a success flag."""
-
-    if "success" not in payload and _REPORT_SCHEMA_KEYS.issubset(payload.keys()):
-        payload = dict(payload)
-        payload["success"] = True
-
-    return payload
-
-
 def normalize_linkedin_recommendations_output(result: Any) -> Dict[str, Any]:
     """Normalize CrewAI outputs into a dictionary for consistent consumption."""
-
-    normalized = _coerce_to_dict(result)
-    if normalized is not None:
-        return _ensure_success_flag(normalized)
-
+    
+    # Try to parse as JSON array first (new format)
+    if isinstance(result, str):
+        try:
+            parsed = json.loads(result.strip())
+            if isinstance(parsed, list):
+                # Return as expected format with job array
+                return {
+                    "success": True,
+                    "recommended_jobs": parsed,
+                    "total_recommendations": len(parsed)
+                }
+        except JSONDecodeError:
+            pass
+    
+    # Handle raw result attributes
     for attribute in ("raw", "output", "value"):
         if hasattr(result, attribute):
-            normalized = _coerce_to_dict(getattr(result, attribute))
-            if normalized is not None:
-                return _ensure_success_flag(normalized)
+            attr_value = getattr(result, attribute)
+            if isinstance(attr_value, str):
+                try:
+                    parsed = json.loads(attr_value.strip())
+                    if isinstance(parsed, list):
+                        return {
+                            "success": True,
+                            "recommended_jobs": parsed,
+                            "total_recommendations": len(parsed)
+                        }
+                except JSONDecodeError:
+                    continue
+    
+    # Fallback for other formats
+    normalized = _coerce_to_dict(result)
+    if normalized is not None:
+        return normalized
 
-    return {}
+    return {"success": False, "error": "Could not parse recommendations output"}
 
 
 def run_linkedin_recommendations() -> Dict[str, Any]:
