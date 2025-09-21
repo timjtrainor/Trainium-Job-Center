@@ -182,7 +182,11 @@ class MCPServerAdapter:
                     redirect_url = redirect_location
 
                 parsed = urlparse(redirect_url)
-                session_id = parse_qs(parsed.query).get("sessionid", [None])[0]
+                query_params = parse_qs(parsed.query)
+                normalized_query = {
+                    key.lower(): value for key, value in query_params.items()
+                }
+                session_id = normalized_query.get("sessionid", [None])[0]
                 if not session_id:
                     raise ValueError(
                         f"Missing session identifier in SSE redirect for server '{server_name}'"

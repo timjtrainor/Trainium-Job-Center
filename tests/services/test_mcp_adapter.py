@@ -8,6 +8,7 @@ import sys
 
 import httpx
 from httpx import Request, Response
+import pytest
 
 
 PYTHON_SERVICE_PATH = Path(__file__).resolve().parents[2] / "python-service"
@@ -24,7 +25,11 @@ from python_service.app.services import mcp_adapter as mcp_module  # noqa: E402
 from python_service.app.services.mcp_adapter import MCPServerAdapter  # noqa: E402
 
 
-def test_sse_tool_listing_and_execution(monkeypatch):
+@pytest.mark.parametrize(
+    "redirect_suffix",
+    ["/sse?sessionid=abc123", "/sse?sessionId=abc123"],
+)
+def test_sse_tool_listing_and_execution(monkeypatch, redirect_suffix):
     """The adapter should establish an SSE session and execute DuckDuckGo tools."""
 
     events: Dict[str, Any] = {}
@@ -71,7 +76,7 @@ def test_sse_tool_listing_and_execution(monkeypatch):
 
     async def handler(request: Request) -> Response:
         if request.method == "POST" and request.url.path == "/servers/duckduckgo/connect":
-            return Response(307, headers={"location": "/sse?sessionid=abc123"})
+            return Response(307, headers={"location": redirect_suffix})
         if request.method == "POST" and request.url.path == "/servers/duckduckgo/disconnect":
             return Response(200, json={"status": "disconnected"})
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
@@ -87,7 +92,8 @@ def test_sse_tool_listing_and_execution(monkeypatch):
         connection = adapter._connected_servers["duckduckgo"]
         assert connection["session_id"] == "abc123"
         assert isinstance(connection.get("client"), FakeClientSession)
-        assert events["sse_url"] == "http://mock/sse?sessionid=abc123"
+        expected_sse_url = f"http://mock{redirect_suffix}"
+        assert events["sse_url"] == expected_sse_url
         assert events.get("listed_tools")
 
         result = await adapter.call_tool("duckduckgo_web_search", query="python", max_results=1)
