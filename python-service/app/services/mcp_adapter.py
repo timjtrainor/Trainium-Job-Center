@@ -162,6 +162,41 @@ class MCPServerAdapter:
     async def _connect_to_server(self, server_name: str, server_config: Dict[str, Any]) -> None:
         """Connect to a specific MCP server through the gateway."""
         try:
+            # For SSE transport in Docker MCP Gateway, try direct tool fetching first
+            if server_config.get("transport") == "sse":
+                logger.info(f"Connecting to SSE server: {server_name}")
+                
+                try:
+                    # Try to get tools directly from the gateway for this server
+                    tools_response = await self._session.get(
+                        f"{self.gateway_url}/servers/{server_name}/tools"
+                    )
+                    tools_response.raise_for_status()
+                    tools_data = tools_response.json()
+                    
+                    logger.info(f"Dynamically loaded {len(tools_data.get('tools', []))} tools for {server_name}")
+                    
+                    # Use a generic SSE session ID since individual IDs aren't required
+                    session_id = f"sse_session_{server_name}"
+                    
+                    # Register tools from this server
+                    tool_count = self._register_tools(server_name, tools_data.get("tools", []))
+                    
+                    # Store server connection info
+                    self._connected_servers[server_name] = {
+                        "config": server_config,
+                        "session_id": session_id,
+                        "transport": "sse"
+                    }
+
+                    logger.info(f"Connected to SSE server '{server_name}' with {tool_count} tools")
+                    return
+                    
+                except Exception as e:
+                    logger.warning(f"Direct tool fetching failed for {server_name}: {e}")
+                    # Fall back to the original connection method
+            
+            # Original connection logic for non-SSE or fallback
             if not self._session:
                 raise RuntimeError("HTTP session is not initialized")
 
@@ -187,9 +222,14 @@ class MCPServerAdapter:
                     key.lower(): value for key, value in query_params.items()
                 }
                 session_id = normalized_query.get("sessionid", [None])[0]
-                if not session_id:
+                
+                # For SSE transport, session ID might not be required
+                if not session_id and server_config.get("transport") == "sse":
+                    logger.info(f"No session ID found for SSE server {server_name}, using generic ID")
+                    session_id = f"sse_session_{server_name}"
+                elif not session_id:
                     raise ValueError(
-                        f"Missing session identifier in SSE redirect for server '{server_name}'"
+                        f"Missing session identifier in redirect for server '{server_name}'"
                     )
 
                 logger.info(f"Establishing SSE session for {server_name} at {redirect_url}")
