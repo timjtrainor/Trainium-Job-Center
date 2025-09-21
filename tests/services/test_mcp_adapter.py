@@ -3,7 +3,7 @@ import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import sys
 
 import httpx
@@ -26,17 +26,30 @@ from python_service.app.services.mcp_adapter import MCPServerAdapter  # noqa: E4
 
 
 @pytest.mark.parametrize(
-    "redirect_suffix",
-    ["/sse?sessionid=abc123", "/sse?sessionId=abc123"],
+    "redirect_suffix,set_cookie_header,expected_session_id,expected_cookie_header",
+    [
+        ("/sse?sessionid=abc123", None, "abc123", None),
+        ("/sse?sessionId=abc123", None, "abc123", None),
+        ("/sse", "sessionId=abc123; Path=/; HttpOnly", "abc123", "sessionId=abc123"),
+    ],
 )
-def test_sse_tool_listing_and_execution(monkeypatch, redirect_suffix):
+def test_sse_tool_listing_and_execution(
+    monkeypatch,
+    redirect_suffix,
+    set_cookie_header,
+    expected_session_id,
+    expected_cookie_header,
+):
     """The adapter should establish an SSE session and execute DuckDuckGo tools."""
 
     events: Dict[str, Any] = {}
 
     @asynccontextmanager
-    async def fake_sse_client(url: str, **_: Any):
+    async def fake_sse_client(
+        url: str, headers: Optional[Dict[str, Any]] = None, **_: Any
+    ):
         events["sse_url"] = url
+        events["sse_headers"] = headers
         try:
             yield ("read_stream", "write_stream")
         finally:
@@ -76,7 +89,10 @@ def test_sse_tool_listing_and_execution(monkeypatch, redirect_suffix):
 
     async def handler(request: Request) -> Response:
         if request.method == "POST" and request.url.path == "/servers/duckduckgo/connect":
-            return Response(307, headers={"location": redirect_suffix})
+            response_headers = {"location": redirect_suffix}
+            if set_cookie_header:
+                response_headers["set-cookie"] = set_cookie_header
+            return Response(307, headers=response_headers)
         if request.method == "POST" and request.url.path == "/servers/duckduckgo/disconnect":
             return Response(200, json={"status": "disconnected"})
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
@@ -90,10 +106,17 @@ def test_sse_tool_listing_and_execution(monkeypatch, redirect_suffix):
         tools = adapter.get_available_tools()
         assert "duckduckgo_web_search" in tools
         connection = adapter._connected_servers["duckduckgo"]
-        assert connection["session_id"] == "abc123"
+        assert connection["session_id"] == expected_session_id
+        assert connection.get("session_cookie") == expected_cookie_header
         assert isinstance(connection.get("client"), FakeClientSession)
         expected_sse_url = f"http://mock{redirect_suffix}"
         assert events["sse_url"] == expected_sse_url
+        sse_headers = events.get("sse_headers")
+        if expected_cookie_header:
+            assert sse_headers is not None
+            assert sse_headers.get("Cookie") == expected_cookie_header
+        else:
+            assert not sse_headers or "Cookie" not in sse_headers
         assert events.get("listed_tools")
 
         result = await adapter.call_tool("duckduckgo_web_search", query="python", max_results=1)
