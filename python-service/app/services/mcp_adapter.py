@@ -42,31 +42,39 @@ class MCPServerAdapter:
 
     def _load_configured_servers(self) -> Dict[str, Dict[str, Any]]:
         """Load MCP server definitions from configuration."""
-        config_path = Path(__file__).resolve().parents[3] / "mcp-config" / "servers.json"
+        module_path = Path(__file__).resolve()
+        python_service_root = module_path.parents[2]
 
-        try:
-            with config_path.open("r", encoding="utf-8") as config_file:
-                config_data = json.load(config_file)
+        candidate_paths = [python_service_root / "mcp-config" / "servers.json"]
 
-            servers = config_data.get("servers", {})
-            if isinstance(servers, dict):
-                return servers
+        container_config_path = Path("/app") / "mcp-config" / "servers.json"
+        if container_config_path not in candidate_paths:
+            candidate_paths.append(container_config_path)
 
-            logger.warning(
-                f"Invalid servers configuration structure in {config_path}: expected a mapping"
-            )
-        except FileNotFoundError:
-            logger.warning(
-                f"Servers configuration file not found at {config_path}."
-            )
-        except json.JSONDecodeError as exc:
-            logger.warning(
-                f"Failed to parse servers configuration at {config_path}: {exc}"
-            )
-        except Exception as exc:
-            logger.warning(
-                f"Unexpected error loading servers configuration from {config_path}: {exc}"
-            )
+        for config_path in candidate_paths:
+            try:
+                with config_path.open("r", encoding="utf-8") as config_file:
+                    config_data = json.load(config_file)
+
+                servers = config_data.get("servers", {})
+                if isinstance(servers, dict):
+                    return servers
+
+                logger.warning(
+                    f"Invalid servers configuration structure in {config_path}: expected a mapping"
+                )
+            except FileNotFoundError:
+                logger.warning(
+                    f"Servers configuration file not found at {config_path}."
+                )
+            except json.JSONDecodeError as exc:
+                logger.warning(
+                    f"Failed to parse servers configuration at {config_path}: {exc}"
+                )
+            except Exception as exc:
+                logger.warning(
+                    f"Unexpected error loading servers configuration from {config_path}: {exc}"
+                )
 
         return {}
         

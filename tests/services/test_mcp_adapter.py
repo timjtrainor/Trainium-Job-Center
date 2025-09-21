@@ -1,4 +1,5 @@
 import asyncio
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -19,6 +20,7 @@ if "python_service" not in sys.modules:
     sys.modules["python_service"] = python_service_pkg
 
 
+from python_service.app.services import mcp_adapter as mcp_module  # noqa: E402
 from python_service.app.services.mcp_adapter import MCPServerAdapter  # noqa: E402
 
 
@@ -100,3 +102,32 @@ def test_sse_tool_listing_and_execution(monkeypatch):
         assert events.get("sse_closed")
 
     asyncio.run(run_test())
+
+
+def test_load_configured_servers_with_container_path(monkeypatch):
+    repo_config_path = PYTHON_SERVICE_PATH / "mcp-config" / "servers.json"
+    assert repo_config_path.exists(), "Expected servers configuration file to exist in repo"
+
+    monkeypatch.setattr(
+        mcp_module,
+        "__file__",
+        "/app/app/services/mcp_adapter.py",
+        raising=False,
+    )
+
+    original_open = mcp_module.Path.open
+    container_config_path = mcp_module.Path("/app/mcp-config/servers.json")
+
+    def fake_open(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if self == container_config_path:
+            return original_open(repo_config_path, *args, **kwargs)
+        return original_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(mcp_module.Path, "open", fake_open)
+
+    adapter = MCPServerAdapter()
+    servers = adapter._load_configured_servers()
+
+    expected_servers = json.loads(repo_config_path.read_text(encoding="utf-8"))["servers"]
+
+    assert servers == expected_servers
