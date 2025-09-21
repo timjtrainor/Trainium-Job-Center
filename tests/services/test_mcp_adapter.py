@@ -133,6 +133,109 @@ def test_sse_tool_listing_and_execution(
     asyncio.run(run_test())
 
 
+def test_streamable_http_tool_listing_and_execution(monkeypatch):
+    """The adapter should establish a Streamable HTTP session and execute tools."""
+
+    events: Dict[str, Any] = {}
+
+    class FakeHTTPContext:
+        def __init__(self):  # type: ignore[no-untyped-def]
+            events["http_context_created"] = True
+
+        async def __aenter__(self):
+            events["http_entered"] = True
+
+            def get_session_id() -> str:
+                events["session_callback_used"] = True
+                return events.get("session_id", "abc123")
+
+            events["session_id"] = "abc123"
+            return ("read_stream", "write_stream", get_session_id)
+
+        async def __aexit__(self, exc_type, exc, tb):  # type: ignore[no-untyped-def]
+            events["http_exited"] = (exc_type, exc)
+            return False
+
+    class FakeClientSession:
+        def __init__(self, read_stream, write_stream):  # type: ignore[no-untyped-def]
+            events["client_streams"] = (read_stream, write_stream)
+
+        async def initialize(self):
+            events["initialized"] = True
+
+        async def list_tools(self):
+            events["listed_tools"] = True
+            tool = SimpleNamespace(
+                name="web_search",
+                description="DuckDuckGo search",
+                input_schema={"type": "object"},
+            )
+            return SimpleNamespace(tools=[tool])
+
+        async def call_tool(self, name: str, arguments: Dict[str, Any]):
+            events["call_tool"] = (name, arguments)
+            return SimpleNamespace(
+                isError=False,
+                content=[SimpleNamespace(text="search result")],
+            )
+
+    monkeypatch.setattr(
+        "python_service.app.services.mcp_adapter.streamablehttp_client",
+        lambda *args, **kwargs: FakeHTTPContext(),
+    )
+    monkeypatch.setattr(
+        "python_service.app.services.mcp_adapter.ClientSession",
+        FakeClientSession,
+    )
+
+    async def handler(request: Request) -> Response:
+        if request.method == "POST" and request.url.path == "/servers/duckduckgo/connect":
+            return Response(
+                200,
+                json={
+                    "endpoint": "/stream",
+                    "transport": "streamable-http",
+                    "session_id": "abc123",
+                },
+            )
+        if request.method == "POST" and request.url.path == "/servers/duckduckgo/disconnect":
+            return Response(200, json={"status": "disconnected"})
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    async def run_test() -> None:
+        adapter = MCPServerAdapter("http://mock")
+        adapter._session = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+        await adapter._connect_to_server("duckduckgo", {"transport": "streamable-http"})
+
+        connection = adapter._connected_servers["duckduckgo"]
+        assert connection["transport"] == "streamable-http"
+        assert connection.get("client") is not None
+        assert "http_context" in connection
+        assert events.get("http_context_created")
+
+        tools = adapter.get_available_tools()
+        assert "duckduckgo_web_search" in tools
+        assert events.get("http_entered")
+        assert events.get("listed_tools")
+        assert events.get("session_callback_used")
+
+        result = await adapter.call_tool(
+            "duckduckgo_web_search", query="python", max_results=1
+        )
+        assert result == "search result"
+
+        called_tool, call_arguments = events["call_tool"]
+        assert called_tool == "web_search"
+        assert call_arguments["kwargs"]["query"] == "python"
+        assert call_arguments["kwargs"]["max_results"] == 1
+
+        await adapter.disconnect()
+        assert events.get("http_exited")
+
+    asyncio.run(run_test())
+
+
 def test_load_configured_servers_with_container_path(monkeypatch):
     repo_config_path = PYTHON_SERVICE_PATH / "mcp-config" / "servers.json"
     assert repo_config_path.exists(), "Expected servers configuration file to exist in repo"

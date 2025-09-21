@@ -1,23 +1,20 @@
-"""
-MCP Server Adapter for integrating with Docker MCP Gateway.
+"""MCP Server Adapter for integrating with Docker MCP Gateway."""
 
-This module provides the MCPServerAdapter class that connects to the Docker MCP Gateway
-and retrieves tools from MCP servers for use with CrewAI agents.
-"""
 import asyncio
 import inspect
 import json
-from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Union
 from contextlib import asynccontextmanager, suppress
 from http.cookies import SimpleCookie
-from urllib.parse import parse_qs, urlparse, urljoin
-
-from loguru import logger
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Union
+from urllib.parse import parse_qs, urljoin, urlparse
 
 import httpx
+from loguru import logger
+
 from mcp import ClientSession
 from mcp.client.sse import sse_client
+from mcp.client.streamable_http import streamablehttp_client
 from mcp.types import Tool as MCPTool
 
 
@@ -40,6 +37,9 @@ class MCPServerAdapter:
         self._session: Optional[httpx.AsyncClient] = None
         self._connected_servers: Dict[str, Any] = {}
         self._available_tools: Dict[str, MCPTool] = {}
+        self._discovery_timeout: float = 30.0
+        self._http_connect_timeout: float = 30.0
+        self._http_stream_read_timeout: float = 300.0
 
     def _load_configured_servers(self) -> Dict[str, Dict[str, Any]]:
         """Load MCP server definitions from configuration."""
@@ -92,7 +92,8 @@ class MCPServerAdapter:
         """Connect to the MCP Gateway and initialize servers."""
         try:
             # Don't follow redirects automatically to handle SSE properly
-            self._session = httpx.AsyncClient(timeout=30.0, follow_redirects=False)
+            timeout = httpx.Timeout(self._http_connect_timeout)
+            self._session = httpx.AsyncClient(timeout=timeout, follow_redirects=False)
             
             # Check gateway health
             response = await self._session.get(f"{self.gateway_url}/health")
@@ -131,8 +132,15 @@ class MCPServerAdapter:
                 servers_response.raise_for_status()
                 servers_data = servers_response.json()
             
-            logger.info(f"MCP Gateway connected. Available servers: {list(servers_data.keys())}")
-            
+            server_names = list(servers_data.keys())
+            if not server_names:
+                logger.warning("MCP Gateway returned no configured servers")
+                return
+
+            logger.info(
+                "MCP Gateway connected. Available servers: {}".format(server_names)
+            )
+
             # Connect to each server and retrieve tools
             for server_name, server_config in servers_data.items():
                 await self._connect_to_server(server_name, server_config)
@@ -166,6 +174,11 @@ class MCPServerAdapter:
             if not self._session:
                 raise RuntimeError("HTTP session is not initialized")
 
+            allow_rest_fallback = bool(
+                server_config.get("allow_rest_fallback")
+                or server_config.get("options", {}).get("allow_rest_fallback")
+            )
+
             connect_response = await self._session.post(
                 f"{self.gateway_url}/servers/{server_name}/connect",
                 follow_redirects=False,
@@ -173,57 +186,239 @@ class MCPServerAdapter:
             )
 
             if (
-                server_config.get("transport") == "sse"
+                str(server_config.get("transport", "")).lower() == "sse"
                 or connect_response.status_code == 307
             ):
                 await self._connect_to_server_via_sse(
-                    server_name, server_config, connect_response
+                    server_name,
+                    server_config,
+                    connect_response,
+                    allow_rest_fallback=allow_rest_fallback,
                 )
                 return
 
             connect_response.raise_for_status()
-            session_payload = connect_response.json()
-            session_id = session_payload.get("session_id") if isinstance(session_payload, dict) else None
 
-            if not session_id:
-                raise ValueError(
-                    f"Gateway did not return a session identifier for server '{server_name}'"
-                )
-
-            tools_data: Dict[str, Any] = {"tools": []}
+            payload: Dict[str, Any] = {}
             try:
-                tools_response = await self._session.get(
-                    f"{self.gateway_url}/servers/{server_name}/tools",
-                    timeout=10.0,
-                )
-                tools_response.raise_for_status()
-                tools_data = tools_response.json()
-                logger.info(
-                    f"Dynamically loaded {len(tools_data.get('tools', []))} tools for {server_name}"
-                )
-            except Exception as exc:
+                payload = connect_response.json()
+                if not isinstance(payload, dict):
+                    payload = {}
+            except ValueError as exc:
                 logger.warning(
-                    f"Could not dynamically load tools for {server_name}: {exc}"
+                    f"Gateway returned non-JSON response when connecting to '{server_name}': {exc}"
                 )
 
-            tool_count = self._register_tools(server_name, tools_data.get("tools", []))
-            self._connected_servers[server_name] = {
-                "config": server_config,
-                "session_id": session_id,
-            }
+            transport_hint = str(
+                payload.get("transport")
+                or server_config.get("transport")
+                or ""
+            ).lower()
 
-            logger.info(
-                f"Connected to MCP server '{server_name}' with {tool_count} tools"
+            endpoint_hint = (
+                payload.get("endpoint")
+                or payload.get("url")
+                or payload.get("connection_url")
+                or server_config.get("endpoint")
+            )
+
+            headers_hint = payload.get("headers")
+            if not isinstance(headers_hint, dict):
+                headers_hint = None
+
+            session_id = payload.get("session_id") if isinstance(payload, dict) else None
+
+            endpoint_url: Optional[str] = None
+            if isinstance(endpoint_hint, str) and endpoint_hint:
+                endpoint_url = (
+                    urljoin(f"{self.gateway_url}/", endpoint_hint.lstrip("/"))
+                    if endpoint_hint.startswith("/")
+                    else endpoint_hint
+                )
+
+            if transport_hint in {"streamable-http", "http"} or endpoint_url:
+                await self._connect_to_server_via_streamable_http(
+                    server_name,
+                    server_config,
+                    endpoint_url,
+                    headers=headers_hint,
+                    initial_session_id=session_id,
+                    allow_rest_fallback=allow_rest_fallback,
+                )
+                return
+
+            if allow_rest_fallback and session_id:
+                logger.warning(
+                    (
+                        f"Server '{server_name}' did not expose a protocol endpoint; "
+                        "enabling REST fallback for execution"
+                    )
+                )
+                self._connected_servers[server_name] = {
+                    "config": server_config,
+                    "session_id": session_id,
+                    "transport": "rest",
+                    "rest_fallback": True,
+                }
+                logger.warning(
+                    f"No MCP tools registered for server '{server_name}' (REST fallback mode)"
+                )
+                return
+
+            raise ValueError(
+                f"Unable to determine transport endpoint for server '{server_name}'"
             )
 
         except Exception as e:
             logger.error(f"Failed to connect to MCP server '{server_name}': {e}")
+
+    async def _initialize_and_register_tools(
+        self, server_name: str, client_handle: ClientSession
+    ) -> int:
+        """Initialize a client session and register discovered tools."""
+
+        try:
+            await asyncio.wait_for(
+                client_handle.initialize(), timeout=self._discovery_timeout
+            )
+        except asyncio.TimeoutError as exc:
+            raise TimeoutError(
+                f"Timed out initializing server '{server_name}' after {self._discovery_timeout} seconds"
+            ) from exc
+        except Exception as exc:
+            raise RuntimeError(
+                f"Failed to initialize MCP server '{server_name}': {exc}"
+            ) from exc
+
+        try:
+            tools_result = await asyncio.wait_for(
+                client_handle.list_tools(), timeout=self._discovery_timeout
+            )
+        except asyncio.TimeoutError as exc:
+            raise TimeoutError(
+                f"Timed out listing tools for server '{server_name}' after {self._discovery_timeout} seconds"
+            ) from exc
+        except Exception as exc:
+            raise RuntimeError(
+                f"Failed to list tools for server '{server_name}': {exc}"
+            ) from exc
+
+        raw_tools = getattr(tools_result, "tools", None) or []
+        tool_count = self._register_tools(server_name, raw_tools)
+
+        if tool_count:
+            logger.info(
+                f"Discovered {tool_count} tools for server '{server_name}' via MCP protocol"
+            )
+        else:
+            logger.warning(
+                f"No tools reported by server '{server_name}' during MCP discovery"
+            )
+
+        return tool_count
+
+    async def _connect_to_server_via_streamable_http(
+        self,
+        server_name: str,
+        server_config: Dict[str, Any],
+        endpoint_url: Optional[str],
+        *,
+        headers: Optional[Dict[str, str]] = None,
+        initial_session_id: Optional[str] = None,
+        allow_rest_fallback: bool = False,
+    ) -> None:
+        """Establish a Streamable HTTP connection and discover tools via MCP."""
+
+        if not endpoint_url:
+            if allow_rest_fallback and initial_session_id:
+                logger.warning(
+                    f"Server '{server_name}' did not provide a Streamable HTTP endpoint; falling back to REST execution"
+                )
+                self._connected_servers[server_name] = {
+                    "config": server_config,
+                    "session_id": initial_session_id,
+                    "transport": "rest",
+                    "rest_fallback": True,
+                }
+                logger.warning(
+                    f"No MCP tools registered for server '{server_name}' (REST fallback mode)"
+                )
+                return
+
+            raise ValueError(
+                f"Server '{server_name}' did not provide a Streamable HTTP endpoint"
+            )
+
+        http_context = streamablehttp_client(
+            endpoint_url,
+            headers=headers,
+            timeout=self._http_connect_timeout,
+            sse_read_timeout=self._http_stream_read_timeout,
+        )
+
+        client_handle: Optional[ClientSession] = None
+        session_identifier = initial_session_id
+
+        try:
+            read_stream, write_stream, get_session_id = await http_context.__aenter__()
+            client_handle = ClientSession(read_stream, write_stream)
+            await self._initialize_and_register_tools(server_name, client_handle)
+
+            try:
+                resolved_session = get_session_id()
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.debug(
+                    f"Failed to retrieve session identifier for '{server_name}' via HTTP transport: {exc}"
+                )
+            else:
+                if resolved_session:
+                    session_identifier = resolved_session
+
+            if hasattr(client_handle, "list_resources"):
+                try:
+                    resources_result = await client_handle.list_resources()
+                except Exception as resources_exc:  # pragma: no cover - optional capability
+                    logger.debug(
+                        f"Resource discovery not available for {server_name}: {resources_exc}"
+                    )
+                else:
+                    resources = getattr(resources_result, "resources", None) or []
+                    if resources:
+                        logger.info(
+                            f"Discovered {len(resources)} resources for {server_name}"
+                        )
+
+        except Exception as exc:
+            with suppress(Exception):
+                await http_context.__aexit__(type(exc), exc, exc.__traceback__)
+            raise
+
+        if not session_identifier:
+            session_identifier = f"http_session_{server_name}"
+            logger.debug(
+                f"No session identifier provided for '{server_name}'; generated '{session_identifier}'"
+            )
+
+        self._connected_servers[server_name] = {
+            "config": server_config,
+            "session_id": session_identifier,
+            "transport": "streamable-http",
+            "client": client_handle,
+            "http_context": http_context,
+            "rest_fallback": allow_rest_fallback,
+        }
+
+        logger.info(
+            f"Connected to MCP server '{server_name}' via Streamable HTTP transport"
+        )
 
     async def _connect_to_server_via_sse(
         self,
         server_name: str,
         server_config: Dict[str, Any],
         connect_response: httpx.Response,
+        *,
+        allow_rest_fallback: bool = False,
     ) -> None:
         """Establish an SSE connection and discover tools via MCP protocol."""
 
@@ -289,11 +484,9 @@ class MCPServerAdapter:
         try:
             read_stream, write_stream = await sse_context.__aenter__()
             client_handle = ClientSession(read_stream, write_stream)
-            await client_handle.initialize()
-
-            tools_result = await client_handle.list_tools()
-            raw_tools = getattr(tools_result, "tools", None) or []
-            tool_count = self._register_tools(server_name, raw_tools)
+            tool_count = await self._initialize_and_register_tools(
+                server_name, client_handle
+            )
 
             if hasattr(client_handle, "list_resources"):
                 try:
@@ -321,10 +514,11 @@ class MCPServerAdapter:
             "transport": "sse",
             "client": client_handle,
             "sse_context": sse_context,
+            "rest_fallback": allow_rest_fallback,
         }
 
         logger.info(
-            f"Connected to SSE server '{server_name}' with {tool_count} tools via protocol discovery"
+            f"Connected to MCP server '{server_name}' via SSE transport (session {session_id})"
         )
 
     def _register_tools(self, server_name: str, tools: Iterable[Any]) -> int:
@@ -402,6 +596,15 @@ class MCPServerAdapter:
                     except Exception as exc:
                         logger.warning(
                             f"Error closing SSE stream for server '{server_name}': {exc}"
+                        )
+
+                http_context = connection_info.get("http_context")
+                if http_context:
+                    try:
+                        await http_context.__aexit__(None, None, None)
+                    except Exception as exc:
+                        logger.warning(
+                            f"Error closing Streamable HTTP session for server '{server_name}': {exc}"
                         )
 
                 client_handle = connection_info.get("client")
@@ -577,6 +780,15 @@ class MCPServerAdapter:
                             return result_value
 
                     return str(call_result)
+
+                if not connection_info.get("rest_fallback"):
+                    return (
+                        f"Error: Protocol client unavailable for server '{server_name}'"
+                    )
+
+                logger.debug(
+                    f"Using REST fallback execution path for tool '{original_tool_name}' on server '{server_name}'"
+                )
 
                 session_id = connection_info.get("session_id")
                 if not session_id:
