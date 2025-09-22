@@ -3,6 +3,7 @@
 import asyncio
 import inspect
 import json
+import socket
 from contextlib import asynccontextmanager, suppress
 from http.cookies import SimpleCookie
 from pathlib import Path
@@ -121,7 +122,7 @@ class MCPServerAdapter:
             timeout = httpx.Timeout(self._http_connect_timeout)
             self._session = httpx.AsyncClient(timeout=timeout, follow_redirects=False)
             self._server_configs.clear()
-            
+
             # Check gateway health
             response = await self._session.get(f"{self.gateway_url}/health")
             response.raise_for_status()
@@ -171,14 +172,128 @@ class MCPServerAdapter:
             # Connect to each server and retrieve tools
             for server_name, server_config in servers_data.items():
                 await self._connect_to_server(server_name, server_config)
-                
+
         except Exception as e:
             logger.error(f"Failed to connect to MCP Gateway: {e}")
+            try:
+                diagnostics = await self._diagnose_gateway_connectivity()
+                logger.error("MCP Gateway diagnostics: {}", diagnostics)
+            except Exception as diag_exc:
+                logger.warning(
+                    f"Gateway diagnostics failed during connection error analysis: {diag_exc}"
+                )
             if self._session:
                 await self._session.aclose()
                 self._session = None
             raise
-            
+
+    async def _diagnose_gateway_connectivity(self) -> Dict[str, Any]:
+        """Diagnose gateway connectivity and return detailed status."""
+
+        diagnostics: Dict[str, Any] = {
+            "gateway_url": self.gateway_url,
+            "health_check": False,
+            "servers_endpoint": False,
+            "network_reachable": False,
+            "response_times": {},
+            "errors": [],
+            "available_servers": [],
+        }
+
+        parsed_url = urlparse(self.gateway_url)
+        host = parsed_url.hostname or parsed_url.path
+
+        if not host:
+            diagnostics["errors"].append(
+                "Invalid gateway URL: unable to determine host component"
+            )
+            return diagnostics
+
+        port = parsed_url.port or (443 if parsed_url.scheme == "https" else 80)
+
+        try:
+            with socket.create_connection((host, port), timeout=5):
+                diagnostics["network_reachable"] = True
+        except OSError as exc:
+            diagnostics["errors"].append(f"Cannot reach {host}:{port} - {exc}")
+            return diagnostics
+        except Exception as exc:
+            diagnostics["errors"].append(f"Network test failed: {exc}")
+            return diagnostics
+
+        session: Optional[httpx.AsyncClient] = self._session
+        created_session = False
+
+        try:
+            if session is None or getattr(session, "is_closed", False):
+                timeout = httpx.Timeout(self._http_connect_timeout)
+                session = httpx.AsyncClient(timeout=timeout, follow_redirects=False)
+                created_session = True
+
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.get_event_loop()
+
+            # Health endpoint diagnostics
+            try:
+                start_time = loop.time()
+                response = await session.get(
+                    f"{self.gateway_url}/health", timeout=10.0
+                )
+                diagnostics["response_times"]["health"] = loop.time() - start_time
+                diagnostics["health_check"] = response.status_code == 200
+
+                if response.status_code != 200:
+                    diagnostics["errors"].append(
+                        f"Health check failed: {response.status_code} - {response.text}"
+                    )
+            except Exception as exc:
+                diagnostics["errors"].append(f"Health check error: {exc}")
+
+            # Servers endpoint diagnostics
+            try:
+                start_time = loop.time()
+                response = await session.get(
+                    f"{self.gateway_url}/servers", timeout=10.0
+                )
+                diagnostics["response_times"]["servers"] = loop.time() - start_time
+
+                if response.status_code in {200, 307}:
+                    diagnostics["servers_endpoint"] = True
+                else:
+                    diagnostics["errors"].append(
+                        f"Servers endpoint failed: {response.status_code} - {response.text}"
+                    )
+
+                if response.status_code == 200:
+                    try:
+                        servers_data = response.json()
+                        if isinstance(servers_data, dict):
+                            diagnostics["available_servers"] = list(servers_data.keys())
+                        else:
+                            diagnostics["errors"].append(
+                                "Servers endpoint returned unexpected payload format"
+                            )
+                    except Exception as exc:
+                        diagnostics["errors"].append(
+                            f"Failed to parse servers response: {exc}"
+                        )
+                elif response.status_code == 307:
+                    diagnostics["sse_redirect"] = response.headers.get("location")
+            except Exception as exc:
+                diagnostics["errors"].append(f"Servers endpoint error: {exc}")
+        finally:
+            if created_session and session is not None:
+                await session.aclose()
+
+        return diagnostics
+
+    async def get_gateway_diagnostics(self) -> Dict[str, Any]:
+        """Public helper for gathering gateway diagnostic information."""
+
+        return await self._diagnose_gateway_connectivity()
+
     async def disconnect(self) -> None:
         """Disconnect from the MCP Gateway and clean up."""
         if self._session:

@@ -12,7 +12,7 @@ import os
 import asyncio
 from functools import lru_cache
 
-from ..mcp_adapter import get_mcp_adapter, create_sync_tool_wrapper
+from ..mcp_adapter import MCPServerAdapter, get_mcp_adapter, create_sync_tool_wrapper
 from ...core.config import get_settings
 from crewai.tools import BaseTool
 
@@ -225,34 +225,37 @@ def get_linkedin_tools() -> List[BaseTool]:
 async def test_linkedin_mcp_connection() -> Dict[str, Any]:
     """
     Test LinkedIn MCP connection and tool availability.
-    
+
     Returns:
-        Dictionary with connection status and available tools
+        Dictionary with connection status, available tools, and diagnostics
     """
     settings = get_settings()
     gateway_url = getattr(settings, 'mcp_gateway_url', 'http://localhost:8811')
-    
+    diagnostics: Dict[str, Any] = {}
+
     try:
         async with get_mcp_adapter(gateway_url) as adapter:
             available_tools = adapter.get_available_tools()
-            
+
             # Check for LinkedIn-specific tools
-            linkedin_tools = [tool for tool in available_tools.keys() 
-                            if 'linkedin' in tool.lower()]
-            
+            linkedin_tools = [
+                tool for tool in available_tools.keys()
+                if 'linkedin' in tool.lower()
+            ]
+
             # Validate that we have the expected LinkedIn tools
             expected_tools = [
                 "get_recommended_jobs",
-                "get_person_profile", 
+                "get_person_profile",
                 "get_company_profile",
                 "get_job_details",
                 "search_jobs",
                 "close_session"
             ]
-            
-            found_tools = []
-            missing_tools = []
-            
+
+            found_tools: List[str] = []
+            missing_tools: List[str] = []
+
             for expected_tool in expected_tools:
                 # Check if tool exists with linkedin prefix or directly
                 found = False
@@ -261,10 +264,21 @@ async def test_linkedin_mcp_connection() -> Dict[str, Any]:
                         found_tools.append(available_tool)
                         found = True
                         break
-                
+
                 if not found:
                     missing_tools.append(expected_tool)
-            
+
+            try:
+                diagnostics = await adapter.get_gateway_diagnostics()
+                if not diagnostics.get("available_servers"):
+                    diagnostics["available_servers"] = adapter.get_available_servers()
+            except Exception as diag_exc:
+                logger.warning(f"Gateway diagnostics unavailable: {diag_exc}")
+                diagnostics = {
+                    "gateway_url": gateway_url,
+                    "errors": [f"Diagnostics unavailable: {diag_exc}"]
+                }
+
             return {
                 "success": True,
                 "total_tools": len(available_tools),
@@ -272,16 +286,29 @@ async def test_linkedin_mcp_connection() -> Dict[str, Any]:
                 "expected_tools_found": found_tools,
                 "missing_tools": missing_tools,
                 "connection_status": "connected",
-                "gateway_url": gateway_url
+                "gateway_url": gateway_url,
+                "diagnostics": diagnostics
             }
-            
+
     except Exception as e:
         logger.error(f"LinkedIn MCP connection test failed: {e}")
+
+        if not diagnostics:
+            diagnostic_adapter = MCPServerAdapter(gateway_url)
+            try:
+                diagnostics = await diagnostic_adapter.get_gateway_diagnostics()
+            except Exception as diag_exc:
+                diagnostics = {
+                    "gateway_url": gateway_url,
+                    "errors": [f"Diagnostics failed: {diag_exc}"]
+                }
+
         return {
             "success": False,
             "error": str(e),
             "connection_status": "failed",
-            "gateway_url": gateway_url
+            "gateway_url": gateway_url,
+            "diagnostics": diagnostics
         }
 
 

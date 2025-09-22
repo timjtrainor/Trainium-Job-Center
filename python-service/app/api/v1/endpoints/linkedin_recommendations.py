@@ -97,7 +97,8 @@ async def health_check():
                 "linkedin_tools_found": connection_status.get("linkedin_tools", []),
                 "expected_tools_found": connection_status.get("expected_tools_found", []),
                 "missing_tools": connection_status.get("missing_tools", []),
-                "gateway_url": connection_status.get("gateway_url", "unknown")
+                "gateway_url": connection_status.get("gateway_url", "unknown"),
+                "diagnostics": connection_status.get("diagnostics", {})
             }
         }
         
