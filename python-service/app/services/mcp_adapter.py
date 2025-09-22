@@ -8,7 +8,7 @@ from collections import OrderedDict
 from contextlib import asynccontextmanager, suppress
 from http.cookies import SimpleCookie
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Union
 from urllib.parse import parse_qs, urljoin, urlparse
 
 import httpx
@@ -68,6 +68,7 @@ class MCPServerAdapter:
         self._http_connect_timeout: float = 30.0
         self._http_stream_read_timeout: float = 300.0
         self._server_configs: Dict[str, Dict[str, Any]] = {}
+        self._shared_sse_state: Optional[Dict[str, Any]] = None
 
     def _load_configured_servers(self) -> Dict[str, Dict[str, Any]]:
         """Load MCP server definitions from configuration."""
@@ -170,9 +171,12 @@ class MCPServerAdapter:
                 "MCP Gateway connected. Available servers: {}".format(server_names)
             )
 
-            # Connect to each server and retrieve tools
-            for server_name, server_config in servers_data.items():
-                await self._connect_to_server(server_name, server_config)
+            # Connect to servers using the appropriate transport strategy
+            if servers_response.status_code == 307:
+                await self._connect_via_shared_sse(servers_data)
+            else:
+                for server_name, server_config in servers_data.items():
+                    await self._connect_to_server(server_name, server_config)
 
         except Exception as e:
             logger.error(f"Failed to connect to MCP Gateway: {e}")
@@ -310,6 +314,7 @@ class MCPServerAdapter:
                 self._session = None
                 self._connected_servers.clear()
                 self._available_tools.clear()
+                self._shared_sse_state = None
                 
     async def _connect_to_server(self, server_name: str, server_config: Dict[str, Any]) -> None:
         """Connect to a specific MCP server through the gateway."""
@@ -487,6 +492,191 @@ class MCPServerAdapter:
             )
             logger.exception("Full traceback:")
             await self._load_default_tools(server_name)
+
+    async def _connect_via_shared_sse(
+        self, servers_data: Dict[str, Dict[str, Any]]
+    ) -> None:
+        """Attach multiple servers to a single SSE session and discover tools."""
+
+        if not self._session:
+            raise RuntimeError("HTTP session is not initialized")
+
+        server_names = list(servers_data.keys())
+        if not server_names:
+            logger.warning("No MCP servers provided for shared SSE session")
+            return
+
+        logger.info(
+            "Allocating shared SSE session for MCP servers: {}".format(server_names)
+        )
+
+        try:
+            session_response = await self._session.post(
+                f"{self.gateway_url}/sessions", timeout=10.0
+            )
+            session_response.raise_for_status()
+        except Exception as exc:
+            logger.error(f"Failed to allocate shared SSE session: {exc}")
+            raise
+
+        try:
+            payload = session_response.json()
+        except ValueError as exc:
+            raise ValueError(
+                "Gateway returned invalid JSON while allocating shared SSE session"
+            ) from exc
+
+        session_id = payload.get("sessionid") or payload.get("session_id")
+        if not session_id:
+            raise ValueError("Gateway response missing 'sessionid' for shared SSE session")
+
+        logger.info(
+            "Allocated shared session '{}' for servers: {}".format(
+                session_id, server_names
+            )
+        )
+
+        allow_rest_map: Dict[str, bool] = {}
+        attached_servers: List[str] = []
+
+        try:
+            for server_name, server_config in servers_data.items():
+                allow_rest = bool(
+                    server_config.get("allow_rest_fallback")
+                    or server_config.get("options", {}).get("allow_rest_fallback")
+                )
+                allow_rest_map[server_name] = allow_rest
+                self._server_configs[server_name] = {
+                    "config": dict(server_config),
+                    "allow_rest_fallback": allow_rest,
+                }
+
+                logger.info(
+                    f"Attaching server '{server_name}' to shared session {session_id}…"
+                )
+                response = await self._session.post(
+                    f"{self.gateway_url}/servers/{server_name}/connect",
+                    params={"sessionid": session_id},
+                    follow_redirects=False,
+                    timeout=10.0,
+                )
+                if response.status_code not in {200, 204}:
+                    response.raise_for_status()
+                attached_servers.append(server_name)
+        except Exception as exc:
+            logger.error(
+                f"Failed to attach server '{server_name}' to shared session {session_id}: {exc}"
+            )
+            for attached_server in attached_servers:
+                if not self._session:
+                    break
+                with suppress(Exception):
+                    await self._session.post(
+                        f"{self.gateway_url}/servers/{attached_server}/disconnect",
+                        json={"session_id": session_id},
+                    )
+            raise
+
+        endpoint_hint = next(
+            (
+                str(config.get("endpoint")).strip()
+                for config in servers_data.values()
+                if str(config.get("endpoint", "")).strip()
+            ),
+            "",
+        )
+
+        base_endpoint = (
+            endpoint_hint.split("?", 1)[0]
+            if endpoint_hint
+            else f"{self.gateway_url}/sse"
+        )
+        if base_endpoint.startswith("/"):
+            base_endpoint = urljoin(f"{self.gateway_url}/", base_endpoint.lstrip("/"))
+
+        sse_url = f"{base_endpoint}?sessionid={session_id}"
+        parsed_endpoint = urlparse(sse_url)
+        display_endpoint = parsed_endpoint.path or sse_url
+        if parsed_endpoint.query:
+            display_endpoint = f"{display_endpoint}?{parsed_endpoint.query}"
+
+        logger.info(
+            f"Establishing shared SSE stream for {server_names} at {display_endpoint}"
+        )
+
+        sse_context = sse_client(sse_url)
+        client_handle: Optional[ClientSession] = None
+        tool_counts: Dict[str, int] = {}
+
+        try:
+            async def _enter_sse():
+                return await sse_context.__aenter__()
+
+            read_stream, write_stream = await asyncio.wait_for(
+                _enter_sse(), timeout=30.0
+            )
+            client_handle = ClientSession(read_stream, write_stream)
+
+            for server_name in server_names:
+                tool_counts[server_name] = await asyncio.wait_for(
+                    self._initialize_and_register_tools(server_name, client_handle),
+                    timeout=60.0,
+                )
+
+        except asyncio.TimeoutError as exc:
+            logger.error(
+                f"Timeout establishing shared SSE connection or discovering tools: {exc}"
+            )
+            with suppress(Exception):
+                await sse_context.__aexit__(type(exc), exc, exc.__traceback__)
+            for attached_server in attached_servers:
+                if not self._session:
+                    break
+                with suppress(Exception):
+                    await self._session.post(
+                        f"{self.gateway_url}/servers/{attached_server}/disconnect",
+                        json={"session_id": session_id},
+                    )
+            raise TimeoutError("Shared SSE connection timeout") from exc
+
+        except Exception as exc:
+            logger.error(f"Failed to establish shared SSE stream: {exc}")
+            with suppress(Exception):
+                await sse_context.__aexit__(type(exc), exc, exc.__traceback__)
+            for attached_server in attached_servers:
+                if not self._session:
+                    break
+                with suppress(Exception):
+                    await self._session.post(
+                        f"{self.gateway_url}/servers/{attached_server}/disconnect",
+                        json={"session_id": session_id},
+                    )
+            raise
+
+        self._shared_sse_state = {
+            "session_id": session_id,
+            "sse_context": sse_context,
+            "client": client_handle,
+            "servers": set(server_names),
+        }
+
+        for server_name in server_names:
+            server_config = servers_data[server_name]
+            allow_rest = allow_rest_map.get(server_name, False)
+            self._connected_servers[server_name] = {
+                "config": dict(server_config),
+                "session_id": session_id,
+                "transport": "sse",
+                "client": client_handle,
+                "sse_context": sse_context,
+                "rest_fallback": allow_rest,
+                "shared_session": True,
+            }
+
+            tool_count = tool_counts.get(server_name, 0)
+            logger.info(
+                f"Connected to MCP server '{server_name}' via shared SSE session {session_id} ({tool_count} tools)"
+            )
 
     async def _load_default_tools(self, server_name: str) -> None:
         """Load statically defined fallback tools when dynamic discovery fails."""
@@ -1145,6 +1335,77 @@ class MCPServerAdapter:
             try:
                 connection_info = self._connected_servers[server_name]
                 session_id = connection_info.get("session_id")
+
+                if connection_info.get("shared_session"):
+                    shared_state = self._shared_sse_state or {}
+                    shared_servers: Set[str] = set(
+                        shared_state.get("servers") or []
+                    )
+                    if not shared_servers:
+                        shared_servers = {
+                            name
+                            for name, info in self._connected_servers.items()
+                            if info.get("session_id") == session_id
+                            and info.get("shared_session")
+                        }
+
+                    shared_servers.add(server_name)
+
+                    display_list = ", ".join(sorted(shared_servers))
+                    logger.info(
+                        f"Closing shared SSE session '{session_id}' for servers: [{display_list}]"
+                    )
+
+                    sse_context = (
+                        shared_state.get("sse_context")
+                        or connection_info.get("sse_context")
+                    )
+                    if sse_context:
+                        try:
+                            await sse_context.__aexit__(None, None, None)
+                        except Exception as exc:
+                            logger.warning(
+                                f"Error closing shared SSE stream for servers [{display_list}]: {exc}"
+                            )
+
+                    client_handle = (
+                        shared_state.get("client") or connection_info.get("client")
+                    )
+                    if client_handle and hasattr(client_handle, "close"):
+                        try:
+                            close_result = client_handle.close()
+                            if inspect.isawaitable(close_result):
+                                await close_result
+                        except Exception as exc:
+                            logger.warning(
+                                f"Error closing shared client session for servers [{display_list}]: {exc}"
+                            )
+
+                    if session_id and self._session:
+                        for target_server in shared_servers:
+                            with suppress(Exception):
+                                await self._session.post(
+                                    f"{self.gateway_url}/servers/{target_server}/disconnect",
+                                    json={"session_id": session_id},
+                                )
+
+                    for target_server in list(shared_servers):
+                        tools_to_remove = [
+                            tool_name
+                            for tool_name in list(self._available_tools.keys())
+                            if tool_name.startswith(f"{target_server}_")
+                        ]
+                        for tool_name in tools_to_remove:
+                            del self._available_tools[tool_name]
+
+                        self._connected_servers.pop(target_server, None)
+                        self._server_configs.pop(target_server, None)
+                        logger.info(
+                            f"Disconnected from MCP server '{target_server}' (shared session)"
+                        )
+
+                    self._shared_sse_state = None
+                    return
 
                 sse_context = connection_info.get("sse_context")
                 if sse_context:
