@@ -68,6 +68,13 @@ from .mcp_logging import (
     log_message_exchange,
     log_handshake_event
 )
+from .mcp_protocol import (
+    MCPProtocol
+)
+from .mcp_session import (
+    MCPSession,
+    create_mcp_session
+)
 from .mcp_tools import (
     MCPToolManager,
     ToolDiscoveryService
@@ -128,6 +135,11 @@ __all__ = [
     "log_transport_operation",
     "log_message_exchange",
     "log_handshake_event",
+    
+    # Protocol and session management
+    "MCPProtocol",
+    "MCPSession",
+    "create_mcp_session",
     
     # Tool management
     "MCPToolManager",
