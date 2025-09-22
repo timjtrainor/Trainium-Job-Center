@@ -39,8 +39,8 @@ except ImportError:
 
 
 @dataclass
-class AdapterConfig:
-    """Configuration for MCP Server Adapter using MCP Toolkit."""
+class MCPToolkitConfig:
+    """Configuration for MCP Toolkit adapter."""
     gateway_command: List[str] = None
     gateway_args: Optional[Dict[str, str]] = None
     connection_timeout: int = 30
@@ -56,7 +56,7 @@ class AdapterConfig:
             ]
 
 
-class MCPServerAdapter:
+class MCPToolkitAdapter:
     """
     MCP Toolkit-based adapter using ClientSession and stdio transport.
     
@@ -65,9 +65,9 @@ class MCPServerAdapter:
     CrewAI-compatible sync tool functions.
     """
     
-    def __init__(self, config: Optional[AdapterConfig] = None):
-        """Initialize the MCP Server Adapter."""
-        self.config = config or AdapterConfig()
+    def __init__(self, config: Optional[MCPToolkitConfig] = None):
+        """Initialize the MCP Toolkit adapter."""
+        self.config = config or MCPToolkitConfig()
         self.session: Optional[ClientSession] = None
         self._available_servers: List[str] = []
         self._available_tools: Dict[str, Dict[str, Any]] = {}
@@ -177,21 +177,12 @@ class MCPServerAdapter:
                 self.session = None
                 self._connected = False
                 
-    def list_servers(self) -> List[str]:
+    def get_available_servers(self) -> List[str]:
         """Get list of available MCP servers."""
         return self._available_servers.copy()
         
     def get_available_tools(self) -> Dict[str, Dict[str, Any]]:
         """Get all available tools from all servers."""
-        return self._available_tools.copy()
-        
-    def list_tools(self, server_name: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
-        """Get tools, optionally filtered by server."""
-        if server_name:
-            return {
-                name: config for name, config in self._available_tools.items()
-                if config.get("server") == server_name
-            }
         return self._available_tools.copy()
         
     def get_tools_for_server(self, server_name: str) -> Dict[str, Dict[str, Any]]:
@@ -201,59 +192,26 @@ class MCPServerAdapter:
             if config.get("server") == server_name
         }
         
-    async def execute_tool(self, server_name: str, tool_name: str, arguments: Dict[str, Any]) -> Any:
+    async def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
         """Execute a tool with the given arguments."""
         if not self._connected or not self.session:
             raise RuntimeError("Not connected to MCP Gateway")
             
-        # Handle both prefixed and non-prefixed tool names
-        full_tool_name = tool_name
-        if not tool_name.startswith(server_name):
-            full_tool_name = f"{server_name}_{tool_name}"
-            
-        if full_tool_name not in self._available_tools:
-            raise ValueError(f"Tool '{full_tool_name}' not found")
+        if tool_name not in self._available_tools:
+            raise ValueError(f"Tool '{tool_name}' not found")
             
         try:
-            logger.info(f"Executing tool: {full_tool_name} with args: {arguments}")
+            logger.info(f"Executing tool: {tool_name} with args: {arguments}")
             
             # Call the tool using the MCP session
-            result = await self.session.call_tool(full_tool_name, arguments)
+            result = await self.session.call_tool(tool_name, arguments)
             
-            logger.info(f"Tool execution completed: {full_tool_name}")
+            logger.info(f"Tool execution completed: {tool_name}")
             return result
             
         except Exception as e:
-            logger.error(f"Tool execution failed for {full_tool_name}: {e}")
+            logger.error(f"Tool execution failed for {tool_name}: {e}")
             raise
-            
-    def get_diagnostics(self) -> Dict[str, Any]:
-        """Get diagnostic information about the adapter state."""
-        return {
-            "connected": self._connected,
-            "available_servers": self._available_servers,
-            "available_tools": list(self._available_tools.keys()),
-            "tool_count": len(self._available_tools),
-            "server_count": len(self._available_servers),
-            "gateway_command": self.config.gateway_command,
-            "connection_method": "MCP Toolkit stdio transport"
-        }
-        
-    def _create_tool_executor(self, tool_name: str, tool_config: Dict[str, Any]) -> Callable:
-        """Create an async tool executor function for CrewAI integration."""
-        async def async_executor(**kwargs) -> Any:
-            """Async tool executor."""
-            try:
-                result = await self.execute_tool(
-                    tool_config["server"], 
-                    tool_name,
-                    kwargs
-                )
-                return result.get("result", "No result returned") if isinstance(result, dict) else result
-            except Exception as e:
-                logger.error(f"Tool execution failed for {tool_name}: {e}")
-                return f"Error: {str(e)}"
-        return async_executor
             
     def get_crewai_tools(self) -> List[Dict[str, Any]]:
         """
@@ -314,63 +272,23 @@ class MCPServerAdapter:
         return crewai_tools
 
 
-# Backward compatibility aliases (after class definitions)
-MCPToolkitAdapter = MCPServerAdapter  
-MCPToolkitConfig = AdapterConfig
-
 @asynccontextmanager  
-async def get_mcp_adapter(gateway_url: str = "http://localhost:8811", config: Optional[AdapterConfig] = None):
+async def get_mcp_toolkit_adapter(config: Optional[MCPToolkitConfig] = None):
     """
-    Context manager for creating and managing an MCP Server Adapter.
+    Context manager for creating and managing an MCP Toolkit Adapter.
     
     Args:
-        gateway_url: URL of the Docker MCP Gateway (ignored, kept for compatibility)
         config: MCP Toolkit configuration
         
     Yields:
-        Configured MCPServerAdapter instance
+        Configured MCPToolkitAdapter instance
     """
-    # Ignore gateway_url and use MCP Toolkit stdio approach
-    if config is None:
-        config = AdapterConfig()
-        
-    adapter = MCPServerAdapter(config)
+    adapter = MCPToolkitAdapter(config)
     try:
         await adapter.connect()
         yield adapter
     finally:
         await adapter.disconnect()
-
-
-def create_sync_tool_wrapper(async_tool_func):
-    """
-    Create a synchronous wrapper for async tool functions.
-    
-    This is needed because CrewAI agents expect synchronous tool functions.
-    """
-    def sync_wrapper(**kwargs):
-        loop = None
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If loop is running, we need to use asyncio.create_task
-                # But CrewAI expects sync functions, so we'll use run_in_executor
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, async_tool_func(**kwargs))
-                    return future.result()
-            else:
-                return loop.run_until_complete(async_tool_func(**kwargs))
-        except RuntimeError:
-            # No event loop exists, create a new one
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                return loop.run_until_complete(async_tool_func(**kwargs))
-            finally:
-                loop.close()
-                
-    return sync_wrapper
 
 
 # Demonstration function
