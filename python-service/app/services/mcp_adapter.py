@@ -329,6 +329,29 @@ class MCPServerAdapter:
 
             logger.info(f"Connecting to MCP server '{server_name}'...")
 
+            transport_hint = str(server_config.get("transport", "")).lower()
+            endpoint_hint = str(server_config.get("endpoint", ""))
+            prefer_manual_sse = False
+
+            if transport_hint == "sse":
+                prefer_manual_sse = True
+            elif endpoint_hint:
+                prefer_manual_sse = "sse" in endpoint_hint.lower()
+
+            if prefer_manual_sse:
+                logger.debug(
+                    "Preparing manual session handshake for server '{}' via SSE transport".format(
+                        server_name
+                    )
+                )
+                await self._connect_to_server_via_sse(
+                    server_name,
+                    server_config,
+                    connect_response=None,
+                    allow_rest_fallback=allow_rest_fallback,
+                )
+                return
+
             connect_response = await self._session.post(
                 f"{self.gateway_url}/servers/{server_name}/connect",
                 follow_redirects=False,
@@ -339,15 +362,18 @@ class MCPServerAdapter:
 
             # Handle SSE transport (307 redirect or 200 with endpoint)
             if (
-                str(server_config.get("transport", "")).lower() == "sse"
+                transport_hint == "sse"
                 or connect_response.status_code == 307
-                or (connect_response.status_code == 200 and self._response_contains_sse_endpoint(connect_response))
+                or (
+                    connect_response.status_code == 200
+                    and self._response_contains_sse_endpoint(connect_response)
+                )
             ):
                 logger.debug(f"Using SSE transport for server '{server_name}'")
                 await self._connect_to_server_via_sse(
                     server_name,
                     server_config,
-                    connect_response,
+                    connect_response=connect_response,
                     allow_rest_fallback=allow_rest_fallback,
                 )
                 return
@@ -662,7 +688,7 @@ class MCPServerAdapter:
         self,
         server_name: str,
         server_config: Dict[str, Any],
-        connect_response: httpx.Response,
+        connect_response: Optional[httpx.Response] = None,
         *,
         allow_rest_fallback: bool = False,
     ) -> None:
@@ -673,8 +699,8 @@ class MCPServerAdapter:
         session_cookie_header: Optional[str] = None
         cookie_session_id: Optional[str] = None
 
-        # Handle session cookies if present (may also contain the session id)
         cookie_values: "OrderedDict[str, str]" = OrderedDict()
+        session_id_logged = False
 
         def _normalize_session_key(name: Optional[str]) -> str:
             if not name:
@@ -684,60 +710,169 @@ class MCPServerAdapter:
         def _is_session_cookie(name: str) -> bool:
             return _normalize_session_key(name) == "sessionid"
 
-        # Gather cookies directly from Set-Cookie headers to preserve server ordering.
-        raw_set_cookie_headers: List[str] = []
-        headers_obj = getattr(connect_response, "headers", None)
-        if headers_obj is not None:
-            if hasattr(headers_obj, "get_list"):
-                raw_set_cookie_headers = list(headers_obj.get_list("set-cookie"))
-            else:
-                header_value = headers_obj.get("set-cookie")
-                if header_value:
-                    raw_set_cookie_headers = [header_value]
+        def _merge_cookies_from_response(response: Optional[httpx.Response]) -> None:
+            nonlocal cookie_session_id
+            if response is None:
+                return
 
-        for header_value in raw_set_cookie_headers:
-            cookie_jar = SimpleCookie()
-            try:
-                cookie_jar.load(header_value)
-            except Exception as exc:
-                logger.warning(
-                    f"Failed to parse session cookie for server '{server_name}': {exc}"
-                )
-                continue
+            raw_set_cookie_headers: List[str] = []
+            headers_obj = getattr(response, "headers", None)
+            if headers_obj is not None:
+                if hasattr(headers_obj, "get_list"):
+                    raw_set_cookie_headers = list(headers_obj.get_list("set-cookie"))
+                else:
+                    header_value = headers_obj.get("set-cookie")
+                    if header_value:
+                        raw_set_cookie_headers = [header_value]
 
-            for morsel in cookie_jar.values():
-                cookie_name = (morsel.key or "").strip()
-                cookie_value = morsel.value
-                if not cookie_name:
+            for header_value in raw_set_cookie_headers:
+                cookie_jar = SimpleCookie()
+                try:
+                    cookie_jar.load(header_value)
+                except Exception as exc:
+                    logger.warning(
+                        f"Failed to parse session cookie for server '{server_name}': {exc}"
+                    )
                     continue
 
-                cookie_values[cookie_name] = cookie_value
-                if _is_session_cookie(cookie_name) and cookie_value:
-                    cookie_session_id = cookie_value
-
-        # Merge cookies tracked by httpx on the response object to cover cases where
-        # middleware consolidates Set-Cookie headers.
-        try:
-            response_cookies = getattr(connect_response, "cookies", None)
-            cookie_jar_obj = (
-                getattr(response_cookies, "jar", None)
-                if response_cookies is not None
-                else None
-            )
-            if cookie_jar_obj:
-                for cookie in cookie_jar_obj:
-                    cookie_name = getattr(cookie, "name", "").strip()
-                    cookie_value = getattr(cookie, "value", "")
+                for morsel in cookie_jar.values():
+                    cookie_name = (morsel.key or "").strip()
+                    cookie_value = morsel.value
                     if not cookie_name:
                         continue
 
                     cookie_values[cookie_name] = cookie_value
                     if _is_session_cookie(cookie_name) and cookie_value:
                         cookie_session_id = cookie_value
-        except Exception as exc:
-            logger.debug(
-                f"Failed to inspect response cookie jar for server '{server_name}': {exc}"
+
+            try:
+                response_cookies = getattr(response, "cookies", None)
+                cookie_jar_obj = (
+                    getattr(response_cookies, "jar", None)
+                    if response_cookies is not None
+                    else None
+                )
+                if cookie_jar_obj:
+                    for cookie in cookie_jar_obj:
+                        cookie_name = getattr(cookie, "name", "").strip()
+                        cookie_value = getattr(cookie, "value", "")
+                        if not cookie_name:
+                            continue
+
+                        cookie_values[cookie_name] = cookie_value
+                        if _is_session_cookie(cookie_name) and cookie_value:
+                            cookie_session_id = cookie_value
+            except Exception as exc:
+                logger.debug(
+                    f"Failed to inspect response cookie jar for server '{server_name}': {exc}"
+                )
+
+        def _resolve_endpoint(endpoint: str) -> str:
+            if endpoint.startswith("/"):
+                return urljoin(f"{self.gateway_url}/", endpoint.lstrip("/"))
+            return endpoint
+
+        def _extract_session_id_from_url(url: Optional[str]) -> Optional[str]:
+            if not url:
+                return None
+            parsed = urlparse(url)
+            query_params = parse_qs(parsed.query)
+            normalized_query = {
+                _normalize_session_key(key): value for key, value in query_params.items()
+            }
+            return normalized_query.get("sessionid", [None])[0]
+
+        manual_session_response: Optional[httpx.Response] = None
+
+        if connect_response is None:
+            if not self._session:
+                raise RuntimeError("HTTP session is not initialized")
+
+            logger.info(f"Creating new session for {server_name}…")
+            manual_session_response = await self._session.get(
+                f"{self.gateway_url}/sse", follow_redirects=False
             )
+            logger.debug(
+                f"SSE session allocation response for {server_name}: {manual_session_response.status_code}"
+            )
+            _merge_cookies_from_response(manual_session_response)
+
+            try:
+                if manual_session_response.status_code == 307:
+                    redirect_location = manual_session_response.headers.get("location")
+                    if not redirect_location:
+                        raise ValueError(
+                            f"Missing redirect location for SSE server '{server_name}'"
+                        )
+                    redirect_url = _resolve_endpoint(redirect_location)
+                elif manual_session_response.status_code == 200:
+                    payload = manual_session_response.json()
+                    endpoint = payload.get("endpoint")
+                    if not endpoint:
+                        raise ValueError(
+                            f"Missing endpoint in JSON response for server '{server_name}'"
+                        )
+                    redirect_url = _resolve_endpoint(str(endpoint))
+                else:
+                    manual_session_response.raise_for_status()
+                    raise ValueError(
+                        f"Unexpected response status {manual_session_response.status_code} when allocating session for '{server_name}'"
+                    )
+            except Exception as exc:
+                logger.error(
+                    f"Failed to allocate SSE session for server '{server_name}': {exc}"
+                )
+                if allow_rest_fallback:
+                    logger.warning(
+                        f"Falling back to REST for server '{server_name}' due to session allocation failure"
+                    )
+                    fallback_session_id = f"fallback_session_{server_name}"
+                    self._connected_servers[server_name] = {
+                        "config": server_config,
+                        "session_id": fallback_session_id,
+                        "transport": "rest",
+                        "rest_fallback": True,
+                    }
+                    return
+                raise
+
+            session_id = _extract_session_id_from_url(redirect_url) or cookie_session_id
+            if not session_id:
+                cookie_names = ", ".join(cookie_values.keys()) if cookie_values else "none"
+                message = (
+                    f"Missing sessionid when allocating SSE session for server '{server_name}' (cookies: {cookie_names})"
+                )
+                logger.error(message)
+                if allow_rest_fallback:
+                    logger.warning(
+                        f"Falling back to REST for server '{server_name}' due to missing sessionid"
+                    )
+                    fallback_session_id = f"fallback_session_{server_name}"
+                    self._connected_servers[server_name] = {
+                        "config": server_config,
+                        "session_id": fallback_session_id,
+                        "transport": "rest",
+                        "rest_fallback": True,
+                    }
+                    return
+                raise ValueError(message)
+
+            logger.info(f"Allocated sessionid={session_id}")
+            session_id_logged = True
+
+            logger.info(f"Attaching server {server_name} to session {session_id}…")
+            connect_response = await self._session.post(
+                f"{self.gateway_url}/servers/{server_name}/connect",
+                params={"sessionid": session_id},
+                follow_redirects=False,
+                timeout=10.0,
+            )
+            logger.debug(
+                f"Connect response for {server_name}: {connect_response.status_code}"
+            )
+            _merge_cookies_from_response(connect_response)
+        else:
+            _merge_cookies_from_response(connect_response)
 
         if cookie_values:
             session_cookie_header = "; ".join(
@@ -747,201 +882,169 @@ class MCPServerAdapter:
                 f"Using session cookies for {server_name}: {session_cookie_header}"
             )
 
-        # Handle 307 Temporary Redirect
-        if connect_response.status_code == 307:
-            if "location" not in connect_response.headers:
-                raise ValueError(
-                    f"Missing redirect location for SSE server '{server_name}'"
-                )
-
-            redirect_location = connect_response.headers["location"]
-            redirect_url = urljoin(f"{self.gateway_url}/", redirect_location)
-            
-            logger.info(f"Received 307 redirect for {server_name} to: {redirect_url}")
-
-            # Extract sessionid from redirect URL
-            parsed = urlparse(redirect_url)
-            query_params = parse_qs(parsed.query)
-            normalized_query = {
-                _normalize_session_key(key): value for key, value in query_params.items()
-            }
-            session_id_from_query = normalized_query.get("sessionid", [None])[0]
-            if (
-                session_id_from_query
-                and cookie_session_id
-                and session_id_from_query != cookie_session_id
-            ):
-                logger.warning(
-                    "Session ID mismatch between redirect query and cookies for "
-                    f"server '{server_name}'. Preferring the redirect query value."
-                )
-
-            session_id_candidate = session_id_from_query or cookie_session_id
-
-            if session_id_from_query:
-                logger.debug(
-                    f"Using sessionid from redirect query for server '{server_name}'"
-                )
-            elif cookie_session_id:
-                logger.debug(
-                    f"Using sessionid from session cookies for server '{server_name}'"
-                )
-
-            if session_id_candidate:
-                session_id = session_id_candidate
-            else:
-                cookie_names = ", ".join(cookie_values.keys()) if cookie_values else "none"
-                logger.error(
-                    f"Missing sessionid for server '{server_name}' after redirect; cookie names: {cookie_names}"
-                )
-                if allow_rest_fallback:
-                    logger.warning(
-                        f"Falling back to REST for server '{server_name}' due to missing sessionid"
-                    )
-                    session_id = f"fallback_session_{server_name}"
-                    self._connected_servers[server_name] = {
-                        "config": server_config,
-                        "session_id": session_id,
-                        "transport": "rest",
-                        "rest_fallback": True,
-                    }
-                    return
-                raise ValueError(
-                    f"Missing sessionid in redirect for server '{server_name}'"
-                )
-
-        # Handle 200 OK with JSON endpoint
-        elif connect_response.status_code == 200:
-            try:
-                payload = connect_response.json()
-                endpoint = payload.get("endpoint")
-                
-                if not endpoint:
-                    raise ValueError(f"Missing endpoint in JSON response for server '{server_name}'")
-                
-                redirect_url = urljoin(f"{self.gateway_url}/", endpoint.lstrip("/")) if endpoint.startswith("/") else endpoint
-                logger.info(f"Received JSON endpoint for {server_name}: {redirect_url}")
-
-                # Extract sessionid from endpoint URL
-                parsed = urlparse(redirect_url)
-                query_params = parse_qs(parsed.query)
-                normalized_query = {
-                    _normalize_session_key(key): value
-                    for key, value in query_params.items()
-                }
-                session_id_from_query = normalized_query.get("sessionid", [None])[0]
-                if (
-                    session_id_from_query
-                    and cookie_session_id
-                    and session_id_from_query != cookie_session_id
-                ):
-                    logger.warning(
-                        "Session ID mismatch between endpoint query and cookies for "
-                        f"server '{server_name}'. Preferring the endpoint value."
-                    )
-
-                session_id_candidate = session_id_from_query or cookie_session_id
-
-                if session_id_from_query:
-                    logger.debug(
-                        f"Using sessionid from endpoint query for server '{server_name}'"
-                    )
-                elif cookie_session_id:
-                    logger.debug(
-                        f"Using sessionid from session cookies for server '{server_name}'"
-                    )
-
-                if session_id_candidate:
-                    session_id = session_id_candidate
-                else:
-                    cookie_names = ", ".join(cookie_values.keys()) if cookie_values else "none"
-                    logger.error(
-                        f"Missing sessionid for server '{server_name}' after JSON endpoint; cookie names: {cookie_names}"
-                    )
-                    if allow_rest_fallback:
-                        logger.warning(
-                            f"Falling back to REST for server '{server_name}' due to missing sessionid"
+        if connect_response is not None:
+            if redirect_url is None or session_id is None:
+                if connect_response.status_code == 307:
+                    if "location" not in connect_response.headers:
+                        raise ValueError(
+                            f"Missing redirect location for SSE server '{server_name}'"
                         )
-                        session_id = f"fallback_session_{server_name}"
-                        self._connected_servers[server_name] = {
-                            "config": server_config,
-                            "session_id": session_id,
-                            "transport": "rest",
-                            "rest_fallback": True,
-                        }
-                        return
-                    raise ValueError(
-                        f"Missing sessionid in endpoint for server '{server_name}'"
-                    )
+                    redirect_url = _resolve_endpoint(connect_response.headers["location"])
+                    session_id_from_query = _extract_session_id_from_url(redirect_url)
+                    if (
+                        session_id_from_query
+                        and cookie_session_id
+                        and session_id_from_query != cookie_session_id
+                    ):
+                        logger.warning(
+                            "Session ID mismatch between redirect query and cookies for "
+                            f"server '{server_name}'. Preferring the redirect query value."
+                        )
+                    if session_id_from_query:
+                        session_id = session_id_from_query
+                elif connect_response.status_code == 200 and self._response_contains_sse_endpoint(connect_response):
+                    try:
+                        payload = connect_response.json()
+                    except (ValueError, KeyError) as exc:
+                        logger.error(
+                            f"Failed to parse JSON response for server '{server_name}': {exc}"
+                        )
+                        raise ValueError(
+                            f"Invalid JSON response from gateway for server '{server_name}': {exc}"
+                        )
+                    endpoint = payload.get("endpoint")
+                    if not endpoint:
+                        raise ValueError(
+                            f"Missing endpoint in JSON response for server '{server_name}'"
+                        )
+                    redirect_url = _resolve_endpoint(str(endpoint))
+                    session_id_from_query = _extract_session_id_from_url(redirect_url)
+                    if (
+                        session_id_from_query
+                        and cookie_session_id
+                        and session_id_from_query != cookie_session_id
+                    ):
+                        logger.warning(
+                            "Session ID mismatch between endpoint query and cookies for "
+                            f"server '{server_name}'. Preferring the endpoint value."
+                        )
+                    if session_id_from_query:
+                        session_id = session_id_from_query
+                else:
+                    connect_response.raise_for_status()
+            else:
+                connect_response.raise_for_status()
 
-            except (ValueError, KeyError) as e:
-                logger.error(f"Failed to parse JSON response for server '{server_name}': {e}")
-                raise ValueError(f"Invalid JSON response from gateway for server '{server_name}': {e}")
+        if session_id is None and cookie_session_id:
+            logger.debug(
+                f"Using sessionid from session cookies for server '{server_name}'"
+            )
+            session_id = cookie_session_id
 
-        else:
-            connect_response.raise_for_status()
-            raise ValueError(f"Unexpected response status {connect_response.status_code} for SSE server '{server_name}'")
+        if session_id is None:
+            cookie_names = ", ".join(cookie_values.keys()) if cookie_values else "none"
+            message = (
+                f"Missing sessionid for server '{server_name}'; cookie names: {cookie_names}"
+            )
+            logger.error(message)
+            if allow_rest_fallback:
+                logger.warning(
+                    f"Falling back to REST for server '{server_name}' due to missing sessionid"
+                )
+                self._connected_servers[server_name] = {
+                    "config": server_config,
+                    "session_id": f"fallback_session_{server_name}",
+                    "transport": "rest",
+                    "rest_fallback": True,
+                }
+                return
+            raise ValueError(message)
 
-        # Ensure we have valid session ID and redirect URL
-        if session_id is None or not redirect_url:
-            raise ValueError(f"Missing session ID or redirect URL for server '{server_name}'")
+        if not redirect_url:
+            message = f"Missing SSE endpoint for server '{server_name}'"
+            logger.error(message)
+            if allow_rest_fallback:
+                logger.warning(
+                    f"Falling back to REST for server '{server_name}' due to missing SSE endpoint"
+                )
+                self._connected_servers[server_name] = {
+                    "config": server_config,
+                    "session_id": session_id,
+                    "transport": "rest",
+                    "rest_fallback": True,
+                }
+                return
+            raise ValueError(message)
 
-        logger.info(f"Establishing SSE session for {server_name} at {redirect_url} with session ID: {session_id}")
+        if not session_id_logged:
+            logger.info(f"Allocated sessionid={session_id}")
+            session_id_logged = True
 
-        # Prepare SSE headers
+        parsed_endpoint = urlparse(redirect_url)
+        display_endpoint = parsed_endpoint.path or redirect_url
+        if parsed_endpoint.query:
+            display_endpoint = f"{display_endpoint}?{parsed_endpoint.query}"
+
+        logger.info(f"Establishing SSE stream at {display_endpoint}")
+        logger.debug(
+            f"Opening SSE connection for server '{server_name}' to {redirect_url}"
+        )
+
         sse_headers = {"Cookie": session_cookie_header} if session_cookie_header else None
 
-        # Create SSE connection with proper error handling and timeouts
         sse_context = sse_client(redirect_url, headers=sse_headers)
         client_handle: Optional[ClientSession] = None
         tool_count = 0
 
         try:
-            # Add timeout protection for SSE connection establishment
-            logger.debug(f"Opening SSE connection to {redirect_url}...")
-            
             async def _establish_sse_connection():
                 return await sse_context.__aenter__()
-            
-            # Use asyncio.wait_for to add timeout protection
+
             read_stream, write_stream = await asyncio.wait_for(
                 _establish_sse_connection(),
-                timeout=30.0  # 30 second timeout for SSE connection
-            )
-            
-            logger.debug(f"SSE connection established for {server_name}, initializing client session...")
-            
-            client_handle = ClientSession(read_stream, write_stream)
-            
-            # Add timeout protection for initialization and tool discovery
-            tool_count = await asyncio.wait_for(
-                self._initialize_and_register_tools(server_name, client_handle),
-                timeout=60.0  # 60 second timeout for tool discovery
+                timeout=30.0,
             )
 
-            # Optional: Try to discover resources if available
+            logger.debug(
+                f"SSE connection established for {server_name}, initializing client session..."
+            )
+
+            client_handle = ClientSession(read_stream, write_stream)
+
+            tool_count = await asyncio.wait_for(
+                self._initialize_and_register_tools(server_name, client_handle),
+                timeout=60.0,
+            )
+
             if hasattr(client_handle, "list_resources"):
                 try:
                     resources_result = await asyncio.wait_for(
                         client_handle.list_resources(),
-                        timeout=30.0
+                        timeout=30.0,
                     )
                     resources = getattr(resources_result, "resources", None) or []
                     if resources:
-                        logger.info(f"Discovered {len(resources)} resources for {server_name}")
+                        logger.info(
+                            f"Discovered {len(resources)} resources for {server_name}"
+                        )
                 except asyncio.TimeoutError:
                     logger.warning(f"Resource discovery timed out for {server_name}")
                 except Exception as resources_exc:
-                    logger.debug(f"Resource discovery not available for {server_name}: {resources_exc}")
+                    logger.debug(
+                        f"Resource discovery not available for {server_name}: {resources_exc}"
+                    )
 
         except asyncio.TimeoutError as exc:
-            logger.error(f"Timeout establishing SSE connection or discovering tools for server '{server_name}': {exc}")
-            # Clean up SSE context
+            logger.error(
+                f"Timeout establishing SSE connection or discovering tools for server '{server_name}': {exc}"
+            )
             with suppress(Exception):
                 await sse_context.__aexit__(type(exc), exc, exc.__traceback__)
-            
+
             if allow_rest_fallback:
-                logger.warning(f"Falling back to REST for server '{server_name}' due to SSE timeout")
+                logger.warning(
+                    f"Falling back to REST for server '{server_name}' due to SSE timeout"
+                )
                 self._connected_servers[server_name] = {
                     "config": server_config,
                     "session_id": session_id,
@@ -950,16 +1053,18 @@ class MCPServerAdapter:
                 }
                 return
             else:
-                raise TimeoutError(f"SSE connection timeout for server '{server_name}'") from exc
+                raise TimeoutError(
+                    f"SSE connection timeout for server '{server_name}'"
+                ) from exc
 
         except Exception as exc:
-            logger.error(f"Failed to establish SSE connection for server '{server_name}': {exc}")
-            # Clean up SSE context
+            logger.error(
+                f"Failed to establish SSE connection for server '{server_name}': {exc}"
+            )
             with suppress(Exception):
                 await sse_context.__aexit__(type(exc), exc, exc.__traceback__)
             raise
 
-        # Store successful connection
         self._connected_servers[server_name] = {
             "config": server_config,
             "session_id": session_id,
@@ -973,7 +1078,6 @@ class MCPServerAdapter:
         logger.info(
             f"Successfully connected to MCP server '{server_name}' via SSE transport (session {session_id}, {tool_count} tools)"
         )
-
     def _register_tools(self, server_name: str, tools: Iterable[Any]) -> int:
         """Normalize and register tools for a server."""
         count = 0
