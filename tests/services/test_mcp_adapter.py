@@ -26,7 +26,7 @@ from python_service.app.services.mcp_adapter import MCPServerAdapter  # noqa: E4
 
 
 @pytest.mark.parametrize(
-    "status_code,redirect_suffix,json_payload,set_cookie_header,expected_session_id,expected_cookie_header",
+    "status_code,redirect_suffix,json_payload,set_cookie_headers,expected_session_id,expected_cookie_header",
     [
         (307, "/sse?sessionid=abc123", None, None, "abc123", None),
         (307, "/sse?sessionId=abc123", None, None, "abc123", None),
@@ -34,15 +34,26 @@ from python_service.app.services.mcp_adapter import MCPServerAdapter  # noqa: E4
             307,
             "/sse",
             None,
-            "sessionId=abc123; Path=/; HttpOnly",
+            ["sessionId=abc123; Path=/; HttpOnly"],
             "abc123",
             "sessionId=abc123",
+        ),
+        (
+            307,
+            "/sse",
+            None,
+            [
+                "sessionId=abc123; Path=/; HttpOnly",
+                "sessionId.sig=xyz789; Path=/; HttpOnly",
+            ],
+            "abc123",
+            "sessionId=abc123; sessionId.sig=xyz789",
         ),
         (
             200,
             "/sse",
             {"endpoint": "/sse"},
-            "sessionId=abc123; Path=/; HttpOnly",
+            ["sessionId=abc123; Path=/; HttpOnly"],
             "abc123",
             "sessionId=abc123",
         ),
@@ -53,7 +64,7 @@ def test_sse_tool_listing_and_execution(
     status_code,
     redirect_suffix,
     json_payload,
-    set_cookie_header,
+    set_cookie_headers,
     expected_session_id,
     expected_cookie_header,
 ):
@@ -106,11 +117,13 @@ def test_sse_tool_listing_and_execution(
 
     async def handler(request: Request) -> Response:
         if request.method == "POST" and request.url.path == "/servers/duckduckgo/connect":
-            response_headers = {}
-            if set_cookie_header:
-                response_headers["set-cookie"] = set_cookie_header
+            response_headers = []
+            if set_cookie_headers:
+                response_headers.extend(
+                    ("set-cookie", header_value) for header_value in set_cookie_headers
+                )
             if status_code == 307:
-                response_headers["location"] = redirect_suffix
+                response_headers.append(("location", redirect_suffix))
                 return Response(status_code, headers=response_headers)
             if status_code == 200:
                 assert json_payload is not None, "JSON payload must be provided for 200 responses"
