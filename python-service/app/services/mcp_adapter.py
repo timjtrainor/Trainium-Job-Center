@@ -676,6 +676,10 @@ class MCPServerAdapter:
         # Handle session cookies if present (may also contain the session id)
         cookie_values: "OrderedDict[str, str]" = OrderedDict()
 
+        def _is_session_cookie(name: str) -> bool:
+            normalized = name.lower().replace("_", "").replace("-", "")
+            return normalized == "sessionid"
+
         # Gather cookies directly from Set-Cookie headers to preserve server ordering.
         raw_set_cookie_headers: List[str] = []
         headers_obj = getattr(connect_response, "headers", None)
@@ -704,7 +708,7 @@ class MCPServerAdapter:
                     continue
 
                 cookie_values[cookie_name] = cookie_value
-                if cookie_name.lower() == "sessionid" and cookie_value:
+                if _is_session_cookie(cookie_name) and cookie_value:
                     cookie_session_id = cookie_value
 
         # Merge cookies tracked by httpx on the response object to cover cases where
@@ -724,7 +728,7 @@ class MCPServerAdapter:
                         continue
 
                     cookie_values[cookie_name] = cookie_value
-                    if cookie_name.lower() == "sessionid" and cookie_value:
+                    if _is_session_cookie(cookie_name) and cookie_value:
                         cookie_session_id = cookie_value
         except Exception as exc:
             logger.debug(
