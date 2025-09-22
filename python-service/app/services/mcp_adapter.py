@@ -673,25 +673,32 @@ class MCPServerAdapter:
         cookie_session_id: Optional[str] = None
 
         # Handle session cookies if present (may also contain the session id)
-        set_cookie_header = connect_response.headers.get("set-cookie")
-        if set_cookie_header:
-            cookie_jar = SimpleCookie()
-            try:
-                cookie_jar.load(set_cookie_header)
+        set_cookie_headers = connect_response.headers.get_list("set-cookie")
+        if set_cookie_headers:
+            cookie_pairs: List[str] = []
+            for header_value in set_cookie_headers:
+                cookie_jar = SimpleCookie()
+                try:
+                    cookie_jar.load(header_value)
+                except Exception as exc:
+                    logger.warning(
+                        f"Failed to parse session cookie for server '{server_name}': {exc}"
+                    )
+                    continue
+
                 morsels = list(cookie_jar.values())
-                if morsels:
-                    session_cookie_header = "; ".join(
-                        f"{morsel.key}={morsel.value}" for morsel in morsels
-                    )
-                    for morsel in morsels:
-                        if morsel.key and morsel.key.lower() == "sessionid":
-                            cookie_session_id = morsel.value
-                    logger.debug(
-                        f"Using session cookie for {server_name}: {session_cookie_header}"
-                    )
-            except Exception as exc:
-                logger.warning(
-                    f"Failed to parse session cookie for server '{server_name}': {exc}"
+                if not morsels:
+                    continue
+
+                cookie_pairs.extend(f"{morsel.key}={morsel.value}" for morsel in morsels)
+                for morsel in morsels:
+                    if morsel.key and morsel.key.lower() == "sessionid":
+                        cookie_session_id = morsel.value
+
+            if cookie_pairs:
+                session_cookie_header = "; ".join(cookie_pairs)
+                logger.debug(
+                    f"Using session cookie for {server_name}: {session_cookie_header}"
                 )
 
         # Handle 307 Temporary Redirect
