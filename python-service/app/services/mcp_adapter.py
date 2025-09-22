@@ -18,6 +18,31 @@ from mcp.client.streamable_http import streamablehttp_client
 from mcp.types import Tool as MCPTool
 
 
+DEFAULT_FALLBACK_TOOLS: Dict[str, List[Dict[str, Any]]] = {
+    "duckduckgo": [
+        {
+            "name": "web_search",
+            "description": "Perform a DuckDuckGo web search when dynamic tool discovery fails.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query text to send to DuckDuckGo.",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return.",
+                        "default": 5,
+                    },
+                },
+                "required": ["query"],
+            },
+        }
+    ]
+}
+
+
 class MCPServerAdapter:
     """
     Adapter for connecting to Docker MCP Gateway and managing MCP servers.
@@ -40,6 +65,7 @@ class MCPServerAdapter:
         self._discovery_timeout: float = 30.0
         self._http_connect_timeout: float = 30.0
         self._http_stream_read_timeout: float = 300.0
+        self._server_configs: Dict[str, Dict[str, Any]] = {}
 
     def _load_configured_servers(self) -> Dict[str, Dict[str, Any]]:
         """Load MCP server definitions from configuration."""
@@ -94,6 +120,7 @@ class MCPServerAdapter:
             # Don't follow redirects automatically to handle SSE properly
             timeout = httpx.Timeout(self._http_connect_timeout)
             self._session = httpx.AsyncClient(timeout=timeout, follow_redirects=False)
+            self._server_configs.clear()
             
             # Check gateway health
             response = await self._session.get(f"{self.gateway_url}/health")
@@ -178,6 +205,11 @@ class MCPServerAdapter:
                 server_config.get("allow_rest_fallback")
                 or server_config.get("options", {}).get("allow_rest_fallback")
             )
+
+            self._server_configs[server_name] = {
+                "config": dict(server_config),
+                "allow_rest_fallback": allow_rest_fallback,
+            }
 
             logger.info(f"Connecting to MCP server '{server_name}'...")
 
@@ -276,16 +308,85 @@ class MCPServerAdapter:
                 f"Unable to determine transport endpoint for server '{server_name}'"
             )
 
+        except asyncio.TimeoutError as exc:
+            metadata = self._server_configs.setdefault(server_name, {})
+            metadata["error"] = f"Timeout loading tools for {server_name}: {exc}"
+            metadata["last_failure"] = "timeout"
+            logger.warning(f"Timeout loading tools for {server_name}, using defaults")
+            await self._load_default_tools(server_name)
+        except httpx.HTTPStatusError as e:
+            metadata = self._server_configs.setdefault(server_name, {})
+            metadata["error"] = (
+                f"HTTP error loading tools for {server_name}: {e.response.status_code} - {e.response.text}"
+            )
+            metadata["last_failure"] = "http_status"
+            logger.error(
+                f"HTTP error loading tools for {server_name}: {e.response.status_code} - {e.response.text}"
+            )
+            await self._load_default_tools(server_name)
+        except httpx.RequestError as e:
+            metadata = self._server_configs.setdefault(server_name, {})
+            metadata["error"] = (
+                f"Request error loading tools for {server_name}: {type(e).__name__} - {str(e)}"
+            )
+            metadata["last_failure"] = "request"
+            logger.error(
+                f"Request error loading tools for {server_name}: {type(e).__name__} - {str(e)}"
+            )
+            await self._load_default_tools(server_name)
         except Exception as e:
-            logger.error(f"Failed to connect to MCP server '{server_name}': {e}")
-            # Store failed connection info for debugging
-            self._connected_servers[server_name] = {
-                "config": server_config,
-                "session_id": f"failed_session_{server_name}",
-                "transport": "failed",
-                "error": str(e),
-                "rest_fallback": allow_rest_fallback,
-            }
+            metadata = self._server_configs.setdefault(server_name, {})
+            metadata["error"] = (
+                f"Unexpected error loading tools for {server_name}: {type(e).__name__} - {str(e)}"
+            )
+            metadata["last_failure"] = type(e).__name__
+            logger.error(
+                f"Unexpected error loading tools for {server_name}: {type(e).__name__} - {str(e)}"
+            )
+            logger.exception("Full traceback:")
+            await self._load_default_tools(server_name)
+
+    async def _load_default_tools(self, server_name: str) -> None:
+        """Load statically defined fallback tools when dynamic discovery fails."""
+
+        server_state = self._server_configs.get(server_name, {})
+        server_config = dict(server_state.get("config", {}))
+        allow_rest_fallback = bool(server_state.get("allow_rest_fallback"))
+        failure_message = server_state.get("error") or "Default tool fallback engaged"
+
+        # Remove any stale tool registrations for this server
+        tools_to_remove = [
+            tool_name
+            for tool_name in list(self._available_tools.keys())
+            if tool_name.startswith(f"{server_name}_")
+        ]
+        for tool_name in tools_to_remove:
+            del self._available_tools[tool_name]
+
+        # Mark connection as failed but keep metadata for debugging
+        self._connected_servers[server_name] = {
+            "config": server_config,
+            "session_id": f"failed_session_{server_name}",
+            "transport": "failed",
+            "error": failure_message,
+            "rest_fallback": allow_rest_fallback,
+        }
+
+        fallback_tools = DEFAULT_FALLBACK_TOOLS.get(server_name.lower())
+        if not fallback_tools:
+            logger.warning(
+                f"No default tool definitions available for server '{server_name}'."
+            )
+            return
+
+        for tool in fallback_tools:
+            normalized_tool = self._normalize_tool(tool)
+            normalized_tool["server"] = server_name
+            self._available_tools[f"{server_name}_{normalized_tool['name']}"] = normalized_tool
+
+        logger.info(
+            f"Loaded {len(fallback_tools)} default tools for server '{server_name}'"
+        )
 
     def _response_contains_sse_endpoint(self, response: httpx.Response) -> bool:
         """Check if a 200 response contains an SSE endpoint."""
@@ -746,10 +847,11 @@ class MCPServerAdapter:
                 ]
                 for tool_name in tools_to_remove:
                     del self._available_tools[tool_name]
-                    
+
                 del self._connected_servers[server_name]
+                self._server_configs.pop(server_name, None)
                 logger.info(f"Disconnected from MCP server '{server_name}'")
-                
+
             except Exception as e:
                 logger.warning(f"Error disconnecting from MCP server '{server_name}': {e}")
                 
