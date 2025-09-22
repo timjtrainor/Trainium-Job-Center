@@ -7,6 +7,11 @@ httpx==0.28.1
 python-json-logger==2.0.7
 python-dotenv==1.1.1
 
+# MCP (Model Context Protocol) dependencies
+# Note: structlog and aiohttp are optional but recommended for production
+# structlog>=24.1.0
+# aiohttp>=3.10.0
+
 # JobSpy for job scraping integration
 python-jobspy==1.1.82
 pandas==2.3.2
