@@ -1,15 +1,14 @@
 """
-Proper Docker MCP Gateway Connection Implementation.
+MCP Server Adapter for Docker MCP Gateway using stdio transport.
 
-This module provides the MCPServerAdapter class that implements robust connection
-to the Docker MCP Gateway following its design specifications for discovery,
-transport, security, and tool execution.
+This module provides the MCPServerAdapter class that connects to the Docker MCP Gateway
+which uses stdio transport internally to communicate with MCP servers. The adapter
+communicates with the gateway via HTTP REST API for better reliability.
 """
 import asyncio
 import json
 from typing import Dict, List, Any, Optional, Union
 from contextlib import asynccontextmanager
-from urllib.parse import parse_qs, urlparse
 from dataclasses import dataclass
 
 from loguru import logger
@@ -32,14 +31,18 @@ class AdapterConfig:
 
 class MCPServerAdapter:
     """
-    Robust adapter for connecting to Docker MCP Gateway.
+    Adapter for connecting to Docker MCP Gateway with stdio transport.
     
-    This adapter implements the Docker MCP Gateway connection specification with:
-    - Gateway discovery with 307 redirect handling
-    - Unified SSE transport for all servers
+    This adapter connects to the Docker MCP Gateway via HTTP REST API.
+    The gateway uses stdio transport internally to communicate with MCP servers,
+    providing better reliability than SSE transport.
+    
+    Features:
+    - HTTP REST API communication with gateway
+    - Automatic server discovery from gateway
+    - Comprehensive logging for debugging
     - Configurable timeouts and resilience
-    - Secure credentials handling
-    - Comprehensive error handling and diagnostics
+    - Tool discovery and execution through gateway
     """
     
     def __init__(self, config: Optional[AdapterConfig] = None):
@@ -51,11 +54,12 @@ class MCPServerAdapter:
         """
         self.config = config or AdapterConfig()
         self._session: Optional[httpx.AsyncClient] = None
-        self._sse_endpoint: Optional[str] = None
-        self._session_id: Optional[str] = None
         self._available_servers: Dict[str, Any] = {}
         self._available_tools: Dict[str, Dict[str, Any]] = {}
+        self._server_sessions: Dict[str, str] = {}  # server_name -> session_id
         self._connected = False
+        
+        logger.info(f"MCP Adapter initialized for gateway: {self.config.gateway_url}")
         
     async def __aenter__(self):
         """Async context manager entry."""
@@ -67,9 +71,9 @@ class MCPServerAdapter:
         await self.disconnect()
         
     async def connect(self) -> None:
-        """Connect to the MCP Gateway and initialize servers following the specification."""
+        """Connect to the MCP Gateway and discover available servers."""
         try:
-            # Step 1: Create HTTP client with proper configuration
+            # Create HTTP client for gateway communication
             self._session = httpx.AsyncClient(
                 timeout=httpx.Timeout(
                     connect=self.config.connection_timeout,
@@ -77,23 +81,25 @@ class MCPServerAdapter:
                     write=self.config.execution_timeout,
                     pool=self.config.connection_timeout
                 ),
-                follow_redirects=False,  # Handle redirects manually per spec
                 verify=self.config.verify_tls
             )
             
-            # Step 2: Health check
+            logger.info("Connecting to MCP Gateway...")
+            
+            # Check gateway health
             await self._check_gateway_health()
             
-            # Step 3: Gateway discovery - GET /servers without auto-redirect
-            await self._discover_gateway_endpoint()
+            # Discover available servers from gateway
+            await self._discover_servers()
             
-            # Step 4: Initialize transport and session
-            await self._initialize_transport()
+            # Connect to each server through the gateway
+            await self._connect_to_servers()
             
-            # Step 5: Discover all available tools through unified session
+            # Discover all available tools
             await self._discover_all_tools()
             
             self._connected = True
+            
             logger.info(
                 f"MCP Gateway connected successfully. "
                 f"Servers: {list(self._available_servers.keys())}, "
@@ -108,6 +114,7 @@ class MCPServerAdapter:
     async def _check_gateway_health(self) -> None:
         """Check gateway health before attempting connection."""
         try:
+            logger.info("Checking MCP Gateway health...")
             response = await self._session.get(f"{self.config.gateway_url}/health")
             response.raise_for_status()
             health_data = response.json()
@@ -115,145 +122,135 @@ class MCPServerAdapter:
         except Exception as e:
             raise ConnectionError(f"Gateway health check failed: {e}")
             
-    async def _discover_gateway_endpoint(self) -> None:
-        """
-        Discover gateway endpoint following the specification.
-        
-        Send GET {gateway_url}/servers without auto-redirect.
-        Handle 307 Temporary Redirect to extract SSE endpoint and session.
-        """
-        logger.info("Discovering gateway endpoint...")
-        
+    async def _discover_servers(self) -> None:
+        """Discover available servers from the gateway."""
         try:
+            logger.info("Discovering available servers from gateway...")
             response = await self._session.get(f"{self.config.gateway_url}/servers")
+            response.raise_for_status()
             
-            if response.status_code == 307:
-                # Extract Location header for SSE endpoint
-                location = response.headers.get("location")
-                if not location:
-                    raise ValueError("307 redirect missing Location header")
-                    
-                # Handle relative URLs
-                if location.startswith("/"):
-                    self._sse_endpoint = f"{self.config.gateway_url}{location}"
-                else:
-                    self._sse_endpoint = location
-                    
-                # Extract session ID from URL if present
-                parsed_url = urlparse(self._sse_endpoint)
-                query_params = parse_qs(parsed_url.query)
-                self._session_id = query_params.get("sessionid", [None])[0]
-                
-                logger.info(f"Gateway using SSE transport: {self._sse_endpoint}")
-                if self._session_id:
-                    logger.info(f"Session ID extracted: {self._session_id}")
-                    
-            elif response.status_code == 200:
-                # Parse JSON response for server list
-                servers_data = response.json()
-                self._available_servers = servers_data
-                logger.info(f"Gateway returned server list: {list(servers_data.keys())}")
-                
-            else:
-                response.raise_for_status()
-                
+            servers_data = response.json()
+            self._available_servers = servers_data
+            logger.info(f"Discovered {len(servers_data)} servers: {list(servers_data.keys())}")
+            
         except Exception as e:
-            raise ConnectionError(f"Gateway discovery failed: {e}")
-            
-    async def _initialize_transport(self) -> None:
-        """Initialize transport connection (SSE or direct)."""
-        if self._sse_endpoint:
-            logger.info("Initializing SSE transport...")
-            try:
-                # Establish SSE connection
-                sse_response = await self._session.get(
-                    self._sse_endpoint,
-                    headers={"Accept": "text/event-stream"},
-                    timeout=httpx.Timeout(
-                        connect=self.config.connection_timeout,
-                        read=self.config.discovery_timeout,
-                        write=self.config.execution_timeout,
-                        pool=self.config.connection_timeout
-                    )
-                )
-                sse_response.raise_for_status()
-                
-                logger.info("SSE transport initialized successfully")
-                
-                # For SSE transport, we need to get server list from gateway
-                await self._get_enabled_servers()
-                
-            except Exception as e:
-                raise ConnectionError(f"SSE transport initialization failed: {e}")
-        else:
-            logger.info("Using direct HTTP transport")
-            
-    async def _get_enabled_servers(self) -> None:
-        """Get list of enabled servers from gateway configuration."""
-        if not self._available_servers:
-            # Default servers for SSE transport - these should be configured in gateway
-            # This matches the docker-compose configuration
+            logger.error(f"Server discovery failed: {e}")
+            # Use default servers if discovery fails
             self._available_servers = {
-                "duckduckgo": {"transport": "sse", "endpoint": self._sse_endpoint},
-                "linkedin-mcp-server": {"transport": "sse", "endpoint": self._sse_endpoint}
+                "duckduckgo": {"description": "DuckDuckGo search server"},
+                "linkedin-mcp-server": {"description": "LinkedIn MCP server"}
             }
-            logger.info(f"Using default server configuration: {list(self._available_servers.keys())}")
+            logger.warning(f"Using default servers: {list(self._available_servers.keys())}")
             
-    async def _discover_all_tools(self) -> None:
-        """Discover all tools available via the gateway through unified session."""
-        logger.info("Discovering available tools...")
+    async def _connect_to_servers(self) -> None:
+        """Connect to each discovered server through the gateway."""
+        logger.info("Connecting to servers through gateway...")
         
         for server_name in self._available_servers.keys():
+            try:
+                logger.info(f"Connecting to server: {server_name}")
+                await self._connect_to_server(server_name)
+                logger.info(f"Successfully connected to {server_name}")
+                
+            except Exception as e:
+                logger.error(f"Failed to connect to {server_name}: {e}")
+                # Continue with other servers
+                continue
+                
+    async def _connect_to_server(self, server_name: str) -> None:
+        """Connect to a specific server through the gateway."""
+        try:
+            response = await self._session.post(
+                f"{self.config.gateway_url}/servers/{server_name}/connect"
+            )
+            response.raise_for_status()
+            
+            connection_data = response.json()
+            session_id = connection_data.get("session_id")
+            
+            if session_id:
+                self._server_sessions[server_name] = session_id
+                logger.info(f"Connected to {server_name} with session: {session_id}")
+            else:
+                logger.warning(f"No session ID returned for {server_name}")
+                
+        except Exception as e:
+            logger.error(f"Error connecting to server {server_name}: {e}")
+            raise
+            
+    async def _discover_all_tools(self) -> None:
+        """Discover all tools from connected servers."""
+        logger.info("Discovering tools from all connected servers...")
+        
+        for server_name in self._server_sessions.keys():
             try:
                 await self._discover_server_tools(server_name)
             except Exception as e:
                 logger.warning(f"Failed to discover tools for {server_name}: {e}")
-                # Continue with other servers - per spec, fallback gracefully
+                # Continue with other servers
+                continue
                 
     async def _discover_server_tools(self, server_name: str) -> None:
-        """Discover tools for a specific server."""
+        """Discover tools from a specific server."""
         try:
-            # Try to get tools from gateway endpoint
-            tools_response = await self._session.get(
-                f"{self.config.gateway_url}/servers/{server_name}/tools",
-                timeout=httpx.Timeout(
-                    connect=self.config.connection_timeout,
-                    read=self.config.discovery_timeout,
-                    write=self.config.execution_timeout,
-                    pool=self.config.connection_timeout
-                )
+            logger.info(f"Discovering tools for {server_name}")
+            
+            response = await self._session.get(
+                f"{self.config.gateway_url}/servers/{server_name}/tools"
             )
+            response.raise_for_status()
             
-            if tools_response.status_code == 404:
-                logger.info(f"Server {server_name} not connected or has no tools")
-                return
-                
-            tools_response.raise_for_status()
-            tools_data = tools_response.json()
+            tools_data = response.json()
+            tools = tools_data.get("tools", [])
             
-            # Register tools with server namespace
-            for tool_data in tools_data.get("tools", []):
+            logger.info(f"Found {len(tools)} tools for {server_name}")
+            
+            # Register each tool with server prefix
+            for tool_data in tools:
                 tool_name = f"{server_name}_{tool_data['name']}"
+                
                 self._available_tools[tool_name] = {
                     **tool_data,
                     "server": server_name,
                     "original_name": tool_data["name"]
                 }
                 
-            logger.info(f"Discovered {len(tools_data.get('tools', []))} tools for {server_name}")
-            
-        except httpx.TimeoutException:
-            logger.warning(f"Tool discovery timeout for {server_name}")
+                logger.info(f"Registered tool: {tool_name} - {tool_data.get('description', 'No description')}")
+                
         except Exception as e:
-            logger.warning(f"Tool discovery failed for {server_name}: {e}")
+            logger.error(f"Failed to discover tools for {server_name}: {e}")
             
     async def disconnect(self) -> None:
         """Disconnect from the MCP Gateway and clean up resources."""
         logger.info("Disconnecting from MCP Gateway...")
+        
+        # Disconnect from all servers
+        for server_name, session_id in self._server_sessions.items():
+            try:
+                await self._disconnect_from_server(server_name, session_id)
+            except Exception as e:
+                logger.warning(f"Error disconnecting from {server_name}: {e}")
+                
         await self._cleanup()
         self._connected = False
         logger.info("MCP Gateway disconnected successfully")
         
+    async def _disconnect_from_server(self, server_name: str, session_id: str) -> None:
+        """Disconnect from a specific server."""
+        try:
+            logger.info(f"Disconnecting from {server_name}")
+            
+            response = await self._session.post(
+                f"{self.config.gateway_url}/servers/{server_name}/disconnect",
+                json={"session_id": session_id}
+            )
+            response.raise_for_status()
+            
+            logger.info(f"Successfully disconnected from {server_name}")
+            
+        except Exception as e:
+            logger.warning(f"Error disconnecting from {server_name}: {e}")
+            
     async def _cleanup(self) -> None:
         """Clean up resources and connections."""
         if self._session:
@@ -265,19 +262,18 @@ class MCPServerAdapter:
                 self._session = None
                 
         # Reset state
-        self._sse_endpoint = None
-        self._session_id = None
         self._available_servers.clear()
         self._available_tools.clear()
+        self._server_sessions.clear()
         
     def list_servers(self) -> List[str]:
         """
         List available MCP servers.
         
         Returns:
-            List of server names
+            List of connected server names
         """
-        return list(self._available_servers.keys())
+        return list(self._server_sessions.keys())
         
     def list_tools(self, server_name: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
         """
@@ -307,7 +303,7 @@ class MCPServerAdapter:
         
     async def execute_tool(self, server_name: str, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Execute a tool on the specified server through shared transport.
+        Execute a tool on the specified server through the gateway.
         
         Args:
             server_name: Name of the server
@@ -320,33 +316,33 @@ class MCPServerAdapter:
         if not self._connected:
             raise RuntimeError("Adapter not connected to gateway")
             
-        if server_name not in self._available_servers:
-            raise ValueError(f"Server '{server_name}' not available")
+        if server_name not in self._server_sessions:
+            raise ValueError(f"Server '{server_name}' not connected")
             
         # Find the tool
         full_tool_name = f"{server_name}_{tool_name}"
         if full_tool_name not in self._available_tools:
             raise ValueError(f"Tool '{tool_name}' not found on server '{server_name}'")
             
+        session_id = self._server_sessions[server_name]
+        
         try:
-            # Execute through gateway API
+            logger.info(f"Executing tool {tool_name} on {server_name} with args: {arguments}")
+            
             response = await self._session.post(
                 f"{self.config.gateway_url}/servers/{server_name}/tools/{tool_name}/execute",
                 json={
-                    "session_id": self._session_id,
+                    "session_id": session_id,
                     "arguments": arguments,
                 },
-                timeout=httpx.Timeout(
-                    connect=self.config.connection_timeout,
-                    read=self.config.execution_timeout,
-                    write=self.config.execution_timeout,
-                    pool=self.config.connection_timeout
-                )
+                timeout=httpx.Timeout(read=self.config.execution_timeout)
             )
             response.raise_for_status()
             
             result = response.json()
-            logger.info(f"Tool '{tool_name}' executed successfully on server '{server_name}'")
+            logger.info(f"Tool {tool_name} executed successfully on {server_name}")
+            logger.debug(f"Tool result: {str(result.get('result', ''))[:200]}...")
+            
             return result
             
         except httpx.TimeoutException:
@@ -361,9 +357,9 @@ class MCPServerAdapter:
         return {
             "connected": self._connected,
             "gateway_url": self.config.gateway_url,
-            "sse_endpoint": self._sse_endpoint,
-            "session_id": self._session_id,
-            "servers": list(self._available_servers.keys()),
+            "discovered_servers": list(self._available_servers.keys()),
+            "connected_servers": list(self._server_sessions.keys()),
+            "server_sessions": dict(self._server_sessions),
             "tools_count": len(self._available_tools),
             "tools": list(self._available_tools.keys()),
             "config": {
@@ -371,8 +367,10 @@ class MCPServerAdapter:
                 "discovery_timeout": self.config.discovery_timeout,
                 "execution_timeout": self.config.execution_timeout,
                 "verify_tls": self.config.verify_tls,
+                "max_retries": self.config.max_retries,
             }
         }
+
     # Legacy compatibility methods for existing code
     def get_available_tools(self) -> Dict[str, Dict[str, Any]]:
         """

@@ -251,10 +251,11 @@ services:
     image: docker/mcp-gateway
     command:
       - --servers=duckduckgo,linkedin-mcp-server
-      - --transport=sse
+      - --transport=stdio
       - --port=8811
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./python-service/mcp-config:/config
     ports:
       - "${MCP_GATEWAY_PORT:-8811}:8811"
     restart: unless-stopped
