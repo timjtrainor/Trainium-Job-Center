@@ -49,7 +49,7 @@ execute_brand_searches_task:
   description: >
     Execute LinkedIn job searches using the brand-derived queries from generate_brand_queries_task.
     For each query in the brand_queries object, execute a LinkedIn search using the search_jobs
-    LinkedIn MCP tool with the generated keywords and job type filters.
+    tool with the generated keywords and job type filters.
     
     Maintain traceability between search results and the originating brand section.
     Handle LinkedIn API rate limits and errors gracefully. Consolidate all search

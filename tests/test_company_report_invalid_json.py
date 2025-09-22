@@ -9,11 +9,6 @@ def test_generate_company_report_invalid_json(monkeypatch):
         def kickoff(self, inputs):
             return "````json\n{ invalid: }\n```".replace("````", "```")
 
-    mock_mcp = MagicMock()
-    mock_mcp.types = MagicMock()
-    monkeypatch.setitem(sys.modules, "mcp", mock_mcp)
-    monkeypatch.setitem(sys.modules, "mcp.types", mock_mcp.types)
-
     monkeypatch.setattr(
         "app.services.company_service.get_research_company_crew", lambda: MockCrew()
     )

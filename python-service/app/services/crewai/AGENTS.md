@@ -27,7 +27,7 @@ The Python service includes four active CrewAI multi-agent services:
 ### 3. Research Company (`research_company`) 
 - **Purpose**: Comprehensive company research and analysis
 - **Location**: `app/services/crewai/research_company/`
-- **Agents**: Financial Analyst, Culture Investigator, Leadership Analyst, Career Growth Analyst, MCP Researcher, Report Writer
+- **Agents**: Financial Analyst, Culture Investigator, Leadership Analyst, Career Growth Analyst, Report Writer
 - **Usage**: Gathers and analyzes company information for job applications
 
 ### 4. LinkedIn Job Search (`linkedin_job_search`)
@@ -104,9 +104,6 @@ agent_name:
   max_iter: 1                                # Maximum iterations
   verbose: true                              # Enable verbose logging
   allow_delegation: false                    # Allow task delegation to other agents
-  mcp_tools:                                 # MCP tool names
-    - duckduckgo
-    - web_search
   constraints:                               # Optional behavioral constraints
     - "Write in a clear, candidate-friendly tone"
     - "Do not add unsupported claims"
@@ -129,7 +126,7 @@ shared_agent_name:
    - `0.1-0.3` for analytical/factual tasks
    - `0.4-0.6` for creative/synthesis tasks
    - `0.7+` for highly creative tasks
-5. **Tools**: Use MCP tools for external integrations, shared tools for internal operations
+5. **Tools**: Use external tools for integrations, shared tools for internal operations
 
 ### Shared Agent Pattern
 
@@ -197,7 +194,7 @@ task_name:
 # Sequential execution (each task depends on previous)
 web_research_task:
   description: "Gather initial company information..."
-  agent: mcp_researcher
+  agent: report_writer
 
 analysis_task:
   description: "Analyze the research data..."
@@ -502,10 +499,6 @@ def get_{crew_name}_crew() -> Crew:
 # CrewAI Configuration
 CREWAI_MOCK_MODE=false              # Enable mock mode for testing
 LLM_PREFERENCE=openai               # Preferred LLM provider
-
-# MCP Integration
-MCP_GATEWAY_ENABLED=true            # Enable MCP gateway
-MCP_GATEWAY_URL=http://mcp-gateway:8811  # MCP gateway URL
 
 # Tool Configuration
 DUCKDUCKGO_API_KEY=your_key         # For web search tools

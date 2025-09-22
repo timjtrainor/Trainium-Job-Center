@@ -126,9 +126,6 @@ services:
       CHROMA_PORT: ${CHROMA_PORT:-8001}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
-      # MCP Gateway configuration
-      MCP_GATEWAY_URL: ${MCP_GATEWAY_URL:-http://mcp-gateway:8811}
-      MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED:-true}
     volumes:
       # Mount the python service code for development
       - ./python-service:/app
@@ -136,8 +133,6 @@ services:
       redis:
         condition: service_healthy
       chromadb:
-        condition: service_healthy
-      mcp-gateway:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -173,9 +168,6 @@ services:
       REDIS_DB: ${REDIS_DB:-0}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
-      # MCP Gateway configuration
-      MCP_GATEWAY_URL: ${MCP_GATEWAY_URL:-http://mcp-gateway:8811}
-      MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED:-true}
       # LinkedIn credentials for LinkedIn job search
       LINKEDIN_EMAIL: ${LINKEDIN_EMAIL}
       LINKEDIN_PASSWORD: ${LINKEDIN_PASSWORD}
@@ -184,8 +176,6 @@ services:
       replicas: 5   # Number of workers
     depends_on:
       redis:
-        condition: service_healthy
-      mcp-gateway:
         condition: service_healthy
 
   # Defines the scheduler daemon using the python-service image
@@ -244,28 +234,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-
-  # Docker MCP Gateway for managing MCP servers
-  mcp-gateway:
-    container_name: trainium_mcp_gateway
-    image: docker/mcp-gateway
-    command:
-      - --servers=duckduckgo,linkedin-mcp-server
-      - --transport=sse
-      - --port=8811
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "${MCP_GATEWAY_PORT:-8811}:8811"
-    restart: unless-stopped
-    healthcheck:
-      test: wget -O- http://localhost:8811/health
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-
 volumes:
   # Defines the named volumes for data persistence.
   postgres_data:

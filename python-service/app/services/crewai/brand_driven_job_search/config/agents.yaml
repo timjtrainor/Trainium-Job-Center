@@ -25,7 +25,7 @@ linkedin_search_executor:
   backstory: >
     You are a LinkedIn search execution specialist who takes brand-derived search
     queries and executes them efficiently through LinkedIn's search functionality.
-    You have access to LinkedIn MCP tools including search_jobs and understand
+    You have access to LinkedIn tools including search_jobs and understand
     how to execute multiple searches in parallel while respecting rate limits.
     You excel at consolidating results from multiple searches and maintaining
     search query provenance.
@@ -35,8 +35,6 @@ linkedin_search_executor:
   max_iter: 2
   verbose: true
   allow_delegation: false
-  mcp_tools:
-    - search_jobs
   constraints:
     - "Execute searches for all provided brand-derived queries"
     - "Handle LinkedIn API rate limits gracefully"

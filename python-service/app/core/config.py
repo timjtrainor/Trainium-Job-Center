@@ -54,11 +54,6 @@ class Settings:
         # PostgREST Configuration (for future integration)
         self.postgrest_url: str = os.getenv("POSTGREST_URL", "http://postgrest:3000")
 
-        # MCP Gateway Configuration
-        self.mcp_gateway_enabled: bool = os.getenv("MCP_GATEWAY_ENABLED", "true").lower() == "true"
-        self.mcp_gateway_url: str = os.getenv("MCP_GATEWAY_URL", "http://localhost:8811")
-        self.mcp_gateway_port: int = int(os.getenv("MCP_GATEWAY_PORT", "8811"))
-
         # Database Configuration for direct access
         self.database_url: str = os.getenv("DATABASE_URL", "")
         if not self.database_url:

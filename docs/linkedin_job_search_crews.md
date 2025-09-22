@@ -17,8 +17,8 @@ Both crews integrate with the existing `jobs` database table and follow establis
 Execute LinkedIn job searches with explicit user-defined inputs and retrieve personalized recommendations.
 
 ### Architecture
-- **search_agent**: Calls LinkedIn MCP `search_jobs` with provided parameters
-- **recommendation_agent**: Calls LinkedIn MCP `get_recommended_jobs` for authenticated users
+- **search_agent**: Calls LinkedIn API `search_jobs` with provided parameters
+- **recommendation_agent**: Calls LinkedIn API `get_recommended_jobs` for authenticated users
 - **orchestration_agent**: Consolidates and deduplicates results from both agents
 
 ### API Endpoint
@@ -231,7 +231,7 @@ Both crews provide health check endpoints:
 
 Health checks verify:
 - Crew initialization
-- MCP tool availability
+- Tool availability
 - Agent and task configuration
 - ChromaDB connectivity (brand-driven crew)
 
@@ -249,7 +249,7 @@ Both crews use YAML-first configuration following established patterns:
 
 - **Agents**: `config/agents.yaml` - Defines agent roles, goals, and tools
 - **Tasks**: `config/tasks.yaml` - Defines task descriptions and expected outputs
-- **Environment**: MCP tools loaded via environment configuration
+- **Environment**: Tools loaded via environment configuration
 
 ## Future Enhancements
 

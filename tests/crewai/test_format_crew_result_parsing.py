@@ -1,22 +1,9 @@
 import json
 import os
-import types
 import sys
 from typing import Any, Dict
 
 import pytest
-
-# Stub MCP modules before importing crew modules
-mcp_stub = types.ModuleType("mcp")
-mcp_types_stub = types.ModuleType("mcp.types")
-class _ClientSession:
-    pass
-class _Tool:
-    pass
-mcp_stub.ClientSession = _ClientSession
-mcp_types_stub.Tool = _Tool
-sys.modules.setdefault("mcp", mcp_stub)
-sys.modules.setdefault("mcp.types", mcp_types_stub)
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 

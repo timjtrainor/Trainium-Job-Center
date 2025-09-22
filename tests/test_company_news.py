@@ -6,11 +6,6 @@ from unittest.mock import MagicMock
 def test_company_news(monkeypatch):
     """generate_company_report includes news from mocked DuckDuckGo tool."""
 
-    mock_mcp = MagicMock()
-    mock_mcp.types = MagicMock()
-    monkeypatch.setitem(sys.modules, "mcp", mock_mcp)
-    monkeypatch.setitem(sys.modules, "mcp.types", mock_mcp.types)
-
     from app.services.company_service import generate_company_report
 
     class MockDuckDuckGoTool:

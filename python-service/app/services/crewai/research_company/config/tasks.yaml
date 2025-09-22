@@ -139,49 +139,6 @@ career_growth_analysis_task:
   agent: career_growth_analyst
   #context: [web_research_task]
 
-web_research_task:
-  description: >
-    Conduct comprehensive web research for {{company_name}} to gather the latest
-    information including recent news, press releases, acquisitions, partnerships,
-    major events, and any other current developments. Focus on information that
-    would be relevant for job seekers and recent changes that might affect the
-    company's outlook.
-    
-  expected_output: >
-    JSON object matching schema:
-    {
-      "type": "object",
-      "properties": {
-        "recent_news": {
-          "type": "object",
-          "properties": {
-            "latest_developments": {"type": "string"},
-            "press_releases": {"type": "string"},
-            "acquisitions_partnerships": {"type": "string"},
-            "major_events": {"type": "string"},
-            "market_changes": {"type": "string"},
-            "recent_announcements": {"type": "string"},
-            "news_summary": {"type": "string"},
-            "key_updates": {"type": "array", "items": {"type": "string"}}
-          },
-          "required": [
-            "latest_developments",
-            "press_releases",
-            "acquisitions_partnerships",
-            "major_events",
-            "market_changes",
-            "recent_announcements",
-            "news_summary",
-            "key_updates"
-          ]
-        }
-      },
-      "required": ["recent_news"]
-    }
-  # Field names must match the schema exactly.
-
-  agent: mcp_researcher
-
 report_compilation_task:
   description: >
     Compile and synthesize all research findings about {{company_name}} into a 

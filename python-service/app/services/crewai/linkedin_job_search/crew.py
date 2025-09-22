@@ -1,7 +1,7 @@
 """
 LinkedIn Job Search CrewAI implementation.
 
-This crew coordinates LinkedIn job searches and recommendations using LinkedIn MCP tools.
+This crew coordinates LinkedIn job searches and recommendations using LinkedIn tools.
 """
 import json
 from collections.abc import Mapping
