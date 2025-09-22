@@ -3,7 +3,7 @@ import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any
 import sys
 
 import httpx
@@ -25,88 +25,17 @@ from python_service.app.services import mcp_adapter as mcp_module  # noqa: E402
 from python_service.app.services.mcp_adapter import MCPServerAdapter  # noqa: E402
 
 
-@pytest.mark.parametrize(
-    "status_code,redirect_suffix,json_payload,set_cookie_headers,response_cookies,expected_session_id,expected_cookie_header",
-    [
-        (307, "/sse?sessionid=abc123", None, None, None, "abc123", None),
-        (307, "/sse?sessionId=abc123", None, None, None, "abc123", None),
-        (307, "/sse?session_id=abc123", None, None, None, "abc123", None),
-        (
-            307,
-            "/sse",
-            None,
-            ["sessionId=abc123; Path=/; HttpOnly"],
-            None,
-            "abc123",
-            "sessionId=abc123",
-        ),
-        (
-            307,
-            "/sse",
-            None,
-            ["session_id=abc123; Path=/; HttpOnly"],
-            None,
-            "abc123",
-            "session_id=abc123",
-        ),
-        (
-            307,
-            "/sse",
-            None,
-            [
-                "sessionId=abc123; Path=/; HttpOnly",
-                "sessionId.sig=xyz789; Path=/; HttpOnly",
-            ],
-            None,
-            "abc123",
-            "sessionId=abc123; sessionId.sig=xyz789",
-        ),
-        (
-            200,
-            "/sse",
-            {"endpoint": "/sse"},
-            ["sessionId=abc123; Path=/; HttpOnly"],
-            None,
-            "abc123",
-            "sessionId=abc123",
-        ),
-        pytest.param(
-            307,
-            "/sse",
-            None,
-            None,
-            {"sessionId": "abc123", "sessionId.sig": "xyz789"},
-            "abc123",
-            "sessionId=abc123; sessionId.sig=xyz789",
-            id="cookies-from-response-jar",
-        ),
-    ],
-)
-def test_sse_tool_listing_and_execution(
-    monkeypatch,
-    status_code,
-    redirect_suffix,
-    json_payload,
-    set_cookie_headers,
-    response_cookies,
-    expected_session_id,
-    expected_cookie_header,
-):
-    """The adapter should establish an SSE session and execute DuckDuckGo tools."""
+def test_shared_sse_session_tool_listing_and_execution(monkeypatch):
+    """The adapter should reuse a shared SSE session for multiple servers."""
 
-    events: Dict[str, Any] = {}
-
-    def split_cookie_header(value: Optional[str]) -> List[str]:
-        if not value:
-            return []
-        return sorted(part.strip() for part in value.split(";") if part.strip())
+    events: Dict[str, Any] = {
+        "connect_calls": [],
+        "disconnect_calls": [],
+    }
 
     @asynccontextmanager
-    async def fake_sse_client(
-        url: str, headers: Optional[Dict[str, Any]] = None, **_: Any
-    ):
-        events["sse_url"] = url
-        events["sse_headers"] = headers
+    async def fake_sse_client(url: str, **_: Any):
+        events.setdefault("sse_urls", []).append(url)
         try:
             yield ("read_stream", "write_stream")
         finally:
@@ -114,16 +43,16 @@ def test_sse_tool_listing_and_execution(
 
     class FakeClientSession:
         def __init__(self, read_stream, write_stream):  # type: ignore[no-untyped-def]
-            events["client_streams"] = (read_stream, write_stream)
+            events.setdefault("client_streams", []).append((read_stream, write_stream))
 
         async def initialize(self):
-            events["initialized"] = True
+            events["initialize_count"] = events.get("initialize_count", 0) + 1
 
         async def list_tools(self):
-            events["listed_tools"] = True
+            events["list_tools_count"] = events.get("list_tools_count", 0) + 1
             tool = SimpleNamespace(
                 name="web_search",
-                description="DuckDuckGo search",
+                description="Shared search tool",
                 input_schema={"type": "object"},
             )
             return SimpleNamespace(tools=[tool])
@@ -143,68 +72,76 @@ def test_sse_tool_listing_and_execution(
         "python_service.app.services.mcp_adapter.ClientSession",
         FakeClientSession,
     )
+    monkeypatch.setattr(
+        MCPServerAdapter,
+        "_load_configured_servers",
+        lambda self: {
+            "duckduckgo": {"transport": "sse"},
+            "linkedin": {"transport": "sse"},
+        },
+    )
 
     async def handler(request: Request) -> Response:
-        if request.method == "POST" and request.url.path == "/servers/duckduckgo/connect":
-            response_headers = []
-            if set_cookie_headers:
-                response_headers.extend(
-                    ("set-cookie", header_value) for header_value in set_cookie_headers
-                )
-            if status_code == 307:
-                response_headers.append(("location", redirect_suffix))
-            elif status_code == 200:
-                assert (
-                    json_payload is not None
-                ), "JSON payload must be provided for 200 responses"
-            else:
-                raise AssertionError(f"Unsupported status code for test: {status_code}")
-
-            response_kwargs: Dict[str, Any] = {"headers": response_headers}
-            if status_code == 200 and json_payload is not None:
-                response_kwargs["json"] = json_payload
-
-            response = Response(status_code, request=request, **response_kwargs)
-            if response_cookies:
-                for name, value in response_cookies.items():
-                    response.cookies.set(name, value)
-
-            return response
-        if request.method == "POST" and request.url.path == "/servers/duckduckgo/disconnect":
+        if request.method == "GET" and request.url.path == "/health":
+            return Response(200)
+        if request.method == "GET" and request.url.path == "/servers":
+            return Response(307, headers={"location": "/sse"})
+        if request.method == "POST" and request.url.path == "/sessions":
+            events["session_requests"] = events.get("session_requests", 0) + 1
+            return Response(200, json={"sessionid": "abc123"})
+        if request.method == "POST" and request.url.path in (
+            "/servers/duckduckgo/connect",
+            "/servers/linkedin/connect",
+        ):
+            server = request.url.path.split("/")[2]
+            events["connect_calls"].append(
+                (server, request.url.params.get("sessionid"))
+            )
+            return Response(200, json={"status": "attached"})
+        if request.method == "POST" and request.url.path in (
+            "/servers/duckduckgo/disconnect",
+            "/servers/linkedin/disconnect",
+        ):
+            server = request.url.path.split("/")[2]
+            payload = json.loads(request.content.decode() or "{}")
+            events["disconnect_calls"].append((server, payload))
             return Response(200, json={"status": "disconnected"})
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
+    transport = httpx.MockTransport(handler)
+    original_async_client = httpx.AsyncClient
+
+    def fake_async_client(*args, **kwargs):
+        kwargs.setdefault("transport", transport)
+        kwargs.setdefault("follow_redirects", False)
+        return original_async_client(*args, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", fake_async_client)
+
     async def run_test() -> None:
         adapter = MCPServerAdapter("http://mock")
-        adapter._session = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-
-        await adapter._connect_to_server("duckduckgo", {"transport": "sse"})
+        await adapter.connect()
 
         tools = adapter.get_available_tools()
-        assert "duckduckgo_web_search" in tools
-        connection = adapter._connected_servers["duckduckgo"]
-        assert connection["session_id"] == expected_session_id
-        actual_connection_cookie = connection.get("session_cookie")
-        if expected_cookie_header:
-            assert split_cookie_header(actual_connection_cookie) == split_cookie_header(
-                expected_cookie_header
-            )
-        else:
-            assert actual_connection_cookie in (None, "")
-        assert isinstance(connection.get("client"), FakeClientSession)
-        expected_sse_url = f"http://mock{redirect_suffix}"
-        assert events["sse_url"] == expected_sse_url
-        sse_headers = events.get("sse_headers")
-        if expected_cookie_header:
-            assert sse_headers is not None
-            assert split_cookie_header(sse_headers.get("Cookie")) == split_cookie_header(
-                expected_cookie_header
-            )
-        else:
-            assert not sse_headers or "Cookie" not in sse_headers
-        assert events.get("listed_tools")
+        assert set(tools.keys()) == {"duckduckgo_web_search", "linkedin_web_search"}
 
-        result = await adapter.call_tool("duckduckgo_web_search", query="python", max_results=1)
+        connections = adapter._connected_servers
+        assert set(connections.keys()) == {"duckduckgo", "linkedin"}
+        assert connections["duckduckgo"]["client"] is connections["linkedin"]["client"]
+        assert connections["duckduckgo"]["sse_context"] is connections["linkedin"][
+            "sse_context"
+        ]
+
+        assert events.get("session_requests") == 1
+        assert len(events["connect_calls"]) == 2
+        assert all(session_id == "abc123" for _, session_id in events["connect_calls"])
+        assert events["sse_urls"] == ["http://mock/sse?sessionid=abc123"]
+        assert events.get("initialize_count") == 2
+        assert events.get("list_tools_count") == 2
+
+        result = await adapter.call_tool(
+            "duckduckgo_web_search", query="python", max_results=1
+        )
         assert result == "search result"
 
         called_tool, call_arguments = events["call_tool"]
@@ -213,7 +150,13 @@ def test_sse_tool_listing_and_execution(
         assert call_arguments["kwargs"]["max_results"] == 1
 
         await adapter.disconnect()
+
         assert events.get("sse_closed")
+        assert len(events["disconnect_calls"]) == 2
+        assert all(
+            payload.get("session_id") == "abc123"
+            for _, payload in events["disconnect_calls"]
+        )
 
     asyncio.run(run_test())
 
