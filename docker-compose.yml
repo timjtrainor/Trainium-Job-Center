@@ -234,6 +234,35 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  # Docker MCP Gateway for managing MCP servers
+  mcp-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp-gateway
+    container_name: trainium_mcp_gateway
+    restart: unless-stopped
+    ports:
+      - "${MCP_GATEWAY_PORT:-8811}:8811"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - MCP_GATEWAY_TRANSPORT=${MCP_GATEWAY_TRANSPORT:-streaming}
+      - MCP_GATEWAY_TIMEOUT=${MCP_GATEWAY_TIMEOUT:-30}
+      - MCP_GATEWAY_MAX_RETRIES=${MCP_GATEWAY_MAX_RETRIES:-3}
+      - MCP_LOG_LEVEL=${MCP_LOG_LEVEL:-INFO}
+    command: [
+      "python", "mcp_gateway.py",
+      "--servers=duckduckgo,linkedin-mcp-server",
+      "--transport=streaming",
+      "--port=8811"
+    ]
+    healthcheck:
+      test: ["CMD", "wget", "-O-", "http://localhost:8811/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 volumes:
   # Defines the named volumes for data persistence.
   postgres_data:
