@@ -670,6 +670,29 @@ class MCPServerAdapter:
         session_id: Optional[str] = None
         redirect_url: Optional[str] = None
         session_cookie_header: Optional[str] = None
+        cookie_session_id: Optional[str] = None
+
+        # Handle session cookies if present (may also contain the session id)
+        set_cookie_header = connect_response.headers.get("set-cookie")
+        if set_cookie_header:
+            cookie_jar = SimpleCookie()
+            try:
+                cookie_jar.load(set_cookie_header)
+                morsels = list(cookie_jar.values())
+                if morsels:
+                    session_cookie_header = "; ".join(
+                        f"{morsel.key}={morsel.value}" for morsel in morsels
+                    )
+                    for morsel in morsels:
+                        if morsel.key and morsel.key.lower() == "sessionid":
+                            cookie_session_id = morsel.value
+                    logger.debug(
+                        f"Using session cookie for {server_name}: {session_cookie_header}"
+                    )
+            except Exception as exc:
+                logger.warning(
+                    f"Failed to parse session cookie for server '{server_name}': {exc}"
+                )
 
         # Handle 307 Temporary Redirect
         if connect_response.status_code == 307:
@@ -687,12 +710,22 @@ class MCPServerAdapter:
             parsed = urlparse(redirect_url)
             query_params = parse_qs(parsed.query)
             normalized_query = {key.lower(): value for key, value in query_params.items()}
-            session_id = normalized_query.get("sessionid", [None])[0]
-
-            if not session_id:
-                logger.error(f"Missing sessionid in redirect URL for server '{server_name}': {redirect_url}")
+            session_id_from_query = normalized_query.get("sessionid", [None])[0]
+            if session_id_from_query:
+                session_id = session_id_from_query
+            elif cookie_session_id is not None:
+                session_id = cookie_session_id
+                logger.debug(
+                    f"Using sessionid from cookie for server '{server_name}' after redirect"
+                )
+            else:
+                logger.error(
+                    f"Missing sessionid in redirect URL for server '{server_name}': {redirect_url}"
+                )
                 if allow_rest_fallback:
-                    logger.warning(f"Falling back to REST for server '{server_name}' due to missing sessionid")
+                    logger.warning(
+                        f"Falling back to REST for server '{server_name}' due to missing sessionid"
+                    )
                     session_id = f"fallback_session_{server_name}"
                     self._connected_servers[server_name] = {
                         "config": server_config,
@@ -701,8 +734,9 @@ class MCPServerAdapter:
                         "rest_fallback": True,
                     }
                     return
-                else:
-                    raise ValueError(f"Missing sessionid in redirect URL for server '{server_name}'")
+                raise ValueError(
+                    f"Missing sessionid in redirect URL for server '{server_name}'"
+                )
 
         # Handle 200 OK with JSON endpoint
         elif connect_response.status_code == 200:
@@ -720,12 +754,22 @@ class MCPServerAdapter:
                 parsed = urlparse(redirect_url)
                 query_params = parse_qs(parsed.query)
                 normalized_query = {key.lower(): value for key, value in query_params.items()}
-                session_id = normalized_query.get("sessionid", [None])[0]
-
-                if not session_id:
-                    logger.error(f"Missing sessionid in endpoint URL for server '{server_name}': {redirect_url}")
+                session_id_from_query = normalized_query.get("sessionid", [None])[0]
+                if session_id_from_query:
+                    session_id = session_id_from_query
+                elif cookie_session_id is not None:
+                    session_id = cookie_session_id
+                    logger.debug(
+                        f"Using sessionid from cookie for server '{server_name}' after JSON endpoint"
+                    )
+                else:
+                    logger.error(
+                        f"Missing sessionid in endpoint URL for server '{server_name}': {redirect_url}"
+                    )
                     if allow_rest_fallback:
-                        logger.warning(f"Falling back to REST for server '{server_name}' due to missing sessionid")
+                        logger.warning(
+                            f"Falling back to REST for server '{server_name}' due to missing sessionid"
+                        )
                         session_id = f"fallback_session_{server_name}"
                         self._connected_servers[server_name] = {
                             "config": server_config,
@@ -734,8 +778,9 @@ class MCPServerAdapter:
                             "rest_fallback": True,
                         }
                         return
-                    else:
-                        raise ValueError(f"Missing sessionid in endpoint URL for server '{server_name}'")
+                    raise ValueError(
+                        f"Missing sessionid in endpoint URL for server '{server_name}'"
+                    )
 
             except (ValueError, KeyError) as e:
                 logger.error(f"Failed to parse JSON response for server '{server_name}': {e}")
@@ -745,23 +790,8 @@ class MCPServerAdapter:
             connect_response.raise_for_status()
             raise ValueError(f"Unexpected response status {connect_response.status_code} for SSE server '{server_name}'")
 
-        # Handle session cookies if present
-        set_cookie_header = connect_response.headers.get("set-cookie")
-        if set_cookie_header:
-            cookie_jar = SimpleCookie()
-            try:
-                cookie_jar.load(set_cookie_header)
-                morsels = list(cookie_jar.values())
-                if morsels:
-                    session_cookie_header = "; ".join(
-                        f"{morsel.key}={morsel.value}" for morsel in morsels
-                    )
-                    logger.debug(f"Using session cookie for {server_name}: {session_cookie_header}")
-            except Exception as exc:
-                logger.warning(f"Failed to parse session cookie for server '{server_name}': {exc}")
-
         # Ensure we have valid session ID and redirect URL
-        if not session_id or not redirect_url:
+        if session_id is None or not redirect_url:
             raise ValueError(f"Missing session ID or redirect URL for server '{server_name}'")
 
         logger.info(f"Establishing SSE session for {server_name} at {redirect_url} with session ID: {session_id}")
