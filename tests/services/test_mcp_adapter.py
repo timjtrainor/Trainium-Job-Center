@@ -43,6 +43,15 @@ from python_service.app.services.mcp_adapter import MCPServerAdapter  # noqa: E4
             307,
             "/sse",
             None,
+            ["session_id=abc123; Path=/; HttpOnly"],
+            None,
+            "abc123",
+            "session_id=abc123",
+        ),
+        (
+            307,
+            "/sse",
+            None,
             [
                 "sessionId=abc123; Path=/; HttpOnly",
                 "sessionId.sig=xyz789; Path=/; HttpOnly",
