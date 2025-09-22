@@ -149,6 +149,25 @@ class AuthenticationError(MCPError):
         return base_msg
 
 
+class ToolExecutionError(MCPError):
+    """Tool execution failures.
+    
+    Raised when there are issues executing MCP tools,
+    such as invalid arguments, tool not found, or execution failures.
+    """
+    
+    def __init__(self, message: str, tool_name: Optional[str] = None, arguments: Optional[Any] = None, details: Optional[Any] = None):
+        super().__init__(message, details)
+        self.tool_name = tool_name
+        self.arguments = arguments
+    
+    def __str__(self) -> str:
+        base_msg = super().__str__()
+        if self.tool_name:
+            return f"{base_msg} (tool: {self.tool_name})"
+        return base_msg
+
+
 # Convenience functions for creating common exceptions
 
 def connection_failed(gateway_url: str, underlying_error: Exception) -> ConnectionError:
@@ -200,4 +219,14 @@ def operation_timeout(operation: str, timeout_seconds: float) -> TimeoutError:
         f"Operation '{operation}' timed out",
         timeout_seconds=timeout_seconds,
         details={"operation": operation}
+    )
+
+
+def tool_execution_failed(tool_name: str, reason: str, arguments: Optional[Any] = None) -> ToolExecutionError:
+    """Create a ToolExecutionError for tool execution failures."""
+    return ToolExecutionError(
+        f"Tool execution failed: {reason}",
+        tool_name=tool_name,
+        arguments=arguments,
+        details={"reason": reason}
     )

@@ -36,7 +36,11 @@ from .mcp_models import (
     ClientInfo,
     JsonRpcErrorCodes,
     create_error_response,
-    create_success_response
+    create_success_response,
+    ToolInfo,
+    ToolListResponse,
+    ToolCallRequest,
+    ToolCallResponse
 )
 from .mcp_exceptions import (
     MCPError,
@@ -47,12 +51,14 @@ from .mcp_exceptions import (
     SerializationError,
     TimeoutError,
     AuthenticationError,
+    ToolExecutionError,
     connection_failed,
     handshake_failed,
     transport_failed,
     protocol_violation,
     serialization_failed,
-    operation_timeout
+    operation_timeout,
+    tool_execution_failed
 )
 from .mcp_logging import (
     configure_logging,
@@ -61,6 +67,13 @@ from .mcp_logging import (
     log_transport_operation,
     log_message_exchange,
     log_handshake_event
+)
+from .mcp_tools import (
+    MCPToolManager,
+    ToolDiscoveryService
+)
+from .mcp_results import (
+    ResultNormalizer
 )
 
 __version__ = "1.0.0"
@@ -84,6 +97,12 @@ __all__ = [
     "create_error_response",
     "create_success_response",
     
+    # Tool models
+    "ToolInfo",
+    "ToolListResponse", 
+    "ToolCallRequest",
+    "ToolCallResponse",
+    
     # Exceptions
     "MCPError",
     "ConnectionError",
@@ -93,12 +112,14 @@ __all__ = [
     "SerializationError",
     "TimeoutError",
     "AuthenticationError",
+    "ToolExecutionError",
     "connection_failed",
     "handshake_failed",
     "transport_failed",
     "protocol_violation",
     "serialization_failed",
     "operation_timeout",
+    "tool_execution_failed",
     
     # Logging
     "configure_logging",
@@ -106,5 +127,10 @@ __all__ = [
     "MCPLoggerAdapter",
     "log_transport_operation",
     "log_message_exchange",
-    "log_handshake_event"
+    "log_handshake_event",
+    
+    # Tool management
+    "MCPToolManager",
+    "ToolDiscoveryService",
+    "ResultNormalizer"
 ]

@@ -289,3 +289,127 @@ def create_error_response(request_id: int, code: int, message: str, data: Option
 def create_success_response(request_id: int, result: Dict[str, Any]) -> JsonRpcResponse:
     """Helper function to create success responses."""
     return JsonRpcResponse(id=request_id, result=result)
+
+
+@dataclass
+class ToolInfo:
+    """MCP tool information."""
+    
+    name: str
+    description: Optional[str] = None
+    inputSchema: Optional[Dict[str, Any]] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {"name": self.name}
+        if self.description is not None:
+            result["description"] = self.description
+        if self.inputSchema is not None:
+            result["inputSchema"] = self.inputSchema
+        return result
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ToolInfo':
+        """Create from dictionary."""
+        return cls(
+            name=data["name"],
+            description=data.get("description"),
+            inputSchema=data.get("inputSchema")
+        )
+
+
+@dataclass
+class ToolListResponse:
+    """MCP tools/list response data."""
+    
+    tools: List[ToolInfo]
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "tools": [tool.to_dict() for tool in self.tools]
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ToolListResponse':
+        """Create from dictionary."""
+        tools_data = data.get("tools", [])
+        tools = [ToolInfo.from_dict(tool) for tool in tools_data]
+        return cls(tools=tools)
+
+
+@dataclass
+class ToolCallRequest:
+    """MCP tools/call request parameters."""
+    
+    name: str
+    arguments: Dict[str, Any] = field(default_factory=dict)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "name": self.name,
+            "arguments": self.arguments
+        }
+    
+    def to_jsonrpc_request(self, request_id: int = 1) -> JsonRpcRequest:
+        """Convert to a JSON-RPC request."""
+        return JsonRpcRequest(
+            method="tools/call",
+            id=request_id,
+            params=self.to_dict()
+        )
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ToolCallRequest':
+        """Create from dictionary."""
+        return cls(
+            name=data["name"],
+            arguments=data.get("arguments", {})
+        )
+
+
+@dataclass
+class ToolCallResponse:
+    """MCP tools/call response data."""
+    
+    content: List[Dict[str, Any]]
+    isError: Optional[bool] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {"content": self.content}
+        if self.isError is not None:
+            result["isError"] = self.isError
+        return result
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ToolCallResponse':
+        """Create from dictionary."""
+        return cls(
+            content=data.get("content", []),
+            isError=data.get("isError")
+        )
+        
+    def has_error(self) -> bool:
+        """Check if response indicates an error."""
+        return self.isError is True
+        
+    def get_text_content(self) -> str:
+        """Extract text content from response."""
+        text_parts = []
+        for content_item in self.content:
+            if content_item.get("type") == "text":
+                text_parts.append(content_item.get("text", ""))
+        return "\n".join(text_parts)
+        
+    def get_error_message(self) -> Optional[str]:
+        """Extract error message if present."""
+        if not self.has_error():
+            return None
+            
+        # Look for error content
+        for content_item in self.content:
+            if content_item.get("type") == "text":
+                return content_item.get("text", "Unknown error")
+        return "Unknown error"
