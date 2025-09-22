@@ -30,6 +30,7 @@ from python_service.app.services.mcp_adapter import MCPServerAdapter  # noqa: E4
     [
         (307, "/sse?sessionid=abc123", None, None, None, "abc123", None),
         (307, "/sse?sessionId=abc123", None, None, None, "abc123", None),
+        (307, "/sse?session_id=abc123", None, None, None, "abc123", None),
         (
             307,
             "/sse",

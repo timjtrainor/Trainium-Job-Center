@@ -676,9 +676,13 @@ class MCPServerAdapter:
         # Handle session cookies if present (may also contain the session id)
         cookie_values: "OrderedDict[str, str]" = OrderedDict()
 
+        def _normalize_session_key(name: Optional[str]) -> str:
+            if not name:
+                return ""
+            return name.strip().lower().replace("_", "").replace("-", "")
+
         def _is_session_cookie(name: str) -> bool:
-            normalized = name.lower().replace("_", "").replace("-", "")
-            return normalized == "sessionid"
+            return _normalize_session_key(name) == "sessionid"
 
         # Gather cookies directly from Set-Cookie headers to preserve server ordering.
         raw_set_cookie_headers: List[str] = []
@@ -758,7 +762,9 @@ class MCPServerAdapter:
             # Extract sessionid from redirect URL
             parsed = urlparse(redirect_url)
             query_params = parse_qs(parsed.query)
-            normalized_query = {key.lower(): value for key, value in query_params.items()}
+            normalized_query = {
+                _normalize_session_key(key): value for key, value in query_params.items()
+            }
             session_id_from_query = normalized_query.get("sessionid", [None])[0]
             if (
                 session_id_from_query
@@ -819,7 +825,10 @@ class MCPServerAdapter:
                 # Extract sessionid from endpoint URL
                 parsed = urlparse(redirect_url)
                 query_params = parse_qs(parsed.query)
-                normalized_query = {key.lower(): value for key, value in query_params.items()}
+                normalized_query = {
+                    _normalize_session_key(key): value
+                    for key, value in query_params.items()
+                }
                 session_id_from_query = normalized_query.get("sessionid", [None])[0]
                 if (
                     session_id_from_query
