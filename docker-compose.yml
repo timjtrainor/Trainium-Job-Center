@@ -251,13 +251,23 @@ services:
     image: docker/mcp-gateway
     command:
       - --servers=duckduckgo,linkedin-mcp-server
-      - --transport=stdio
+      - --transport=stdio  
+      - --port=8811
+      - --verbose
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./python-service/mcp-config:/config
     ports:
       - "${MCP_GATEWAY_PORT:-8811}:8811"
     restart: unless-stopped
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    healthcheck:
+      test: wget -O- http://localhost:8811/health
+      interval: 30s  
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 
 volumes:
