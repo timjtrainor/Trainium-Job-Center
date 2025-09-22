@@ -138,7 +138,7 @@ services:
       chromadb:
         condition: service_healthy
       mcp-gateway:
-        condition: service_healthy
+        condition: service_completed_successfully
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -186,7 +186,7 @@ services:
       redis:
         condition: service_healthy
       mcp-gateway:
-        condition: service_healthy
+        condition: service_completed_successfully
 
   # Defines the scheduler daemon using the python-service image
   scheduler:
@@ -252,19 +252,12 @@ services:
     command:
       - --servers=duckduckgo,linkedin-mcp-server
       - --transport=stdio
-      - --port=8811
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./python-service/mcp-config:/config
     ports:
       - "${MCP_GATEWAY_PORT:-8811}:8811"
     restart: unless-stopped
-    healthcheck:
-      test: wget -O- http://localhost:8811/health
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
 
 
 volumes:
