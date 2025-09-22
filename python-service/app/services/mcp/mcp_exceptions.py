@@ -149,6 +149,24 @@ class AuthenticationError(MCPError):
         return base_msg
 
 
+class ConfigurationError(MCPError):
+    """Configuration-related errors.
+    
+    Raised when there are issues with MCP configuration,
+    such as invalid parameters or missing required settings.
+    """
+    
+    def __init__(self, message: str, config_key: Optional[str] = None, details: Optional[Any] = None):
+        super().__init__(message, details)
+        self.config_key = config_key
+    
+    def __str__(self) -> str:
+        base_msg = super().__str__()
+        if self.config_key:
+            return f"{base_msg} (key: {self.config_key})"
+        return base_msg
+
+
 class ToolExecutionError(MCPError):
     """Tool execution failures.
     

@@ -1,28 +1,28 @@
-"""MCP (Model Context Protocol) Transport Layer.
+"""MCP (Model Context Protocol) Integration Package.
 
-This package provides the foundational transport abstraction and basic MCP
-protocol handling for the Trainium Job Center application.
+This package provides a complete implementation of the Model Context Protocol
+for integration with MCP gateways and tool execution.
 
 Key Components:
 - Transport abstractions (stdio, HTTP streaming)
+- Protocol handling and session management
+- Tool discovery and execution
+- Main gateway adapter (Phase 4)
+- Configuration management and health monitoring
 - JSON-RPC message models and validation
 - Custom exception hierarchy
 - Structured logging configuration
 
 Usage:
-    from app.services.mcp import StdioTransport, JsonRpcRequest
-    from app.services.mcp.mcp_logging import configure_logging
+    from app.services.mcp import MCPConfig, MCPGatewayAdapter
     
-    # Configure logging
-    configure_logging("INFO")
+    # Create adapter from environment configuration
+    adapter = MCPConfig.from_environment()
     
-    # Create transport
-    transport = StdioTransport()
-    await transport.connect()
-    
-    # Send message
-    request = JsonRpcRequest(method="initialize", id=1)
-    await transport.send_message(request.to_dict())
+    # Use as context manager
+    async with adapter as gateway:
+        tools = await gateway.list_tools()
+        result = await gateway.execute_tool("my_tool", {"arg": "value"})
 """
 
 from .mcp_transport import MCPTransport, StdioTransport, StreamingTransport
@@ -52,6 +52,7 @@ from .mcp_exceptions import (
     TimeoutError,
     AuthenticationError,
     ToolExecutionError,
+    ConfigurationError,
     connection_failed,
     handshake_failed,
     transport_failed,
@@ -82,6 +83,10 @@ from .mcp_tools import (
 from .mcp_results import (
     ResultNormalizer
 )
+# Phase 4 - Main adapter and configuration
+from .mcp_adapter import MCPGatewayAdapter
+from .mcp_config import MCPConfig, ConfigurationError
+from .mcp_health import MCPHealthMonitor, HealthCheckResult, MetricSnapshot, HealthCheckRegistry
 
 __version__ = "1.0.0"
 __author__ = "Trainium Job Center"
@@ -120,6 +125,7 @@ __all__ = [
     "TimeoutError",
     "AuthenticationError",
     "ToolExecutionError",
+    "ConfigurationError",
     "connection_failed",
     "handshake_failed",
     "transport_failed",
@@ -144,5 +150,13 @@ __all__ = [
     # Tool management
     "MCPToolManager",
     "ToolDiscoveryService",
-    "ResultNormalizer"
+    "ResultNormalizer",
+    
+    # Phase 4 - Main adapter and configuration
+    "MCPGatewayAdapter",
+    "MCPConfig",
+    "MCPHealthMonitor",
+    "HealthCheckResult",
+    "MetricSnapshot",
+    "HealthCheckRegistry"
 ]
