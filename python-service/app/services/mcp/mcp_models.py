@@ -201,25 +201,61 @@ class InitializeRequest:
 
 
 @dataclass
+class ServerCapabilities:
+    """Server capabilities for MCP initialization response."""
+    
+    tools: Optional[Dict[str, Any]] = None
+    resources: Optional[Dict[str, Any]] = None
+    prompts: Optional[Dict[str, Any]] = None
+    roots: Optional[Dict[str, Any]] = None
+    sampling: Optional[Dict[str, Any]] = None
+    logging: Optional[Dict[str, Any]] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        
+        if self.tools is not None:
+            result["tools"] = self.tools
+        if self.resources is not None:
+            result["resources"] = self.resources
+        if self.prompts is not None:
+            result["prompts"] = self.prompts
+        if self.roots is not None:
+            result["roots"] = self.roots
+        if self.sampling is not None:
+            result["sampling"] = self.sampling
+        if self.logging is not None:
+            result["logging"] = self.logging
+            
+        return result
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ServerCapabilities':
+        """Create from dictionary."""
+        return cls(
+            tools=data.get("tools"),
+            resources=data.get("resources"),
+            prompts=data.get("prompts"),
+            roots=data.get("roots"),
+            sampling=data.get("sampling"),
+            logging=data.get("logging")
+        )
+
+
+@dataclass
 class InitializeResponse:
     """MCP initialize response data."""
     
     protocolVersion: str
-    capabilities: MCPCapabilities
+    capabilities: ServerCapabilities
     serverInfo: Dict[str, str]
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'InitializeResponse':
         """Create from dictionary."""
         capabilities_data = data.get("capabilities", {})
-        capabilities = MCPCapabilities(
-            roots=capabilities_data.get("roots"),
-            sampling=capabilities_data.get("sampling"),
-            tools=capabilities_data.get("tools"),
-            resources=capabilities_data.get("resources"),
-            prompts=capabilities_data.get("prompts"),
-            logging=capabilities_data.get("logging")
-        )
+        capabilities = ServerCapabilities.from_dict(capabilities_data)
         
         return cls(
             protocolVersion=data["protocolVersion"],
