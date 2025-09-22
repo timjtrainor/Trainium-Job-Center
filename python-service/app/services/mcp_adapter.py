@@ -169,7 +169,12 @@ class MCPServerAdapter:
                 sse_response = await self._session.get(
                     self._sse_endpoint,
                     headers={"Accept": "text/event-stream"},
-                    timeout=httpx.Timeout(connect=self.config.connection_timeout)
+                    timeout=httpx.Timeout(
+                        connect=self.config.connection_timeout,
+                        read=self.config.discovery_timeout,
+                        write=self.config.execution_timeout,
+                        pool=self.config.connection_timeout
+                    )
                 )
                 sse_response.raise_for_status()
                 
@@ -211,7 +216,12 @@ class MCPServerAdapter:
             # Try to get tools from gateway endpoint
             tools_response = await self._session.get(
                 f"{self.config.gateway_url}/servers/{server_name}/tools",
-                timeout=httpx.Timeout(read=self.config.discovery_timeout)
+                timeout=httpx.Timeout(
+                    connect=self.config.connection_timeout,
+                    read=self.config.discovery_timeout,
+                    write=self.config.execution_timeout,
+                    pool=self.config.connection_timeout
+                )
             )
             
             if tools_response.status_code == 404:
@@ -326,7 +336,12 @@ class MCPServerAdapter:
                     "session_id": self._session_id,
                     "arguments": arguments,
                 },
-                timeout=httpx.Timeout(read=self.config.execution_timeout)
+                timeout=httpx.Timeout(
+                    connect=self.config.connection_timeout,
+                    read=self.config.execution_timeout,
+                    write=self.config.execution_timeout,
+                    pool=self.config.connection_timeout
+                )
             )
             response.raise_for_status()
             
