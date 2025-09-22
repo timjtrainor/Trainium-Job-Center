@@ -26,16 +26,33 @@ from python_service.app.services.mcp_adapter import MCPServerAdapter  # noqa: E4
 
 
 @pytest.mark.parametrize(
-    "redirect_suffix,set_cookie_header,expected_session_id,expected_cookie_header",
+    "status_code,redirect_suffix,json_payload,set_cookie_header,expected_session_id,expected_cookie_header",
     [
-        ("/sse?sessionid=abc123", None, "abc123", None),
-        ("/sse?sessionId=abc123", None, "abc123", None),
-        ("/sse", "sessionId=abc123; Path=/; HttpOnly", "abc123", "sessionId=abc123"),
+        (307, "/sse?sessionid=abc123", None, None, "abc123", None),
+        (307, "/sse?sessionId=abc123", None, None, "abc123", None),
+        (
+            307,
+            "/sse",
+            None,
+            "sessionId=abc123; Path=/; HttpOnly",
+            "abc123",
+            "sessionId=abc123",
+        ),
+        (
+            200,
+            "/sse",
+            {"endpoint": "/sse"},
+            "sessionId=abc123; Path=/; HttpOnly",
+            "abc123",
+            "sessionId=abc123",
+        ),
     ],
 )
 def test_sse_tool_listing_and_execution(
     monkeypatch,
+    status_code,
     redirect_suffix,
+    json_payload,
     set_cookie_header,
     expected_session_id,
     expected_cookie_header,
@@ -89,10 +106,16 @@ def test_sse_tool_listing_and_execution(
 
     async def handler(request: Request) -> Response:
         if request.method == "POST" and request.url.path == "/servers/duckduckgo/connect":
-            response_headers = {"location": redirect_suffix}
+            response_headers = {}
             if set_cookie_header:
                 response_headers["set-cookie"] = set_cookie_header
-            return Response(307, headers=response_headers)
+            if status_code == 307:
+                response_headers["location"] = redirect_suffix
+                return Response(status_code, headers=response_headers)
+            if status_code == 200:
+                assert json_payload is not None, "JSON payload must be provided for 200 responses"
+                return Response(status_code, headers=response_headers, json=json_payload)
+            raise AssertionError(f"Unsupported status code for test: {status_code}")
         if request.method == "POST" and request.url.path == "/servers/duckduckgo/disconnect":
             return Response(200, json={"status": "disconnected"})
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
