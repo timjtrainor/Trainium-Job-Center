@@ -507,32 +507,8 @@ class MCPServerAdapter:
             return
 
         logger.info(
-            f"Establishing shared SSE stream for ['{'', ''.join(server_names)}']"
+            f"Establishing shared SSE stream for {server_names}"
         )
-
-        # Extract the SSE endpoint from server configs
-        # All servers should have the same endpoint since they share the same SSE stream
-        endpoint_hint = next(
-            (
-                str(config.get("endpoint")).strip()
-                for config in servers_data.values()
-                if str(config.get("endpoint", "")).strip()
-            ),
-            f"{self.gateway_url}/sse",
-        )
-
-        # Resolve endpoint URL
-        if endpoint_hint.startswith("/"):
-            sse_url = urljoin(f"{self.gateway_url}/", endpoint_hint.lstrip("/"))
-        else:
-            sse_url = endpoint_hint
-
-        parsed_endpoint = urlparse(sse_url)
-        display_endpoint = parsed_endpoint.path or sse_url
-        if parsed_endpoint.query:
-            display_endpoint = f"{display_endpoint}?{parsed_endpoint.query}"
-
-        logger.info(f"Connecting to shared SSE endpoint: {display_endpoint}")
 
         # Store server configurations
         allow_rest_map: Dict[str, bool] = {}
@@ -547,7 +523,51 @@ class MCPServerAdapter:
                 "allow_rest_fallback": allow_rest,
             }
 
-        # Establish shared SSE connection
+        # Follow the 307 redirect flow to get the sessionid
+        sse_base_url = f"{self.gateway_url}/sse"
+        logger.debug(f"Requesting SSE session from: {sse_base_url}")
+        
+        try:
+            # Step 1: GET /sse to get the 307 redirect with sessionid
+            sse_response = await self._session.get(sse_base_url, follow_redirects=False)
+            
+            if sse_response.status_code == 307:
+                redirect_location = sse_response.headers.get("location")
+                if not redirect_location:
+                    raise ValueError("Gateway returned 307 redirect without Location header")
+                
+                # Extract sessionid from redirect location
+                if redirect_location.startswith("/"):
+                    sse_url = f"{self.gateway_url}{redirect_location}"
+                else:
+                    sse_url = redirect_location
+                    
+                parsed_url = urlparse(sse_url)
+                session_params = parse_qs(parsed_url.query)
+                session_id = session_params.get("sessionid", [None])[0]
+                
+                if not session_id:
+                    raise ValueError(f"No sessionid found in redirect location: {redirect_location}")
+                    
+                logger.info(f"Got SSE session ID: {session_id}")
+                logger.info(f"Connecting to SSE endpoint: {sse_url}")
+                
+            elif sse_response.status_code == 200:
+                # Handle direct connection if no redirect
+                sse_url = sse_base_url
+                session_id = f"direct_sse_{id(self)}"
+                logger.info(f"Direct SSE connection to: {sse_url}")
+                
+            else:
+                raise ValueError(
+                    f"Unexpected response from SSE endpoint: {sse_response.status_code} - {sse_response.text}"
+                )
+        
+        except Exception as exc:
+            logger.error(f"Failed to get SSE session from gateway: {exc}")
+            raise
+
+        # Step 2: Connect to the SSE endpoint with sessionid
         sse_context = sse_client(sse_url)
         client_handle: Optional[ClientSession] = None
         tool_counts: Dict[str, int] = {}
@@ -615,7 +635,6 @@ class MCPServerAdapter:
             raise
 
         # Store shared SSE state
-        session_id = f"shared_sse_{id(client_handle)}"
         self._shared_sse_state = {
             "session_id": session_id,
             "sse_context": sse_context,
