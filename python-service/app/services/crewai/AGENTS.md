@@ -36,6 +36,13 @@ The Python service includes four active CrewAI multi-agent services:
 - **Agents**: LinkedIn Job Searcher, Job Opportunity Analyzer, Networking Strategist, LinkedIn Report Writer
 - **Usage**: Searches LinkedIn for opportunities, analyzes fit, and develops networking strategies
 
+### 5. LinkedIn Recommended Jobs (`linkedin_recommended_jobs`)
+- **Purpose**: Retrieves personalized LinkedIn job recommendations and normalizes them for downstream services
+- **Location**: `app/services/crewai/linkedin_recommended_jobs/`
+- **Agents**: Job Collector, Job Details Specialist, Documentation Steward
+- **Usage**: Fetches recommended LinkedIn jobs via MCP, enriches details, and normalizes to the JobPosting schema
+
+
 All CrewAI services follow YAML-first configuration and modular agent design patterns.
 
 ## File Structure Overview
@@ -68,12 +75,18 @@ app/services/crewai/
 │   └── config/
 │       ├── agents.yaml              # Company research agents
 │       └── tasks.yaml               # Company research tasks
-└── linkedin_job_search/             # LinkedIn job search crew
+├── linkedin_job_search/             # LinkedIn job search crew
+│   ├── __init__.py
+│   ├── crew.py                      # LinkedInJobSearchCrew class
+│   └── config/
+│       ├── agents.yaml              # LinkedIn job search agents
+│       └── tasks.yaml               # LinkedIn job search tasks
+└── linkedin_recommended_jobs/       # LinkedIn recommended jobs crew
     ├── __init__.py
-    ├── crew.py                      # LinkedInJobSearchCrew class
+    ├── crew.py                      # LinkedInRecommendedJobsCrew class
     └── config/
-        ├── agents.yaml              # LinkedIn job search agents
-        └── tasks.yaml               # LinkedIn job search tasks
+        ├── agents.yaml              # LinkedIn recommended jobs agents
+        └── tasks.yaml               # LinkedIn recommended jobs tasks
 ```
 
 ### Required Files for Each Crew
