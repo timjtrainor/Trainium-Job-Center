@@ -17,9 +17,18 @@ Both crews integrate with the existing `jobs` database table and follow establis
 Execute LinkedIn job searches with explicit user-defined inputs and retrieve personalized recommendations.
 
 ### Architecture
-- **search_agent**: Calls LinkedIn API `search_jobs` with provided parameters
-- **recommendation_agent**: Calls LinkedIn API `get_recommended_jobs` for authenticated users
-- **orchestration_agent**: Consolidates and deduplicates results from both agents
+- **linkedin_job_searcher**: Executes targeted job discovery via the MCP `linkedin_search` tool
+- **job_opportunity_analyzer**: Evaluates opportunities, blending MCP `linkedin_search` results with `profile_lookup` insights
+- **networking_strategist**: Crafts outreach plans using MCP-driven `profile_lookup` contact research
+- **linkedin_report_writer**: Consolidates findings from the MCP-enabled specialists
+
+### MCP Gateway Integration
+The crew connects to the MCP gateway using configuration loaded at runtime. Tool wrappers are cached for reuse so that
+specialists can repeatedly call LinkedIn-focused tools without reinitializing the gateway.
+
+- `linkedin_job_searcher` leverages the `linkedin_search` tool for live job retrieval.
+- `job_opportunity_analyzer` cross-checks postings and companies with `linkedin_search` and `profile_lookup`.
+- `networking_strategist` uses `profile_lookup` to surface decision makers and warm introductions.
 
 ### API Endpoint
 ```http

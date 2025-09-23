@@ -1,20 +1,33 @@
-"""
-LinkedIn Job Search CrewAI implementation.
+"""LinkedIn Job Search CrewAI implementation with MCP integration."""
 
-This crew coordinates LinkedIn job searches and recommendations using LinkedIn tools.
-"""
+import asyncio
 import json
-from collections.abc import Mapping
+import logging
+from collections.abc import Mapping, Sequence
 from json import JSONDecodeError
-from threading import Lock
-from typing import Any, Dict, Optional
+from threading import Lock, Thread
+from typing import Any, Awaitable, Callable, Dict, Optional
 
 from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
 
+from app.services.mcp import MCPConfig, MCPToolFactory, MCPToolWrapper
+
 
 _cached_crew: Optional[Crew] = None
 _crew_lock = Lock()
+
+_logger = logging.getLogger(__name__)
+
+_MCP_FACTORY: Optional[MCPToolFactory] = None
+_MCP_TOOL_CACHE: Dict[str, MCPToolWrapper] = {}
+_MCP_LOCK = Lock()
+
+_DEFAULT_AGENT_TOOL_MAPPING: Dict[str, Sequence[str]] = {
+    "linkedin_job_searcher": ("linkedin_search",),
+    "job_opportunity_analyzer": ("linkedin_search", "profile_lookup"),
+    "networking_strategist": ("profile_lookup",),
+}
 
 _REPORT_SCHEMA_KEYS = {
     "executive_summary",
@@ -24,6 +37,135 @@ _REPORT_SCHEMA_KEYS = {
     "success_metrics",
     "linkedin_profile_optimizations",
 }
+
+def _run_coroutine_safely(coro_factory: Callable[[], Awaitable[Any]]) -> Any:
+    """Execute an async coroutine, even when an event loop is running."""
+
+    try:
+        return asyncio.run(coro_factory())
+    except RuntimeError as exc:
+        if "asyncio.run() cannot be called from a running event loop" not in str(exc):
+            raise
+
+        result: Dict[str, Any] = {}
+        error: Optional[BaseException] = None
+
+        def _runner() -> None:
+            nonlocal error
+            new_loop = asyncio.new_event_loop()
+            try:
+                asyncio.set_event_loop(new_loop)
+                result["value"] = new_loop.run_until_complete(coro_factory())
+            except BaseException as thread_exc:  # pragma: no cover - defensive
+                error = thread_exc
+            finally:
+                asyncio.set_event_loop(None)
+                new_loop.close()
+
+        thread = Thread(target=_runner, daemon=True)
+        thread.start()
+        thread.join()
+
+        if error is not None:
+            raise error
+
+        return result.get("value")
+
+
+def _get_shared_mcp_factory() -> Optional[MCPToolFactory]:
+    """Create or reuse a shared MCP tool factory."""
+
+    global _MCP_FACTORY
+
+    if _MCP_FACTORY is not None:
+        return _MCP_FACTORY
+
+    with _MCP_LOCK:
+        if _MCP_FACTORY is not None:
+            return _MCP_FACTORY
+
+        try:
+            adapter = MCPConfig.from_environment()
+        except Exception as exc:  # pragma: no cover - configuration issues are logged
+            _logger.warning("Failed to configure MCP adapter: %s", exc)
+            return None
+
+        try:
+            is_connected = getattr(adapter, "is_connected", None)
+            if callable(is_connected) and is_connected():
+                pass
+            else:
+                _run_coroutine_safely(adapter.connect)
+        except Exception as exc:  # pragma: no cover - connection errors handled gracefully
+            _logger.warning("Failed to connect to MCP gateway: %s", exc)
+            return None
+
+        _MCP_FACTORY = MCPToolFactory(adapter)
+        return _MCP_FACTORY
+
+
+def _get_or_create_tool_wrapper(
+    tool_name: str,
+    factory: MCPToolFactory,
+) -> Optional[MCPToolWrapper]:
+    """Retrieve a cached MCP tool wrapper, creating it if necessary."""
+
+    with _MCP_LOCK:
+        wrapper = _MCP_TOOL_CACHE.get(tool_name)
+        if wrapper is not None:
+            return wrapper
+
+    try:
+        wrapper = factory.create_single_crewai_tool(tool_name)
+    except Exception as exc:
+        _logger.warning("Unable to create MCP tool '%s': %s", tool_name, exc)
+        return None
+
+    with _MCP_LOCK:
+        existing = _MCP_TOOL_CACHE.setdefault(tool_name, wrapper)
+        return existing
+
+
+def _prepare_agent_tools(
+    factory: Optional[MCPToolFactory],
+    mapping: Dict[str, Sequence[str]],
+) -> Dict[str, Sequence[MCPToolWrapper]]:
+    """Build tool assignments for each agent using cached MCP wrappers."""
+
+    if factory is None:
+        return {agent_key: tuple() for agent_key in mapping}
+
+    unique_tool_names: list[str] = []
+    for names in mapping.values():
+        for name in names:
+            if name not in unique_tool_names:
+                unique_tool_names.append(name)
+
+    available_wrappers: Dict[str, MCPToolWrapper] = {}
+    missing_tools: list[str] = []
+    for name in unique_tool_names:
+        wrapper = _get_or_create_tool_wrapper(name, factory)
+        if wrapper is None:
+            missing_tools.append(name)
+        else:
+            available_wrappers[name] = wrapper
+
+    if missing_tools:
+        _logger.warning(
+            "MCP tools unavailable for LinkedIn crew: %s",
+            ", ".join(sorted(set(missing_tools))),
+        )
+
+    agent_tools: Dict[str, Sequence[MCPToolWrapper]] = {}
+    for agent_key, tool_names in mapping.items():
+        agent_tools[agent_key] = tuple(
+            available_wrappers[name]
+            for name in tool_names
+            if name in available_wrappers
+        )
+
+    return agent_tools
+
 
 @CrewBase
 class LinkedInJobSearchCrew:
@@ -36,11 +178,36 @@ class LinkedInJobSearchCrew:
     agents_config = 'config/agents.yaml'
     tasks_config = 'config/tasks.yaml'
 
+    def __init__(
+        self,
+        *,
+        mcp_tool_factory: Optional[MCPToolFactory] = None,
+        agent_tool_mapping: Optional[Dict[str, Sequence[str]]] = None,
+    ):
+        """Initialize the crew and prepare MCP tool assignments."""
+
+        super().__init__()
+        self._agent_tool_mapping = dict(
+            agent_tool_mapping or _DEFAULT_AGENT_TOOL_MAPPING
+        )
+        self._mcp_tool_factory = mcp_tool_factory or _get_shared_mcp_factory()
+        self._agent_tools = _prepare_agent_tools(
+            self._mcp_tool_factory,
+            self._agent_tool_mapping,
+        )
+
+    def _get_agent_tools(self, agent_key: str) -> list[MCPToolWrapper]:
+        """Return a copy of the MCP tools assigned to an agent."""
+
+        tools = self._agent_tools.get(agent_key, tuple())
+        return list(tools)
+
     @agent
     def linkedin_job_searcher(self) -> Agent:
         """Specialist agent for LinkedIn job search."""
         return Agent(
             config=self.agents_config["linkedin_job_searcher"],  # type: ignore[index]
+            tools=self._get_agent_tools("linkedin_job_searcher"),
         )
 
     @agent
@@ -48,6 +215,7 @@ class LinkedInJobSearchCrew:
         """Specialist agent for analyzing LinkedIn job opportunities."""
         return Agent(
             config=self.agents_config["job_opportunity_analyzer"],  # type: ignore[index]
+            tools=self._get_agent_tools("job_opportunity_analyzer"),
         )
 
     @agent
@@ -55,6 +223,7 @@ class LinkedInJobSearchCrew:
         """Specialist agent for LinkedIn networking strategies."""
         return Agent(
             config=self.agents_config["networking_strategist"],  # type: ignore[index]
+            tools=self._get_agent_tools("networking_strategist"),
         )
 
     @agent
