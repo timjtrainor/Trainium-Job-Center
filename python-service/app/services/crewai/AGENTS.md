@@ -41,6 +41,10 @@ The Python service includes four active CrewAI multi-agent services:
 - **Location**: `app/services/crewai/linkedin_recommended_jobs/`
 - **Agents**: LinkedIn Job Discovery Specialist, Job Details Research Specialist
 - **Usage**: Pulls LinkedIn recommendation feed via MCP tools, saves discovered jobs, and produces enriched job briefs
+- **API Endpoint**: `POST /crewai/linkedin-recommended-jobs` (no request body). Returns JSON with `discovered_jobs` and
+  `enriched_jobs` arrays, persists `discovered_jobs.json`/`enriched_jobs.json`, and attaches a `request_id` for tracing.
+- **Logging**: Endpoint uses `structlog` JSON logs, binding `request_id` to each log entry and recording crew start/finish plus
+  MCP tool durations. Failures emit structured errors (validation → HTTP 400, MCP/tool issues → HTTP 500).
 
 All CrewAI services follow YAML-first configuration and modular agent design patterns.
 
@@ -415,6 +419,17 @@ api_router.include_router(company.router)
 3. **Input Validation**: Use Pydantic models for request validation
 4. **Response Models**: Define response schemas for consistent API contracts
 5. **Router Organization**: Group related endpoints in dedicated router modules
+
+### LinkedIn Recommended Jobs Endpoint Checklist
+
+- **Route**: `POST /crewai/linkedin-recommended-jobs`
+- **Inputs**: No request payload; reads defaults from `Settings.linkedin_recommended_*` configuration.
+- **Response Model**: `LinkedInRecommendedJobsResult` (`discovered_jobs`, `enriched_jobs`, `metadata`, `request_id`).
+- **Logging**: Configure `structlog` with contextvars, bind `request_id`, log crew start/finish, and rely on
+  `MCPToolsManager` for per-tool duration metrics.
+- **Error Mapping**: Raise `MCPConnectionError`, `ToolExecutionError`, or `CrewExecutionError` and convert them to HTTP 500
+  unless `details.error_category == "validation"`, which maps to HTTP 400.
+- **Persistence**: Call `write_recommended_job_outputs` so JSON artifacts mirror the crew output.
 
 ## Crew Implementation Template
 

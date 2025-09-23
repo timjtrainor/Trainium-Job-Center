@@ -1,6 +1,7 @@
 """Core application configuration and settings."""
 
-from typing import Optional, Union
+from typing import Optional, Union, Any
+import json
 import os
 from pathlib import Path
 from urllib.parse import urlparse
@@ -77,15 +78,50 @@ class Settings:
         self.rq_queue_name: str = os.getenv("RQ_QUEUE_NAME", "scraping")
         self.rq_result_ttl: int = int(os.getenv("RQ_RESULT_TTL", "3600"))  # 1 hour
         self.rq_job_timeout: int = int(os.getenv("RQ_JOB_TIMEOUT", "900"))  # 15 minutes
-        
+
         # Job Review Queue Configuration
         self.job_review_queue_name: str = os.getenv("JOB_REVIEW_QUEUE_NAME", "job_review")
         self.job_review_batch_size: int = int(os.getenv("JOB_REVIEW_BATCH_SIZE", "20"))
         self.job_review_max_retries: int = int(os.getenv("JOB_REVIEW_MAX_RETRIES", "3"))
         self.job_review_retry_delay: int = int(os.getenv("JOB_REVIEW_RETRY_DELAY", "300"))  # 5 minutes
-        
+
         # Poller Configuration
         self.poll_interval_minutes: int = int(os.getenv("POLL_INTERVAL_MINUTES", "5"))  # Default 5 min
+
+        # LinkedIn Recommended Jobs Defaults
+        self.linkedin_recommended_profile_url: Optional[str] = self._clean_optional(
+            os.getenv("LINKEDIN_RECOMMENDED_PROFILE_URL")
+        )
+        self.linkedin_recommended_location: Optional[str] = self._clean_optional(
+            os.getenv("LINKEDIN_RECOMMENDED_LOCATION")
+        )
+        self.linkedin_recommended_keywords: Optional[str] = self._clean_optional(
+            os.getenv("LINKEDIN_RECOMMENDED_KEYWORDS")
+        )
+
+        limit_raw = self._clean_optional(os.getenv("LINKEDIN_RECOMMENDED_LIMIT"))
+        default_limit = 10
+        if limit_raw:
+            try:
+                parsed_limit = int(limit_raw)
+                self.linkedin_recommended_limit: int = parsed_limit if parsed_limit > 0 else default_limit
+            except ValueError:
+                logger.warning(
+                    "Invalid LINKEDIN_RECOMMENDED_LIMIT provided; falling back to %s", default_limit
+                )
+                self.linkedin_recommended_limit = default_limit
+        else:
+            self.linkedin_recommended_limit = default_limit
+
+        job_preferences_raw = self._clean_optional(os.getenv("LINKEDIN_RECOMMENDED_JOB_PREFERENCES"))
+        self.linkedin_recommended_job_preferences: Optional[Any] = None
+        if job_preferences_raw:
+            try:
+                self.linkedin_recommended_job_preferences = json.loads(job_preferences_raw)
+            except json.JSONDecodeError:
+                logger.warning(
+                    "Invalid JSON for LINKEDIN_RECOMMENDED_JOB_PREFERENCES; ignoring value"
+                )
 
         # Environment-based configuration
         self.environment: str = os.getenv("ENVIRONMENT", "development")
@@ -123,6 +159,17 @@ class Settings:
             except Exception as e:  # pragma: no cover - unlikely error
                 logger.error(f"Failed to initialize ChromaDB persistent client: {e}")
                 raise RuntimeError(f"Could not initialize any ChromaDB client: {e}")
+
+
+    @staticmethod
+    def _clean_optional(value: Optional[str]) -> Optional[str]:
+        """Normalize optional string values by stripping whitespace."""
+
+        if value is None:
+            return None
+
+        stripped = value.strip()
+        return stripped or None
 
 
 # Global settings instance

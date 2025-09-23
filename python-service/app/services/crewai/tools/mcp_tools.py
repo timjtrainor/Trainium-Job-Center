@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
+import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from threading import Lock
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Type
 
+import structlog
 from app.services.mcp import MCPConfig, MCPGatewayAdapter, MCPToolFactory
 from app.services.mcp.mcp_exceptions import MCPError
 from app.services.mcp.mcp_crewai import BaseTool
@@ -34,7 +35,7 @@ except ImportError:  # pragma: no cover - fallback when Pydantic is unavailable
         return type(name, (BaseModel,), {})
 
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = structlog.get_logger(__name__)
 
 
 class MCPToolsManagerError(RuntimeError):
@@ -114,15 +115,25 @@ class MCPGatewayTool(BaseTool):
         try:
             return create_model(model_name, **fields)
         except Exception as exc:  # pragma: no cover - defensive
-            LOGGER.warning("Failed to build args schema for %s: %s", self.tool_name, exc)
+            LOGGER.warning(
+                "mcp_args_schema_build_failed",
+                tool_name=self.tool_name,
+                error=str(exc),
+                error_type=exc.__class__.__name__,
+            )
             return None
 
     def _run(self, **kwargs: Any) -> str:
         result = self._manager.execute_tool(self.tool_name, kwargs)
         try:
             return json.dumps(result, ensure_ascii=False, indent=2)
-        except TypeError:  # pragma: no cover - defensive
-            LOGGER.warning("Non-serializable result from tool %s", self.tool_name)
+        except TypeError as exc:  # pragma: no cover - defensive
+            LOGGER.warning(
+                "mcp_tool_non_serializable_result",
+                tool_name=self.tool_name,
+                error=str(exc),
+                error_type=exc.__class__.__name__,
+            )
             return json.dumps({"success": False, "error": "Non-serializable result", "raw": str(result)})
 
 
@@ -263,7 +274,7 @@ class MCPToolsManager:
         try:
             return self.get_tool(tool_name, aliases=aliases)
         except MCPToolNotAvailableError:
-            LOGGER.warning("MCP tool unavailable: %s", tool_name)
+            LOGGER.warning("mcp_tool_unavailable", tool_name=tool_name)
             return None
 
     def get_tools(
@@ -289,10 +300,21 @@ class MCPToolsManager:
     def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a tool synchronously and return structured JSON."""
 
+        start_time = time.perf_counter()
+        argument_keys = tuple(sorted(arguments.keys()))
+
         try:
             adapter = self.connect()
         except MCPToolsManagerError as exc:
-            LOGGER.error("Unable to execute %s: %s", tool_name, exc)
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            LOGGER.error(
+                "mcp_connection_failed",
+                tool_name=tool_name,
+                duration_ms=duration_ms,
+                argument_keys=argument_keys,
+                error=str(exc),
+                error_type=exc.__class__.__name__,
+            )
             return {
                 "success": False,
                 "error": str(exc),
@@ -302,19 +324,49 @@ class MCPToolsManager:
         try:
             result = self._run_async(adapter.execute_tool(tool_name, arguments))
         except MCPError as exc:
-            LOGGER.error("MCP tool %s failed: %s", tool_name, exc)
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            LOGGER.error(
+                "mcp_tool_execution_failed",
+                tool_name=tool_name,
+                duration_ms=duration_ms,
+                argument_keys=argument_keys,
+                error=str(exc),
+                error_type=exc.__class__.__name__,
+            )
             return {
                 "success": False,
                 "error": str(exc),
                 "metadata": {"tool_name": tool_name, "arguments": arguments},
             }
         except Exception as exc:  # pragma: no cover - defensive guard
-            LOGGER.exception("Unexpected error executing MCP tool %s", tool_name)
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            LOGGER.exception(
+                "mcp_tool_execution_unexpected_error",
+                tool_name=tool_name,
+                duration_ms=duration_ms,
+                argument_keys=argument_keys,
+                error=str(exc),
+                error_type=exc.__class__.__name__,
+            )
             return {
                 "success": False,
                 "error": str(exc),
                 "metadata": {"tool_name": tool_name, "arguments": arguments},
             }
+
+        success_flag = True
+        if isinstance(result, dict):
+            if "success" in result:
+                success_flag = bool(result.get("success"))
+
+        duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        LOGGER.info(
+            "mcp_tool_executed",
+            tool_name=tool_name,
+            duration_ms=duration_ms,
+            argument_keys=argument_keys,
+            success=bool(success_flag),
+        )
 
         if isinstance(result, dict):
             return result
@@ -345,9 +397,17 @@ class MCPToolsManager:
             try:
                 self._run_async(adapter.disconnect())
             except MCPError as exc:
-                LOGGER.warning("Error while disconnecting MCP adapter: %s", exc)
-            except MCPToolsManagerError:
-                LOGGER.debug("MCP tools manager closed during disconnect")
+                LOGGER.warning(
+                    "mcp_adapter_disconnect_failed",
+                    error=str(exc),
+                    error_type=exc.__class__.__name__,
+                )
+            except MCPToolsManagerError as exc:
+                LOGGER.debug(
+                    "mcp_tools_manager_closed_during_disconnect",
+                    error=str(exc),
+                    error_type=exc.__class__.__name__,
+                )
             except RuntimeError:
                 asyncio.run(adapter.disconnect())
 

@@ -211,8 +211,20 @@ def run_linkedin_recommended_jobs(
     keywords: Optional[str] = None,
     limit: int = 10,
     job_preferences: Optional[Dict[str, Any]] = None,
+    tools_manager: Optional[MCPToolsManager] = None,
+    write_outputs: bool = True,
+    use_cached_crew: bool = True,
 ) -> Dict[str, Any]:
-    crew_instance = get_linkedin_recommended_jobs_crew()
+    crew_holder: Optional[LinkedInRecommendedJobsCrew] = None
+    if tools_manager is not None:
+        crew_holder = LinkedInRecommendedJobsCrew(tools_manager=tools_manager)
+        crew_instance = crew_holder.crew()
+    elif use_cached_crew:
+        crew_instance = get_linkedin_recommended_jobs_crew()
+    else:
+        crew_holder = LinkedInRecommendedJobsCrew()
+        crew_instance = crew_holder.crew()
+
     inputs = _filter_inputs(
         profile_url=profile_url,
         location=location,
@@ -220,9 +232,15 @@ def run_linkedin_recommended_jobs(
         limit=limit,
         job_preferences=job_preferences,
     )
-    raw_result = crew_instance.kickoff(inputs=inputs)
+    try:
+        raw_result = crew_instance.kickoff(inputs=inputs)
+    finally:
+        if crew_holder is not None and tools_manager is None:
+            crew_holder.close()
+
     normalized = normalize_linkedin_recommended_jobs_output(raw_result)
-    write_recommended_job_outputs(normalized)
+    if write_outputs:
+        write_recommended_job_outputs(normalized)
     return normalized
 
 
@@ -230,5 +248,6 @@ __all__ = [
     "LinkedInRecommendedJobsCrew",
     "get_linkedin_recommended_jobs_crew",
     "normalize_linkedin_recommended_jobs_output",
+    "write_recommended_job_outputs",
     "run_linkedin_recommended_jobs",
 ]
