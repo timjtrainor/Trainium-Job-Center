@@ -17,10 +17,12 @@
       "transport": "streaming",
       "endpoints": {
         "job_search": "/jobs/search",
+        "recommended_jobs": "/jobs/recommended",
+        "job_details": "/jobs/details",
         "profile_lookup": "/profile",
         "tools": "/tools"
       },
-      "capabilities": ["job_search", "profile_lookup", "networking"],
+      "capabilities": ["job_search", "recommended_jobs", "job_details", "profile_lookup", "networking"],
       "status": "configured"
     }
   },

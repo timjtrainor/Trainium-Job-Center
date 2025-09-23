@@ -96,11 +96,33 @@ class MockGatewayTransport(MCPTransport):
                                 },
                                 "required": ["keywords"]
                             }
+                        },
+                        {
+                            "name": "get_recommended_jobs",
+                            "description": "Get personalized job recommendations for the current LinkedIn user",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {},
+                                "required": []
+                            }
+                        },
+                        {
+                            "name": "get_job_details",
+                            "description": "Get detailed information for a specific LinkedIn job posting",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "job_id": {"type": "string", "description": "LinkedIn job ID"}
+                                },
+                                "required": ["job_id"]
+                            }
                         }
                     ]
                 }
             }
         elif self.request_count == 3:  # Tool call request
+            # Determine which tool was called based on request data (this is simplified)
+            # In a real implementation, we'd parse the tool name from the request
             response = {
                 "jsonrpc": "2.0",
                 "id": 3,

@@ -1,0 +1,80 @@
+# LinkedIn Recommended Jobs Tasks Configuration
+
+collect_recommended_jobs_task:
+  description: >
+    Call the get_recommended_jobs MCP tool to fetch LinkedIn job recommendations 
+    for the current logged-in user. Extract all job IDs from the response and 
+    prepare them for detailed retrieval. Do not filter, rank, or analyze the 
+    recommendations - simply collect all available job IDs.
+    
+    Use the MCP LinkedIn tool get_recommended_jobs to retrieve personalized 
+    job recommendations. The tool should return a list of job IDs that LinkedIn 
+    has recommended for the current user profile.
+    
+  expected_output: >
+    A JSON array of job IDs in the format:
+    {
+      "job_ids": ["job_id_1", "job_id_2", "job_id_3", ...],
+      "total_count": number_of_jobs,
+      "success": true
+    }
+    
+  agent: job_collector_agent
+  async_execution: false
+
+fetch_job_details_task:
+  description: >
+    For each job ID collected from the previous task, call the get_job_details 
+    MCP tool to retrieve complete job posting information. Transform each job's 
+    raw data into the standardized JobPosting schema with these exact fields:
+    - title (string): Job title
+    - company (string): Company name  
+    - location (string): Job location
+    - description (string): Full job description
+    - url (string): Valid URI to the job posting (1-2083 characters)
+    
+    Process all job IDs from the context and ensure no jobs are skipped. Handle 
+    any API errors gracefully but attempt to retrieve as many job details as possible.
+    
+  expected_output: >
+    A JSON array of JobPosting objects in this exact format:
+    [
+      {
+        "title": "Job Title",
+        "company": "Company Name", 
+        "location": "Job Location",
+        "description": "Full job description text",
+        "url": "https://linkedin.com/jobs/view/job_id"
+      }
+    ]
+    Each object must contain all five required fields. The array should include 
+    all successfully retrieved job details.
+    
+  agent: job_details_agent
+  context: [collect_recommended_jobs_task]
+  async_execution: false
+
+update_documentation_task:
+  description: >
+    Review and update the README.md file (or other relevant project documentation) 
+    for the linkedin_recommended_jobs crew to ensure it accurately describes:
+    
+    1. The crew's purpose: fetching and normalizing LinkedIn recommended jobs
+    2. The workflow: collect job IDs → fetch details → normalize to schema
+    3. The output schema: JobPosting objects with title, company, location, description, url
+    4. Important constraints: no recommendation logic, filtering, or analysis
+    
+    Ensure the documentation clearly communicates that this crew is strictly for 
+    data retrieval and normalization, not for job evaluation or recommendation.
+    
+  expected_output: >
+    An updated documentation file that clearly describes:
+    - Crew purpose and scope
+    - Workflow steps (Collector → Details → Documentation)
+    - JobPosting schema specification
+    - Usage examples and integration points
+    - Clear statement that no recommendation logic is included
+    
+  agent: documentation_agent
+  context: [collect_recommended_jobs_task, fetch_job_details_task]
+  async_execution: false
