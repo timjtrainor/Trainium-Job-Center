@@ -26,8 +26,11 @@ app/services/crewai/
 ├── personal_branding/            # Personal branding crew
 │   ├── crew.py                   # PersonalBrandCrew class
 │   └── config/                   # YAML configurations
-└── research_company/             # Company research crew
-    ├── crew.py                   # ResearchCompanyCrew class
+├── research_company/             # Company research crew
+│   ├── crew.py                   # ResearchCompanyCrew class
+│   └── config/                   # YAML configurations
+└── linkedin_recommended_jobs/    # LinkedIn recommended jobs crew
+    ├── crew.py                   # LinkedInRecommendedJobsCrew class
     └── config/                   # YAML configurations
 ```
 
@@ -49,6 +52,12 @@ The `personal_branding` crew helps with personal brand development and career po
 ### ResearchCompanyCrew
 
 The `research_company` crew provides comprehensive company research and analysis.
+
+### LinkedInRecommendedJobsCrew
+
+The `linkedin_recommended_jobs` crew retrieves the LinkedIn recommendation feed
+via MCP gateway tools, saves the discovered jobs, and enriches each position with
+full details for downstream workflows.
 
 #### Usage
 

@@ -1,12 +1,68 @@
+"""Shared tool exports for CrewAI services."""
+from __future__ import annotations
+
 import os
-from .custom_pg import PostgresQueryTool
+
+from crewai.tools import tool
+
 from .chroma_search import (
     ChromaSearchTool,
-    chroma_search,
     chroma_list_collections,
+    chroma_search,
     chroma_search_across_collections,
 )
-from crewai.tools import tool
+from .custom_pg import PostgresQueryTool
+from .mcp_tools import (
+    DUCKDUCKGO_SEARCH_TOOL_NAME,
+    LINKEDIN_COMPANY_PROFILE_TOOL_NAME,
+    LINKEDIN_JOB_DETAILS_TOOL_NAME,
+    LINKEDIN_PERSON_PROFILE_TOOL_NAME,
+    LINKEDIN_PROFILE_LOOKUP_TOOL_NAME,
+    LINKEDIN_RECOMMENDED_JOBS_TOOL_NAME,
+    LINKEDIN_SEARCH_TOOL_NAME,
+    DuckDuckGoSearchTool,
+    LinkedInCompanyProfileTool,
+    LinkedInJobDetailsTool,
+    LinkedInPersonProfileTool,
+    LinkedInProfileLookupTool,
+    LinkedInRecommendedJobsTool,
+    LinkedInSearchTool,
+    MCPGatewayTool,
+    MCPToolNotAvailableError,
+    MCPToolsManager,
+    MCPToolsManagerError,
+)
+
+__all__ = [
+    "tool",
+    "PostgresQueryTool",
+    "get_postgres_tool",
+    "ChromaSearchTool",
+    "get_chroma_search_tool",
+    "chroma_search",
+    "chroma_list_collections",
+    "chroma_search_across_collections",
+    "get_chroma_tools",
+    # MCP tool exports
+    "MCPGatewayTool",
+    "MCPToolsManager",
+    "MCPToolsManagerError",
+    "MCPToolNotAvailableError",
+    "LinkedInRecommendedJobsTool",
+    "LinkedInJobDetailsTool",
+    "LinkedInSearchTool",
+    "LinkedInProfileLookupTool",
+    "LinkedInCompanyProfileTool",
+    "LinkedInPersonProfileTool",
+    "DuckDuckGoSearchTool",
+    "LINKEDIN_RECOMMENDED_JOBS_TOOL_NAME",
+    "LINKEDIN_JOB_DETAILS_TOOL_NAME",
+    "LINKEDIN_SEARCH_TOOL_NAME",
+    "LINKEDIN_PROFILE_LOOKUP_TOOL_NAME",
+    "LINKEDIN_COMPANY_PROFILE_TOOL_NAME",
+    "LINKEDIN_PERSON_PROFILE_TOOL_NAME",
+    "DUCKDUCKGO_SEARCH_TOOL_NAME",
+]
 
 
 def get_postgres_tool() -> PostgresQueryTool:
@@ -29,17 +85,3 @@ def get_chroma_tools() -> list:
         chroma_list_collections,
         chroma_search_across_collections,
     ]
-
-
-__all__ = [
-    "tool",
-    "PostgresQueryTool",
-    "get_postgres_tool",
-    "ChromaSearchTool",
-    "get_chroma_search_tool",
-    "chroma_search",
-    "chroma_list_collections", 
-    "chroma_search_across_collections",
-    "get_chroma_tools",
-]
-

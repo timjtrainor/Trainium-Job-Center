@@ -1,0 +1,73 @@
+# LinkedIn Recommended Jobs Tasks
+discover_recommended_jobs:
+  description: >
+    Use the LinkedIn recommended jobs MCP tool to gather fresh opportunities for
+    {{profile_url}}. Capture the top matches along with their LinkedIn job IDs,
+    short descriptions, and why they were recommended (skill alignment, location,
+    company affinity, etc.). Ensure the output is structured JSON so it can be
+    persisted to `discovered_jobs.json` and reused by downstream tasks.
+
+  expected_output: >
+    JSON object matching schema:
+    {
+      "type": "object",
+      "properties": {
+        "summary": {"type": "string"},
+        "job_recommendations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "job_id": {"type": "string"},
+              "job_title": {"type": "string"},
+              "company": {"type": "string"},
+              "location": {"type": "string"},
+              "match_reason": {"type": "string"},
+              "job_url": {"type": "string"}
+            },
+            "required": ["job_id", "job_title", "company"]
+          }
+        },
+        "job_ids": {"type": "array", "items": {"type": "string"}}
+      },
+      "required": ["summary", "job_recommendations", "job_ids"]
+    }
+
+  agent: job_discovery_agent
+
+enrich_job_details:
+  description: >
+    For each job ID provided by the discovery task, call the LinkedIn job
+    details MCP tool to gather full descriptions, requirements, compensation
+    notes, and any relevant company context. Summarize insights into a rich
+    brief that can be saved as `enriched_jobs.json`. Highlight recommended
+    next steps for the candidate and surface missing information for follow-up.
+
+  expected_output: >
+    JSON object matching schema:
+    {
+      "type": "object",
+      "properties": {
+        "enriched_jobs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "job_id": {"type": "string"},
+              "job_title": {"type": "string"},
+              "company": {"type": "string"},
+              "job_description": {"type": "string"},
+              "key_requirements": {"type": "array", "items": {"type": "string"}},
+              "company_insights": {"type": "array", "items": {"type": "string"}},
+              "next_steps": {"type": "array", "items": {"type": "string"}}
+            },
+            "required": ["job_id", "job_title", "company", "job_description"]
+          }
+        },
+        "analysis_summary": {"type": "string"}
+      },
+      "required": ["enriched_jobs"]
+    }
+
+  agent: job_enrichment_agent
+  context: [discover_recommended_jobs]
