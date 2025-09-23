@@ -88,6 +88,16 @@ from .mcp_adapter import MCPGatewayAdapter
 from .mcp_config import MCPConfig, ConfigurationError
 from .mcp_health import MCPHealthMonitor, HealthCheckResult, MetricSnapshot, HealthCheckRegistry
 
+# Phase 5 - CrewAI Integration
+from .mcp_crewai import (
+    AsyncMCPToolWrapper, 
+    MCPToolWrapper, 
+    MCPToolFactory,
+    is_crewai_available,
+    is_pydantic_available,
+    get_integration_status
+)
+
 __version__ = "1.0.0"
 __author__ = "Trainium Job Center"
 
@@ -158,5 +168,13 @@ __all__ = [
     "MCPHealthMonitor",
     "HealthCheckResult",
     "MetricSnapshot",
-    "HealthCheckRegistry"
+    "HealthCheckRegistry",
+    
+    # Phase 5 - CrewAI Integration
+    "AsyncMCPToolWrapper",
+    "MCPToolWrapper", 
+    "MCPToolFactory",
+    "is_crewai_available",
+    "is_pydantic_available", 
+    "get_integration_status"
 ]
