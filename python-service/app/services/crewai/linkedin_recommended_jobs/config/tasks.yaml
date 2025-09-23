@@ -1,0 +1,56 @@
+analyze_recommendations_task:
+  description: >
+    Evaluate LinkedIn recommended jobs for {{user_id}} using the provided inputs
+    such as job_preferences, target_companies, and location_preferences. Explain
+    why each surfaced opportunity matches the user's interests and capture the
+    underlying signal (saved jobs, follows, skill matches, recruiter outreach,
+    etc.). When information is unavailable, clearly state the limitation.
+  expected_output: >
+    JSON object with structure:
+    {
+      "success": true,
+      "analysis_notes": ["summary bullet", "..."],
+      "recommended_jobs": [
+        {
+          "job_title": "string",
+          "company_name": "string",
+          "job_url": "https://...",
+          "match_reasons": ["reason", "reason"],
+          "signal_source": "saved_jobs | follows | recruiters | skills",
+          "location": "string",
+          "remote_friendly": true
+        }
+      ]
+    }
+  agent: recommendations_researcher
+  async_execution: true
+
+summarize_recommendations_task:
+  description: >
+    Prioritize the recommended roles gathered for {{user_id}} and craft an
+    actionable next-step plan. Highlight the top opportunities, provide
+    recommended outreach actions, and surface any gaps that should be addressed
+    before applying.
+  expected_output: >
+    JSON object with structure:
+    {
+      "success": true,
+      "summary": "High level overview",
+      "recommended_jobs": [
+        {
+          "job_title": "string",
+          "company_name": "string",
+          "job_url": "https://...",
+          "priority": "high | medium | low",
+          "next_steps": ["step", "step"],
+          "insights": "Short rationale"
+        }
+      ],
+      "metadata": {
+        "total_recommendations": 5,
+        "preferences_considered": ["string"],
+        "profile_context_used": false
+      }
+    }
+  agent: opportunity_synthesizer
+  context: [analyze_recommendations_task]

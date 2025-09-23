@@ -36,6 +36,12 @@ The Python service includes four active CrewAI multi-agent services:
 - **Agents**: LinkedIn Job Searcher, Job Opportunity Analyzer, Networking Strategist, LinkedIn Report Writer
 - **Usage**: Searches LinkedIn for opportunities, analyzes fit, and develops networking strategies
 
+### 5. LinkedIn Recommended Jobs (`linkedin_recommended_jobs`)
+- **Purpose**: Translate LinkedIn recommendation signals into prioritized opportunities and action plans
+- **Location**: `app/services/crewai/linkedin_recommended_jobs/`
+- **Agents**: Recommendations Researcher, Opportunity Synthesizer
+- **Usage**: Consumes saved jobs, followed companies, and stated preferences to surface the most relevant LinkedIn recommendations without requiring a stored profile URL
+
 All CrewAI services follow YAML-first configuration and modular agent design patterns.
 
 ## File Structure Overview

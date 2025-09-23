@@ -12,6 +12,7 @@ from .v1.endpoints.chroma_manager import router as chroma_manager_router
 from .v1.endpoints.company import router as company_router
 from .v1.endpoints.linkedin_job_search import router as linkedin_job_search_router
 from .v1.endpoints.brand_driven_job_search import router as brand_driven_job_search_router
+from .v1.endpoints.linkedin_recommended_jobs import router as linkedin_recommended_jobs_router
 
 from ..routes.jobs_fit_review import router as jobs_fit_review_router
 
@@ -27,6 +28,7 @@ api_router.include_router(chroma_manager_router, tags=["ChromaDB Manager"])
 api_router.include_router(company_router, prefix="/company-research")
 api_router.include_router(linkedin_job_search_router, prefix="/crewai", tags=["CrewAI"])
 api_router.include_router(brand_driven_job_search_router, prefix="/crewai", tags=["CrewAI"])
+api_router.include_router(linkedin_recommended_jobs_router, prefix="/crewai", tags=["CrewAI"])
 
 # Job Review Management
 api_router.include_router(job_review_router, tags=["Job Review"])
