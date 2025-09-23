@@ -4,7 +4,21 @@ from typing import Dict, Any, List
 from loguru import logger
 
 from ..schemas.job_posting import LinkedInRecommendedJobsResponse, JobPosting
-from .crewai.linkedin_recommended_jobs import run_linkedin_recommended_jobs
+
+# Defensive import with graceful fallback
+try:
+    from .crewai.linkedin_recommended_jobs import run_linkedin_recommended_jobs
+    LINKEDIN_CREW_AVAILABLE = True
+except ImportError as e:
+    LINKEDIN_CREW_AVAILABLE = False
+    _import_error = str(e)
+    logger.warning(f"LinkedIn recommended jobs crew not available: {e}")
+    
+    def run_linkedin_recommended_jobs() -> Dict[str, Any]:
+        return {
+            "success": False,
+            "error_message": f"LinkedIn recommended jobs crew not available: {_import_error}"
+        }
 
 
 def fetch_linkedin_recommended_jobs() -> LinkedInRecommendedJobsResponse:
@@ -14,6 +28,14 @@ def fetch_linkedin_recommended_jobs() -> LinkedInRecommendedJobsResponse:
     Returns:
         LinkedInRecommendedJobsResponse with job postings and metadata
     """
+    # Check if crew is available
+    if not LINKEDIN_CREW_AVAILABLE:
+        logger.error("LinkedIn recommended jobs crew is not available")
+        return LinkedInRecommendedJobsResponse(
+            success=False,
+            error_message="LinkedIn recommended jobs functionality is not available. Please ensure CrewAI dependencies are installed."
+        )
+    
     try:
         logger.info("Starting LinkedIn recommended jobs fetch")
         

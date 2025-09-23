@@ -13,10 +13,53 @@ from json import JSONDecodeError
 from threading import Lock, Thread
 from typing import Any, Awaitable, Callable, Dict, Optional, List
 
-from crewai import Agent, Task, Crew, Process
-from crewai.project import CrewBase, agent, task, crew
+# Defensive imports with graceful fallback
+try:
+    from crewai import Agent, Task, Crew, Process
+    from crewai.project import CrewBase, agent, task, crew
+    CREWAI_AVAILABLE = True
+except ImportError:
+    CREWAI_AVAILABLE = False
+    # Create stub classes for compatibility
+    class Agent:
+        def __init__(self, **kwargs):
+            pass
+    class Task:
+        def __init__(self, **kwargs):
+            pass
+    class Crew:
+        def __init__(self, **kwargs):
+            pass
+    class Process:
+        sequential = "sequential"
+    class CrewBase:
+        def __init__(self):
+            pass
+    def agent(func):
+        return func
+    def task(func):
+        return func
+    def crew(func):
+        return func
 
-from app.services.mcp import MCPConfig, MCPToolFactory, MCPToolWrapper
+try:
+    from app.services.mcp import MCPConfig, MCPToolFactory, MCPToolWrapper
+    MCP_AVAILABLE = True
+except ImportError:
+    MCP_AVAILABLE = False
+    # Create stub classes for compatibility
+    class MCPConfig:
+        @classmethod
+        def from_environment(cls):
+            return None
+    class MCPToolFactory:
+        def __init__(self, adapter):
+            pass
+        def create_single_crewai_tool(self, tool_name):
+            return None
+    class MCPToolWrapper:
+        def __init__(self, **kwargs):
+            pass
 
 
 _cached_crew: Optional[Crew] = None
@@ -81,6 +124,11 @@ def _run_coroutine_safely(coro_factory: Callable[[], Awaitable[Any]]) -> Any:
 def _get_shared_mcp_factory() -> Optional[MCPToolFactory]:
     """Create or reuse a shared MCP tool factory."""
     global _MCP_FACTORY
+    
+    # Check if dependencies are available
+    if not CREWAI_AVAILABLE or not MCP_AVAILABLE:
+        _logger.warning("CrewAI or MCP dependencies not available, MCP factory disabled")
+        return None
 
     if _MCP_FACTORY is not None:
         return _MCP_FACTORY
@@ -170,116 +218,131 @@ def _prepare_agent_tools(
     return agent_tools
 
 
-@CrewBase
-class LinkedInRecommendedJobsCrew:
-    """
-    LinkedIn Recommended Jobs crew for fetching and normalizing LinkedIn job recommendations.
-    
-    This crew is responsible ONLY for:
-    1. Fetching personalized job recommendations from LinkedIn 
-    2. Retrieving detailed job posting information
-    3. Normalizing data to JobPosting schema
-    4. Updating project documentation
-    
-    It does NOT perform any recommendation logic, filtering, ranking, or job evaluation.
-    """
-    agents_config = 'config/agents.yaml'
-    tasks_config = 'config/tasks.yaml'
+if CREWAI_AVAILABLE:
+    @CrewBase
+    class LinkedInRecommendedJobsCrew:
+        """
+        LinkedIn Recommended Jobs crew for fetching and normalizing LinkedIn job recommendations.
+        
+        This crew is responsible ONLY for:
+        1. Fetching personalized job recommendations from LinkedIn 
+        2. Retrieving detailed job posting information
+        3. Normalizing data to JobPosting schema
+        4. Updating project documentation
+        
+        It does NOT perform any recommendation logic, filtering, ranking, or job evaluation.
+        """
+        agents_config = 'config/agents.yaml'
+        tasks_config = 'config/tasks.yaml'
 
-    def __init__(
-        self,
-        *,
-        mcp_tool_factory: Optional[MCPToolFactory] = None,
-        agent_tool_mapping: Optional[Dict[str, Sequence[str]]] = None,
-    ):
-        """Initialize the crew and prepare MCP tool assignments."""
-        super().__init__()
-        self._agent_tool_mapping = dict(
-            agent_tool_mapping or _DEFAULT_AGENT_TOOL_MAPPING
-        )
-        self._mcp_tool_factory = mcp_tool_factory or _get_shared_mcp_factory()
-        self._agent_tools = _prepare_agent_tools(
-            self._mcp_tool_factory,
-            self._agent_tool_mapping,
-        )
+        def __init__(
+            self,
+            *,
+            mcp_tool_factory: Optional[MCPToolFactory] = None,
+            agent_tool_mapping: Optional[Dict[str, Sequence[str]]] = None,
+        ):
+            """Initialize the crew and prepare MCP tool assignments."""
+            super().__init__()
+            self._agent_tool_mapping = dict(
+                agent_tool_mapping or _DEFAULT_AGENT_TOOL_MAPPING
+            )
+            self._mcp_tool_factory = mcp_tool_factory or _get_shared_mcp_factory()
+            self._agent_tools = _prepare_agent_tools(
+                self._mcp_tool_factory,
+                self._agent_tool_mapping,
+            )
 
-    def _get_agent_tools(self, agent_key: str) -> list[MCPToolWrapper]:
-        """Return a copy of the MCP tools assigned to an agent."""
-        tools = self._agent_tools.get(agent_key, tuple())
-        return list(tools)
+        def _get_agent_tools(self, agent_key: str) -> list[MCPToolWrapper]:
+            """Return a copy of the MCP tools assigned to an agent."""
+            tools = self._agent_tools.get(agent_key, tuple())
+            return list(tools)
 
-    @agent
-    def job_collector_agent(self) -> Agent:
-        """Agent responsible for collecting LinkedIn job recommendation IDs."""
-        return Agent(
-            config=self.agents_config["job_collector_agent"],  # type: ignore[index]
-            tools=self._get_agent_tools("job_collector_agent"),
-        )
+        @agent
+        def job_collector_agent(self) -> Agent:
+            """Agent responsible for collecting LinkedIn job recommendation IDs."""
+            return Agent(
+                config=self.agents_config["job_collector_agent"],  # type: ignore[index]
+                tools=self._get_agent_tools("job_collector_agent"),
+            )
 
-    @agent
-    def job_details_agent(self) -> Agent:
-        """Agent responsible for fetching detailed job information."""
-        return Agent(
-            config=self.agents_config["job_details_agent"],  # type: ignore[index]
-            tools=self._get_agent_tools("job_details_agent"),
-        )
+        @agent
+        def job_details_agent(self) -> Agent:
+            """Agent responsible for fetching detailed job information."""
+            return Agent(
+                config=self.agents_config["job_details_agent"],  # type: ignore[index]
+                tools=self._get_agent_tools("job_details_agent"),
+            )
 
-    @agent
-    def documentation_agent(self) -> Agent:
-        """Agent responsible for maintaining project documentation."""
-        return Agent(
-            config=self.agents_config["documentation_agent"],  # type: ignore[index]
-            tools=self._get_agent_tools("documentation_agent"),
-        )
+        @agent
+        def documentation_agent(self) -> Agent:
+            """Agent responsible for maintaining project documentation."""
+            return Agent(
+                config=self.agents_config["documentation_agent"],  # type: ignore[index]
+                tools=self._get_agent_tools("documentation_agent"),
+            )
 
-    @task
-    def collect_recommended_jobs_task(self) -> Task:
-        """Task to collect LinkedIn job recommendation IDs."""
-        return Task(
-            config=self.tasks_config["collect_recommended_jobs_task"],  # type: ignore[index]
-            agent=self.job_collector_agent(),
-        )
+        @task
+        def collect_recommended_jobs_task(self) -> Task:
+            """Task to collect LinkedIn job recommendation IDs."""
+            return Task(
+                config=self.tasks_config["collect_recommended_jobs_task"],  # type: ignore[index]
+                agent=self.job_collector_agent(),
+            )
 
-    @task
-    def fetch_job_details_task(self) -> Task:
-        """Task to fetch detailed job information and normalize to JobPosting schema."""
-        return Task(
-            config=self.tasks_config["fetch_job_details_task"],  # type: ignore[index]
-            agent=self.job_details_agent(),
-            context=[self.collect_recommended_jobs_task()]
-        )
+        @task
+        def fetch_job_details_task(self) -> Task:
+            """Task to fetch detailed job information and normalize to JobPosting schema."""
+            return Task(
+                config=self.tasks_config["fetch_job_details_task"],  # type: ignore[index]
+                agent=self.job_details_agent(),
+                context=[self.collect_recommended_jobs_task()]
+            )
 
-    @task
-    def update_documentation_task(self) -> Task:
-        """Task to update project documentation."""
-        return Task(
-            config=self.tasks_config["update_documentation_task"],  # type: ignore[index]
-            agent=self.documentation_agent(),
-            context=[self.collect_recommended_jobs_task(), self.fetch_job_details_task()]
-        )
+        @task
+        def update_documentation_task(self) -> Task:
+            """Task to update project documentation."""
+            return Task(
+                config=self.tasks_config["update_documentation_task"],  # type: ignore[index]
+                agent=self.documentation_agent(),
+                context=[self.collect_recommended_jobs_task(), self.fetch_job_details_task()]
+            )
 
-    @crew
-    def crew(self) -> Crew:
-        """Assemble the complete LinkedIn recommended jobs crew."""
-        return Crew(
-            agents=[
-                self.job_collector_agent(),
-                self.job_details_agent(),
-                self.documentation_agent()
-            ],
-            tasks=[
-                self.collect_recommended_jobs_task(),
-                self.fetch_job_details_task(),
-                self.update_documentation_task()
-            ],
-            process=Process.sequential,  # Sequential execution as required
-            verbose=True,
-        )
+        @crew
+        def crew(self) -> Crew:
+            """Assemble the complete LinkedIn recommended jobs crew."""
+            return Crew(
+                agents=[
+                    self.job_collector_agent(),
+                    self.job_details_agent(),
+                    self.documentation_agent()
+                ],
+                tasks=[
+                    self.collect_recommended_jobs_task(),
+                    self.fetch_job_details_task(),
+                    self.update_documentation_task()
+                ],
+                process=Process.sequential,  # Sequential execution as required
+                verbose=True,
+            )
+else:
+    # Fallback class when CrewAI is not available
+    class LinkedInRecommendedJobsCrew:
+        """Fallback crew class when CrewAI is not available."""
+        def __init__(self, **kwargs):
+            pass
+        
+        def crew(self):
+            raise ImportError("CrewAI is not available. Please install crewai to use this module.")
 
 
 def get_linkedin_recommended_jobs_crew() -> Crew:
     """Factory function with singleton pattern for crew instances."""
     global _cached_crew
+    
+    # Check if dependencies are available
+    if not CREWAI_AVAILABLE:
+        raise ImportError("CrewAI is not available. Please install crewai to use this module.")
+    
     if _cached_crew is None:
         with _crew_lock:
             if _cached_crew is None:
@@ -349,6 +412,13 @@ def normalize_linkedin_recommended_jobs_output(result: Any) -> Dict[str, Any]:
 
 def run_linkedin_recommended_jobs() -> Dict[str, Any]:
     """Execute the LinkedIn recommended jobs crew workflow."""
+    # Check if dependencies are available
+    if not CREWAI_AVAILABLE:
+        return {
+            "success": False,
+            "error_message": "CrewAI is not available. Please install crewai to use this functionality."
+        }
+    
     crew = get_linkedin_recommended_jobs_crew()
     
     # No inputs needed - fetches recommendations for current logged-in user

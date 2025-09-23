@@ -3,11 +3,35 @@
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
-from ....schemas.job_posting import (
-    LinkedInRecommendedJobsRequest,
-    LinkedInRecommendedJobsResponse
-)
-from ....services.linkedin_recommended_jobs_service import fetch_linkedin_recommended_jobs
+# Defensive imports with graceful fallback
+try:
+    from ....schemas.job_posting import (
+        LinkedInRecommendedJobsRequest,
+        LinkedInRecommendedJobsResponse
+    )
+    SCHEMAS_AVAILABLE = True
+except ImportError as e:
+    SCHEMAS_AVAILABLE = False
+    logger.warning(f"JobPosting schemas not available: {e}")
+    # Create fallback classes
+    class LinkedInRecommendedJobsRequest:
+        pass
+    class LinkedInRecommendedJobsResponse:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+try:
+    from ....services.linkedin_recommended_jobs_service import fetch_linkedin_recommended_jobs
+    SERVICE_AVAILABLE = True
+except ImportError as e:
+    SERVICE_AVAILABLE = False
+    logger.warning(f"LinkedIn recommended jobs service not available: {e}")
+    
+    def fetch_linkedin_recommended_jobs():
+        return LinkedInRecommendedJobsResponse(
+            success=False,
+            error_message="LinkedIn recommended jobs service is not available"
+        )
 
 router = APIRouter(prefix="/linkedin-recommended-jobs", tags=["LinkedIn Recommended Jobs"])
 
@@ -28,6 +52,13 @@ async def fetch_recommended_jobs(request: LinkedInRecommendedJobsRequest):
     Returns:
         LinkedInRecommendedJobsResponse: Contains list of normalized job postings
     """
+    # Check if dependencies are available
+    if not SCHEMAS_AVAILABLE or not SERVICE_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="LinkedIn recommended jobs functionality is not available. Dependencies not installed."
+        )
+    
     try:
         logger.info("Received request for LinkedIn recommended jobs")
         

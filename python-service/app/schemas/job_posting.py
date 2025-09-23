@@ -1,6 +1,25 @@
 """JobPosting schema definitions for LinkedIn recommended jobs."""
 
-from pydantic import BaseModel, Field, HttpUrl
+# Defensive imports with graceful fallback
+try:
+    from pydantic import BaseModel, Field, HttpUrl
+    PYDANTIC_AVAILABLE = True
+except ImportError:
+    PYDANTIC_AVAILABLE = False
+    # Create fallback classes for when Pydantic is not available
+    class BaseModel:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+        
+        def dict(self):
+            return self.__dict__
+    
+    def Field(**kwargs):
+        return None
+    
+    # Simple URL type for fallback
+    HttpUrl = str
+
 from typing import List, Dict, Any, Optional
 
 
