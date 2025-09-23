@@ -8,37 +8,62 @@ This crew fetches personalized job recommendations from LinkedIn and normalizes 
 
 ## Workflow
 
-1. **Job Collection**: Uses the MCP Gateway LinkedIn tool `get_recommended_jobs` to fetch all personalized job recommendations for the logged-in LinkedIn user
-2. **Job Details Retrieval**: For each job returned, calls the MCP Gateway LinkedIn tool `get_job_details` to retrieve the full job posting information
+1. **Job Collection**: Uses MCP tools to fetch all personalized job recommendations for the logged-in LinkedIn user
+2. **Job Details Retrieval**: For each job returned, retrieves the full job posting information  
 3. **Data Normalization**: Transforms raw LinkedIn data into standardized JobPosting objects
 4. **Documentation Updates**: Updates project documentation to reflect current crew functionality
+
+## MCP Integration
+
+This crew uses the **simplified MCP integration approach** with `MCPServerAdapter` from `crewai_tools`:
+
+```python
+from crewai_tools import MCPServerAdapter
+
+# Simple configuration pointing to MCP Gateway
+server_configurations = [
+    {
+        "url": "http://localhost:8811/mcp", 
+        "transport": "streamable-http"
+    }
+]
+
+with MCPServerAdapter(server_configurations) as tools:
+    # Tools are automatically available to agents
+    print("Available MCP Tools:", [tool.name for tool in tools])
+```
+
+This approach is much simpler than the complex MCP factory system and directly leverages CrewAI's native MCP support.
 
 ## Agents
 
 ### Job Collector Agent
 - **Role**: LinkedIn Job Collector
-- **Goal**: Use the get_recommended_jobs tool to fetch recommended job IDs for the current user
-- **Backstory**: An efficient LinkedIn researcher who knows how to surface personalized recommendations without interpreting or analyzing them
+- **Goal**: Use MCP tools to fetch recommended job IDs for the current user
+- **Tools**: LinkedIn MCP tools (filtered automatically)
+- **Backstory**: An efficient LinkedIn researcher who knows how to surface personalized recommendations
 
 ### Job Details Agent  
 - **Role**: LinkedIn Job Details Fetcher
-- **Goal**: For each job ID provided by the collector, call get_job_details and return normalized JobPosting objects
-- **Backstory**: A detail-driven analyst who ensures job postings are accurately captured, not interpreted
+- **Goal**: For each job ID, retrieve full job posting data and normalize to JobPosting schema
+- **Tools**: LinkedIn MCP tools (filtered automatically)
+- **Backstory**: A detail-driven analyst who ensures job postings are accurately captured
 
 ### Documentation Agent
 - **Role**: Project Documentation Maintainer
-- **Goal**: Ensure README.md or other relevant documentation reflects the crew's function, tasks, and output schema
+- **Goal**: Ensure README.md reflects the crew's function, tasks, and output schema
+- **Tools**: None (documentation-focused)
 - **Backstory**: A meticulous writer who keeps technical docs aligned with system behavior
 
 ## Tasks
 
 ### Collect Recommended Jobs Task
-- **Description**: Call get_recommended_jobs to fetch LinkedIn job recommendations. Extract the job IDs.
+- **Description**: Use MCP tools to fetch LinkedIn job recommendations and extract job IDs
 - **Expected Output**: A JSON array of job IDs with metadata
 - **Agent**: Job Collector Agent
 
 ### Fetch Job Details Task
-- **Description**: For each job ID collected, call get_job_details. Map response fields into JobPosting schema.
+- **Description**: For each job ID, retrieve full job posting data and normalize to JobPosting schema
 - **Expected Output**: A JSON array of JobPosting objects
 - **Agent**: Job Details Agent
 - **Context**: Requires output from Collect Recommended Jobs Task
@@ -77,12 +102,18 @@ The crew produces a JSON array of JobPosting objects with the following exact st
 - **Execution**: Sequential (Collector → Details → Documentation)
 - **Process**: `Process.sequential` - tasks execute in defined order
 - **Configuration**: Agents and tasks defined in YAML (`agents.yaml` and `tasks.yaml`)
-- **MCP Integration**: Uses LinkedIn MCP tools through the MCP Gateway
+- **MCP Integration**: Uses `MCPServerAdapter` from `crewai_tools` (simplified approach)
+
+## MCP Gateway Connection
+
+- **Gateway URL**: `http://localhost:8811/mcp`
+- **Transport**: `streamable-http`
+- **Tools**: LinkedIn MCP tools (auto-filtered by name matching)
+- **Cleanup**: Automatic cleanup via `__del__` method
 
 ## MCP Tools Required
 
-- **get_recommended_jobs**: Fetches personalized job recommendations for the current user
-- **get_job_details**: Retrieves detailed information for a specific job ID
+- LinkedIn MCP tools (automatically discovered and filtered)
 
 ## Usage
 
@@ -110,7 +141,9 @@ Other crews in the system handle analysis and recommendations based on this crew
 
 ## Integration Notes
 
-- Designed to work with the existing MCP Gateway infrastructure
-- Follows established CrewAI patterns from other crews in the system
-- Can be used as input for other analysis crews (job_posting_review, etc.)
-- Maintains separation of concerns: data retrieval vs. data analysis
+- **Simplified MCP**: Uses `MCPServerAdapter` directly instead of complex factory system
+- **Native CrewAI**: Leverages CrewAI's built-in MCP support
+- **Gateway Integration**: Connects to existing MCP Gateway Docker service
+- **Tool Filtering**: Automatically filters LinkedIn-specific tools
+- **YAML Configuration**: Maintains YAML approach for agents and tasks as requested
+- **Separation of Concerns**: Clean separation between data retrieval and analysis
