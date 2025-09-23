@@ -40,7 +40,7 @@ The Python service includes four active CrewAI multi-agent services:
 - **Purpose**: Translate LinkedIn recommendation signals into prioritized opportunities and action plans
 - **Location**: `app/services/crewai/linkedin_recommended_jobs/`
 - **Agents**: Recommendations Researcher, Opportunity Synthesizer
-- **Usage**: Consumes saved jobs, followed companies, and stated preferences to surface the most relevant LinkedIn recommendations without requiring a stored profile URL
+- **Usage**: Consumes saved jobs, follows, and engagement history for the MCP-linked LinkedIn account. The FastAPI endpoint triggers the crew without a request payload or extra context.
 
 All CrewAI services follow YAML-first configuration and modular agent design patterns.
 

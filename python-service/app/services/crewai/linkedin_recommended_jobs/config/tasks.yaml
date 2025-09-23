@@ -1,10 +1,10 @@
 analyze_recommendations_task:
   description: >
-    Evaluate LinkedIn recommended jobs for {{user_id}} using the provided inputs
-    such as job_preferences, target_companies, and location_preferences. Explain
-    why each surfaced opportunity matches the user's interests and capture the
-    underlying signal (saved jobs, follows, skill matches, recruiter outreach,
-    etc.). When information is unavailable, clearly state the limitation.
+    Evaluate the LinkedIn recommended jobs surfaced for the MCP-linked account.
+    Explain why each opportunity aligns with the account's observed interests and
+    capture the underlying signal (saved jobs, follows, skill matches, recruiter
+    outreach, etc.). When information is unavailable, clearly state the
+    limitation.
   expected_output: >
     JSON object with structure:
     {
@@ -27,7 +27,7 @@ analyze_recommendations_task:
 
 summarize_recommendations_task:
   description: >
-    Prioritize the recommended roles gathered for {{user_id}} and craft an
+    Prioritize the recommended roles gathered by the researcher and craft an
     actionable next-step plan. Highlight the top opportunities, provide
     recommended outreach actions, and surface any gaps that should be addressed
     before applying.

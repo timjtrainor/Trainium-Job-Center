@@ -44,57 +44,19 @@ def _build_fake_result(success: bool = True) -> Dict[str, Any]:
 
 
 @patch("app.api.v1.endpoints.linkedin_recommended_jobs.run_linkedin_recommended_jobs")
-def test_generate_recommended_jobs_without_profile_url(mock_run: MagicMock) -> None:
-    """Endpoint should succeed when no profile URL is provided."""
+def test_generate_recommended_jobs_success(mock_run: MagicMock) -> None:
+    """Endpoint should succeed without requiring any payload."""
 
     mock_run.return_value = _build_fake_result(success=True)
 
-    payload = {
-        "user_id": "user-123",
-        "job_preferences": ["engineering leadership"],
-        "target_companies": ["InnovateX"],
-        "limit": 3,
-    }
-
-    if "LINKEDIN_RECOMMENDED_PROFILE_URL" in os.environ:
-        del os.environ["LINKEDIN_RECOMMENDED_PROFILE_URL"]
-
-    response = client.post("/crewai/linkedin-recommended-jobs", json=payload)
+    response = client.post("/crewai/linkedin-recommended-jobs")
 
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "success"
     assert body["data"]["metadata"]["profile_context_used"] is False
 
-    mock_run.assert_called_once()
-    args, kwargs = mock_run.call_args
-    assert kwargs["profile_url"] is None
-    assert "profile_url" not in args[0]
-
-
-@patch("app.api.v1.endpoints.linkedin_recommended_jobs.run_linkedin_recommended_jobs")
-def test_generate_recommended_jobs_with_profile_url(mock_run: MagicMock) -> None:
-    """Profile URL should be forwarded when provided explicitly."""
-
-    mock_run.return_value = _build_fake_result(success=True)
-
-    payload = {
-        "user_id": "user-456",
-        "profile_url": "https://www.linkedin.com/in/example",
-        "limit": 5,
-        "include_remote": True,
-    }
-
-    response = client.post("/crewai/linkedin-recommended-jobs", json=payload)
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "success"
-
-    mock_run.assert_called_once()
-    args, kwargs = mock_run.call_args
-    assert kwargs["profile_url"] == "https://www.linkedin.com/in/example"
-    assert "profile_url" not in args[0]
+    mock_run.assert_called_once_with()
 
 
 @patch("app.api.v1.endpoints.linkedin_recommended_jobs.run_linkedin_recommended_jobs")
@@ -103,19 +65,11 @@ def test_generate_recommended_jobs_failure(mock_run: MagicMock) -> None:
 
     mock_run.return_value = _build_fake_result(success=False)
 
-    payload = {
-        "user_id": "user-789",
-        "limit": 2,
-    }
-
-    response = client.post("/crewai/linkedin-recommended-jobs", json=payload)
+    response = client.post("/crewai/linkedin-recommended-jobs")
 
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "error"
     assert "No recommendations available" in body["message"]
 
-    mock_run.assert_called_once()
-    args, kwargs = mock_run.call_args
-    assert kwargs["profile_url"] is None
-    assert "profile_url" not in args[0]
+    mock_run.assert_called_once_with()

@@ -19,36 +19,17 @@ def test_get_linkedin_recommended_jobs_crew_singleton() -> None:
 
 
 @patch("app.services.crewai.linkedin_recommended_jobs.crew.get_linkedin_recommended_jobs_crew")
-def test_run_linkedin_recommended_jobs_without_profile(mock_get_crew: MagicMock) -> None:
-    """Profile URL should be stripped from payload when absent."""
+def test_run_linkedin_recommended_jobs(mock_get_crew: MagicMock) -> None:
+    """Crew should be invoked without any external inputs."""
 
     mock_crew = MagicMock()
     mock_get_crew.return_value = mock_crew
     mock_crew.kickoff.return_value = {"success": True}
 
-    payload = {"user_id": "user-123", "profile_url": "https://old.example"}
-    result = run_linkedin_recommended_jobs(payload, profile_url=None)
+    result = run_linkedin_recommended_jobs()
 
     assert result == {"success": True}
-    mock_crew.kickoff.assert_called_once()
-    kickoff_inputs = mock_crew.kickoff.call_args.kwargs["inputs"]
-    assert "profile_url" not in kickoff_inputs
-
-
-@patch("app.services.crewai.linkedin_recommended_jobs.crew.get_linkedin_recommended_jobs_crew")
-def test_run_linkedin_recommended_jobs_with_profile(mock_get_crew: MagicMock) -> None:
-    """Provided profile URL should be included in payload."""
-
-    mock_crew = MagicMock()
-    mock_get_crew.return_value = mock_crew
-    mock_crew.kickoff.return_value = {"success": True}
-
-    payload = {"user_id": "user-456"}
-    result = run_linkedin_recommended_jobs(payload, profile_url="https://linkedin.com/in/test")
-
-    assert result == {"success": True}
-    kickoff_inputs = mock_crew.kickoff.call_args.kwargs["inputs"]
-    assert kickoff_inputs["profile_url"] == "https://linkedin.com/in/test"
+    mock_crew.kickoff.assert_called_once_with(inputs={})
 
 
 @patch("app.services.crewai.linkedin_recommended_jobs.crew.get_linkedin_recommended_jobs_crew")
@@ -59,8 +40,9 @@ def test_run_linkedin_recommended_jobs_error(mock_get_crew: MagicMock) -> None:
     mock_get_crew.return_value = mock_crew
     mock_crew.kickoff.side_effect = RuntimeError("gateway unavailable")
 
-    result = run_linkedin_recommended_jobs({"user_id": "user-789"})
+    result = run_linkedin_recommended_jobs()
 
     assert result["success"] is False
     assert "gateway unavailable" in result["error"]
-    assert result["metadata"]["profile_url_provided"] is False
+    assert result["metadata"]["context_provided"] is False
+    mock_crew.kickoff.assert_called_once_with(inputs={})

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from threading import Lock
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from crewai import Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task
@@ -88,28 +88,17 @@ def get_linkedin_recommended_jobs_crew() -> Crew:
     return _CACHED_CREW
 
 
-def run_linkedin_recommended_jobs(
-    inputs: Optional[Dict[str, Any]] = None,
-    *,
-    profile_url: Optional[str] = None,
-) -> Dict[str, Any]:
-    """Execute the LinkedIn recommended jobs crew with optional profile context."""
-
-    payload: Dict[str, Any] = dict(inputs or {})
-
-    if profile_url:
-        payload["profile_url"] = profile_url
-    else:
-        payload.pop("profile_url", None)
+def run_linkedin_recommended_jobs() -> Dict[str, Any]:
+    """Execute the LinkedIn recommended jobs crew with no external context."""
 
     try:
         crew = get_linkedin_recommended_jobs_crew()
-        return crew.kickoff(inputs=payload)
+        return crew.kickoff(inputs={})
     except Exception as exc:
         logger.error("LinkedIn recommended jobs crew failed: {}", exc)
         return {
             "success": False,
             "error": str(exc),
             "recommended_jobs": [],
-            "metadata": {"profile_url_provided": bool(profile_url)},
+            "metadata": {"context_provided": False},
         }
