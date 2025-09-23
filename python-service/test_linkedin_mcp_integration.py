@@ -8,7 +8,11 @@ integrates with the existing MCP functionality.
 
 import sys
 import os
+import json
 from pathlib import Path
+from unittest.mock import patch
+
+import httpx
 
 # Add the app directory to Python path
 sys.path.insert(0, str(Path(__file__).parent / "app"))
@@ -186,6 +190,195 @@ def test_api_endpoint():
         print(f"❌ API endpoint test failed: {e}")
         return False
 
+
+def test_streaming_transport_tool_population():
+    """Validate that the streaming transport hydrates LinkedIn MCP tools."""
+    print("\n6️⃣ Testing StreamingTransport MCP Tool Population...")
+
+    env_backup = {
+        "MCP_GATEWAY_URL": os.environ.get("MCP_GATEWAY_URL"),
+        "MCP_GATEWAY_TRANSPORT": os.environ.get("MCP_GATEWAY_TRANSPORT"),
+        "DATABASE_URL": os.environ.get("DATABASE_URL"),
+    }
+
+    if env_backup["DATABASE_URL"] is None:
+        os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+
+    os.environ["MCP_GATEWAY_TRANSPORT"] = "streaming"
+    os.environ["MCP_GATEWAY_URL"] = "http://mock-mcp.local"
+
+    def _mock_send(request: httpx.Request) -> httpx.Response:
+        try:
+            payload = json.loads(request.content.decode("utf-8")) if request.content else {}
+        except json.JSONDecodeError:
+            payload = {}
+
+        path = request.url.path
+
+        if path == "/mcp/initialize":
+            return httpx.Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": payload.get("id"),
+                    "result": {
+                        "protocolVersion": "2025-03-26",
+                        "capabilities": {
+                            "tools": {"listChanged": True},
+                            "resources": {"listChanged": True},
+                        },
+                        "serverInfo": {"name": "mock-mcp", "version": "1.0.0"},
+                        "instructions": "Mock MCP gateway ready",
+                    },
+                },
+            )
+
+        if path == "/mcp/tools/list":
+            return httpx.Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": payload.get("id"),
+                    "result": {
+                        "tools": [
+                            {
+                                "name": "get_recommended_jobs",
+                                "description": "Fetch personalized LinkedIn job recommendations",
+                                "inputSchema": {"type": "object", "properties": {}, "required": []},
+                            },
+                            {
+                                "name": "get_job_details",
+                                "description": "Fetch LinkedIn job posting details",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "job_id": {
+                                            "type": "string",
+                                            "description": "LinkedIn job identifier",
+                                        }
+                                    },
+                                    "required": ["job_id"],
+                                },
+                            },
+                        ]
+                    },
+                },
+            )
+
+        if path == "/mcp/tools/call":
+            return httpx.Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": payload.get("id"),
+                    "result": {
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Mock execution successful",
+                            }
+                        ]
+                    },
+                },
+            )
+
+        return httpx.Response(
+            404,
+            json={
+                "jsonrpc": "2.0",
+                "id": payload.get("id"),
+                "error": {"code": 404, "message": f"Unhandled path: {path}"},
+            },
+        )
+
+    mock_transport = httpx.MockTransport(_mock_send)
+    original_async_client = httpx.AsyncClient
+
+    def _patched_async_client(*args, **kwargs):
+        kwargs["transport"] = mock_transport
+        return original_async_client(*args, **kwargs)
+
+    from app.services.crewai.linkedin_recommended_jobs import crew as linkedin_module
+
+    linkedin_module._MCP_FACTORY = None
+    linkedin_module._MCP_TOOL_CACHE.clear()
+    linkedin_module._cached_crew = None
+
+    success = True
+
+    class _StubAgent(dict):
+        def __init__(self, *, config, tools, **kwargs):
+            super().__init__()
+            self.config = config
+            self.tools = list(tools)
+            self["config"] = config
+            self["tools"] = self.tools
+
+    class _StubTask(dict):
+        def __init__(self, *, config, agent, context=None, **kwargs):
+            super().__init__()
+            self.config = config
+            self.agent = agent
+            self.context = context or []
+            self.name = config.get("name") if isinstance(config, dict) else None
+            self["config"] = config
+            self["agent"] = agent
+            self["context"] = self.context
+
+    with patch("app.services.mcp.mcp_transport.httpx.AsyncClient", _patched_async_client), \
+            patch("app.services.crewai.linkedin_recommended_jobs.crew.Agent", _StubAgent), \
+            patch("app.services.crewai.linkedin_recommended_jobs.crew.Task", _StubTask):
+        try:
+            crew_instance = linkedin_module.LinkedInRecommendedJobsCrew()
+
+            collector_tools = crew_instance.job_collector_agent().tools
+            details_tools = crew_instance.job_details_agent().tools
+
+            collector_names = {
+                getattr(tool, "tool_name", getattr(tool, "name", "")) for tool in collector_tools
+            }
+            details_names = {
+                getattr(tool, "tool_name", getattr(tool, "name", "")) for tool in details_tools
+            }
+
+            if "get_recommended_jobs" in collector_names:
+                print("✅ Job collector agent received get_recommended_jobs tool")
+            else:
+                print("❌ Job collector agent missing get_recommended_jobs tool")
+                success = False
+
+            if "get_job_details" in details_names:
+                print("✅ Job details agent received get_job_details tool")
+            else:
+                print("❌ Job details agent missing get_job_details tool")
+                success = False
+
+            if success:
+                print("✅ Streaming transport successfully populated LinkedIn MCP tools")
+
+        except Exception as exc:
+            print(f"❌ Streaming transport MCP tool population failed: {exc}")
+            success = False
+        finally:
+            factory = linkedin_module._MCP_FACTORY
+            if factory is not None:
+                try:
+                    linkedin_module._run_coroutine_safely(factory.adapter.disconnect)
+                except Exception as cleanup_error:
+                    print(f"⚠️ MCP disconnect cleanup encountered an error: {cleanup_error}")
+            linkedin_module._MCP_FACTORY = None
+            linkedin_module._MCP_TOOL_CACHE.clear()
+            linkedin_module._cached_crew = None
+
+    for key, value in env_backup.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
+
+    return success
+
+
 def main():
     """Run all MCP integration tests."""
     
@@ -195,6 +388,7 @@ def main():
         ("Agent Tool Mapping", test_agent_tool_mapping),
         ("Service Integration", test_service_integration),
         ("API Endpoint", test_api_endpoint),
+        ("Streaming Transport Tool Population", test_streaming_transport_tool_population),
     ]
     
     results = []

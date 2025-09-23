@@ -11,6 +11,8 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 import logging
 
+import httpx
+
 logger = logging.getLogger(__name__)
 
 
@@ -148,27 +150,34 @@ class StdioTransport(MCPTransport):
 
 class StreamingTransport(MCPTransport):
     """Transport for HTTP streaming communication with MCP Gateway.
-    
+
     This is a basic implementation that can be extended with proper HTTP
     streaming capabilities when aiohttp is available.
     """
-    
+
     def __init__(self, gateway_url: str = "http://mcp-gateway:8811"):
         super().__init__()
-        self.gateway_url = gateway_url
-        self._session = None
-        
+        self.gateway_url = gateway_url.rstrip("/")
+        self._client: Optional[httpx.AsyncClient] = None
+        self._response_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
+        self._send_lock = asyncio.Lock()
+
     async def connect(self) -> None:
         """Establish HTTP streaming transport connection."""
         try:
-            # Basic connection placeholder - would use aiohttp in full implementation
+            if self._connected:
+                logger.debug("StreamingTransport already connected")
+                return
+
             logger.info(f"StreamingTransport connecting to {self.gateway_url}")
-            
-            # For now, just mark as connected - real implementation would
-            # establish HTTP connection and verify gateway availability
+
+            self._client = httpx.AsyncClient(base_url=self.gateway_url)
+            # Reset response queue for a fresh session
+            self._response_queue = asyncio.Queue()
+
             self._connected = True
             logger.info("StreamingTransport connected successfully")
-            
+
         except Exception as e:
             logger.error(f"Failed to connect streaming transport: {e}")
             raise Exception(f"Failed to establish streaming connection: {e}")
@@ -176,46 +185,118 @@ class StreamingTransport(MCPTransport):
     async def disconnect(self) -> None:
         """Close HTTP streaming transport connection."""
         try:
-            if self._session:
-                # Would close aiohttp session here
-                self._session = None
-            
+            if self._client:
+                await self._client.aclose()
+
+            self._client = None
             self._connected = False
+
+            # Drain any pending responses to avoid leaking state across sessions
+            while not self._response_queue.empty():
+                try:
+                    self._response_queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+
             logger.info("StreamingTransport disconnected successfully")
-            
+
         except Exception as e:
             logger.error(f"Error during streaming disconnect: {e}")
             raise
-    
+
     async def send_message(self, message: Dict[str, Any]) -> None:
         """Send JSON-RPC message via HTTP streaming."""
-        if not self._connected:
+        if not self._connected or self._client is None:
             raise Exception("Transport not connected")
-        
-        try:
-            # Placeholder implementation - would use aiohttp to POST message
-            json_message = json.dumps(message)
-            logger.debug(f"Would send via HTTP: {json_message}")
-            
-            # Real implementation would POST to gateway_url/jsonrpc
-            
-        except Exception as e:
-            logger.error(f"Failed to send message: {e}")
-            raise IOError(f"Failed to send message: {e}")
-    
+
+        method = message.get("method")
+        if not method:
+            raise ValueError("JSON-RPC message missing 'method'")
+
+        endpoint = self._resolve_endpoint(method)
+
+        # Notifications like shutdown do not expect responses; skip HTTP roundtrip
+        if endpoint is None:
+            if method == "shutdown":
+                logger.debug("Skipping HTTP call for '%s' notification", method)
+                return
+
+            logger.warning("No HTTP endpoint mapped for method '%s'", method)
+            await self._response_queue.put(
+                self._build_error_response(
+                    message,
+                    -32601,
+                    f"Method not supported: {method}",
+                )
+            )
+            return
+
+        async with self._send_lock:
+            try:
+                logger.debug("Sending JSON-RPC '%s' to %s", method, endpoint)
+                response = await self._client.post(endpoint, json=message)
+            except httpx.RequestError as exc:
+                logger.error("HTTP request error for %s: %s", endpoint, exc)
+                await self._response_queue.put(
+                    self._build_error_response(
+                        message,
+                        -32000,
+                        f"HTTP request failed: {exc}"
+                    )
+                )
+                return
+
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                logger.error("Invalid JSON from %s: %s", endpoint, exc)
+                payload = self._build_error_response(
+                    message,
+                    -32700,
+                    f"Invalid JSON response: {exc}"
+                )
+
+            if response.status_code >= 400:
+                logger.warning(
+                    "Gateway returned HTTP %s for method '%s'", response.status_code, method
+                )
+
+            await self._response_queue.put(payload)
+
     async def receive_message(self) -> Dict[str, Any]:
         """Receive JSON-RPC message from HTTP streaming."""
         if not self._connected:
             raise Exception("Transport not connected")
-        
+
         try:
-            # Placeholder implementation - would use aiohttp streaming response
-            logger.debug("Would receive via HTTP streaming")
-            
-            # Real implementation would read from streaming HTTP response
-            # For now, return a placeholder message
-            return {"jsonrpc": "2.0", "id": 1, "result": {"status": "placeholder"}}
-            
+            response = await self._response_queue.get()
+            logger.debug("Delivering cached response: %s", response)
+            return response
         except Exception as e:
             logger.error(f"Failed to receive message: {e}")
             raise IOError(f"Failed to receive message: {e}")
+
+    def _resolve_endpoint(self, method: str) -> Optional[str]:
+        """Map JSON-RPC method names to MCP gateway endpoints."""
+        mapping = {
+            "initialize": "/mcp/initialize",
+            "tools/list": "/mcp/tools/list",
+            "tools/call": "/mcp/tools/call",
+        }
+        return mapping.get(method)
+
+    def _build_error_response(
+        self,
+        message: Dict[str, Any],
+        code: int,
+        error_message: str,
+    ) -> Dict[str, Any]:
+        """Create a JSON-RPC error response payload."""
+        return {
+            "jsonrpc": message.get("jsonrpc", "2.0"),
+            "id": message.get("id"),
+            "error": {
+                "code": code,
+                "message": error_message,
+            },
+        }
