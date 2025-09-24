@@ -1,0 +1,25 @@
+# LinkedIn MCP tools for job search
+
+# Job searcher tools  
+job_search_tools:
+  - search_jobs
+  - get_recommended_jobs
+
+# Opportunity analyzer tools
+analysis_tools:
+  - search_jobs
+  - get_job_details
+  - get_company_profile
+
+# Networking strategist tools
+networking_tools:
+  - get_person_profile
+  - get_company_profile
+
+# Shared tools for all agents
+shared_tools:
+  - search_jobs
+  - get_job_details
+  - get_company_profile
+  - get_person_profile
+  - get_recommended_jobs
