@@ -6,46 +6,18 @@ from pydantic import BaseModel
 
 from ....services.chroma_integration_service import get_chroma_integration_service
 from ....services.chroma_manager import get_chroma_manager, CollectionType
-from ....schemas.chroma import ChromaUploadResponse
+from ....schemas.chroma import (
+    ChromaUploadResponse, 
+    CareerBrandUpload, 
+    CareerPathsUpload, 
+    JobSearchStrategiesUpload,
+    ResumeUpload,
+    JobPostingUpload,
+    CompanyProfileUpload
+)
 
 
 router = APIRouter(prefix="/chroma-manager", tags=["ChromaDB Manager"])
-
-
-class JobPostingUpload(BaseModel):
-    """Schema for uploading job postings to ChromaDB."""
-    title: str
-    company: str
-    description: str
-    location: str = ""
-    salary_range: str = ""
-    skills: List[str] = []
-    job_type: str = ""
-    experience_level: str = ""
-    metadata: Dict[str, Any] = {}
-
-
-class CompanyProfileUpload(BaseModel):
-    """Schema for uploading company profiles to ChromaDB."""
-    company_name: str
-    description: str
-    industry: str = ""
-    size: str = ""
-    culture_info: str = ""
-    benefits: List[str] = []
-    values: List[str] = []
-    metadata: Dict[str, Any] = {}
-
-
-class CareerBrandUpload(BaseModel):
-    """Schema for uploading career brand documents to ChromaDB."""
-    title: str
-    content: str
-    profile_id: str
-    skill_category: str = ""
-    experience_level: str = ""
-    industry_focus: str = ""
-    metadata: Dict[str, Any] = {}
 
 
 class SearchRequest(BaseModel):
@@ -53,6 +25,8 @@ class SearchRequest(BaseModel):
     query: str
     collections: Optional[List[str]] = None
     n_results: int = 5
+    profile_id: Optional[str] = None  # Add profile_id filtering
+    section: Optional[str] = None     # Add section filtering
 
 
 class BulkJobPostingUpload(BaseModel):
@@ -125,6 +99,17 @@ async def upload_job_posting(job_posting: JobPostingUpload, background_tasks: Ba
         service = get_chroma_integration_service()
         await service.initialize()
         
+        # Enforce standard metadata fields programmatically
+        standard_metadata = {
+            "job_id": job_posting.job_id,
+            "source": job_posting.source,
+            "status": job_posting.status,
+            "uploaded_at": job_posting.uploaded_at.isoformat()
+        }
+        
+        # Merge with additional metadata
+        final_metadata = {**standard_metadata, **job_posting.metadata}
+        
         result = await service.add_job_posting(
             title=job_posting.title,
             company=job_posting.company,
@@ -134,7 +119,7 @@ async def upload_job_posting(job_posting: JobPostingUpload, background_tasks: Ba
             skills=job_posting.skills,
             job_type=job_posting.job_type,
             experience_level=job_posting.experience_level,
-            additional_metadata=job_posting.metadata
+            additional_metadata=final_metadata
         )
         
         return result
@@ -149,6 +134,18 @@ async def upload_company_profile(company_profile: CompanyProfileUpload):
         service = get_chroma_integration_service()
         await service.initialize()
         
+        # Enforce standard metadata fields programmatically
+        standard_metadata = {
+            "company_id": company_profile.company_id,
+            "industry": company_profile.industry,
+            "company_stage": company_profile.company_stage,
+            "ai_first": company_profile.ai_first,
+            "uploaded_at": company_profile.uploaded_at.isoformat()
+        }
+        
+        # Merge with additional metadata
+        final_metadata = {**standard_metadata, **company_profile.metadata}
+        
         result = await service.add_company_profile(
             company_name=company_profile.company_name,
             description=company_profile.description,
@@ -157,7 +154,7 @@ async def upload_company_profile(company_profile: CompanyProfileUpload):
             culture_info=company_profile.culture_info,
             benefits=company_profile.benefits,
             values=company_profile.values,
-            additional_metadata=company_profile.metadata
+            additional_metadata=final_metadata
         )
         
         return result
@@ -176,7 +173,11 @@ async def upload_career_brand(career_brand: CareerBrandUpload):
             title=career_brand.title,
             content=career_brand.content,
             profile_id=career_brand.profile_id,
-            section=career_brand.section
+            source=career_brand.source,
+            author=career_brand.author,
+            section=career_brand.section,
+            uploaded_at=career_brand.uploaded_at,
+            additional_metadata=career_brand.metadata
         )
         
         return result
@@ -185,7 +186,7 @@ async def upload_career_brand(career_brand: CareerBrandUpload):
 
 
 @router.post("/career-paths", response_model=ChromaUploadResponse)
-async def upload_career_paths(career_paths: CareerBrandUpload):
+async def upload_career_paths(career_paths: CareerPathsUpload):
     """Upload a career path document to the career_paths collection."""
     try:
         service = get_chroma_integration_service()
@@ -194,10 +195,12 @@ async def upload_career_paths(career_paths: CareerBrandUpload):
         result = await service.add_career_path_document(
             title=career_paths.title,
             content=career_paths.content,
+            profile_id=career_paths.profile_id,
             source=career_paths.source,
             author=career_paths.author,
             section=career_paths.section,
-            profile_id=career_paths.profile_id
+            uploaded_at=career_paths.uploaded_at,
+            additional_metadata=career_paths.metadata
         )
 
         return result
@@ -206,7 +209,7 @@ async def upload_career_paths(career_paths: CareerBrandUpload):
 
 
 @router.post("/job-search-strategies", response_model=ChromaUploadResponse)
-async def upload_job_search_strategies(job_search_strategies: CareerBrandUpload):
+async def upload_job_search_strategies(job_search_strategies: JobSearchStrategiesUpload):
     """Upload a job search strategy document to the job_search_strategies collection."""
     try:
         service = get_chroma_integration_service()
@@ -215,15 +218,38 @@ async def upload_job_search_strategies(job_search_strategies: CareerBrandUpload)
         result = await service.add_job_search_strategies_document(
             title=job_search_strategies.title,
             content=job_search_strategies.content,
+            profile_id=job_search_strategies.profile_id,
             source=job_search_strategies.source,
             author=job_search_strategies.author,
             section=job_search_strategies.section,
-            profile_id=job_search_strategies.profile_id
+            uploaded_at=job_search_strategies.uploaded_at,
+            additional_metadata=job_search_strategies.metadata
         )
 
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload job search strategy document: {str(e)}")
+
+
+@router.post("/resume", response_model=ChromaUploadResponse)
+async def upload_resume(resume: ResumeUpload):
+    """Upload a resume document to the resumes collection."""
+    try:
+        service = get_chroma_integration_service()
+        await service.initialize()
+
+        result = await service.add_resume_document(
+            title=resume.title,
+            content=resume.content,
+            profile_id=resume.profile_id,
+            section=resume.section,
+            uploaded_at=resume.uploaded_at,
+            additional_metadata=resume.metadata
+        )
+
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload resume document: {str(e)}")
 
 @router.post("/bulk-job-postings")
 async def bulk_upload_job_postings(bulk_request: BulkJobPostingUpload, background_tasks: BackgroundTasks):
@@ -262,7 +288,7 @@ async def bulk_upload_job_postings(bulk_request: BulkJobPostingUpload, backgroun
 
 @router.post("/search")
 async def search_collections(search_request: SearchRequest):
-    """Search across ChromaDB collections."""
+    """Search across ChromaDB collections with optional profile_id and section filtering."""
     try:
         service = get_chroma_integration_service()
         await service.initialize()
@@ -270,7 +296,9 @@ async def search_collections(search_request: SearchRequest):
         context = await service.search_for_crew_context(
             query=search_request.query,
             collections=search_request.collections,
-            n_results=search_request.n_results
+            n_results=search_request.n_results,
+            profile_id=search_request.profile_id,
+            section=search_request.section
         )
         
         return context
@@ -282,9 +310,10 @@ async def search_collections(search_request: SearchRequest):
 async def prepare_rag_context(
     job_posting: Dict[str, Any],
     profile_id: Optional[str] = None,
+    section: Optional[str] = None,
     additional_queries: Optional[List[str]] = None
 ):
-    """Prepare comprehensive RAG context for CrewAI job posting analysis."""
+    """Prepare comprehensive RAG context for CrewAI job posting analysis with profile_id and section filtering."""
     try:
         service = get_chroma_integration_service()
         await service.initialize()
@@ -292,6 +321,7 @@ async def prepare_rag_context(
         context = await service.prepare_crew_rag_context(
             job_posting=job_posting,
             profile_id=profile_id,
+            section=section,
             additional_queries=additional_queries or []
         )
         
