@@ -1,0 +1,11 @@
+# DuckDuckGo MCP tools for web research
+
+# Research agents tools
+research_tools:
+  - duckduckgo_search
+  - duckduckgo_news
+
+# Shared tools for all agents
+shared_tools:
+  - duckduckgo_search
+  - duckduckgo_news
