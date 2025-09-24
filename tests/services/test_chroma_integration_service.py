@@ -1,0 +1,255 @@
+"""Tests for the ChromaDB integration service enhanced functionality."""
+
+import pytest
+from unittest.mock import patch, MagicMock, AsyncMock
+from datetime import datetime
+
+from app.services.chroma_integration_service import ChromaIntegrationService
+from app.schemas.chroma import ChromaUploadResponse
+
+
+class TestChromaIntegrationServiceEnhancements:
+    """Test suite for new ChromaDB integration service functionality."""
+    
+    @pytest.fixture
+    def mock_manager(self):
+        """Mock ChromaDB manager."""
+        manager = MagicMock()
+        manager.initialize = AsyncMock()
+        manager.upload_document = AsyncMock(return_value=ChromaUploadResponse(
+            success=True,
+            message="Document uploaded successfully",
+            collection_name="test_collection",
+            document_id="test_doc_id",
+            chunks_created=1
+        ))
+        manager.search_across_collections = AsyncMock(return_value={
+            "success": True,
+            "results": {
+                "test_collection": {
+                    "success": True,
+                    "documents": ["Test document content"],
+                    "metadatas": [{"uploaded_at": "2024-01-01T00:00:00Z", "profile_id": "test_profile"}]
+                }
+            }
+        })
+        return manager
+    
+    @pytest.fixture
+    def service(self, mock_manager):
+        """ChromaDB integration service with mocked manager."""
+        with patch('app.services.chroma_integration_service.get_chroma_manager', return_value=mock_manager):
+            return ChromaIntegrationService()
+    
+    @pytest.mark.asyncio
+    async def test_add_career_brand_document_with_section_and_uploaded_at(self, service, mock_manager):
+        """Test career brand document upload with required section and auto uploaded_at."""
+        test_datetime = datetime(2024, 1, 1, 12, 0, 0)
+        
+        result = await service.add_career_brand_document(
+            title="Test Career Brand",
+            content="Test content",
+            profile_id="test_profile",
+            section="personal_branding",
+            source="manual",
+            author="test_user",
+            uploaded_at=test_datetime
+        )
+        
+        # Verify the document was uploaded with correct metadata
+        mock_manager.upload_document.assert_called_once()
+        call_args = mock_manager.upload_document.call_args
+        
+        assert call_args[1]['collection_name'] == "career_brand"
+        assert call_args[1]['title'] == "Test Career Brand"
+        assert call_args[1]['document_text'] == "Test content"
+        
+        metadata = call_args[1]['metadata']
+        assert metadata['profile_id'] == "test_profile"
+        assert metadata['section'] == "personal_branding"
+        assert metadata['uploaded_at'] == test_datetime.isoformat()
+        assert metadata['source'] == "manual"
+        assert metadata['author'] == "test_user"
+        
+        assert result.success is True
+    
+    @pytest.mark.asyncio
+    async def test_add_career_brand_document_auto_uploaded_at(self, service, mock_manager):
+        """Test career brand document upload with auto-generated uploaded_at."""
+        result = await service.add_career_brand_document(
+            title="Test Career Brand",
+            content="Test content",
+            profile_id="test_profile",
+            section="personal_branding"
+        )
+        
+        # Verify uploaded_at was auto-generated
+        call_args = mock_manager.upload_document.call_args
+        metadata = call_args[1]['metadata']
+        assert 'uploaded_at' in metadata
+        assert metadata['uploaded_at']  # Should be populated
+        
+        # Verify it's a valid ISO datetime string
+        datetime.fromisoformat(metadata['uploaded_at'].replace('Z', '+00:00'))
+    
+    @pytest.mark.asyncio
+    async def test_add_career_path_document(self, service, mock_manager):
+        """Test career path document upload."""
+        result = await service.add_career_path_document(
+            title="Test Career Path",
+            content="Career path content",
+            profile_id="test_profile",
+            section="career_planning"
+        )
+        
+        call_args = mock_manager.upload_document.call_args
+        assert call_args[1]['collection_name'] == "career_paths"
+        
+        metadata = call_args[1]['metadata']
+        assert metadata['profile_id'] == "test_profile"
+        assert metadata['section'] == "career_planning"
+        assert 'uploaded_at' in metadata
+    
+    @pytest.mark.asyncio
+    async def test_add_job_search_strategies_document(self, service, mock_manager):
+        """Test job search strategies document upload."""
+        result = await service.add_job_search_strategies_document(
+            title="Test Job Search Strategy",
+            content="Job search strategy content",
+            profile_id="test_profile",
+            section="networking"
+        )
+        
+        call_args = mock_manager.upload_document.call_args
+        assert call_args[1]['collection_name'] == "job_search_strategies"
+        
+        metadata = call_args[1]['metadata']
+        assert metadata['profile_id'] == "test_profile"
+        assert metadata['section'] == "networking"
+        assert 'uploaded_at' in metadata
+    
+    @pytest.mark.asyncio
+    async def test_add_resume_document(self, service, mock_manager):
+        """Test resume document upload with default section."""
+        result = await service.add_resume_document(
+            title="My Resume",
+            content="Resume content",
+            profile_id="test_profile"
+        )
+        
+        call_args = mock_manager.upload_document.call_args
+        assert call_args[1]['collection_name'] == "resumes"
+        
+        metadata = call_args[1]['metadata']
+        assert metadata['profile_id'] == "test_profile"
+        assert metadata['section'] == "resume"  # Default value
+        assert metadata['title'] == "My Resume"
+        assert 'uploaded_at' in metadata
+    
+    @pytest.mark.asyncio
+    async def test_add_resume_document_custom_section(self, service, mock_manager):
+        """Test resume document upload with custom section."""
+        result = await service.add_resume_document(
+            title="Technical Resume",
+            content="Technical resume content",
+            profile_id="test_profile",
+            section="technical_resume"
+        )
+        
+        call_args = mock_manager.upload_document.call_args
+        metadata = call_args[1]['metadata']
+        assert metadata['section'] == "technical_resume"
+    
+    @pytest.mark.asyncio
+    async def test_search_for_crew_context_with_filters(self, service, mock_manager):
+        """Test search with profile_id and section filtering."""
+        result = await service.search_for_crew_context(
+            query="test query",
+            collections=["career_brand"],
+            n_results=5,
+            profile_id="test_profile",
+            section="personal_branding"
+        )
+        
+        # Verify search was called with where clause
+        mock_manager.search_across_collections.assert_called_once()
+        call_args = mock_manager.search_across_collections.call_args
+        
+        assert call_args[1]['query'] == "test query"
+        assert call_args[1]['collection_names'] == ["career_brand"]
+        assert call_args[1]['n_results'] == 5
+        assert call_args[1]['where'] == {"profile_id": "test_profile", "section": "personal_branding"}
+        
+        # Verify response structure includes filters
+        assert result['filters_applied']['profile_id'] == "test_profile"
+        assert result['filters_applied']['section'] == "personal_branding"
+        assert result['found_relevant_content'] is True
+    
+    @pytest.mark.asyncio
+    async def test_search_for_crew_context_no_filters(self, service, mock_manager):
+        """Test search without filters."""
+        result = await service.search_for_crew_context(
+            query="test query",
+            collections=["career_brand"]
+        )
+        
+        call_args = mock_manager.search_across_collections.call_args
+        assert call_args[1]['where'] is None
+        
+        assert result['filters_applied']['profile_id'] is None
+        assert result['filters_applied']['section'] is None
+    
+    @pytest.mark.asyncio
+    async def test_prepare_crew_rag_context_with_filters(self, service, mock_manager):
+        """Test RAG context preparation with profile_id and section filtering."""
+        job_posting = {
+            "title": "Software Engineer",
+            "company": "Test Company",
+            "description": "Job description"
+        }
+        
+        result = await service.prepare_crew_rag_context(
+            job_posting=job_posting,
+            profile_id="test_profile",
+            section="technical_resume"
+        )
+        
+        # Verify response structure
+        assert result['job_posting'] == job_posting
+        assert result['profile_id'] == "test_profile"
+        assert result['section'] == "technical_resume"
+        assert 'search_results' in result
+        assert 'context_summary' in result
+        
+        # Verify multiple search calls were made (one for each query)
+        assert mock_manager.search_across_collections.call_count >= 2
+    
+    @pytest.mark.asyncio
+    async def test_document_versioning_latest_first(self, service, mock_manager):
+        """Test that search results are sorted by uploaded_at for versioning."""
+        # Mock search results with multiple documents having different uploaded_at times
+        mock_manager.search_across_collections.return_value = {
+            "success": True,
+            "results": {
+                "resumes": {
+                    "success": True,
+                    "documents": ["Older resume", "Newer resume"],
+                    "metadatas": [
+                        {"uploaded_at": "2024-01-01T00:00:00Z", "profile_id": "test_profile"},
+                        {"uploaded_at": "2024-01-02T00:00:00Z", "profile_id": "test_profile"}
+                    ]
+                }
+            }
+        }
+        
+        result = await service.search_for_crew_context(
+            query="resume",
+            collections=["resumes"],
+            profile_id="test_profile"
+        )
+        
+        # Verify the documents are present in the context summary
+        assert result['found_relevant_content'] is True
+        assert len(result['context_summary']) == 1
+        assert result['context_summary'][0]['collection'] == "resumes"
+        assert result['context_summary'][0]['num_results'] == 2
