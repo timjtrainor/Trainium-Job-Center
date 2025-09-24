@@ -235,34 +235,31 @@ services:
       redis:
         condition: service_healthy
 
-  # Docker MCP Gateway for managing MCP servers
-  mcp-gateway:
-    build:
-      context: .
-      dockerfile: Dockerfile.mcp-gateway
-    container_name: trainium_mcp_gateway
-    restart: unless-stopped
+  #MCP Servers
+
+  # LinkedIn MCP server (SSE endpoint at /sse)
+  linkedin-mcp-server:
+    image: stickerdaniel/linkedin-mcp-server:latest
+    container_name: linkedin_mcp
+    restart: always
     ports:
-      - "${MCP_GATEWAY_PORT:-8811}:8811"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - "8011:8000"
     environment:
-      - MCP_GATEWAY_TRANSPORT=${MCP_GATEWAY_TRANSPORT:-streaming}
-      - MCP_GATEWAY_TIMEOUT=${MCP_GATEWAY_TIMEOUT:-30}
-      - MCP_GATEWAY_MAX_RETRIES=${MCP_GATEWAY_MAX_RETRIES:-3}
-      - MCP_LOG_LEVEL=${MCP_LOG_LEVEL:-INFO}
-    command: [
-      "python", "mcp_gateway.py",
-      "--servers=duckduckgo,linkedin-mcp-server",
-      "--transport=streaming",
-      "--port=8811"
-    ]
+      LINKEDIN_EMAIL: ${LINKEDIN_EMAIL}
+      LINKEDIN_PASSWORD: ${LINKEDIN_PASSWORD}
+      LINKEDIN_COOKIE: ${LINKEDIN_COOKIE}  # optional if you want to auth with a cookie
+      LITELLM_PROVIDER: ollama
+      OLLAMA_API_BASE: http://host.docker.internal:11434
+    command:
+      - --transport=streamable-http
+      - --host=0.0.0.0
+      - --port=8000
     healthcheck:
-      test: ["CMD", "wget", "-O-", "http://localhost:8811/health"]
+      test: ["CMD", "curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "http://localhost:8000/mcp"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+
 volumes:
   # Defines the named volumes for data persistence.
   postgres_data:

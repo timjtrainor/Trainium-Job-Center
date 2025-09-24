@@ -7,56 +7,47 @@ ranking, or evaluation - only data retrieval and normalization.
 
 import json
 import logging
+import os
 from collections.abc import Mapping
 from json import JSONDecodeError
-from threading import Lock
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional
 
+import yaml
 from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
 from crewai_tools import MCPServerAdapter
-
-_cached_crew: Optional[Crew] = None
-_crew_lock = Lock()
 
 _logger = logging.getLogger(__name__)
 
 # JobPosting schema keys for validation
 _JOB_POSTING_SCHEMA_KEYS = {
     "title",
-    "company", 
+    "company",
     "location",
     "description",
-    "url"
+    "url",
 }
 
 # MCP Server configuration for the Gateway
 _MCP_SERVER_CONFIG = [
     {
-        "url": "http://localhost:8811/mcp", 
-        "transport": "streamable-http"
+        "url": "http://linkedin-mcp-server:8000/mcp/",
+        "transport": "streamable-http",
+        "headers": {
+            "Accept": "application/json, text/event-stream"
+        }
     }
 ]
 
 
 @CrewBase
 class LinkedInRecommendedJobsCrew:
-    """
-    LinkedIn Recommended Jobs crew for fetching and normalizing LinkedIn job recommendations.
-    
-    This crew is responsible ONLY for:
-    1. Fetching personalized job recommendations from LinkedIn 
-    2. Retrieving detailed job posting information
-    3. Normalizing data to JobPosting schema
-    4. Updating project documentation
-    
-    It does NOT perform any recommendation logic, filtering, ranking, or job evaluation.
-    """
-    agents_config = 'config/agents.yaml'
-    tasks_config = 'config/tasks.yaml'
+    base_dir = os.path.dirname(__file__)
+    agents_config = "config/agents.yaml"
+    tasks_config = "config/tasks.yaml"
+    tools_config = os.path.join(base_dir, "config", "tools.yaml")
 
     def __init__(self):
-        """Initialize the crew with MCP tools."""
         super().__init__()
         self._mcp_tools = None
         self._mcp_adapter = None
@@ -65,51 +56,54 @@ class LinkedInRecommendedJobsCrew:
         """Get MCP tools using MCPServerAdapter."""
         if self._mcp_tools is None:
             try:
-                _logger.info("Connecting to MCP Gateway for LinkedIn tools...")
+                _logger.info(
+                    "Connecting to MCP Gateway at %s with transport=%s",
+                    _MCP_SERVER_CONFIG[0]["url"],
+                    _MCP_SERVER_CONFIG[0]["transport"],
+                )
                 self._mcp_adapter = MCPServerAdapter(_MCP_SERVER_CONFIG)
                 self._mcp_tools = self._mcp_adapter.__enter__()
-                _logger.info(f"Available MCP Tools: {[tool.name for tool in self._mcp_tools]}")
+                _logger.info(
+                    "Available MCP Tools: %s",
+                    [tool.name for tool in self._mcp_tools],
+                )
             except Exception as e:
-                _logger.error(f"Failed to connect to MCP Gateway: {e}")
+                _logger.error("Failed to connect to MCP Gateway: %s", e)
                 self._mcp_tools = []
         return self._mcp_tools
 
-    def _get_linkedin_tools(self):
-        """Filter tools to get LinkedIn-specific tools."""
+    def _get_tools_for_agent(self, section: str):
+        """Return a filtered set of tools for a specific agent section in tools.yaml."""
         all_tools = self._get_mcp_tools()
-        linkedin_tools = [tool for tool in all_tools if 
-                         'recommended' in tool.name.lower() or 
-                         'job_details' in tool.name.lower() or
-                         'linkedin' in tool.name.lower()]
-        return linkedin_tools
+        try:
+            with open(self.tools_config, "r") as f:
+                tool_config = yaml.safe_load(f)
+            allowed = {name.lower() for name in tool_config.get(section, [])}
+        except Exception as e:
+            _logger.error("Failed to load tools.yaml section '%s': %s", section, e)
+            return []
+        return [tool for tool in all_tools if tool.name.lower() in allowed]
 
     @agent
     def job_collector_agent(self) -> Agent:
-        """Agent responsible for collecting LinkedIn job recommendation IDs."""
+        tools = self._get_tools_for_agent("collector_tools")
+        _logger.info("Collector tools injected: %s", [t.name for t in tools])
         return Agent(
             config=self.agents_config["job_collector_agent"],  # type: ignore[index]
-            tools=self._get_linkedin_tools(),
+            tools=tools,
         )
 
     @agent
     def job_details_agent(self) -> Agent:
-        """Agent responsible for fetching detailed job information."""
+        tools = self._get_tools_for_agent("details_tools")
+        _logger.info("Details tools injected: %s", [t.name for t in tools])
         return Agent(
             config=self.agents_config["job_details_agent"],  # type: ignore[index]
-            tools=self._get_linkedin_tools(),
-        )
-
-    @agent
-    def documentation_agent(self) -> Agent:
-        """Agent responsible for maintaining project documentation."""
-        return Agent(
-            config=self.agents_config["documentation_agent"],  # type: ignore[index]
-            tools=[],  # Documentation agent doesn't need MCP tools
+            tools=tools,
         )
 
     @task
     def collect_recommended_jobs_task(self) -> Task:
-        """Task to collect LinkedIn job recommendation IDs."""
         return Task(
             config=self.tasks_config["collect_recommended_jobs_task"],  # type: ignore[index]
             agent=self.job_collector_agent(),
@@ -117,125 +111,104 @@ class LinkedInRecommendedJobsCrew:
 
     @task
     def fetch_job_details_task(self) -> Task:
-        """Task to fetch detailed job information and normalize to JobPosting schema."""
         return Task(
             config=self.tasks_config["fetch_job_details_task"],  # type: ignore[index]
             agent=self.job_details_agent(),
-            context=[self.collect_recommended_jobs_task()]
-        )
-
-    @task
-    def update_documentation_task(self) -> Task:
-        """Task to update project documentation."""
-        return Task(
-            config=self.tasks_config["update_documentation_task"],  # type: ignore[index]
-            agent=self.documentation_agent(),
-            context=[self.collect_recommended_jobs_task(), self.fetch_job_details_task()]
+            context=[self.collect_recommended_jobs_task()],
         )
 
     @crew
     def crew(self) -> Crew:
-        """Assemble the complete LinkedIn recommended jobs crew."""
+        import os
+        verbose_flag = os.getenv("CREW_VERBOSE", "true").lower() == "true"
         return Crew(
-            agents=[
-                self.job_collector_agent(),
-                self.job_details_agent(),
-                self.documentation_agent()
-            ],
-            tasks=[
-                self.collect_recommended_jobs_task(),
-                self.fetch_job_details_task(),
-                self.update_documentation_task()
-            ],
-            process=Process.sequential,  # Sequential execution as required
-            verbose=True,
+            agents=[self.job_collector_agent(), self.job_details_agent()],
+            tasks=[self.collect_recommended_jobs_task(), self.fetch_job_details_task()],
+            process=Process.sequential,
+            verbose=verbose_flag,
         )
 
-    def __del__(self):
-        """Cleanup MCP adapter when crew is destroyed."""
+    def close(self):
+        """Explicitly cleanup MCP adapter."""
         if self._mcp_adapter:
             try:
                 self._mcp_adapter.__exit__(None, None, None)
             except Exception as e:
-                _logger.error(f"Error cleaning up MCP adapter: {e}")
+                _logger.error("Error cleaning up MCP adapter: %s", e)
 
 
 def get_linkedin_recommended_jobs_crew() -> Crew:
-    """Factory function with singleton pattern for crew instances."""
-    global _cached_crew
-    if _cached_crew is None:
-        with _crew_lock:
-            if _cached_crew is None:
-                _cached_crew = LinkedInRecommendedJobsCrew().crew()
-    assert _cached_crew is not None
-    return _cached_crew
+    """Factory function to create a fresh crew instance per run."""
+    return LinkedInRecommendedJobsCrew().crew()
 
 
 def _coerce_to_dict(candidate: Any) -> Optional[Dict[str, Any]]:
-    """Attempt to convert various CrewAI output payloads into a dictionary."""
     if candidate is None:
         return None
-
     if isinstance(candidate, Mapping):
         return dict(candidate)
-
     if isinstance(candidate, str):
         stripped = candidate.strip()
         if not stripped:
             return None
-
         try:
             parsed = json.loads(stripped)
-        except JSONDecodeError:
+        except JSONDecodeError as e:
+            _logger.warning(
+                "Failed to parse JSON string: %s (error: %s)",
+                stripped[:200],
+                e,
+            )
             return None
-
         if isinstance(parsed, Mapping):
             return dict(parsed)
-
-        # Preserve non-mapping JSON payloads for downstream inspection
         return {"data": parsed}
-
     return None
 
 
 def _validate_job_posting_schema(job_posting: Dict[str, Any]) -> bool:
-    """Validate that a job posting contains all required schema fields."""
-    return _JOB_POSTING_SCHEMA_KEYS.issubset(job_posting.keys())
+    if not _JOB_POSTING_SCHEMA_KEYS.issubset(job_posting.keys()):
+        return False
+    checks = {
+        "title": str,
+        "company": str,
+        "location": str,
+        "description": str,
+        "url": str,
+    }
+    for field, expected_type in checks.items():
+        if not isinstance(job_posting.get(field), expected_type):
+            return False
+    return True
 
 
 def _ensure_success_flag(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Ensure job posting arrays include a success flag."""
     if "success" not in payload and isinstance(payload.get("data"), list):
-        # Check if it looks like an array of job postings
         data = payload.get("data", [])
-        if data and all(_validate_job_posting_schema(job) for job in data if isinstance(job, dict)):
+        if data and all(
+            _validate_job_posting_schema(job) for job in data if isinstance(job, dict)
+        ):
             payload = dict(payload)
             payload["success"] = True
-
     return payload
 
 
 def normalize_linkedin_recommended_jobs_output(result: Any) -> Dict[str, Any]:
-    """Normalize CrewAI outputs into a dictionary for consistent consumption."""
     normalized = _coerce_to_dict(result)
     if normalized is not None:
         return _ensure_success_flag(normalized)
-
     for attribute in ("raw", "output", "value"):
         if hasattr(result, attribute):
             normalized = _coerce_to_dict(getattr(result, attribute))
             if normalized is not None:
                 return _ensure_success_flag(normalized)
-
     return {}
 
 
 def run_linkedin_recommended_jobs() -> Dict[str, Any]:
-    """Execute the LinkedIn recommended jobs crew workflow."""
-    crew = get_linkedin_recommended_jobs_crew()
-    
-    # No inputs needed - fetches recommendations for current logged-in user
-    inputs = {}
-    
-    raw_result = crew.kickoff(inputs=inputs)
-    return normalize_linkedin_recommended_jobs_output(raw_result)
+    crew = LinkedInRecommendedJobsCrew()
+    try:
+        raw_result = crew.crew().kickoff(inputs={})
+        return normalize_linkedin_recommended_jobs_output(raw_result)
+    finally:
+        crew.close()

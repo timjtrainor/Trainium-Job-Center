@@ -1,0 +1,14 @@
+# LinkedIn MCP tools split per agent
+
+collector_tools:
+  - get_recommended_jobs
+  - close_session   # optional cleanup
+
+details_tools:
+  - get_job_details
+
+# Optional: if you plan to extend with more agents later
+shared_tools:
+  - get_company_profile
+  - get_person_profile
+  - search_jobs

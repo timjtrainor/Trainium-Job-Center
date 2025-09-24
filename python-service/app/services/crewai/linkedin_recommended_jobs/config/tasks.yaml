@@ -33,48 +33,23 @@ fetch_job_details_task:
     - description (string): Full job description
     - url (string): Valid URI to the job posting (1-2083 characters)
     
-    Process all job IDs from the context and ensure no jobs are skipped. Handle 
-    any API errors gracefully but attempt to retrieve as many job details as possible.
-    
-  expected_output: >
-    A JSON array of JobPosting objects in this exact format:
-    [
-      {
-        "title": "Job Title",
-        "company": "Company Name", 
-        "location": "Job Location",
-        "description": "Full job description text",
-        "url": "https://linkedin.com/jobs/view/job_id"
-      }
-    ]
-    Each object must contain all five required fields. The array should include 
-    all successfully retrieved job details.
-    
-  agent: job_details_agent
-  context: [collect_recommended_jobs_task]
-  async_execution: false
+    Process all job IDs from the context and ensure no jobs are skipped. If an 
+    error occurs for a job, skip it but continue processing the others. Never 
+    return partial objects — each object must be fully schema-compliant.
 
-update_documentation_task:
-  description: >
-    Review and update the README.md file (or other relevant project documentation) 
-    for the linkedin_recommended_jobs crew to ensure it accurately describes:
-    
-    1. The crew's purpose: fetching and normalizing LinkedIn recommended jobs
-    2. The workflow: collect job IDs → fetch details → normalize to schema
-    3. The output schema: JobPosting objects with title, company, location, description, url
-    4. Important constraints: no recommendation logic, filtering, or analysis
-    
-    Ensure the documentation clearly communicates that this crew is strictly for 
-    data retrieval and normalization, not for job evaluation or recommendation.
-    
   expected_output: >
-    An updated documentation file that clearly describes:
-    - Crew purpose and scope
-    - Workflow steps (Collector → Details → Documentation)
-    - JobPosting schema specification
-    - Usage examples and integration points
-    - Clear statement that no recommendation logic is included
-    
-  agent: documentation_agent
-  context: [collect_recommended_jobs_task, fetch_job_details_task]
-  async_execution: false
+    {
+      "success": true,
+      "data": [
+        {
+          "title": "Job Title",
+          "company": "Company Name", 
+          "location": "Job Location",
+          "description": "Full job description text",
+          "url": "https://linkedin.com/jobs/view/job_id"
+        }
+      ]
+    }
+    The output MUST be a JSON object with a "success" flag and a "data" array. 
+    Each entry in "data" must strictly include all five required fields, no more 
+    and no less. Jobs that cannot be retrieved should be excluded from the array.
