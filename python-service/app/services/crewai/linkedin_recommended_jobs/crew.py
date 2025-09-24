@@ -31,7 +31,7 @@ _JOB_POSTING_SCHEMA_KEYS = {
 # MCP Server configuration for the Gateway
 _MCP_SERVER_CONFIG = [
     {
-        "url": "http://linkedin-mcp-server:8000/mcp/",
+        "url": "http://mcp-gateway:8811/mcp/",
         "transport": "streamable-http",
         "headers": {
             "Accept": "application/json, text/event-stream"
