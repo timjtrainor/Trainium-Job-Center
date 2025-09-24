@@ -12,7 +12,6 @@ from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
 from loguru import logger
 
-from ..base import load_mcp_tools_sync
 from ..tools.chroma_search import get_career_brand_tools
 from .brand_search import brand_search_helper
 
@@ -35,25 +34,19 @@ class BrandDrivenJobSearchCrew:
     def __init__(self):
         """Initialize the crew and load required tools."""
         super().__init__()
-        self._linkedin_tools = None
         self._chroma_tools = None
         self._load_tools()
 
     def _load_tools(self):
-        """Load LinkedIn MCP tools and ChromaDB tools."""
+        """Load ChromaDB tools."""
         try:
-            # Load LinkedIn tools
-            linkedin_tool_names = ["search_jobs"]
-            self._linkedin_tools = load_mcp_tools_sync(linkedin_tool_names)
-            
             # Career brand search tools for querying ChromaDB content
             self._chroma_tools = get_career_brand_tools()
 
-            logger.info(f"Loaded {len(self._linkedin_tools)} LinkedIn tools and {len(self._chroma_tools)} ChromaDB tools")
+            logger.info(f"Loaded {len(self._chroma_tools)} ChromaDB tools")
 
         except Exception as e:
             logger.warning(f"Failed to load tools: {e}")
-            self._linkedin_tools = []
             self._chroma_tools = []
 
     @agent
@@ -68,8 +61,7 @@ class BrandDrivenJobSearchCrew:
     def linkedin_search_executor(self) -> Agent:
         """LinkedIn search execution specialist agent."""
         return Agent(
-            config=self.agents_config["linkedin_search_executor"],
-            tools=self._linkedin_tools
+            config=self.agents_config["linkedin_search_executor"]
         )
 
     @agent

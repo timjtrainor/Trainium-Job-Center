@@ -54,11 +54,6 @@ class Settings:
         # PostgREST Configuration (for future integration)
         self.postgrest_url: str = os.getenv("POSTGREST_URL", "http://postgrest:3000")
 
-        # MCP Gateway Configuration
-        self.mcp_gateway_enabled: bool = os.getenv("MCP_GATEWAY_ENABLED", "true").lower() == "true"
-        self.mcp_gateway_url: str = os.getenv("MCP_GATEWAY_URL", "http://localhost:8811")
-        self.mcp_gateway_port: int = int(os.getenv("MCP_GATEWAY_PORT", "8811"))
-
         # Database Configuration for direct access
         self.database_url: str = os.getenv("DATABASE_URL", "")
         if not self.database_url:
@@ -94,6 +89,16 @@ class Settings:
 
         # Environment-based configuration
         self.environment: str = os.getenv("ENVIRONMENT", "development")
+
+        # MCP (Model Context Protocol) Configuration
+        self.mcp_enabled: bool = os.getenv("MCP_ENABLED", "false").lower() == "true"
+        self.mcp_transport_type: str = os.getenv("MCP_TRANSPORT_TYPE", "stdio")  # stdio or streaming
+        self.mcp_gateway_url: str = os.getenv("MCP_GATEWAY_URL", "http://mcp-gateway:8811")
+        self.mcp_protocol_version: str = os.getenv("MCP_PROTOCOL_VERSION", "2025-03-26")
+        self.mcp_client_name: str = os.getenv("MCP_CLIENT_NAME", "trainium-job-center")
+        self.mcp_client_version: str = os.getenv("MCP_CLIENT_VERSION", "1.0.0")
+        self.mcp_log_level: str = os.getenv("MCP_LOG_LEVEL", "INFO")
+        self.mcp_connection_timeout: int = int(os.getenv("MCP_CONNECTION_TIMEOUT", "30"))  # seconds
 
     def create_chroma_client(self) -> Union[chromadb.HttpClient, chromadb.PersistentClient]:
         """Create and return a ChromaDB client using configured settings.

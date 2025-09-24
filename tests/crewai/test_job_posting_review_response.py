@@ -2,28 +2,8 @@
 
 import os
 import sys
-import types
 from pathlib import Path
 from unittest.mock import patch
-
-
-# Stub external dependency imported by crew module
-mcp_stub = types.ModuleType("mcp")
-mcp_types_stub = types.ModuleType("mcp.types")
-
-
-class _ClientSession:  # minimal placeholder
-    pass
-
-
-class _Tool:  # placeholder for mcp.types.Tool
-    pass
-
-
-mcp_stub.ClientSession = _ClientSession
-mcp_types_stub.Tool = _Tool
-sys.modules.setdefault("mcp", mcp_stub)
-sys.modules.setdefault("mcp.types", mcp_types_stub)
 
 PYTHON_SERVICE_PATH = Path(__file__).resolve().parents[2] / "python-service"
 if str(PYTHON_SERVICE_PATH) not in sys.path:

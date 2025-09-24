@@ -2,16 +2,48 @@
 import json
 import os
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
+
+import pytest
+
+from app.services.mcp.mcp_crewai import BaseTool
 
 os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/testdb")
 
+from app.services.crewai.linkedin_job_search import crew as linkedin_crew_module
 from app.services.crewai.linkedin_job_search.crew import (  # noqa: E402
     LinkedInJobSearchCrew,
     get_linkedin_job_search_crew,
     normalize_linkedin_job_search_output,
     run_linkedin_job_search,
 )
+
+
+def _reset_mcp_state() -> None:
+    """Reset crew-level singletons for isolated testing."""
+
+    linkedin_crew_module._cached_crew = None
+    linkedin_crew_module._MCP_FACTORY = None
+    linkedin_crew_module._MCP_TOOL_CACHE.clear()
+
+
+class _StubTool(BaseTool):
+    """Simple BaseTool implementation for MCP tool assertions."""
+
+    def __init__(self, name: str):
+        super().__init__(name=name, description=f"Stub tool for {name}")
+
+    def _run(self, **kwargs):
+        return "stub"
+
+
+@pytest.fixture(autouse=True)
+def reset_singletons():
+    """Ensure MCP state is reset around each test."""
+
+    _reset_mcp_state()
+    yield
+    _reset_mcp_state()
 
 
 class TestLinkedInJobSearchCrew:
@@ -24,6 +56,135 @@ class TestLinkedInJobSearchCrew:
 
         assert len(crew.agents) == 3
         assert len(crew.tasks) == 4
+
+    def test_agents_attach_mcp_tools_with_injected_factory(self):
+        """Agents should receive MCP tool wrappers from the factory."""
+
+        search_tool = _StubTool("linkedin_search")
+        profile_tool = _StubTool("profile_lookup")
+
+        factory = MagicMock()
+        factory.create_single_crewai_tool.side_effect = lambda name: {
+            "linkedin_search": search_tool,
+            "profile_lookup": profile_tool,
+        }[name]
+
+        with (
+            patch.object(
+                LinkedInJobSearchCrew,
+                "map_all_agent_variables",
+                return_value=None,
+            ),
+            patch.object(
+                LinkedInJobSearchCrew,
+                "map_all_task_variables",
+                return_value=None,
+            ),
+        ):
+            crew_builder = LinkedInJobSearchCrew(mcp_tool_factory=factory)
+
+        assert factory.create_single_crewai_tool.call_args_list == [
+            call("linkedin_search"),
+            call("profile_lookup"),
+        ]
+
+        assert crew_builder._agent_tools["linkedin_job_searcher"] == (search_tool,)
+        assert crew_builder._agent_tools["job_opportunity_analyzer"] == (
+            search_tool,
+            profile_tool,
+        )
+        assert crew_builder._agent_tools["networking_strategist"] == (profile_tool,)
+
+    @patch("app.services.crewai.linkedin_job_search.crew.MCPToolFactory")
+    @patch("app.services.crewai.linkedin_job_search.crew.MCPConfig.from_environment")
+    def test_default_factory_initialization_uses_environment(
+        self,
+        mock_from_environment,
+        mock_factory_cls,
+    ):
+        """Crew should configure MCP tooling from environment settings."""
+
+        adapter = MagicMock()
+        adapter.is_connected.return_value = False
+        adapter.connect = AsyncMock(return_value=None)
+        mock_from_environment.return_value = adapter
+
+        search_tool = _StubTool("linkedin_search")
+        profile_tool = _StubTool("profile_lookup")
+
+        factory_instance = MagicMock()
+        factory_instance.create_single_crewai_tool.side_effect = lambda name: {
+            "linkedin_search": search_tool,
+            "profile_lookup": profile_tool,
+        }[name]
+        mock_factory_cls.return_value = factory_instance
+
+        with (
+            patch.object(
+                LinkedInJobSearchCrew,
+                "map_all_agent_variables",
+                return_value=None,
+            ),
+            patch.object(
+                LinkedInJobSearchCrew,
+                "map_all_task_variables",
+                return_value=None,
+            ),
+        ):
+            crew_builder = LinkedInJobSearchCrew()
+
+        mock_from_environment.assert_called_once_with()
+        assert adapter.connect.await_count == 1
+        mock_factory_cls.assert_called_once_with(adapter)
+        assert crew_builder._agent_tools["linkedin_job_searcher"] == (search_tool,)
+
+    @patch("app.services.crewai.linkedin_job_search.crew.MCPConfig.from_environment")
+    def test_configuration_failures_disable_mcp_tooling(self, mock_from_environment):
+        """If MCP configuration fails, agents should continue without tools."""
+
+        mock_from_environment.side_effect = RuntimeError("config missing")
+
+        with (
+            patch.object(
+                LinkedInJobSearchCrew,
+                "map_all_agent_variables",
+                return_value=None,
+            ),
+            patch.object(
+                LinkedInJobSearchCrew,
+                "map_all_task_variables",
+                return_value=None,
+            ),
+        ):
+            crew_builder = LinkedInJobSearchCrew()
+
+        assert crew_builder._agent_tools["linkedin_job_searcher"] == ()
+        assert crew_builder._agent_tools["job_opportunity_analyzer"] == ()
+        assert crew_builder._agent_tools["networking_strategist"] == ()
+
+    def test_tool_creation_failures_are_handled_gracefully(self):
+        """Tool factory errors should not prevent crew construction."""
+
+        factory = MagicMock()
+        factory.create_single_crewai_tool.side_effect = RuntimeError("boom")
+
+        with (
+            patch.object(
+                LinkedInJobSearchCrew,
+                "map_all_agent_variables",
+                return_value=None,
+            ),
+            patch.object(
+                LinkedInJobSearchCrew,
+                "map_all_task_variables",
+                return_value=None,
+            ),
+        ):
+            crew_builder = LinkedInJobSearchCrew(mcp_tool_factory=factory)
+
+        assert crew_builder._agent_tools["linkedin_job_searcher"] == ()
+        assert crew_builder._agent_tools["job_opportunity_analyzer"] == ()
+        assert crew_builder._agent_tools["networking_strategist"] == ()
 
     def test_get_linkedin_job_search_crew_singleton(self):
         """Factory should return the same crew instance."""

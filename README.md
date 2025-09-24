@@ -88,6 +88,69 @@ The service now supports multiple LLM providers with automatic fallback:
 
 The system automatically falls back to the next provider if the primary one fails, ensuring reliable operation.
 
+## MCP Gateway (Model Context Protocol)
+
+The application includes a Docker-based MCP Gateway that implements the Model Context Protocol for integrating external tools and services.
+
+### Quick Start
+
+Start the MCP Gateway with the full stack:
+
+```bash
+docker-compose up --build mcp-gateway
+```
+
+Or start all services including the gateway:
+
+```bash
+docker-compose up --build
+```
+
+### Endpoints
+
+The MCP Gateway runs on port 8811 and provides these endpoints:
+
+- **Health Check**: `GET http://localhost:8811/health`
+- **MCP Initialize**: `POST http://localhost:8811/mcp/initialize`
+- **Tools List**: `POST http://localhost:8811/mcp/tools/list` 
+- **Tool Call**: `POST http://localhost:8811/mcp/tools/call`
+- **Gateway Status**: `GET http://localhost:8811/mcp/status`
+
+### Configuration
+
+Configure MCP Gateway settings in `.env`:
+
+```bash
+MCP_GATEWAY_PORT=8811
+MCP_GATEWAY_URL=http://mcp-gateway:8811
+MCP_GATEWAY_TRANSPORT=streaming
+MCP_GATEWAY_TIMEOUT=30
+MCP_GATEWAY_MAX_RETRIES=3
+MCP_LOG_LEVEL=INFO
+```
+
+### Verification
+
+Run the verification script to test all MCP Gateway functionality:
+
+```bash
+./verify_mcp_setup.sh
+```
+
+### Testing
+
+Test individual components:
+
+```bash
+# Test MCP Gateway endpoints
+python3 test_mcp_gateway.py
+
+# Test StreamingTransport integration
+python3 test_streaming_integration.py
+```
+
+The gateway supports **DuckDuckGo search** and **LinkedIn job search** MCP servers for enhanced AI capabilities.
+
 ## Checks
 
 Run these commands before committing:

@@ -1,0 +1,55 @@
+# LinkedIn Recommended Jobs Tasks Configuration
+
+collect_recommended_jobs_task:
+  description: >
+    Call the get_recommended_jobs MCP tool to fetch LinkedIn job recommendations 
+    for the current logged-in user. Extract all job IDs from the response and 
+    prepare them for detailed retrieval. Do not filter, rank, or analyze the 
+    recommendations - simply collect all available job IDs.
+    
+    Use the MCP LinkedIn tool get_recommended_jobs to retrieve personalized 
+    job recommendations. The tool should return a list of job IDs that LinkedIn 
+    has recommended for the current user profile.
+    
+  expected_output: >
+    A JSON array of job IDs in the format:
+    {
+      "job_ids": ["job_id_1", "job_id_2", "job_id_3", ...],
+      "total_count": number_of_jobs,
+      "success": true
+    }
+    
+  agent: job_collector_agent
+  async_execution: false
+
+fetch_job_details_task:
+  description: >
+    For each job ID collected from the previous task, call the get_job_details 
+    MCP tool to retrieve complete job posting information. Transform each job's 
+    raw data into the standardized JobPosting schema with these exact fields:
+    - title (string): Job title
+    - company (string): Company name  
+    - location (string): Job location
+    - description (string): Full job description
+    - url (string): Valid URI to the job posting (1-2083 characters)
+    
+    Process all job IDs from the context and ensure no jobs are skipped. If an 
+    error occurs for a job, skip it but continue processing the others. Never 
+    return partial objects — each object must be fully schema-compliant.
+
+  expected_output: >
+    {
+      "success": true,
+      "data": [
+        {
+          "title": "Job Title",
+          "company": "Company Name", 
+          "location": "Job Location",
+          "description": "Full job description text",
+          "url": "https://linkedin.com/jobs/view/job_id"
+        }
+      ]
+    }
+    The output MUST be a JSON object with a "success" flag and a "data" array. 
+    Each entry in "data" must strictly include all five required fields, no more 
+    and no less. Jobs that cannot be retrieved should be excluded from the array.

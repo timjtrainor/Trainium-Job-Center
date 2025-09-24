@@ -45,15 +45,7 @@ def _sample_report():
     }
 
 
-def _patch_mcp(monkeypatch):
-    mock_mcp = MagicMock()
-    mock_mcp.types = MagicMock()
-    monkeypatch.setitem(sys.modules, "mcp", mock_mcp)
-    monkeypatch.setitem(sys.modules, "mcp.types", mock_mcp.types)
-
-
 def test_generate_company_report_with_commentary_and_braces(monkeypatch):
-    _patch_mcp(monkeypatch)
     sample_json = json.dumps(_sample_report())
     raw_output = (
         "Intro text with {braces} before JSON.\n"
@@ -76,7 +68,6 @@ def test_generate_company_report_with_commentary_and_braces(monkeypatch):
 
 
 def test_generate_company_report_no_json_block(monkeypatch):
-    _patch_mcp(monkeypatch)
     raw_output = "Leading text without any JSON block."
 
     class MockCrew:

@@ -89,20 +89,16 @@ class TestBrandDrivenJobSearchCrew:
         assert compile_task.async_execution is None or compile_task.async_execution is False
     
     @patch('app.services.crewai.brand_driven_job_search.crew.get_career_brand_tools')
-    @patch('app.services.crewai.brand_driven_job_search.crew.load_mcp_tools_sync')
-    def test_tools_loading(self, mock_load_tools, mock_get_brand_tools):
-        """Test LinkedIn and ChromaDB tools loading."""
-        mock_linkedin_tools = [DummyTool()]
-        mock_load_tools.return_value = mock_linkedin_tools
+    def test_tools_loading(self, mock_get_brand_tools):
+        """Test ChromaDB tools loading."""
         mock_chroma_tools = [DummyTool()]
         mock_get_brand_tools.return_value = mock_chroma_tools
 
         crew = BrandDrivenJobSearchCrew()
-        assert hasattr(crew, '_linkedin_tools')
         assert hasattr(crew, '_chroma_tools')
 
-        # Verify LinkedIn tools were loaded
-        mock_load_tools.assert_called_once_with(["search_jobs"])
+        # Verify ChromaDB tools were loaded
+        mock_get_brand_tools.assert_called_once()
         mock_get_brand_tools.assert_called_once_with()
         assert crew._chroma_tools == mock_chroma_tools
     

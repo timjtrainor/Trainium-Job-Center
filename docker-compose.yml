@@ -126,9 +126,6 @@ services:
       CHROMA_PORT: ${CHROMA_PORT:-8001}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
-      # MCP Gateway configuration
-      MCP_GATEWAY_URL: ${MCP_GATEWAY_URL:-http://mcp-gateway:8811}
-      MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED:-true}
     volumes:
       # Mount the python service code for development
       - ./python-service:/app
@@ -136,8 +133,6 @@ services:
       redis:
         condition: service_healthy
       chromadb:
-        condition: service_healthy
-      mcp-gateway:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -173,9 +168,6 @@ services:
       REDIS_DB: ${REDIS_DB:-0}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
-      # MCP Gateway configuration
-      MCP_GATEWAY_URL: ${MCP_GATEWAY_URL:-http://mcp-gateway:8811}
-      MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED:-true}
       # LinkedIn credentials for LinkedIn job search
       LINKEDIN_EMAIL: ${LINKEDIN_EMAIL}
       LINKEDIN_PASSWORD: ${LINKEDIN_PASSWORD}
@@ -184,8 +176,6 @@ services:
       replicas: 5   # Number of workers
     depends_on:
       redis:
-        condition: service_healthy
-      mcp-gateway:
         condition: service_healthy
 
   # Defines the scheduler daemon using the python-service image
@@ -248,11 +238,20 @@ services:
   # Docker MCP Gateway for managing MCP servers
   mcp-gateway:
     container_name: trainium_mcp_gateway
-    image: docker/mcp-gateway
+    image: docker/mcp-gateway:latest
     command:
       - --servers=duckduckgo,linkedin-mcp-server
-      - --transport=sse
+      - --transport=streaming
+      - --secrets=docker-desktop
       - --port=8811
+      - --watch=true
+    environment:
+      LINKEDIN_EMAIL: ${LINKEDIN_EMAIL}
+      LINKEDIN_PASSWORD: ${LINKEDIN_PASSWORD}
+      LINKEDIN_COOKIE: ${LINKEDIN_COOKIE}
+      PYTHON_KEYRING_BACKEND: keyrings.alt.file.PlaintextKeyring
+      LITELLM_PROVIDER: ollama
+      OLLAMA_API_BASE: http://host.docker.internal:11434
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     ports:

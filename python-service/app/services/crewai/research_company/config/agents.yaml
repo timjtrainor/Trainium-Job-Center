@@ -13,8 +13,6 @@ financial_analyst:
   max_iter: 1
   verbose: false
   allow_delegation: false
-  mcp_tools:
-    - duckduckgo
 
 culture_investigator:
   role: "Workplace Culture Investigator"
@@ -31,8 +29,6 @@ culture_investigator:
   max_iter: 1
   verbose: false
   allow_delegation: false
-  mcp_tools:
-    - duckduckgo
 
 leadership_analyst:
   role: "Leadership and Reputation Analyst"
@@ -48,8 +44,6 @@ leadership_analyst:
   max_iter: 1
   verbose: false
   allow_delegation: false
-  mcp_tools:
-    - duckduckgo
 
 career_growth_analyst:
   role: "Career Growth and Opportunities Analyst"
@@ -65,25 +59,6 @@ career_growth_analyst:
   max_iter: 1
   verbose: false
   allow_delegation: false
-  mcp_tools:
-    - duckduckgo
-
-mcp_researcher:
-  role: "MCP Web Researcher"
-  goal: "Find up-to-date and relevant company information from the web."
-  backstory: >
-    A digital investigator with real-time access to DuckDuckGo. You specialize in
-    retrieving fresh information such as news articles, employee reviews,
-    leadership changes, or market events that might affect a job seeker's view of
-    a company. You conduct comprehensive web research and provide detailed findings.
-  llm: "openai/gpt-5-mini"
-  temperature: 0.2
-  memory: false
-  max_iter: 1
-  verbose: true
-  allow_delegation: false
-  mcp_tools:
-    - duckduckgo
 
 report_writer:
   role: "Research Report Writer"

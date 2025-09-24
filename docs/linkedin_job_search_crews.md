@@ -17,9 +17,18 @@ Both crews integrate with the existing `jobs` database table and follow establis
 Execute LinkedIn job searches with explicit user-defined inputs and retrieve personalized recommendations.
 
 ### Architecture
-- **search_agent**: Calls LinkedIn MCP `search_jobs` with provided parameters
-- **recommendation_agent**: Calls LinkedIn MCP `get_recommended_jobs` for authenticated users
-- **orchestration_agent**: Consolidates and deduplicates results from both agents
+- **linkedin_job_searcher**: Executes targeted job discovery via the MCP `linkedin_search` tool
+- **job_opportunity_analyzer**: Evaluates opportunities, blending MCP `linkedin_search` results with `profile_lookup` insights
+- **networking_strategist**: Crafts outreach plans using MCP-driven `profile_lookup` contact research
+- **linkedin_report_writer**: Consolidates findings from the MCP-enabled specialists
+
+### MCP Gateway Integration
+The crew connects to the MCP gateway using configuration loaded at runtime. Tool wrappers are cached for reuse so that
+specialists can repeatedly call LinkedIn-focused tools without reinitializing the gateway.
+
+- `linkedin_job_searcher` leverages the `linkedin_search` tool for live job retrieval.
+- `job_opportunity_analyzer` cross-checks postings and companies with `linkedin_search` and `profile_lookup`.
+- `networking_strategist` uses `profile_lookup` to surface decision makers and warm introductions.
 
 ### API Endpoint
 ```http
@@ -231,7 +240,7 @@ Both crews provide health check endpoints:
 
 Health checks verify:
 - Crew initialization
-- MCP tool availability
+- Tool availability
 - Agent and task configuration
 - ChromaDB connectivity (brand-driven crew)
 
@@ -249,7 +258,7 @@ Both crews use YAML-first configuration following established patterns:
 
 - **Agents**: `config/agents.yaml` - Defines agent roles, goals, and tools
 - **Tasks**: `config/tasks.yaml` - Defines task descriptions and expected outputs
-- **Environment**: MCP tools loaded via environment configuration
+- **Environment**: Tools loaded via environment configuration
 
 ## Future Enhancements
 

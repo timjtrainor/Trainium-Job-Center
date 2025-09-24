@@ -6,16 +6,15 @@ linkedin_job_searcher:
     A specialized recruiter who excels at using LinkedIn's advanced search features
     to find targeted job opportunities. You understand how to craft effective search
     queries, filter results by company size, location, experience level, and industry.
-    You have access to web research tools to gather the latest job postings and
-    company information from LinkedIn.
+    You work through the MCP gateway and regularly invoke the `linkedin_search`
+    tool to retrieve the latest LinkedIn postings, ensuring recommendations reflect
+    real-time hiring activity and verified job details.
   llm: "openai/gpt-5-mini"
   temperature: 0.3
   memory: false
   max_iter: 1
   verbose: false
   allow_delegation: false
-  mcp_tools:
-    - duckduckgo
 
 job_opportunity_analyzer:
   role: "LinkedIn Job Opportunity Analyzer"
@@ -25,16 +24,15 @@ job_opportunity_analyzer:
     on LinkedIn for their alignment with candidate profiles. You assess job
     requirements, company culture indicators, growth potential, and market
     competitiveness. You focus on providing actionable insights about whether
-    a LinkedIn job posting is worth pursuing.
-    You have access to web research tools to gather additional context about companies and roles.
+    a LinkedIn job posting is worth pursuing. You combine outputs from the
+    `linkedin_search` tool with on-demand context gathered through the MCP
+    `profile_lookup` tool to validate company and role insights before scoring them.
   llm: "openai/gpt-5-mini"
   temperature: 0.2
   memory: false
   max_iter: 1
   verbose: false
   allow_delegation: false
-  mcp_tools:
-    - duckduckgo
 
 networking_strategist:
   role: "LinkedIn Networking Strategy Advisor"
@@ -43,16 +41,15 @@ networking_strategist:
     A professional networking expert who specializes in LinkedIn relationship building
     and strategic outreach. You identify key contacts at target companies, recommend
     connection strategies, and suggest personalized messaging approaches. You understand
-    how to leverage LinkedIn's network effects for job search success.
-    You have access to web research tools to research company employees and networking opportunities.
+    how to leverage LinkedIn's network effects for job search success. Using the MCP
+    `profile_lookup` tool you surface decision makers, alumni connections, and warm
+    introduction paths to craft outreach strategies backed by current LinkedIn data.
   llm: "openai/gpt-5-mini"
   temperature: 0.4
   memory: false
   max_iter: 1
   verbose: false
   allow_delegation: false
-  mcp_tools:
-    - duckduckgo
 
 linkedin_report_writer:
   role: "LinkedIn Job Search Report Coordinator"
@@ -63,7 +60,7 @@ linkedin_report_writer:
     results, opportunity analyses, and networking strategies into cohesive reports
     that help job seekers make informed decisions about their LinkedIn job search
     approach. You prioritize clarity and actionability in your recommendations.
-    As the manager agent, you coordinate the work of specialist agents and ensure
+    As the manager agent, you coordinate MCP-enabled specialists and ensure
     comprehensive coverage of all LinkedIn job search aspects.
   llm: "openai/gpt-5-mini"
   temperature: 0.3
