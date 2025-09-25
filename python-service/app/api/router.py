@@ -7,6 +7,7 @@ from .v1.endpoints.scheduler import router as scheduler_router
 from .v1.endpoints.crewai_personal_brand import router as crewai_personal_brand_router
 from .v1.endpoints.job_posting_review import router as job_posting_review_router
 from .v1.endpoints.job_review import router as job_review_router
+from .v1.endpoints.jobs import router as jobs_router
 from .v1.endpoints.chroma import router as chroma_router
 from .v1.endpoints.chroma_manager import router as chroma_manager_router
 from .v1.endpoints.company import router as company_router
@@ -32,6 +33,9 @@ api_router.include_router(brand_driven_job_search_router, prefix="/crewai", tags
 
 # Job Review Management
 api_router.include_router(job_review_router, tags=["Job Review"])
+
+# Jobs API
+api_router.include_router(jobs_router, tags=["Jobs"])
 
 # Health check
 api_router.include_router(health_router, tags=["Health"])

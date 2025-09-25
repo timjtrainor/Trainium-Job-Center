@@ -462,6 +462,186 @@ class DatabaseService:
             logger.error(f"Failed to get job review: {str(e)}")
             return None
 
+    async def get_reviewed_jobs(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        sort_by: str = "date_posted",
+        sort_order: str = "DESC",
+        recommendation: Optional[bool] = None,
+        min_score: Optional[float] = None,
+        max_score: Optional[float] = None,
+        company: Optional[str] = None,
+        source: Optional[str] = None,
+        is_remote: Optional[bool] = None,
+        date_posted_after: Optional[datetime] = None,
+        date_posted_before: Optional[datetime] = None
+    ) -> Dict[str, Any]:
+        """
+        Get jobs with their reviews, supporting pagination, sorting, and filtering.
+        
+        Returns:
+            Dict containing 'jobs' list and 'total_count' int
+        """
+        if not self.initialized:
+            await self.initialize()
+
+        # Build WHERE conditions
+        where_conditions = []
+        params = []
+        param_count = 0
+
+        if recommendation is not None:
+            param_count += 1
+            where_conditions.append(f"jr.recommend = ${param_count}")
+            params.append(recommendation)
+
+        if min_score is not None:
+            # For now, we'll use confidence as a proxy for score
+            # In the future, this could be calculated from personas or other fields
+            param_count += 1
+            where_conditions.append(f"CASE WHEN jr.confidence = 'high' THEN 0.8 WHEN jr.confidence = 'medium' THEN 0.6 ELSE 0.4 END >= ${param_count}")
+            params.append(min_score)
+
+        if max_score is not None:
+            param_count += 1
+            where_conditions.append(f"CASE WHEN jr.confidence = 'high' THEN 0.8 WHEN jr.confidence = 'medium' THEN 0.6 ELSE 0.4 END <= ${param_count}")
+            params.append(max_score)
+
+        if company:
+            param_count += 1
+            where_conditions.append(f"j.company ILIKE ${param_count}")
+            params.append(f"%{company}%")
+
+        if source:
+            param_count += 1
+            where_conditions.append(f"j.site = ${param_count}")
+            params.append(source)
+
+        if is_remote is not None:
+            param_count += 1
+            where_conditions.append(f"j.is_remote = ${param_count}")
+            params.append(is_remote)
+
+        if date_posted_after:
+            param_count += 1
+            where_conditions.append(f"j.date_posted >= ${param_count}")
+            params.append(date_posted_after)
+
+        if date_posted_before:
+            param_count += 1
+            where_conditions.append(f"j.date_posted <= ${param_count}")
+            params.append(date_posted_before)
+
+        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+
+        # Validate sort parameters
+        valid_sort_columns = {
+            "date_posted": "j.date_posted",
+            "company": "j.company",
+            "title": "j.title", 
+            "review_date": "jr.created_at",
+            "recommendation": "jr.recommend"
+        }
+        
+        sort_column = valid_sort_columns.get(sort_by, "j.date_posted")
+        sort_order = "DESC" if sort_order.upper() == "DESC" else "ASC"
+
+        # Query for total count
+        count_query = f"""
+        SELECT COUNT(*)
+        FROM public.jobs j
+        INNER JOIN public.job_reviews jr ON j.id = jr.job_id
+        {where_clause}
+        """
+
+        # Main query with pagination
+        data_query = f"""
+        SELECT 
+            j.id as job_id,
+            j.title,
+            j.company,
+            j.location_city || COALESCE(', ' || j.location_state, '') || COALESCE(', ' || j.location_country, '') as location,
+            j.job_url as url,
+            j.date_posted,
+            j.site as source,
+            j.description,
+            j.min_amount as salary_min,
+            j.max_amount as salary_max,
+            j.currency as salary_currency,
+            j.is_remote,
+            jr.recommend,
+            jr.confidence,
+            jr.rationale,
+            jr.personas,
+            jr.tradeoffs,
+            jr.actions,
+            jr.sources,
+            jr.crew_version as reviewer,
+            jr.created_at as review_date
+        FROM public.jobs j
+        INNER JOIN public.job_reviews jr ON j.id = jr.job_id
+        {where_clause}
+        ORDER BY {sort_column} {sort_order}
+        LIMIT ${param_count + 1} OFFSET ${param_count + 2}
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                # Get total count
+                total_count = await conn.fetchval(count_query, *params)
+                
+                # Get paginated data
+                params.extend([limit, offset])
+                rows = await conn.fetch(data_query, *params)
+                
+                jobs = []
+                for row in rows:
+                    # Calculate alignment score from confidence
+                    confidence_scores = {"high": 0.8, "medium": 0.6, "low": 0.4}
+                    alignment_score = confidence_scores.get(row["confidence"], 0.4)
+                    
+                    job_data = {
+                        "job": {
+                            "job_id": str(row["job_id"]),
+                            "title": row["title"],
+                            "company": row["company"],
+                            "location": row["location"] if row["location"].strip(", ") else None,
+                            "url": row["url"],
+                            "date_posted": row["date_posted"],
+                            "source": row["source"],
+                            "description": row["description"],
+                            "salary_min": row["salary_min"],
+                            "salary_max": row["salary_max"],
+                            "salary_currency": row["salary_currency"],
+                            "is_remote": row["is_remote"]
+                        },
+                        "review": {
+                            "overall_alignment_score": alignment_score,
+                            "recommendation": row["recommend"],
+                            "confidence": row["confidence"],
+                            "reviewer": row["reviewer"],
+                            "review_date": row["review_date"],
+                            "rationale": row["rationale"],
+                            "personas": row["personas"],
+                            "tradeoffs": row["tradeoffs"],
+                            "actions": row["actions"],
+                            "sources": row["sources"]
+                        }
+                    }
+                    jobs.append(job_data)
+
+                return {
+                    "jobs": jobs,
+                    "total_count": total_count or 0
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to get reviewed jobs: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return {"jobs": [], "total_count": 0}
+
 
 def get_database_service() -> DatabaseService:
     """Create a new database service instance."""
