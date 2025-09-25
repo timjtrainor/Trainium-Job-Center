@@ -8,7 +8,8 @@ import {
     BragBankEntry, BragBankEntryPayload, SkillTrend, SkillTrendPayload,
     Sprint, SprintAction, CreateSprintPayload, SprintActionPayload, ApplicationQuestion,
     SiteSchedule, SiteDetails, SiteSchedulePayload,
-    UploadedDocument, UploadSuccessResponse, ContentType
+    UploadedDocument, UploadSuccessResponse, ContentType,
+    PaginatedResponse, ReviewedJob
 } from '../types';
 import { API_BASE_URL, USER_ID, FASTAPI_BASE_URL } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -1315,13 +1316,13 @@ const uploadJsonDocument = async (endpoint: string, payload: object): Promise<Up
     return handleResponse(response);
 };
 
-export const uploadCareerBrand = (payload: any) => uploadJsonDocument('/chroma-manager/career-brand', payload);
-export const uploadCareerPath = (payload: any) => uploadJsonDocument('/chroma-manager/career-paths', payload);
-export const uploadJobSearchStrategy = (payload: any) => uploadJsonDocument('/chroma-manager/job-search-strategies', payload);
+export const uploadCareerBrand = (payload: any) => uploadJsonDocument('/documents/career-brand', payload);
+export const uploadCareerPath = (payload: any) => uploadJsonDocument('/documents/career-paths', payload);
+export const uploadJobSearchStrategy = (payload: any) => uploadJsonDocument('/documents/job-search-strategies', payload);
 
 // Uploader for resume file data
 export const uploadResume = async (formData: FormData): Promise<UploadSuccessResponse> => {
-    const response = await fetch(`${FASTAPI_BASE_URL}/chroma-manager/resume`, {
+    const response = await fetch(`${FASTAPI_BASE_URL}/documents/resume`, {
         method: 'POST',
         body: formData,
         // No 'Content-Type' header here for FormData, browser sets it.
@@ -1329,84 +1330,51 @@ export const uploadResume = async (formData: FormData): Promise<UploadSuccessRes
     return handleResponse(response);
 };
 
-// Fetching documents for the viewer
-const COLLECTIONS_BY_CONTENT_TYPE: Record<ContentType, string> = {
-    career_brand: 'career_brand',
-    career_path: 'career_paths',
-    job_search_strategy: 'job_search_strategies',
-    resume: 'resumes',
-};
-
-const inferProfileFromTags = (tags: string | undefined, fallback: string): string => {
-    if (!tags) return fallback;
-    const segments = tags.split(',').map(segment => segment.trim()).filter(Boolean);
-    // Tags follow the pattern: [content_type, profile_id, section]
-    if (segments.length >= 2) {
-        return segments[1];
-    }
-    return fallback;
-};
-
-const inferSectionFromMetadata = (metadata: Record<string, any> | undefined, tags: string | undefined): string => {
-    if (metadata?.section) {
-        return metadata.section;
-    }
-
-    if (tags) {
-        const segments = tags.split(',').map(segment => segment.trim()).filter(Boolean);
-        if (segments.length >= 3) {
-            return segments[2];
-        }
-    }
-
-    return 'General';
-};
-
 export const getUploadedDocuments = async (profileId: string): Promise<UploadedDocument[]> => {
     if (!profileId) return [];
-
-    const collectionEntries = Object.entries(COLLECTIONS_BY_CONTENT_TYPE) as [ContentType, string][];
-
-    const documentGroups = await Promise.all(
-        collectionEntries.map(async ([contentType, collectionName]) => {
-            const response = await fetch(`${FASTAPI_BASE_URL}/chroma/collections/${collectionName}/documents`);
-            const data = await handleResponse(response);
-            const documents = (data?.documents || []) as Array<Record<string, any>>;
-
-            return documents
-                .filter(doc => {
-                    const metadata = doc.metadata as Record<string, any> | undefined;
-                    const derivedProfileId = metadata?.profile_id || inferProfileFromTags(doc.tags, '');
-                    return derivedProfileId === profileId;
-                })
-                .map(doc => {
-                    const metadata = (doc.metadata || {}) as Record<string, any>;
-                    const section = inferSectionFromMetadata(metadata, doc.tags);
-                    const createdAt = metadata.uploaded_at || doc.created_at || new Date().toISOString();
-
-                    return {
-                        id: doc.id,
-                        profile_id: metadata.profile_id || inferProfileFromTags(doc.tags, profileId),
-                        title: doc.title || metadata.title || 'Untitled',
-                        section,
-                        content_type: contentType,
-                        created_at: createdAt,
-                    } as UploadedDocument;
-                });
-        })
-    );
-
-    return documentGroups.flat().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const response = await fetch(`${FASTAPI_BASE_URL}/documents?profile_id=${profileId}`);
+    const data = await handleResponse(response);
+    return (data?.documents || []).sort((a: UploadedDocument, b: UploadedDocument) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 };
 
 export const deleteUploadedDocument = async (documentId: string, contentType: ContentType): Promise<void> => {
-    const collectionName = COLLECTIONS_BY_CONTENT_TYPE[contentType];
-    if (!collectionName) {
-        throw new Error(`Unknown content type '${contentType}'`);
-    }
-
-    const response = await fetch(`${FASTAPI_BASE_URL}/chroma/collections/${collectionName}/documents/${documentId}`, {
+    const response = await fetch(`${FASTAPI_BASE_URL}/documents/${documentId}`, {
         method: 'DELETE',
     });
     await handleResponse(response);
+};
+
+// --- Reviewed Jobs ---
+
+export interface ReviewedJobsFilters {
+  recommendation?: 'Yes' | 'No' | 'Maybe' | 'All';
+  min_score?: number;
+}
+
+export interface ReviewedJobsSort {
+  by: 'date_posted' | 'overall_alignment_score';
+  order: 'asc' | 'desc';
+}
+
+export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort = { by: 'date_posted', order: 'desc' } }: {
+    page?: number;
+    size?: number;
+    filters?: ReviewedJobsFilters;
+    sort?: ReviewedJobsSort;
+}): Promise<PaginatedResponse<ReviewedJob>> => {
+    const params = new URLSearchParams({
+        page: String(page),
+        size: String(size),
+        sort_by: sort.by,
+        sort_order: sort.order,
+    });
+    if (filters.recommendation && filters.recommendation !== 'All') {
+        params.append('recommendation', filters.recommendation);
+    }
+    if (filters.min_score) {
+        params.append('min_score', String(filters.min_score));
+    }
+
+    const response = await fetch(`${FASTAPI_BASE_URL}/jobs/reviews?${params.toString()}`);
+    return handleResponse(response);
 };

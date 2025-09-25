@@ -966,3 +966,25 @@ export interface DocumentUploadPayload {
     content: string;
     metadata?: object;
 }
+
+// For Reviewed Jobs View
+export interface ReviewedJob {
+  job_id: string; // uuid
+  url: string;
+  title: string;
+  company_name: string;
+  location: string;
+  date_posted: string; // date string
+  recommendation: 'Yes' | 'No' | 'Maybe';
+  confidence: number; // 0.0 to 1.0
+  overall_alignment_score: number; // 0.0 to 10.0
+  is_eligible_for_application: boolean;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
