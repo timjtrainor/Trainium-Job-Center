@@ -17,4 +17,4 @@ metadata:
   crew_manifest_ref: skeptic.json
 models:
   - provider: ollama
-    model: gemma3:1b
+    model: gpt-oss:20b

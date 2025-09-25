@@ -103,7 +103,7 @@ metadata:
     - google_search
 models:
   - provider: ollama
-    model: gemma3:1b
+    model: gpt-oss:20b
 ```
 
 ### Task Configuration (YAML)

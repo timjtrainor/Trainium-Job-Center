@@ -198,12 +198,12 @@ def create_llm_client(provider: str, model: str, **kwargs) -> BaseLLMClient:
 class LLMRouter:
     """Routes LLM requests with automatic fallback between providers."""
 
-    def __init__(self, preferences: str = "ollama:gemma3:1b,openai:gpt-5-mini,gemini:gemini-1.5-flash"):
+    def __init__(self, preferences: str = "ollama:gpt-oss:20b,openai:gpt-5-mini,gemini:gemini-1.5-flash"):
         """Initialize router with provider preferences.
 
         Args:
             preferences: Comma-separated list of provider:model pairs in preference order.
-                        e.g. "ollama:gemma3:1b,openai:gpt-5-mini,gemini:gemini-1.5-flash"
+                        e.g. "ollama:gpt-oss:20b,openai:gpt-5-mini,gemini:gemini-1.5-flash"
         """
         self.providers = self._parse_preferences(preferences)
         self._clients = {}

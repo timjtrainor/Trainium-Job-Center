@@ -19,7 +19,7 @@ pre_filter_agent:
   temperature: 0
   max_iter: 1
   max_execution_time: 20
-  llm: "ollama/gemma3:1b"
+  llm: "ollama/gpt-oss:20b"
 
 # Specialized Brand Matcher Agents - each focuses on one career dimension
 
@@ -171,7 +171,7 @@ managing_agent:
   allow_delegation: true
   temperature: 0
   max_iter: 3
-  llm: "ollama/gemma3:1b"
+  llm: "ollama/gpt-oss:20b"
   instructions: |
     ORCHESTRATION RULES (quick_fit removed):
     - DO NOT analyze or add commentary.

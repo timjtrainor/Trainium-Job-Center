@@ -29,7 +29,7 @@ class PersonalBrandCrew:
         """Adapter to use LLMRouter with CrewAI agents."""
 
         def __init__(self, router: LLMRouter):
-            super().__init__(model="gemma3:1b")
+            super().__init__(model="gpt-oss:20b")
             self._router = router
 
         def call(

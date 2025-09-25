@@ -20,11 +20,11 @@ class TestLLMRouter:
     
     def test_router_initialization(self):
         """Test router initializes with correct providers."""
-        preferences = "ollama:gemma3:1b,openai:gpt-5-mini"
+        preferences = "ollama:gpt-oss:20b,openai:gpt-5-mini"
         router = LLMRouter(preferences)
         
         assert len(router.providers) == 2
-        assert router.providers[0] == ("ollama", "gemma3:1b")
+        assert router.providers[0] == ("ollama", "gpt-oss:20b")
         assert router.providers[1] == ("openai", "gpt-5-mini")
     
     def test_preference_parsing(self):
@@ -32,12 +32,12 @@ class TestLLMRouter:
         router = LLMRouter()
         
         # Test valid preferences
-        providers = router._parse_preferences("ollama:gemma3:1b,openai:gpt-5")
-        assert providers == [("ollama", "gemma3:1b"), ("openai", "gpt-5")]
+        providers = router._parse_preferences("ollama:gpt-oss:20b,openai:gpt-5")
+        assert providers == [("ollama", "gpt-oss:20b"), ("openai", "gpt-5")]
         
         # Test with spaces
-        providers = router._parse_preferences(" ollama : gemma3:1b , openai : gpt-5 ")
-        assert providers == [("ollama", "gemma3:1b"), ("openai", "gpt-5")]
+        providers = router._parse_preferences(" ollama : gpt-oss:20b , openai : gpt-5 ")
+        assert providers == [("ollama", "gpt-oss:20b"), ("openai", "gpt-5")]
     
     @patch('app.services.ai.llm_clients.create_llm_client')
     def test_client_creation(self, mock_create_client):
@@ -47,16 +47,16 @@ class TestLLMRouter:
         mock_client.generate.return_value = "test response"
         mock_create_client.return_value = mock_client
         
-        router = LLMRouter("ollama:gemma3:1b")
+        router = LLMRouter("ollama:gpt-oss:20b")
         
         # First call should create client
-        client = router._get_client("ollama", "gemma3:1b")
+        client = router._get_client("ollama", "gpt-oss:20b")
         assert client == mock_client
-        mock_create_client.assert_called_once_with("ollama", "gemma3:1b", host="http://localhost:11434")
+        mock_create_client.assert_called_once_with("ollama", "gpt-oss:20b", host="http://localhost:11434")
         
         # Second call should use cached client
         mock_create_client.reset_mock()
-        client2 = router._get_client("ollama", "gemma3:1b")
+        client2 = router._get_client("ollama", "gpt-oss:20b")
         assert client2 == mock_client
         mock_create_client.assert_not_called()
     
@@ -74,7 +74,7 @@ class TestLLMRouter:
         
         mock_create_client.side_effect = [failing_client, working_client]
         
-        router = LLMRouter("ollama:gemma3:1b,openai:gpt-5")
+        router = LLMRouter("ollama:gpt-oss:20b,openai:gpt-5")
         response = router.generate("test prompt")
         
         assert response == "success response"
@@ -87,7 +87,7 @@ class TestLLMRouter:
         failing_client.is_available.return_value = False
         mock_create_client.return_value = failing_client
         
-        router = LLMRouter("ollama:gemma3:1b")
+        router = LLMRouter("ollama:gpt-oss:20b")
         
         with pytest.raises(ConnectionError, match="All LLM providers failed"):
             router.generate("test prompt")
@@ -98,9 +98,9 @@ class TestClientFactory:
     
     def test_create_ollama_client(self):
         """Test creating Ollama client."""
-        client = create_llm_client("ollama", "gemma3:1b")
+        client = create_llm_client("ollama", "gpt-oss:20b")
         assert isinstance(client, OllamaClient)
-        assert client.model == "gemma3:1b"
+        assert client.model == "gpt-oss:20b"
         assert client.provider == "ollama"
     
     def test_create_openai_client(self):
@@ -129,7 +129,7 @@ class TestClientAvailability:
     def test_ollama_availability_no_package(self):
         """Test Ollama availability when package not installed."""
         with patch('app.services.ai.llm_clients.ollama', None):
-            client = OllamaClient("gemma3:1b")
+            client = OllamaClient("gpt-oss:20b")
             assert not client.is_available()
     
     def test_openai_availability_no_api_key(self):

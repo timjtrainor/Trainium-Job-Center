@@ -69,7 +69,7 @@ The service now supports multiple LLM providers with automatic fallback:
 1. **Configure provider preferences** – Set `LLM_PREFERENCE` in `.env`:
 
    ```bash
-   LLM_PREFERENCE=ollama:gemma3:1b,openai:gpt-4o-mini,gemini:gemini-1.5-flash
+   LLM_PREFERENCE=ollama:gpt-oss:20b,openai:gpt-4o-mini,gemini:gemini-1.5-flash
    ```
 
 2. **Provider setup**:
@@ -78,7 +78,7 @@ The service now supports multiple LLM providers with automatic fallback:
    - **Gemini**: Set `GEMINI_API_KEY` in `.env`
    - **Web search**: Set `TAVILY_API_KEY` for agent web search capabilities
 
-3. **Model availability** – The Docker setup includes Ollama service with automatic gemma3:1b model pulling:
+3. **Model availability** – The Docker setup includes Ollama service with automatic gpt-oss:20b model pulling:
 
    ```bash
    docker-compose up --build

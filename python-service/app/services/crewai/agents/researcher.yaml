@@ -18,4 +18,4 @@ metadata:
   crew_manifest_ref: researcher.json
 models:
   - provider: ollama
-    model: gemma3:1b
+    model: gpt-oss:20b
