@@ -1315,9 +1315,9 @@ const uploadJsonDocument = async (endpoint: string, payload: object): Promise<Up
     return handleResponse(response);
 };
 
-export const uploadCareerBrand = (payload: any) => uploadJsonDocument('/career-brand', payload);
-export const uploadCareerPath = (payload: any) => uploadJsonDocument('/career-paths', payload);
-export const uploadJobSearchStrategy = (payload: any) => uploadJsonDocument('/job-search-strategies', payload);
+export const uploadCareerBrand = (payload: any) => uploadJsonDocument('/chroma-manager/career-brand', payload);
+export const uploadCareerPath = (payload: any) => uploadJsonDocument('/chroma-manager/career-paths', payload);
+export const uploadJobSearchStrategy = (payload: any) => uploadJsonDocument('/chroma-manager/job-search-strategies', payload);
 
 // Uploader for resume file data
 export const uploadResume = async (formData: FormData): Promise<UploadSuccessResponse> => {
