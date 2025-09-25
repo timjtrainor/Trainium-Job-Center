@@ -4,7 +4,7 @@ import uuid
 import hashlib
 import traceback
 from datetime import datetime, timezone
-from typing import List
+from typing import Dict, List
 from loguru import logger
 
 from .infrastructure import get_chroma_client
@@ -317,36 +317,51 @@ class ChromaService:
         try:
             client = self._get_client()
             collection = client.get_collection(collection_name)
-            
-            # Get all documents (ChromaDB has a limit, so we might need to implement pagination)
-            result = collection.get(include=["metadatas", "documents"])
-            
-            documents = []
+
+            # Get all document metadata. We don't need the raw chunk text here.
+            result = collection.get(include=["metadatas"])
+
+            grouped_docs: Dict[str, dict] = {}
+
             if result["ids"]:
-                for i, doc_id in enumerate(result["ids"]):
+                for i, chunk_id in enumerate(result["ids"]):
                     metadata = result["metadatas"][i] if result["metadatas"] else {}
-                    
-                    # Extract document metadata for display
-                    documents.append({
-                        "id": metadata.get("doc_id", doc_id.split("::")[0] if "::" in doc_id else doc_id),
-                        "title": metadata.get("title", "Untitled"),
-                        "tags": metadata.get("tags", ""),
-                        "created_at": metadata.get("created_at", ""),
-                        "chunk_count": 1,  # This is a chunk, real count would need aggregation
-                        "type": metadata.get("type", "document")
-                    })
-            
-            # Group by doc_id to get accurate document counts
-            grouped_docs = {}
-            for doc in documents:
-                doc_id = doc["id"]
-                if doc_id in grouped_docs:
-                    grouped_docs[doc_id]["chunk_count"] += 1
-                else:
-                    grouped_docs[doc_id] = doc
-            
+
+                    # Determine the logical document id (shared across chunks)
+                    document_id = metadata.get(
+                        "doc_id",
+                        chunk_id.split("::")[0] if "::" in chunk_id else chunk_id
+                    )
+
+                    existing = grouped_docs.get(document_id)
+
+                    # Some uploads (e.g., resumes) include additional metadata such as profile_id
+                    # and section. Preserve the richest metadata we encounter for the document.
+                    if existing is None:
+                        grouped_docs[document_id] = {
+                            "id": document_id,
+                            "title": metadata.get("title", "Untitled"),
+                            "tags": metadata.get("tags", ""),
+                            "created_at": metadata.get("created_at", ""),
+                            "chunk_count": 1,
+                            "type": metadata.get("type", "document"),
+                            "metadata": metadata,
+                        }
+                    else:
+                        existing["chunk_count"] += 1
+
+                        # Prefer metadata that includes uploaded_at/profile_id information when present
+                        existing_metadata = existing.get("metadata", {})
+                        existing_uploaded_at = existing_metadata.get("uploaded_at")
+                        current_uploaded_at = metadata.get("uploaded_at")
+
+                        if current_uploaded_at and (
+                            not existing_uploaded_at or current_uploaded_at > existing_uploaded_at
+                        ):
+                            existing["metadata"] = metadata
+
             return list(grouped_docs.values())
-            
+
         except Exception as e:
             logger.error(f"Failed to list documents in collection '{collection_name}': {e}")
             return []
