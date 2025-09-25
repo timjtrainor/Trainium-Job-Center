@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { DocumentTextIcon, TrashIcon, EyeIcon, SparklesIcon, ArrowUturnLeftIcon, CheckIcon, RocketLaunchIcon } from './IconComponents';
 import * as apiService from '../services/apiService';
 import { StrategicNarrative, UploadedDocument, ContentType, UploadSuccessResponse } from '../types';
@@ -52,31 +52,43 @@ const DocumentViewer = ({ strategicNarratives, activeNarrativeId }: { strategicN
     const [documents, setDocuments] = useState<UploadedDocument[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
+    const { addToast } = useToast();
 
     useEffect(() => {
-        if (selectedNarrative) {
-            fetchDocuments();
-        } else {
-            setDocuments([]);
+        if (activeNarrativeId && activeNarrativeId !== selectedNarrative) {
+            setSelectedNarrative(activeNarrativeId);
         }
-    }, [selectedNarrative]);
+    }, [activeNarrativeId, selectedNarrative]);
 
-    const fetchDocuments = async () => {
+    const fetchDocuments = useCallback(async () => {
+        if (!selectedNarrative) {
+            setDocuments([]);
+            return;
+        }
         setIsLoading(true);
         try {
             const docs = await apiService.getUploadedDocuments(selectedNarrative);
             setDocuments(docs);
         } catch (error) {
-            console.error("Failed to fetch documents:", error);
+            addToast('Failed to load documents', 'error');
         } finally {
             setIsLoading(false);
         }
-    };
-    
-    const handleDelete = async (docId: string) => {
+    }, [selectedNarrative, addToast]);
+
+    useEffect(() => {
+        fetchDocuments();
+    }, [fetchDocuments]);
+
+    const handleDelete = async (doc: UploadedDocument) => {
         if (window.confirm("Are you sure you want to delete this document?")) {
-            await apiService.deleteUploadedDocument(docId);
-            fetchDocuments(); // Refresh list
+            try {
+                await apiService.deleteUploadedDocument(doc.id, doc.content_type);
+                addToast('Document deleted', 'success');
+                fetchDocuments(); // Refresh list
+            } catch (error) {
+                addToast('Failed to delete document', 'error');
+            }
         }
     };
 
@@ -115,7 +127,7 @@ const DocumentViewer = ({ strategicNarratives, activeNarrativeId }: { strategicN
                                 <p className="font-semibold">{doc.title}</p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">{doc.content_type} / {doc.section} / {new Date(doc.created_at).toLocaleString()}</p>
                             </div>
-                            <button onClick={() => handleDelete(doc.id)} className="p-1 text-red-500 hover:text-red-400"><TrashIcon className="h-4 w-4"/></button>
+                            <button onClick={() => handleDelete(doc)} className="p-1 text-red-500 hover:text-red-400"><TrashIcon className="h-4 w-4"/></button>
                         </div>
                     ))}
                     {documents.length === 0 && selectedNarrative && <p className="text-center text-sm text-slate-500 py-4">No documents found for this narrative.</p>}
