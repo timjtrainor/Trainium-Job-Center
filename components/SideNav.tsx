@@ -28,12 +28,12 @@ const navItems: NavItem[] = [
     { path: '/applications', label: 'Application Lab', icon: ApplicationsIcon },
     { path: '/interview-studio', label: 'Interview Studio', icon: MicrophoneIcon },
     { path: '/brag-bank', label: 'Brag Bank', icon: ClipboardDocumentCheckIcon },
-    { path: '/schedule-management', label: 'Job Scheduler', icon: ClockIcon },
-    { path: '/chroma-upload', label: 'ChromaDB Upload', icon: CircleStackIcon },
 ];
 
 const secondaryNavItems = [
-    { path: '/prompt-editor', label: 'Dev Mode', icon: AtomGearIcon }
+    { path: '/health-checks', label: 'Health Checks', icon: AtomGearIcon },
+    { path: '/schedule-management', label: 'Job Scheduler', icon: ClockIcon },
+    { path: '/chroma-upload', label: 'ChromaDB Upload', icon: CircleStackIcon },
 ]
 
 export const SideNav = ({ narratives, activeNarrativeId, onSetNarrative, onOpenProfileModal, onOpenSprintModal }: SideNavProps): React.ReactNode => {
@@ -94,6 +94,9 @@ export const SideNav = ({ narratives, activeNarrativeId, onSetNarrative, onOpenP
                     {navItems.map(renderNavLink)}
                 </nav>
                 <div className="px-2 py-4 border-t border-slate-200 dark:border-slate-800">
+                    <div className="px-1 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Dev Mode
+                    </div>
                     <div className="space-y-1">
                         {secondaryNavItems.map(item => {
                             return (

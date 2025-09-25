@@ -940,17 +940,29 @@ export type BragBankEntryPayload = Partial<Omit<BragBankEntry, 'entry_id' | 'use
 
 export type SkillTrendPayload = Omit<SkillTrend, 'skill_trend_id' | 'user_id' | 'created_at'>;
 
-// --- ChromaDB types ---
-export interface CollectionInfo {
-    name: string;
-    count: number;
-    metadata?: any;
+// --- Document Upload types ---
+export type ContentType = 'career_brand' | 'career_path' | 'job_search_strategy' | 'resume';
+
+export interface UploadedDocument {
+    id: string; // uuid from backend
+    profile_id: string;
+    title: string;
+    section: string;
+    content_type: ContentType;
+    created_at: string;
+    content_snippet?: string;
 }
 
-export interface UploadResponse {
+export interface UploadSuccessResponse {
     success: boolean;
     message: string;
-    collection_name: string;
-    document_id: string;
-    chunks_created: number;
+    document: UploadedDocument;
+}
+
+export interface DocumentUploadPayload {
+    profile_id: string;
+    section: string;
+    title: string;
+    content: string;
+    metadata?: object;
 }
