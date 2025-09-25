@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { DocumentTextIcon, TrashIcon, EyeIcon, SparklesIcon, ArrowUturnLeftIcon, CheckIcon, RocketLaunchIcon } from './IconComponents';
 import * as apiService from '../services/apiService';
-// FIX: Add UploadSuccessResponse to the import from types.
 import { StrategicNarrative, UploadedDocument, ContentType, UploadSuccessResponse } from '../types';
 import { useToast } from '../hooks/useToast';
 

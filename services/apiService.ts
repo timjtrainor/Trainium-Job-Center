@@ -505,8 +505,8 @@ export const getResumeContent = async (resumeId: string): Promise<Resume> => {
   };
 
 export const saveResumeContent = async (resumeId: string, content: Resume): Promise<void> => {
-    // Wrap the entire function in a try...catch to ensure any failure is reported.
     try {
+        // Wrap the entire function in a try...catch to ensure any failure is reported.
         // --- 1. Update User Profile Info (if any) ---
         const userProfilePayload: UserProfilePayload = {
             first_name: content.header.first_name,
