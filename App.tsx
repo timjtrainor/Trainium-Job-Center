@@ -1308,8 +1308,8 @@ const AppContent = () => {
                             <Route path="/interview-studio" element={<InterviewStudioView applications={applications} companies={companies} contacts={contacts} activeNarrative={activeNarrative} onSaveNarrative={handleSaveNarrative} prompts={PROMPTS} initialApp={initialAppForStudio} onClearInitialApp={()=>setInitialAppForStudio(null)} onGetReframeSuggestion={handleGetReframeSuggestion} onDeconstructQuestion={handleDeconstructQuestion} onSaveInterviewOpening={async (interviewId, opening)=>{await handleSaveInterview({strategic_opening: opening}, interviewId)}} />} />
                             <Route path="/brag-bank" element={<BragDocumentView items={bragBankItems} onSave={async (item, id) => { if(id) { await apiService.updateBragBankEntry(id, item); } else { await apiService.createBragBankEntry(item); } fetchInitialData(); }} onDelete={async (id) => { await apiService.deleteBragBankEntry(id); fetchInitialData(); }} strategicNarratives={strategicNarratives} prompts={PROMPTS} />} />
                             <Route path="/schedule-management" element={<ScheduleManagementView />} />
-                            <Route path="/chroma-upload" element={<ChromaUploadView />} />
-                            <Route path="/prompt-editor" element={<PromptEditorView prompts={PROMPTS} isDebugMode={isDebugMode} onSetIsDebugMode={setIsDebugMode} modelName={modelName} setModelName={setModelName} />} />
+                            <Route path="/chroma-upload" element={<ChromaUploadView strategicNarratives={strategicNarratives} activeNarrativeId={activeNarrativeId} />} />
+                            <Route path="/health-checks" element={<PromptEditorView />} />
                             
                             <Route path="/new-application" element={<NewApplicationWrapper />} />
                             <Route path="/application/:appId" element={<ApplicationDetailWrapper />} />

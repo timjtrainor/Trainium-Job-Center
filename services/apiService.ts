@@ -8,7 +8,7 @@ import {
     BragBankEntry, BragBankEntryPayload, SkillTrend, SkillTrendPayload,
     Sprint, SprintAction, CreateSprintPayload, SprintActionPayload, ApplicationQuestion,
     SiteSchedule, SiteDetails, SiteSchedulePayload,
-    CollectionInfo, UploadResponse
+    UploadedDocument, UploadSuccessResponse
 } from '../types';
 import { API_BASE_URL, USER_ID, FASTAPI_BASE_URL } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -505,137 +505,139 @@ export const getResumeContent = async (resumeId: string): Promise<Resume> => {
   };
 
 export const saveResumeContent = async (resumeId: string, content: Resume): Promise<void> => {
-    // --- 1. Update User Profile Info (if any) ---
-    const userProfilePayload: UserProfilePayload = {
-        first_name: content.header.first_name,
-        last_name: content.header.last_name,
-        email: content.header.email,
-        phone_number: content.header.phone_number,
-        city: content.header.city,
-        state: content.header.state,
-        links: content.header.links,
-    };
-    await fetch(`${API_BASE_URL}/users?user_id=eq.${USER_ID}`, {
-        method: 'PATCH', headers, body: JSON.stringify(userProfilePayload)
-    });
-
-    // --- 2. Update the main resumes table with summary info ---
-    const resumeUpdatePayload = {
-        summary_paragraph: content.summary.paragraph,
-        summary_bullets: content.summary.bullets
-    };
-    await fetch(`${API_BASE_URL}/resumes?resume_id=eq.${resumeId}`, {
-        method: 'PATCH', headers, body: JSON.stringify(resumeUpdatePayload)
-    });
-
-
-    // --- 3. Clear out existing relational data for this resume ---
-    // Note: Deleting work experience will cascade to accomplishments. Deleting skill sections will cascade to items.
-    await fetch(`${API_BASE_URL}/resume_work_experience?resume_id=eq.${resumeId}`, { method: 'DELETE', headers });
-    await fetch(`${API_BASE_URL}/resume_education?resume_id=eq.${resumeId}`, { method: 'DELETE', headers });
-    await fetch(`${API_BASE_URL}/resume_certifications?resume_id=eq.${resumeId}`, { method: 'DELETE', headers });
-    await fetch(`${API_BASE_URL}/resume_skill_sections?resume_id=eq.${resumeId}`, { method: 'DELETE', headers });
-
-    // --- 4. Insert new relational data ---
-    if (content.work_experience && content.work_experience.length > 0) {
-        for (const exp of content.work_experience) {
-            // Strip out properties that don't exist on the table
-            const { accomplishments, work_experience_id, resume_id, ...expData } = exp as any;
-
-            const expPayload = {
-                ...expData,
-                resume_id: resumeId,
-                start_date: formatDateInfoToString(exp.start_date),
-                end_date: formatDateInfoToString(exp.end_date),
-            };
-            
-            const sanitizedExpPayload = { ...expPayload };
-            delete sanitizedExpPayload.resume_accomplishments;
-            
-            const expResponse = await fetch(`${API_BASE_URL}/resume_work_experience`, {
-                method: 'POST',
-                headers: { ...headers, 'Prefer': 'return=representation' },
-                body: JSON.stringify(sanitizedExpPayload),
-            });
-            const newExpArray = await handleResponse(expResponse);
-
-            if (newExpArray && newExpArray.length > 0) {
-                const newWorkExperienceId = newExpArray[0].work_experience_id;
-
-                if (newWorkExperienceId && accomplishments && accomplishments.length > 0) {
-                    const accomplishmentsPayload = accomplishments.map((acc: any) => ({
-                        description: acc.description,
-                        original_description: acc.original_description,
-                        always_include: acc.always_include,
-                        themes: acc.themes || undefined,
-                        score: acc.score || undefined,
-                        order_index: acc.order_index,
-                        work_experience_id: newWorkExperienceId,
-                    }));
-                    await fetch(`${API_BASE_URL}/resume_accomplishments`, {
-                        method: 'POST',
-                        headers,
-                        body: JSON.stringify(accomplishmentsPayload),
-                    });
-                }
-            }
-        }
-    }
-
-    if (content.education && content.education.length > 0) {
-        const educationPayload = content.education.map(edu => ({ ...edu, resume_id: resumeId }));
-        await fetch(`${API_BASE_URL}/resume_education`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(educationPayload),
-        });
-    }
-
-    if (content.certifications && content.certifications.length > 0) {
-        const certificationsPayload = content.certifications.map(cert => ({
-            name: cert.name,
-            organization: cert.organization,
-            link: cert.link,
-            issued_date: cert.issued_date,
-            resume_id: resumeId,
+    // Wrap the entire function in a try...catch to ensure any failure is reported.
+    try {
+        // --- 1. Update User Profile Info (if any) ---
+        const userProfilePayload: UserProfilePayload = {
+            first_name: content.header.first_name,
+            last_name: content.header.last_name,
+            email: content.header.email,
+            phone_number: content.header.phone_number,
+            city: content.header.city,
+            state: content.header.state,
+            links: content.header.links,
+        };
+        await handleResponse(await fetch(`${API_BASE_URL}/users?user_id=eq.${USER_ID}`, {
+            method: 'PATCH', headers, body: JSON.stringify(userProfilePayload)
         }));
-        await fetch(`${API_BASE_URL}/resume_certifications`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(certificationsPayload),
-        });
-    }
 
-    if (content.skills && content.skills.length > 0) {
-        for (const skillSection of content.skills) {
-            if (skillSection.items && skillSection.items.length > 0) {
-                const sectionPayload = {
+        // --- 2. Update the main resumes table with summary info ---
+        const resumeUpdatePayload = {
+            summary_paragraph: content.summary.paragraph,
+            summary_bullets: content.summary.bullets
+        };
+        await handleResponse(await fetch(`${API_BASE_URL}/resumes?resume_id=eq.${resumeId}`, {
+            method: 'PATCH', headers, body: JSON.stringify(resumeUpdatePayload)
+        }));
+
+        // --- 3. Clear out existing relational data for this resume ---
+        await handleResponse(await fetch(`${API_BASE_URL}/resume_work_experience?resume_id=eq.${resumeId}`, { method: 'DELETE', headers }));
+        await handleResponse(await fetch(`${API_BASE_URL}/resume_education?resume_id=eq.${resumeId}`, { method: 'DELETE', headers }));
+        await handleResponse(await fetch(`${API_BASE_URL}/resume_certifications?resume_id=eq.${resumeId}`, { method: 'DELETE', headers }));
+        await handleResponse(await fetch(`${API_BASE_URL}/resume_skill_sections?resume_id=eq.${resumeId}`, { method: 'DELETE', headers }));
+
+        // --- 4. Insert new relational data ---
+        if (content.work_experience && content.work_experience.length > 0) {
+            for (const exp of content.work_experience) {
+                const expPayload = {
                     resume_id: resumeId,
-                    heading: skillSection.heading,
+                    company_name: exp.company_name,
+                    job_title: exp.job_title,
+                    location: exp.location,
+                    start_date: formatDateInfoToString(exp.start_date),
+                    end_date: formatDateInfoToString(exp.end_date),
+                    is_current: exp.is_current,
+                    filter_accomplishment_count: exp.filter_accomplishment_count,
                 };
-                const sectionResponse = await fetch(`${API_BASE_URL}/resume_skill_sections`, {
+                
+                const expResponse = await fetch(`${API_BASE_URL}/resume_work_experience`, {
                     method: 'POST',
                     headers: { ...headers, 'Prefer': 'return=representation' },
-                    body: JSON.stringify(sectionPayload),
+                    body: JSON.stringify(expPayload),
                 });
-                const newSectionArray = await handleResponse(sectionResponse);
+                const newExpArray = await handleResponse(expResponse);
 
-                if (newSectionArray && newSectionArray.length > 0) {
-                     const newSectionId = newSectionArray[0].skill_section_id;
-                    if (newSectionId) {
-                        const itemsPayload = skillSection.items.map(item => ({
-                            skill_section_id: newSectionId,
-                            item_text: item,
+                if (newExpArray && newExpArray.length > 0) {
+                    const newWorkExperienceId = newExpArray[0].work_experience_id;
+                    if (newWorkExperienceId && exp.accomplishments && exp.accomplishments.length > 0) {
+                        const accomplishmentsPayload = exp.accomplishments.map((acc: any) => ({
+                            description: acc.description,
+                            original_description: acc.original_description,
+                            always_include: acc.always_include,
+                            themes: acc.themes || undefined,
+                            score: acc.score || undefined,
+                            order_index: acc.order_index,
+                            work_experience_id: newWorkExperienceId,
                         }));
-                        await fetch(`${API_BASE_URL}/resume_skill_items`, {
+                        await handleResponse(await fetch(`${API_BASE_URL}/resume_accomplishments`, {
                             method: 'POST',
                             headers,
-                            body: JSON.stringify(itemsPayload),
-                        });
+                            body: JSON.stringify(accomplishmentsPayload),
+                        }));
                     }
                 }
             }
         }
+
+        if (content.education && content.education.length > 0) {
+            const educationPayload = content.education.map(edu => ({ ...edu, resume_id: resumeId }));
+            await handleResponse(await fetch(`${API_BASE_URL}/resume_education`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(educationPayload),
+            }));
+        }
+
+        if (content.certifications && content.certifications.length > 0) {
+            const certificationsPayload = content.certifications.map(cert => ({
+                name: cert.name,
+                organization: cert.organization,
+                link: cert.link,
+                issued_date: cert.issued_date,
+                resume_id: resumeId,
+            }));
+            await handleResponse(await fetch(`${API_BASE_URL}/resume_certifications`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(certificationsPayload),
+            }));
+        }
+
+        if (content.skills && content.skills.length > 0) {
+            for (const skillSection of content.skills) {
+                if (skillSection.items && skillSection.items.length > 0) {
+                    const sectionPayload = {
+                        resume_id: resumeId,
+                        heading: skillSection.heading,
+                    };
+                    const sectionResponse = await fetch(`${API_BASE_URL}/resume_skill_sections`, {
+                        method: 'POST',
+                        headers: { ...headers, 'Prefer': 'return=representation' },
+                        body: JSON.stringify(sectionPayload),
+                    });
+                    const newSectionArray = await handleResponse(sectionResponse);
+
+                    if (newSectionArray && newSectionArray.length > 0) {
+                         const newSectionId = newSectionArray[0].skill_section_id;
+                        if (newSectionId) {
+                            const itemsPayload = skillSection.items.map(item => ({
+                                skill_section_id: newSectionId,
+                                item_text: item,
+                            }));
+                            await handleResponse(await fetch(`${API_BASE_URL}/resume_skill_items`, {
+                                method: 'POST',
+                                headers,
+                                body: JSON.stringify(itemsPayload),
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error("A critical error occurred while saving the resume:", error);
+        // Re-throw the error so the UI layer can catch it and display a message.
+        throw error;
     }
 };
 
@@ -1301,41 +1303,43 @@ export const deleteSiteSchedule = async (scheduleId: string): Promise<void> => {
     await handleResponse(response);
 };
 
-// --- ChromaDB via FastAPI ---
+// --- Document Management via FastAPI ---
 
-export const getChromaCollections = async (): Promise<{ collections: CollectionInfo[] }> => {
-    const response = await fetch(`${FASTAPI_BASE_URL}/chroma/collections`);
+// Generic uploader for JSON data
+const uploadJsonDocument = async (endpoint: string, payload: object): Promise<UploadSuccessResponse> => {
+    const response = await fetch(`${FASTAPI_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+    });
     return handleResponse(response);
 };
 
-export const deleteChromaCollection = async (collectionName: string): Promise<void> => {
-    const response = await fetch(`${FASTAPI_BASE_URL}/chroma/collections/${encodeURIComponent(collectionName)}`, {
-        method: 'DELETE',
-    });
-    await handleResponse(response);
-};
+export const uploadCareerBrand = (payload: any) => uploadJsonDocument('/career-brand', payload);
+export const uploadCareerPath = (payload: any) => uploadJsonDocument('/career-paths', payload);
+export const uploadJobSearchStrategy = (payload: any) => uploadJsonDocument('/job-search-strategies', payload);
 
-export const getChromaDocuments = async (collectionName: string): Promise<any[]> => {
-    const response = await fetch(`${FASTAPI_BASE_URL}/chroma/collections/${encodeURIComponent(collectionName)}/documents`);
-    const result = await handleResponse(response);
-    return result?.documents || [];
-};
-
-export const deleteChromaDocument = async (collectionName: string, documentId: string): Promise<void> => {
-    const response = await fetch(`${FASTAPI_BASE_URL}/chroma/collections/${encodeURIComponent(collectionName)}/documents/${encodeURIComponent(documentId)}`, {
-        method: 'DELETE',
-    });
-    await handleResponse(response);
-};
-
-export const uploadChromaDocument = async (formData: FormData): Promise<UploadResponse> => {
-    const response = await fetch(`${FASTAPI_BASE_URL}/chroma/upload`, {
+// Uploader for resume file data
+export const uploadResume = async (formData: FormData): Promise<UploadSuccessResponse> => {
+    const response = await fetch(`${FASTAPI_BASE_URL}/chroma-manager/resume`, {
         method: 'POST',
         body: formData,
+        // No 'Content-Type' header here for FormData, browser sets it.
     });
-    const result = await response.json();
-    if (!response.ok) {
-        throw new Error(result.detail || result.message || 'Upload failed');
-    }
-    return result;
+    return handleResponse(response);
+};
+
+// Fetching documents for the viewer
+export const getUploadedDocuments = async (profileId: string): Promise<UploadedDocument[]> => {
+    if (!profileId) return [];
+    const response = await fetch(`${FASTAPI_BASE_URL}/documents?profile_id=${profileId}`);
+    const data = await handleResponse(response);
+    return data.documents || [];
+};
+
+export const deleteUploadedDocument = async (documentId: string): Promise<void> => {
+    const response = await fetch(`${FASTAPI_BASE_URL}/documents/${documentId}`, {
+        method: 'DELETE',
+    });
+    await handleResponse(response);
 };
