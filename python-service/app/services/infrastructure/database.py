@@ -13,11 +13,30 @@ from ...core.config import get_settings
 
 class DatabaseService:
     """Service for direct database access."""
-    
+
     def __init__(self):
         self.settings = get_settings()
         self.pool: Optional[asyncpg.Pool] = None
         self.initialized = False
+
+    @staticmethod
+    def _deserialize_json_field(value: Any) -> Optional[Any]:
+        """Convert JSON stored as text to native Python structures for API responses."""
+        if value is None or isinstance(value, (list, dict)):
+            return value
+
+        if isinstance(value, str):
+            trimmed_value = value.strip()
+            if not trimmed_value:
+                return None
+
+            try:
+                return json.loads(trimmed_value)
+            except json.JSONDecodeError:
+                logger.warning("Failed to deserialize JSON field", value=value)
+                return None
+
+        return None
 
     async def initialize(self) -> bool:
         """Initialize database connection pool."""
@@ -631,10 +650,10 @@ class DatabaseService:
                             "reviewer": row["reviewer"],
                             "review_date": row["review_date"],
                             "rationale": row["rationale"],
-                            "personas": row["personas"],
-                            "tradeoffs": row["tradeoffs"],
-                            "actions": row["actions"],
-                            "sources": row["sources"]
+                            "personas": self._deserialize_json_field(row["personas"]),
+                            "tradeoffs": self._deserialize_json_field(row["tradeoffs"]),
+                            "actions": self._deserialize_json_field(row["actions"]),
+                            "sources": self._deserialize_json_field(row["sources"])
                         }
                     }
                     jobs.append(job_data)
