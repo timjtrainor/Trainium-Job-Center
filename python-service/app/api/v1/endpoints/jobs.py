@@ -197,8 +197,9 @@ async def override_job_review(
     - Validates job_id exists before updating
     
     **Error Responses:**
+    - 400: Invalid job_id format (not a valid UUID)
     - 404: Job review not found for the given job_id
-    - 500: Internal server error during update
+    - 500: Database connection error or other server errors
     """
     try:
         # Update the job review with override data
@@ -230,9 +231,14 @@ async def override_job_review(
             updated_at=result["updated_at"].isoformat() if result["updated_at"] else None
         )
         
+    except ValueError as e:
+        # Invalid job_id format - client error
+        logger.warning(f"Invalid job_id format: {job_id}")
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
+        # Database or other server errors
         logger.error(f"Failed to override job review: {e}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")

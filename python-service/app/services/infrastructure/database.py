@@ -489,7 +489,16 @@ class DatabaseService:
         override_comment: str,
         override_by: str = "system_admin"
     ) -> Optional[Dict[str, Any]]:
-        """Update job review with human override data."""
+        """Update job review with human override data.
+        
+        Returns:
+            Dict with job review data if found and updated successfully.
+            None if job review not found for the given job_id.
+            
+        Raises:
+            ValueError: If job_id is not a valid UUID format.
+            Exception: For database connection or query execution errors.
+        """
         if not self.initialized:
             await self.initialize()
 
@@ -497,9 +506,9 @@ class DatabaseService:
         import uuid
         try:
             uuid.UUID(job_id)
-        except ValueError:
+        except ValueError as e:
             logger.error(f"Invalid UUID format for job_id: {job_id}")
-            return None
+            raise ValueError(f"Invalid job_id format: {job_id}") from e
 
         query = """
         UPDATE public.job_reviews 
@@ -529,14 +538,16 @@ class DatabaseService:
                     logger.info(f"Job review override updated for job_id: {job_id}")
                     return dict(row)
                 else:
+                    # This is the legitimate "not found" case - job_id doesn't exist in database
                     logger.warning(f"No job review found for job_id: {job_id}")
                     return None
                     
         except Exception as e:
-            logger.error(f"Failed to update job review override for job_id {job_id}: {str(e)}")
+            # Database errors (connection, syntax, etc.) should propagate as server errors
+            logger.error(f"Database error updating job review override for job_id {job_id}: {str(e)}")
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
-            return None
+            raise  # Re-raise the exception to be handled as 500 error
 
     async def get_reviewed_jobs(
         self,
