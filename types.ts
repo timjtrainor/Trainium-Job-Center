@@ -981,6 +981,14 @@ export interface ReviewedJob {
   confidence: number; // 0.0 to 1.0
   overall_alignment_score: number; // 0.0 to 10.0
   is_eligible_for_application: boolean;
+  // AI review details
+  rationale?: string; // AI explanation for the recommendation
+  confidence_level?: string; // 'high' | 'medium' | 'low'
+  // HITL override fields
+  override_recommend?: boolean | null;
+  override_comment?: string | null;
+  override_by?: string | null;
+  override_at?: string | null; // ISO date string
 }
 
 export interface PaginatedResponse<T> {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { getReviewedJobs, ReviewedJobsFilters, ReviewedJobsSort } from '../services/apiService';
 import { ReviewedJob, PaginatedResponse, ReviewedJobRecommendation } from '../types';
 import { LoadingSpinner, CheckIcon, XCircleIcon } from './IconComponents';
+import { JobReviewModal } from './JobReviewModal';
 
 const SortableHeader = ({ label, sortKey, currentSort, onSort }: { label: string, sortKey: ReviewedJobsSort['by'], currentSort: ReviewedJobsSort, onSort: (by: ReviewedJobsSort['by']) => void }) => {
     const isCurrent = currentSort.by === sortKey;
@@ -13,12 +14,23 @@ const SortableHeader = ({ label, sortKey, currentSort, onSort }: { label: string
     );
 };
 
-const RecommendationBadge = ({ recommendation }: { recommendation: ReviewedJobRecommendation }) => {
+const RecommendationBadge = ({ recommendation, hasOverride }: { recommendation: ReviewedJobRecommendation, hasOverride?: boolean }) => {
     const classes: Record<ReviewedJobRecommendation, string> = {
         'Recommended': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
         'Not Recommended': 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300',
     };
-    return <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${classes[recommendation]}`}>{recommendation}</span>;
+    return (
+        <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${classes[recommendation]}`}>
+                {recommendation}
+            </span>
+            {hasOverride && (
+                <span className="inline-flex items-center rounded-md bg-blue-100 dark:bg-blue-900/50 px-2 py-1 text-xs font-medium text-blue-800 dark:text-blue-300">
+                    HITL Override
+                </span>
+            )}
+        </div>
+    );
 };
 
 export const ReviewedJobsView = () => {
@@ -29,6 +41,8 @@ export const ReviewedJobsView = () => {
     const [filters, setFilters] = useState<ReviewedJobsFilters>({ recommendation: 'All' });
     const [sort, setSort] = useState<ReviewedJobsSort>({ by: 'date_posted', order: 'desc' });
     const [minScoreFilter, setMinScoreFilter] = useState('');
+    const [selectedJob, setSelectedJob] = useState<ReviewedJob | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     const fetchJobs = useCallback(async () => {
         setIsLoading(true);
@@ -76,6 +90,29 @@ export const ReviewedJobsView = () => {
         }
     };
 
+    const handleReviewClick = (job: ReviewedJob) => {
+        setSelectedJob(job);
+        setIsModalOpen(true);
+    };
+
+    const handleModalClose = () => {
+        setIsModalOpen(false);
+        setSelectedJob(null);
+    };
+
+    const handleOverrideSuccess = (updatedJob: ReviewedJob) => {
+        // Update the job in the current data
+        if (data) {
+            const updatedItems = data.items.map(item => 
+                item.job_id === updatedJob.job_id ? updatedJob : item
+            );
+            setData({
+                ...data,
+                items: updatedItems
+            });
+        }
+    };
+
     const renderTable = () => {
         if (!data || data.items.length === 0) {
             return <div className="text-center py-10 text-slate-500 dark:text-slate-400">No reviewed jobs found matching your criteria.</div>;
@@ -92,24 +129,48 @@ export const ReviewedJobsView = () => {
                             <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Recommendation</th>
                             <SortableHeader label="Alignment Score" sortKey="overall_alignment_score" currentSort={sort} onSort={handleSortChange} />
                             <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Eligible to Apply</th>
+                            <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900 dark:text-white">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-800">
-                        {data.items.map(job => (
-                            <tr key={job.job_id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                                <td className="py-4 pl-4 pr-3 text-sm sm:pl-6">
-                                    <a href={job.url ?? '#'} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 dark:text-blue-400 hover:underline">{job.title ?? 'Untitled Role'}</a>
-                                    <div className="text-gray-500 dark:text-slate-400">{job.location ?? '—'}</div>
-                                </td>
-                                <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400">{job.company_name ?? '—'}</td>
-                                <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400">{job.date_posted ? new Date(job.date_posted).toLocaleDateString() : '—'}</td>
-                                <td className="px-3 py-4 text-sm"><RecommendationBadge recommendation={job.recommendation} /></td>
-                                <td className="px-3 py-4 text-sm font-semibold text-gray-900 dark:text-white">{job.overall_alignment_score.toFixed(1)}</td>
-                                <td className="px-3 py-4 text-sm text-center">
-                                    {job.is_eligible_for_application ? <CheckIcon className="h-6 w-6 text-green-500 mx-auto" /> : <XCircleIcon className="h-6 w-6 text-slate-400 mx-auto" />}
-                                </td>
-                            </tr>
-                        ))}
+                        {data.items.map(job => {
+                            const hasOverride = job.override_recommend !== null && job.override_recommend !== undefined;
+                            const finalRecommendation = hasOverride
+                                ? (job.override_recommend ? 'Recommended' : 'Not Recommended')
+                                : job.recommendation;
+                            const finalEligibility = hasOverride
+                                ? job.override_recommend
+                                : job.is_eligible_for_application;
+                            
+                            return (
+                                <tr key={job.job_id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                                    <td className="py-4 pl-4 pr-3 text-sm sm:pl-6">
+                                        <a href={job.url ?? '#'} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 dark:text-blue-400 hover:underline">{job.title ?? 'Untitled Role'}</a>
+                                        <div className="text-gray-500 dark:text-slate-400">{job.location ?? '—'}</div>
+                                    </td>
+                                    <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400">{job.company_name ?? '—'}</td>
+                                    <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400">{job.date_posted ? new Date(job.date_posted).toLocaleDateString() : '—'}</td>
+                                    <td className="px-3 py-4 text-sm">
+                                        <RecommendationBadge 
+                                            recommendation={finalRecommendation as ReviewedJobRecommendation} 
+                                            hasOverride={hasOverride} 
+                                        />
+                                    </td>
+                                    <td className="px-3 py-4 text-sm font-semibold text-gray-900 dark:text-white">{job.overall_alignment_score.toFixed(1)}</td>
+                                    <td className="px-3 py-4 text-sm text-center">
+                                        {finalEligibility ? <CheckIcon className="h-6 w-6 text-green-500 mx-auto" /> : <XCircleIcon className="h-6 w-6 text-slate-400 mx-auto" />}
+                                    </td>
+                                    <td className="px-3 py-4 text-sm text-center">
+                                        <button
+                                            onClick={() => handleReviewClick(job)}
+                                            className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-800/50 transition-colors"
+                                        >
+                                            Review
+                                        </button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
@@ -151,6 +212,14 @@ export const ReviewedJobsView = () => {
                     </div>
                 )}
             </div>
+
+            {/* Job Review Modal */}
+            <JobReviewModal
+                job={selectedJob}
+                isOpen={isModalOpen}
+                onClose={handleModalClose}
+                onOverrideSuccess={handleOverrideSuccess}
+            />
         </div>
     );
 };

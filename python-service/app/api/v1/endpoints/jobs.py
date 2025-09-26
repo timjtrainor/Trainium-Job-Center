@@ -219,7 +219,7 @@ async def override_job_review(
         # Transform the result to match the response model
         return OverrideResponse(
             id=str(result["id"]),
-            job_id=result["job_id"],
+            job_id=str(result["job_id"]),  # Convert UUID to string
             recommend=result["recommend"],
             confidence=result["confidence"],
             rationale=result["rationale"],

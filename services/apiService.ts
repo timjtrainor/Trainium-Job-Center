@@ -1405,6 +1405,14 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
             confidence: confidenceLookup[String(review.confidence).toLowerCase()] ?? 0.3,
             overall_alignment_score: overallScore,
             is_eligible_for_application: Boolean(review.recommendation),
+            // AI review details
+            rationale: review.rationale ?? null,
+            confidence_level: review.confidence ?? null,
+            // HITL override fields
+            override_recommend: review.override_recommend ?? null,
+            override_comment: review.override_comment ?? null,
+            override_by: review.override_by ?? null,
+            override_at: review.override_at ?? null,
         } as ReviewedJob;
     });
 
@@ -1426,4 +1434,37 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
         size: pageSize,
         pages: pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1,
     };
+};
+
+// Job Review Override API
+export interface JobReviewOverrideRequest {
+    override_recommend: boolean;
+    override_comment: string;
+}
+
+export interface JobReviewOverrideResponse {
+    id: string;
+    job_id: string;
+    recommend: boolean | null;
+    confidence: string | null;
+    rationale: string | null;
+    override_recommend: boolean;
+    override_comment: string;
+    override_by: string;
+    override_at: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export const overrideJobReview = async (
+    jobId: string, 
+    overrideData: JobReviewOverrideRequest
+): Promise<JobReviewOverrideResponse> => {
+    const response = await fetch(`${FASTAPI_BASE_URL}/jobs/reviews/${jobId}/override`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(overrideData),
+    });
+    
+    return handleResponse(response);
 };
