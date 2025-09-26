@@ -600,13 +600,21 @@ class DatabaseService:
                     # Calculate alignment score from confidence
                     confidence_scores = {"high": 0.8, "medium": 0.6, "low": 0.4}
                     alignment_score = confidence_scores.get(row["confidence"], 0.4)
-                    
+
+                    # Normalize location strings that may be null
+                    raw_location = row["location"]
+                    if isinstance(raw_location, str):
+                        cleaned_location = raw_location.strip(", ")
+                        location_value = cleaned_location if cleaned_location else None
+                    else:
+                        location_value = None
+
                     job_data = {
                         "job": {
                             "job_id": str(row["job_id"]),
                             "title": row["title"],
                             "company": row["company"],
-                            "location": row["location"] if row["location"].strip(", ") else None,
+                            "location": location_value,
                             "url": row["url"],
                             "date_posted": row["date_posted"],
                             "source": row["source"],
