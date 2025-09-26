@@ -21,6 +21,14 @@ class OverrideRequest(BaseModel):
     override_recommend: bool
     override_comment: str
 
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "override_recommend": True,
+                "override_comment": "Human reviewer approved despite low AI score - company culture is excellent match"
+            }
+        }
+
 
 class OverrideResponse(BaseModel):
     """Response model for override operation."""
@@ -35,6 +43,23 @@ class OverrideResponse(BaseModel):
     override_at: str
     created_at: str
     updated_at: str
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "12345",
+                "job_id": "550e8400-e29b-41d4-a716-446655440000",
+                "recommend": False,
+                "confidence": "medium",
+                "rationale": "AI identified some concerns about work-life balance",
+                "override_recommend": True,
+                "override_comment": "Human reviewer approved despite low AI score - company culture is excellent match",
+                "override_by": "system_admin",
+                "override_at": "2024-01-15T10:30:00Z",
+                "created_at": "2024-01-15T09:15:00Z",
+                "updated_at": "2024-01-15T10:30:00Z"
+            }
+        }
 
 
 async def get_database():
@@ -139,6 +164,41 @@ async def override_job_review(
     
     Allows human reviewers to override AI recommendations while preserving
     the original AI analysis. Updates the job review with override data.
+    
+    **Request Example:**
+    ```json
+    {
+        "override_recommend": true,
+        "override_comment": "Human reviewer approved despite low AI score"
+    }
+    ```
+    
+    **Response Example:**
+    ```json
+    {
+        "id": "12345",
+        "job_id": "550e8400-e29b-41d4-a716-446655440000",
+        "recommend": false,
+        "confidence": "medium", 
+        "rationale": "AI identified concerns about work-life balance",
+        "override_recommend": true,
+        "override_comment": "Human reviewer approved despite low AI score",
+        "override_by": "system_admin",
+        "override_at": "2024-01-15T10:30:00Z",
+        "created_at": "2024-01-15T09:15:00Z",
+        "updated_at": "2024-01-15T10:30:00Z"
+    }
+    ```
+    
+    **Features:**
+    - Preserves original AI fields (recommend, confidence, rationale, etc.)
+    - Adds human override data with timestamp and reviewer ID
+    - Returns complete updated review record
+    - Validates job_id exists before updating
+    
+    **Error Responses:**
+    - 404: Job review not found for the given job_id
+    - 500: Internal server error during update
     """
     try:
         # Update the job review with override data
