@@ -4,4 +4,6 @@
 v1 2025-07-24T00:00:00Z System Administrator <root@localhost> # Initial schema baseline
 queue-scheduler-tables 2025-01-24T12:00:00Z System Administrator <root@localhost> # Add site_schedules and scrape_runs tables for queue-based job scraping
 jobs_table_init 2025-01-24T18:00:00Z System Administrator <root@localhost> # Create jobs table for persisting scraped job data
+job_reviews_table 2025-01-25T08:00:00Z System Administrator <root@localhost> # Create job_reviews table for AI review results
 add_job_status_field 2025-01-25T10:00:00Z System Administrator <root@localhost> # Add status field to jobs table for review workflow
+add_hitl_override_fields 2025-01-26T14:00:00Z System Administrator <root@localhost> # Add HITL override fields to job_reviews table
