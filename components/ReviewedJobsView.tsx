@@ -135,9 +135,12 @@ export const ReviewedJobsView = () => {
                     <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-800">
                         {data.items.map(job => {
                             const hasOverride = job.override_recommend !== null && job.override_recommend !== undefined;
-                            const finalRecommendation = hasOverride 
+                            const finalRecommendation = hasOverride
                                 ? (job.override_recommend ? 'Recommended' : 'Not Recommended')
                                 : job.recommendation;
+                            const finalEligibility = hasOverride
+                                ? job.override_recommend
+                                : job.is_eligible_for_application;
                             
                             return (
                                 <tr key={job.job_id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
@@ -155,7 +158,7 @@ export const ReviewedJobsView = () => {
                                     </td>
                                     <td className="px-3 py-4 text-sm font-semibold text-gray-900 dark:text-white">{job.overall_alignment_score.toFixed(1)}</td>
                                     <td className="px-3 py-4 text-sm text-center">
-                                        {job.is_eligible_for_application ? <CheckIcon className="h-6 w-6 text-green-500 mx-auto" /> : <XCircleIcon className="h-6 w-6 text-slate-400 mx-auto" />}
+                                        {finalEligibility ? <CheckIcon className="h-6 w-6 text-green-500 mx-auto" /> : <XCircleIcon className="h-6 w-6 text-slate-400 mx-auto" />}
                                     </td>
                                     <td className="px-3 py-4 text-sm text-center">
                                         <button
