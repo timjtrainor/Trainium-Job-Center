@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getReviewedJobs, ReviewedJobsFilters, ReviewedJobsSort } from '../services/apiService';
-import { ReviewedJob, PaginatedResponse } from '../types';
+import { ReviewedJob, PaginatedResponse, ReviewedJobRecommendation } from '../types';
 import { LoadingSpinner, CheckIcon, XCircleIcon } from './IconComponents';
 
 const SortableHeader = ({ label, sortKey, currentSort, onSort }: { label: string, sortKey: ReviewedJobsSort['by'], currentSort: ReviewedJobsSort, onSort: (by: ReviewedJobsSort['by']) => void }) => {
@@ -13,11 +13,10 @@ const SortableHeader = ({ label, sortKey, currentSort, onSort }: { label: string
     );
 };
 
-const RecommendationBadge = ({ recommendation }: { recommendation: ReviewedJob['recommendation'] }) => {
-    const classes = {
-        'Yes': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
-        'No': 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300',
-        'Maybe': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300',
+const RecommendationBadge = ({ recommendation }: { recommendation: ReviewedJobRecommendation }) => {
+    const classes: Record<ReviewedJobRecommendation, string> = {
+        'Recommended': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
+        'Not Recommended': 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300',
     };
     return <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${classes[recommendation]}`}>{recommendation}</span>;
 };
@@ -56,7 +55,7 @@ export const ReviewedJobsView = () => {
         return () => clearTimeout(handler);
     }, [fetchJobs]);
 
-    const handleSortChange = (by: 'date_posted' | 'overall_alignment_score') => {
+    const handleSortChange = (by: ReviewedJobsSort['by']) => {
         setPage(1); // Reset page on change
         setSort(prev => ({
             by,
@@ -66,7 +65,7 @@ export const ReviewedJobsView = () => {
 
     const handleRecommendationFilter = (e: React.ChangeEvent<HTMLSelectElement>) => {
         setPage(1); // Reset page on change
-        setFilters(prev => ({ ...prev, recommendation: e.target.value as any }));
+        setFilters(prev => ({ ...prev, recommendation: e.target.value as ReviewedJobsFilters['recommendation'] }));
     };
 
     const handleScoreFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,11 +98,11 @@ export const ReviewedJobsView = () => {
                         {data.items.map(job => (
                             <tr key={job.job_id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                                 <td className="py-4 pl-4 pr-3 text-sm sm:pl-6">
-                                    <a href={job.url} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 dark:text-blue-400 hover:underline">{job.title}</a>
-                                    <div className="text-gray-500 dark:text-slate-400">{job.location}</div>
+                                    <a href={job.url ?? '#'} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 dark:text-blue-400 hover:underline">{job.title ?? 'Untitled Role'}</a>
+                                    <div className="text-gray-500 dark:text-slate-400">{job.location ?? '—'}</div>
                                 </td>
-                                <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400">{job.company_name}</td>
-                                <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400">{new Date(job.date_posted).toLocaleDateString()}</td>
+                                <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400">{job.company_name ?? '—'}</td>
+                                <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400">{job.date_posted ? new Date(job.date_posted).toLocaleDateString() : '—'}</td>
                                 <td className="px-3 py-4 text-sm"><RecommendationBadge recommendation={job.recommendation} /></td>
                                 <td className="px-3 py-4 text-sm font-semibold text-gray-900 dark:text-white">{job.overall_alignment_score.toFixed(1)}</td>
                                 <td className="px-3 py-4 text-sm text-center">
@@ -130,10 +129,9 @@ export const ReviewedJobsView = () => {
                         <div>
                             <label htmlFor="recommendation-filter" className="block text-xs font-medium text-slate-500">Recommendation</label>
                             <select id="recommendation-filter" value={filters.recommendation} onChange={handleRecommendationFilter} className="mt-1 block w-full sm:w-auto rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                                <option>All</option>
-                                <option>Yes</option>
-                                <option>Maybe</option>
-                                <option>No</option>
+                                <option value="All">All</option>
+                                <option value="Recommended">Recommended</option>
+                                <option value="Not Recommended">Not Recommended</option>
                             </select>
                         </div>
                         <div>

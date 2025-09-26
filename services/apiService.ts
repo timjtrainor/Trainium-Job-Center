@@ -1347,12 +1347,12 @@ export const deleteUploadedDocument = async (documentId: string, contentType: Co
 // --- Reviewed Jobs ---
 
 export interface ReviewedJobsFilters {
-  recommendation?: 'Yes' | 'No' | 'Maybe' | 'All';
+  recommendation?: 'All' | 'Recommended' | 'Not Recommended';
   min_score?: number;
 }
 
 export interface ReviewedJobsSort {
-  by: 'date_posted' | 'overall_alignment_score';
+  by: 'date_posted' | 'overall_alignment_score' | 'review_date';
   order: 'asc' | 'desc';
 }
 
@@ -1363,18 +1363,67 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
     sort?: ReviewedJobsSort;
 }): Promise<PaginatedResponse<ReviewedJob>> => {
     const params = new URLSearchParams({
-        page: String(page),
-        size: String(size),
-        sort_by: sort.by,
-        sort_order: sort.order,
+        limit: String(size),
+        offset: String(Math.max(page - 1, 0) * size),
     });
+
+    const sortByParam = sort.by === 'overall_alignment_score' ? 'review_date' : sort.by;
+    params.append('sort_by', sortByParam);
+    params.append('sort_order', sort.order.toUpperCase());
+
     if (filters.recommendation && filters.recommendation !== 'All') {
-        params.append('recommendation', filters.recommendation);
+        params.append('recommendation', filters.recommendation === 'Recommended' ? 'true' : 'false');
     }
-    if (filters.min_score) {
-        params.append('min_score', String(filters.min_score));
+
+    if (typeof filters.min_score === 'number') {
+        const normalizedScore = filters.min_score / 10; // API expects 0-1 range
+        params.append('min_score', String(normalizedScore));
     }
 
     const response = await fetch(`${FASTAPI_BASE_URL}/jobs/reviews?${params.toString()}`);
-    return handleResponse(response);
+    const rawData = await handleResponse(response);
+
+    const items = (rawData.jobs || []).map((entry: any) => {
+        const job = entry.job || {};
+        const review = entry.review || {};
+
+        const recommendation = review.recommendation ? 'Recommended' : 'Not Recommended';
+        const confidenceLookup: Record<string, number> = { high: 0.9, medium: 0.6, low: 0.3 };
+
+        const overallScore = typeof review.overall_alignment_score === 'number'
+            ? review.overall_alignment_score * 10
+            : 0;
+
+        return {
+            job_id: job.job_id ?? '',
+            url: job.url ?? null,
+            title: job.title ?? null,
+            company_name: job.company ?? null,
+            location: job.location ?? null,
+            date_posted: job.date_posted ?? null,
+            recommendation,
+            confidence: confidenceLookup[String(review.confidence).toLowerCase()] ?? 0.3,
+            overall_alignment_score: overallScore,
+            is_eligible_for_application: Boolean(review.recommendation),
+        } as ReviewedJob;
+    });
+
+    const pageSize = rawData.page_size ?? size;
+    const total = rawData.total_count ?? 0;
+
+    if (sort.by === 'overall_alignment_score') {
+        items.sort((a: ReviewedJob, b: ReviewedJob) => {
+            return sort.order === 'asc'
+                ? a.overall_alignment_score - b.overall_alignment_score
+                : b.overall_alignment_score - a.overall_alignment_score;
+        });
+    }
+
+    return {
+        items,
+        total,
+        page: rawData.page ?? page,
+        size: pageSize,
+        pages: pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1,
+    };
 };
