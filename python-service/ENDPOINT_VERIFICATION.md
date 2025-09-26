@@ -51,6 +51,18 @@
 
 ## Additional Implementation Details
 
+### GET /jobs/reviews Endpoint Enhancement
+- **Status**: ✅ COMPLETED  
+- **Issue**: The GET /jobs/reviews endpoint was missing override fields in response
+- **Fix**: Updated `get_reviewed_jobs()` method in `database.py` to include override fields in review response
+- **Fields Added**:
+  - `override_recommend: bool | null` - Human override of AI recommendation
+  - `override_comment: string | null` - Human reviewer comment explaining the override decision  
+  - `override_by: string | null` - Identifier of the human reviewer who made the override
+  - `override_at: datetime | null` - Timestamp when the human override was made
+- **Behavior**: Fields return `null` when no override has been made, actual values when present
+- **Backward Compatibility**: Fully maintained - all fields are optional
+
 ### Database Integration
 - **Connection**: Uses existing `DatabaseService` with dependency injection
 - **Query**: Parameterized query with proper error handling and logging
@@ -74,6 +86,7 @@
 
 ## Usage Example
 
+### POST Override Endpoint
 ```bash
 # POST /jobs/reviews/{job_id}/override
 curl -X POST "http://localhost:8000/jobs/reviews/550e8400-e29b-41d4-a716-446655440000/override" \
@@ -82,6 +95,63 @@ curl -X POST "http://localhost:8000/jobs/reviews/550e8400-e29b-41d4-a716-4466554
     "override_recommend": true,  
     "override_comment": "Human reviewer approved despite low AI score"
   }'
+```
+
+### GET Reviews Endpoint (with override fields)
+```bash
+# GET /jobs/reviews - Now includes override fields
+curl "http://localhost:8000/jobs/reviews?limit=2"
+```
+
+**Example Response:**
+```json
+{
+  "jobs": [
+    {
+      "job": {
+        "job_id": "550e8400-e29b-41d4-a716-446655440000",
+        "title": "Senior Python Developer",
+        "company": "Tech Corp",
+        "location": "San Francisco, CA",
+        "url": "https://example.com/job/123",
+        "date_posted": "2024-01-15T09:00:00Z"
+      },
+      "review": {
+        "recommendation": false,
+        "confidence": "medium",
+        "rationale": "AI identified concerns about work-life balance",
+        "review_date": "2024-01-15T09:15:00Z",
+        // NEW: Override fields (when present)
+        "override_recommend": true,
+        "override_comment": "Human reviewer approved despite low AI score - company culture is excellent match",
+        "override_by": "system_admin", 
+        "override_at": "2024-01-15T10:30:00Z"
+      }
+    },
+    {
+      "job": {
+        "job_id": "123e4567-e89b-12d3-a456-426614174000",
+        "title": "Data Scientist",
+        "company": "Analytics Inc"
+      },
+      "review": {
+        "recommendation": true,
+        "confidence": "high",
+        "rationale": "Strong technical and cultural fit",
+        "review_date": "2024-01-15T11:00:00Z",
+        // Override fields are null when no human override has been made
+        "override_recommend": null,
+        "override_comment": null,
+        "override_by": null,
+        "override_at": null
+      }
+    }
+  ],
+  "total_count": 150,
+  "page": 1,
+  "page_size": 2,
+  "has_more": true
+}
 ```
 
 ## Files Modified
