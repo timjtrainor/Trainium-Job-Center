@@ -468,7 +468,8 @@ class DatabaseService:
         query = """
         SELECT id, job_id, recommend, confidence, rationale, personas, tradeoffs,
                actions, sources, crew_output, processing_time_seconds, crew_version,
-               model_used, error_message, retry_count, created_at, updated_at
+               model_used, error_message, retry_count, created_at, updated_at,
+               override_recommend, override_comment, override_by, override_at
         FROM public.job_reviews 
         WHERE job_id = $1
         """
@@ -479,6 +480,62 @@ class DatabaseService:
                 return dict(row) if row else None
         except Exception as e:
             logger.error(f"Failed to get job review: {str(e)}")
+            return None
+
+    async def update_job_review_override(
+        self, 
+        job_id: str, 
+        override_recommend: bool,
+        override_comment: str,
+        override_by: str = "system_admin"
+    ) -> Optional[Dict[str, Any]]:
+        """Update job review with human override data."""
+        if not self.initialized:
+            await self.initialize()
+
+        # Validate job_id format
+        import uuid
+        try:
+            uuid.UUID(job_id)
+        except ValueError:
+            logger.error(f"Invalid UUID format for job_id: {job_id}")
+            return None
+
+        query = """
+        UPDATE public.job_reviews 
+        SET override_recommend = $2,
+            override_comment = $3,
+            override_by = $4,
+            override_at = NOW(),
+            updated_at = NOW()
+        WHERE job_id = $1
+        RETURNING id, job_id, recommend, confidence, rationale, personas, tradeoffs,
+                  actions, sources, crew_output, processing_time_seconds, crew_version,
+                  model_used, error_message, retry_count, created_at, updated_at,
+                  override_recommend, override_comment, override_by, override_at
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    query, 
+                    job_id, 
+                    override_recommend, 
+                    override_comment, 
+                    override_by
+                )
+                
+                if row:
+                    logger.info(f"Job review override updated for job_id: {job_id}")
+                    return dict(row)
+                else:
+                    logger.warning(f"No job review found for job_id: {job_id}")
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"Failed to update job review override for job_id {job_id}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
 
     async def get_reviewed_jobs(
@@ -597,7 +654,11 @@ class DatabaseService:
             jr.actions,
             jr.sources,
             jr.crew_version as reviewer,
-            jr.created_at as review_date
+            jr.created_at as review_date,
+            jr.override_recommend,
+            jr.override_comment,
+            jr.override_by,
+            jr.override_at
         FROM public.jobs j
         INNER JOIN public.job_reviews jr ON j.id = jr.job_id
         {where_clause}
