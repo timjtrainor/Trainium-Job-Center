@@ -10,6 +10,9 @@ This directory contains the Sqitch configuration and migration scripts for manag
 - **v1**: Initial schema baseline with core application tables
 - **queue-scheduler-tables**: Site schedules and scrape runs for queue-based job scraping  
 - **jobs_table_init**: Jobs table for persisting scraped job data from various job boards
+- **job_reviews_table**: Job reviews table for AI-powered review results from CrewAI
+- **add_job_status_field**: Add status field to jobs table for review workflow
+- **add_hitl_override_fields**: Add Human-in-the-Loop (HITL) override fields to job_reviews table
 
 ## Prerequisites
 - PostgreSQL installed and running
