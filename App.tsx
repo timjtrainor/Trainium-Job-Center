@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { HashRouter, Routes, Route, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
@@ -46,6 +47,7 @@ import { ScheduleManagementView } from './components/ScheduleManagementView';
 import { StepTracker } from './components/StepTracker';
 import { CraftMessageStep } from './components/CraftMessageStep';
 import { ChromaUploadView } from './components/ChromaUploadView';
+import { ReviewedJobsView } from './components/ReviewedJobsView';
 
 
 type JobDetailsPayload = {
@@ -181,21 +183,21 @@ const AppContent = () => {
             ]);
 
             setUserProfile(profile);
-            setStrategicNarratives(narratives);
-            setActiveNarrativeId(narratives[0]?.narrative_id || null);
-            setApplications(apps);
-            setCompanies(comps);
-            setStatuses(stats);
-            setBaseResumes(resumes);
-            setContacts(conts);
-            setMessages(msgs);
-            setLinkedInPosts(posts);
-            setEngagements(engs);
-            setPostResponses(postRes);
-            setStandardRoles(roles);
-            setOffers(offers);
-            setBragBankItems(bragItems);
-            setSkillTrends(trends);
+            setStrategicNarratives(narratives || []);
+            setActiveNarrativeId(narratives?.[0]?.narrative_id || null);
+            setApplications(apps || []);
+            setCompanies(comps || []);
+            setStatuses(stats || []);
+            setBaseResumes(resumes || []);
+            setContacts(conts || []);
+            setMessages(msgs || []);
+            setLinkedInPosts(posts || []);
+            setEngagements(engs || []);
+            setPostResponses(postRes || []);
+            setStandardRoles(roles || []);
+            setOffers(offers || []);
+            setBragBankItems(bragItems || []);
+            setSkillTrends(trends || []);
             setSprint(activeSprint);
 
         } catch (err) {
@@ -1303,8 +1305,10 @@ const AppContent = () => {
                         <Routes>
                             <Route path="/" element={<DashboardView applications={applications} contacts={contacts} messages={messages} linkedInPosts={linkedInPosts} engagements={engagements} pendingFollowUps={messages.filter(m => m.follow_up_due_date)} userProfile={userProfile} activeNarrative={activeNarrative || null} strategicNarratives={strategicNarratives} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onScoutForOpportunities={() => {}} onUpdateContactStatus={(contactId, status) => handleSaveContact({ contact_id: contactId, status })} prompts={PROMPTS} baseResumes={baseResumes} onCreateSynthesizedNarrative={handleCreateSynthesizedNarrative} onSaveSkillTrends={handleSaveSkillTrends} sprint={sprint} skillTrends={skillTrends} companies={companies} weeklyProgress={""} onAddActions={async () => {}} />} />
                             <Route path="/applications" element={<ApplicationsView applications={applications} companies={companies} statuses={statuses} offers={offers} onViewApplication={(appId) => navigate(`/application/${appId}`)} onViewCompany={(companyId) => navigate(`/company/${companyId}`)} onResumeApplication={handleResumeApplication} onAddNew={handleStartNewApplication} onDeleteApplication={handleDeleteApplication} onDeleteOffer={async (id) => { await apiService.deleteOffer(id); fetchInitialData(); }} resumes={baseResumes} userProfile={userProfile} onAddNewResume={() => navigate('/resume/new')} onEditResume={(res) => navigate(`/resume/${res.resume_id}`)} onDeleteResume={handleDeleteResume} onCopyResume={async (res) => {}} onSetDefaultResume={(id) => handleSaveNarrative({ default_resume_id: id }, activeNarrativeId!)} onToggleLock={async ()=>{}} isLoading={isAppLoading} activeNarrative={activeNarrative} strategicNarratives={strategicNarratives} />} />
+                            <Route path="/reviewed-jobs" element={<ReviewedJobsView />} />
                             <Route path="/positioning" element={<PositioningHub narratives={strategicNarratives} activeNarrative={activeNarrative} activeNarrativeId={activeNarrativeId} onSetNarrative={setActiveNarrativeId} onSaveNarrative={handleSaveNarrative} onUpdateNarrative={handleUpdateNarrative} prompts={PROMPTS} standardRoles={standardRoles} onCreateStandardRole={async (payload, narrativeId) => { await apiService.createStandardJobRole(payload, narrativeId); fetchInitialData(); }} onUpdateStandardRole={async (roleId, payload) => { await apiService.updateStandardJobRole(roleId, payload); fetchInitialData(); }} onDeleteStandardRole={async (roleId) => { await apiService.deleteStandardJobRole(roleId); fetchInitialData(); }} baseResumes={baseResumes} />} />
                             <Route path="/engagement" element={<EngagementHub contacts={contacts} posts={linkedInPosts} engagements={engagements} postResponses={postResponses} applications={applications} allMessages={messages} userProfile={userProfile} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onCreatePostResponse={async ()=>{}} onUpdatePostResponse={handleUpdatePostResponse} onCreateLinkedInEngagement={handleCreateLinkedInEngagement} onCreatePost={handleCreatePost} onImportContacts={async ()=>{}} prompts={PROMPTS} onDeleteContact={handleDeleteContact} companies={companies} onViewCompany={(id)=>navigate(`/company/${id}`)} onAddNewCompany={()=>setIsCompanyModalOpen(true)} baseResumes={baseResumes} strategicNarratives={strategicNarratives} activeNarrative={activeNarrative} onScoreEngagement={()=>{}} />} />
+                            {/* FIX: `onSaveNarrative` was passed instead of `handleSaveNarrative` */}
                             <Route path="/interview-studio" element={<InterviewStudioView applications={applications} companies={companies} contacts={contacts} activeNarrative={activeNarrative} onSaveNarrative={handleSaveNarrative} prompts={PROMPTS} initialApp={initialAppForStudio} onClearInitialApp={()=>setInitialAppForStudio(null)} onGetReframeSuggestion={handleGetReframeSuggestion} onDeconstructQuestion={handleDeconstructQuestion} onSaveInterviewOpening={async (interviewId, opening)=>{await handleSaveInterview({strategic_opening: opening}, interviewId)}} />} />
                             <Route path="/brag-bank" element={<BragDocumentView items={bragBankItems} onSave={async (item, id) => { if(id) { await apiService.updateBragBankEntry(id, item); } else { await apiService.createBragBankEntry(item); } fetchInitialData(); }} onDelete={async (id) => { await apiService.deleteBragBankEntry(id); fetchInitialData(); }} strategicNarratives={strategicNarratives} prompts={PROMPTS} />} />
                             <Route path="/schedule-management" element={<ScheduleManagementView />} />

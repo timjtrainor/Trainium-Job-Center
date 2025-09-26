@@ -1,0 +1,156 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { getReviewedJobs, ReviewedJobsFilters, ReviewedJobsSort } from '../services/apiService';
+import { ReviewedJob, PaginatedResponse, ReviewedJobRecommendation } from '../types';
+import { LoadingSpinner, CheckIcon, XCircleIcon } from './IconComponents';
+
+const SortableHeader = ({ label, sortKey, currentSort, onSort }: { label: string, sortKey: ReviewedJobsSort['by'], currentSort: ReviewedJobsSort, onSort: (by: ReviewedJobsSort['by']) => void }) => {
+    const isCurrent = currentSort.by === sortKey;
+    const arrow = isCurrent ? (currentSort.order === 'desc' ? '▼' : '▲') : '';
+    return (
+        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer" onClick={() => onSort(sortKey)}>
+            {label} {arrow}
+        </th>
+    );
+};
+
+const RecommendationBadge = ({ recommendation }: { recommendation: ReviewedJobRecommendation }) => {
+    const classes: Record<ReviewedJobRecommendation, string> = {
+        'Recommended': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
+        'Not Recommended': 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300',
+    };
+    return <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${classes[recommendation]}`}>{recommendation}</span>;
+};
+
+export const ReviewedJobsView = () => {
+    const [data, setData] = useState<PaginatedResponse<ReviewedJob> | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [page, setPage] = useState(1);
+    const [filters, setFilters] = useState<ReviewedJobsFilters>({ recommendation: 'All' });
+    const [sort, setSort] = useState<ReviewedJobsSort>({ by: 'date_posted', order: 'desc' });
+    const [minScoreFilter, setMinScoreFilter] = useState('');
+
+    const fetchJobs = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const currentFilters = {
+                ...filters,
+                min_score: minScoreFilter ? Number(minScoreFilter) : undefined,
+            };
+            const result = await getReviewedJobs({ page, size: 15, filters: currentFilters, sort });
+            setData(result);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to fetch reviewed jobs.');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [page, filters, sort, minScoreFilter]);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            fetchJobs();
+        }, 300); // Debounce all changes slightly
+
+        return () => clearTimeout(handler);
+    }, [fetchJobs]);
+
+    const handleSortChange = (by: ReviewedJobsSort['by']) => {
+        setPage(1); // Reset page on change
+        setSort(prev => ({
+            by,
+            order: prev.by === by && prev.order === 'desc' ? 'asc' : 'desc'
+        }));
+    };
+
+    const handleRecommendationFilter = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setPage(1); // Reset page on change
+        setFilters(prev => ({ ...prev, recommendation: e.target.value as ReviewedJobsFilters['recommendation'] }));
+    };
+
+    const handleScoreFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        if (value === '' || (/^\d*\.?\d*$/.test(value) && Number(value) >= 0 && Number(value) <= 10)) {
+            setPage(1); // Reset page on change
+            setMinScoreFilter(value);
+        }
+    };
+
+    const renderTable = () => {
+        if (!data || data.items.length === 0) {
+            return <div className="text-center py-10 text-slate-500 dark:text-slate-400">No reviewed jobs found matching your criteria.</div>;
+        }
+
+        return (
+            <div className="-mx-4 sm:-mx-6 overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                    <thead className="bg-slate-50 dark:bg-slate-800">
+                        <tr>
+                            <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6">Job Title</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Company</th>
+                            <SortableHeader label="Date Posted" sortKey="date_posted" currentSort={sort} onSort={handleSortChange} />
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Recommendation</th>
+                            <SortableHeader label="Alignment Score" sortKey="overall_alignment_score" currentSort={sort} onSort={handleSortChange} />
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Eligible to Apply</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-800">
+                        {data.items.map(job => (
+                            <tr key={job.job_id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                                <td className="py-4 pl-4 pr-3 text-sm sm:pl-6">
+                                    <a href={job.url ?? '#'} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 dark:text-blue-400 hover:underline">{job.title ?? 'Untitled Role'}</a>
+                                    <div className="text-gray-500 dark:text-slate-400">{job.location ?? '—'}</div>
+                                </td>
+                                <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400">{job.company_name ?? '—'}</td>
+                                <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400">{job.date_posted ? new Date(job.date_posted).toLocaleDateString() : '—'}</td>
+                                <td className="px-3 py-4 text-sm"><RecommendationBadge recommendation={job.recommendation} /></td>
+                                <td className="px-3 py-4 text-sm font-semibold text-gray-900 dark:text-white">{job.overall_alignment_score.toFixed(1)}</td>
+                                <td className="px-3 py-4 text-sm text-center">
+                                    {job.is_eligible_for_application ? <CheckIcon className="h-6 w-6 text-green-500 mx-auto" /> : <XCircleIcon className="h-6 w-6 text-slate-400 mx-auto" />}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <header>
+                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Reviewed Jobs</h1>
+                <p className="mt-1 text-slate-600 dark:text-slate-400">Jobs automatically reviewed by the AI based on your active narrative.</p>
+            </header>
+
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-4 sm:p-6 border border-slate-200 dark:border-slate-700">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 w-full sm:w-auto">
+                        <div>
+                            <label htmlFor="recommendation-filter" className="block text-xs font-medium text-slate-500">Recommendation</label>
+                            <select id="recommendation-filter" value={filters.recommendation} onChange={handleRecommendationFilter} className="mt-1 block w-full sm:w-auto rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                                <option value="All">All</option>
+                                <option value="Recommended">Recommended</option>
+                                <option value="Not Recommended">Not Recommended</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label htmlFor="score-filter" className="block text-xs font-medium text-slate-500">Min. Score</label>
+                            <input type="number" id="score-filter" value={minScoreFilter} onChange={handleScoreFilterChange} min="0" max="10" step="0.1" className="mt-1 block w-full sm:w-24 rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="e.g., 7.5" />
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-4">
+                    {isLoading ? <div className="flex justify-center items-center p-8"><LoadingSpinner /><span className="ml-2">Loading...</span></div> : error ? <div className="p-4 bg-red-50 text-red-700 rounded-md">Error: {error}</div> : renderTable()}
+                </div>
+                {!isLoading && data && data.pages > 1 && (
+                    <div className="flex items-center justify-between mt-4">
+                        <button onClick={() => setPage(p => p - 1)} disabled={page <= 1} className="px-4 py-2 text-sm font-medium rounded-md border border-slate-300 dark:border-slate-600 disabled:opacity-50">Previous</button>
+                        <span className="text-sm text-slate-500">Page {data.page} of {data.pages}</span>
+                        <button onClick={() => setPage(p => p + 1)} disabled={page >= data.pages} className="px-4 py-2 text-sm font-medium rounded-md border border-slate-300 dark:border-slate-600 disabled:opacity-50">Next</button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};

@@ -13,11 +13,30 @@ from ...core.config import get_settings
 
 class DatabaseService:
     """Service for direct database access."""
-    
+
     def __init__(self):
         self.settings = get_settings()
         self.pool: Optional[asyncpg.Pool] = None
         self.initialized = False
+
+    @staticmethod
+    def _deserialize_json_field(value: Any) -> Optional[Any]:
+        """Convert JSON stored as text to native Python structures for API responses."""
+        if value is None or isinstance(value, (list, dict)):
+            return value
+
+        if isinstance(value, str):
+            trimmed_value = value.strip()
+            if not trimmed_value:
+                return None
+
+            try:
+                return json.loads(trimmed_value)
+            except json.JSONDecodeError:
+                logger.warning("Failed to deserialize JSON field", value=value)
+                return None
+
+        return None
 
     async def initialize(self) -> bool:
         """Initialize database connection pool."""
@@ -600,13 +619,21 @@ class DatabaseService:
                     # Calculate alignment score from confidence
                     confidence_scores = {"high": 0.8, "medium": 0.6, "low": 0.4}
                     alignment_score = confidence_scores.get(row["confidence"], 0.4)
-                    
+
+                    # Normalize location strings that may be null
+                    raw_location = row["location"]
+                    if isinstance(raw_location, str):
+                        cleaned_location = raw_location.strip(", ")
+                        location_value = cleaned_location if cleaned_location else None
+                    else:
+                        location_value = None
+
                     job_data = {
                         "job": {
                             "job_id": str(row["job_id"]),
                             "title": row["title"],
                             "company": row["company"],
-                            "location": row["location"] if row["location"].strip(", ") else None,
+                            "location": location_value,
                             "url": row["url"],
                             "date_posted": row["date_posted"],
                             "source": row["source"],
@@ -623,10 +650,10 @@ class DatabaseService:
                             "reviewer": row["reviewer"],
                             "review_date": row["review_date"],
                             "rationale": row["rationale"],
-                            "personas": row["personas"],
-                            "tradeoffs": row["tradeoffs"],
-                            "actions": row["actions"],
-                            "sources": row["sources"]
+                            "personas": self._deserialize_json_field(row["personas"]),
+                            "tradeoffs": self._deserialize_json_field(row["tradeoffs"]),
+                            "actions": self._deserialize_json_field(row["actions"]),
+                            "sources": self._deserialize_json_field(row["sources"])
                         }
                     }
                     jobs.append(job_data)

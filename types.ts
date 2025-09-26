@@ -966,3 +966,27 @@ export interface DocumentUploadPayload {
     content: string;
     metadata?: object;
 }
+
+// For Reviewed Jobs View
+export type ReviewedJobRecommendation = 'Recommended' | 'Not Recommended';
+
+export interface ReviewedJob {
+  job_id: string; // uuid
+  url: string | null;
+  title: string | null;
+  company_name: string | null;
+  location: string | null;
+  date_posted: string | null; // ISO date string
+  recommendation: ReviewedJobRecommendation;
+  confidence: number; // 0.0 to 1.0
+  overall_alignment_score: number; // 0.0 to 10.0
+  is_eligible_for_application: boolean;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
