@@ -25,8 +25,8 @@ const navItems: NavItem[] = [
     { path: '/sprint', label: 'Sprint', icon: ClipboardDocumentListIcon, isModal: true },
     { path: '/positioning', label: 'Positioning', icon: StrategyIcon },
     { path: '/engagement', label: 'Engagement Hub', icon: ChatBubbleLeftRightIcon },
+    { path: '/reviewed-jobs', label: 'AI Job Board', icon: ClipboardDocumentCheckIcon },
     { path: '/applications', label: 'Application Lab', icon: ApplicationsIcon },
-    { path: '/reviewed-jobs', label: 'Reviewed Jobs', icon: ClipboardDocumentCheckIcon },
     { path: '/interview-studio', label: 'Interview Studio', icon: MicrophoneIcon },
     { path: '/brag-bank', label: 'Brag Bank', icon: ClipboardDocumentCheckIcon },
 ];
