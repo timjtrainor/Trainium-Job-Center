@@ -17,6 +17,10 @@ class JobReviewData(BaseModel):
     tradeoffs: Optional[List[Any]] = Field(None, description="Trade-off analysis")
     actions: Optional[List[Any]] = Field(None, description="Recommended actions")
     sources: Optional[List[Any]] = Field(None, description="Information sources used")
+    override_recommend: Optional[bool] = Field(None, description="Human override of AI recommendation")
+    override_comment: Optional[str] = Field(None, description="Human reviewer comment explaining the override decision")
+    override_by: Optional[str] = Field(None, description="Identifier of the human reviewer who made the override")
+    override_at: Optional[datetime] = Field(None, description="Timestamp when the human override was made")
 
 
 class JobDetails(BaseModel):
