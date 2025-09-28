@@ -195,7 +195,7 @@ class JobPostingOrchestrator:
                 if dim in brand_match and isinstance(brand_match[dim], dict) and "score" in brand_match[dim]:
                     # Convert 1-5 scores to 0-10 scale for overall calculation
                     score_1_5 = brand_match[dim]["score"]
-                    score_0_10 = (score_1_5 - 1) * 2.5  # Convert 1->0, 5->10
+                    score_0_10 = 2 + (score_1_5 - 1) * 2  # Convert 1->2, 5->10
                     scores[dim] = score_0_10
 
             if not scores:
