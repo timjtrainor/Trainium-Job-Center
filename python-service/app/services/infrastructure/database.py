@@ -725,7 +725,11 @@ class DatabaseService:
                             "personas": self._deserialize_json_field(row["personas"]),
                             "tradeoffs": self._deserialize_json_field(row["tradeoffs"]),
                             "actions": self._deserialize_json_field(row["actions"]),
-                            "sources": self._deserialize_json_field(row["sources"])
+                            "sources": self._deserialize_json_field(row["sources"]),
+                            "override_recommend": row["override_recommend"],
+                            "override_comment": row["override_comment"],
+                            "override_by": row["override_by"],
+                            "override_at": row["override_at"]
                         }
                     }
                     jobs.append(job_data)
