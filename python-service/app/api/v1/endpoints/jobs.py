@@ -5,6 +5,7 @@ Provides REST API for accessing jobs and job reviews.
 """
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
+from pydantic import BaseModel
 from loguru import logger
 from datetime import datetime
 
@@ -13,6 +14,52 @@ from ....services.infrastructure.database import get_database_service, DatabaseS
 
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+
+class OverrideRequest(BaseModel):
+    """Request model for human override of AI recommendation."""
+    override_recommend: bool
+    override_comment: str
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "override_recommend": True,
+                "override_comment": "Human reviewer approved despite low AI score - company culture is excellent match"
+            }
+        }
+
+
+class OverrideResponse(BaseModel):
+    """Response model for override operation."""
+    id: str
+    job_id: str
+    recommend: Optional[bool]
+    confidence: Optional[str]
+    rationale: Optional[str]
+    override_recommend: bool
+    override_comment: str
+    override_by: str
+    override_at: str
+    created_at: str
+    updated_at: str
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "12345",
+                "job_id": "550e8400-e29b-41d4-a716-446655440000",
+                "recommend": False,
+                "confidence": "medium",
+                "rationale": "AI identified some concerns about work-life balance",
+                "override_recommend": True,
+                "override_comment": "Human reviewer approved despite low AI score - company culture is excellent match",
+                "override_by": "system_admin",
+                "override_at": "2024-01-15T10:30:00Z",
+                "created_at": "2024-01-15T09:15:00Z",
+                "updated_at": "2024-01-15T10:30:00Z"
+            }
+        }
 
 
 async def get_database():
@@ -101,6 +148,98 @@ async def get_job_reviews(
         raise
     except Exception as e:
         logger.error(f"Failed to get job reviews: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/reviews/{job_id}/override", response_model=OverrideResponse)
+async def override_job_review(
+    job_id: str,
+    request: OverrideRequest,
+    db: DatabaseService = Depends(get_database)
+):
+    """
+    Override AI job recommendation with human decision.
+    
+    Allows human reviewers to override AI recommendations while preserving
+    the original AI analysis. Updates the job review with override data.
+    
+    **Request Example:**
+    ```json
+    {
+        "override_recommend": true,
+        "override_comment": "Human reviewer approved despite low AI score"
+    }
+    ```
+    
+    **Response Example:**
+    ```json
+    {
+        "id": "12345",
+        "job_id": "550e8400-e29b-41d4-a716-446655440000",
+        "recommend": false,
+        "confidence": "medium", 
+        "rationale": "AI identified concerns about work-life balance",
+        "override_recommend": true,
+        "override_comment": "Human reviewer approved despite low AI score",
+        "override_by": "system_admin",
+        "override_at": "2024-01-15T10:30:00Z",
+        "created_at": "2024-01-15T09:15:00Z",
+        "updated_at": "2024-01-15T10:30:00Z"
+    }
+    ```
+    
+    **Features:**
+    - Preserves original AI fields (recommend, confidence, rationale, etc.)
+    - Adds human override data with timestamp and reviewer ID
+    - Returns complete updated review record
+    - Validates job_id exists before updating
+    
+    **Error Responses:**
+    - 400: Invalid job_id format (not a valid UUID)
+    - 404: Job review not found for the given job_id
+    - 500: Database connection error or other server errors
+    """
+    try:
+        # Update the job review with override data
+        result = await db.update_job_review_override(
+            job_id=job_id,
+            override_recommend=request.override_recommend,
+            override_comment=request.override_comment,
+            override_by="system_admin"  # Placeholder until user auth exists
+        )
+        
+        if not result:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Job review not found for job_id: {job_id}"
+            )
+        
+        # Transform the result to match the response model
+        return OverrideResponse(
+            id=str(result["id"]),
+            job_id=str(result["job_id"]),  # Convert UUID to string
+            recommend=result["recommend"],
+            confidence=result["confidence"],
+            rationale=result["rationale"],
+            override_recommend=result["override_recommend"],
+            override_comment=result["override_comment"],
+            override_by=result["override_by"],
+            override_at=result["override_at"].isoformat() if result["override_at"] else None,
+            created_at=result["created_at"].isoformat() if result["created_at"] else None,
+            updated_at=result["updated_at"].isoformat() if result["updated_at"] else None
+        )
+        
+    except ValueError as e:
+        # Invalid job_id format - client error
+        logger.warning(f"Invalid job_id format: {job_id}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Database or other server errors
+        logger.error(f"Failed to override job review: {e}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -468,7 +468,8 @@ class DatabaseService:
         query = """
         SELECT id, job_id, recommend, confidence, rationale, personas, tradeoffs,
                actions, sources, crew_output, processing_time_seconds, crew_version,
-               model_used, error_message, retry_count, created_at, updated_at
+               model_used, error_message, retry_count, created_at, updated_at,
+               override_recommend, override_comment, override_by, override_at
         FROM public.job_reviews 
         WHERE job_id = $1
         """
@@ -480,6 +481,73 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Failed to get job review: {str(e)}")
             return None
+
+    async def update_job_review_override(
+        self, 
+        job_id: str, 
+        override_recommend: bool,
+        override_comment: str,
+        override_by: str = "system_admin"
+    ) -> Optional[Dict[str, Any]]:
+        """Update job review with human override data.
+        
+        Returns:
+            Dict with job review data if found and updated successfully.
+            None if job review not found for the given job_id.
+            
+        Raises:
+            ValueError: If job_id is not a valid UUID format.
+            Exception: For database connection or query execution errors.
+        """
+        if not self.initialized:
+            await self.initialize()
+
+        # Validate job_id format
+        import uuid
+        try:
+            uuid.UUID(job_id)
+        except ValueError as e:
+            logger.error(f"Invalid UUID format for job_id: {job_id}")
+            raise ValueError(f"Invalid job_id format: {job_id}") from e
+
+        query = """
+        UPDATE public.job_reviews 
+        SET override_recommend = $2,
+            override_comment = $3,
+            override_by = $4,
+            override_at = NOW(),
+            updated_at = NOW()
+        WHERE job_id = $1
+        RETURNING id, job_id, recommend, confidence, rationale, personas, tradeoffs,
+                  actions, sources, crew_output, processing_time_seconds, crew_version,
+                  model_used, error_message, retry_count, created_at, updated_at,
+                  override_recommend, override_comment, override_by, override_at
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    query, 
+                    job_id, 
+                    override_recommend, 
+                    override_comment, 
+                    override_by
+                )
+                
+                if row:
+                    logger.info(f"Job review override updated for job_id: {job_id}")
+                    return dict(row)
+                else:
+                    # This is the legitimate "not found" case - job_id doesn't exist in database
+                    logger.warning(f"No job review found for job_id: {job_id}")
+                    return None
+                    
+        except Exception as e:
+            # Database errors (connection, syntax, etc.) should propagate as server errors
+            logger.error(f"Database error updating job review override for job_id {job_id}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            raise  # Re-raise the exception to be handled as 500 error
 
     async def get_reviewed_jobs(
         self,
@@ -597,7 +665,11 @@ class DatabaseService:
             jr.actions,
             jr.sources,
             jr.crew_version as reviewer,
-            jr.created_at as review_date
+            jr.created_at as review_date,
+            jr.override_recommend,
+            jr.override_comment,
+            jr.override_by,
+            jr.override_at
         FROM public.jobs j
         INNER JOIN public.job_reviews jr ON j.id = jr.job_id
         {where_clause}
@@ -653,7 +725,11 @@ class DatabaseService:
                             "personas": self._deserialize_json_field(row["personas"]),
                             "tradeoffs": self._deserialize_json_field(row["tradeoffs"]),
                             "actions": self._deserialize_json_field(row["actions"]),
-                            "sources": self._deserialize_json_field(row["sources"])
+                            "sources": self._deserialize_json_field(row["sources"]),
+                            "override_recommend": row["override_recommend"],
+                            "override_comment": row["override_comment"],
+                            "override_by": row["override_by"],
+                            "override_at": row["override_at"]
                         }
                     }
                     jobs.append(job_data)
