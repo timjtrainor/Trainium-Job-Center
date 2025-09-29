@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 from loguru import logger
 
 from .chroma_manager import get_chroma_manager
-from .schemas.career_brand import (
+from ..schemas.career_brand import (
     CareerBrandUploadRequest,
     CareerBrandUploadResponse,
     CareerBrandDocumentInfo,

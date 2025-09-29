@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Dict, Any, Optional
 from loguru import logger
 
-from ..jobspy.scraping import scrape_jobs_sync
+from ..jobspy.scraping import scrape_jobs_sync, normalize_job_to_scraped_job
 from .database import get_database_service
 from .job_persistence import persist_jobs
 
@@ -519,49 +519,27 @@ def run_linkedin_job_search(
         # Persist LinkedIn jobs if search was successful
         jobs_found = search_result.get("consolidated_jobs", [])
         total_jobs = search_result.get("total_jobs", len(jobs_found))
-        
+
         persistence_summary = None
         if jobs_found:
             try:
-                # Convert LinkedIn search results to jobspy format for persistence
-                jobspy_jobs = []
+                # Normalize LinkedIn search results to standardized ScrapedJob format
+                normalized_jobs = []
                 for job in jobs_found:
-                    jobspy_job = {
-                        "title": job.get("title", ""),
-                        "company": job.get("company", ""),
-                        "location": {
-                            "city": job.get("location", {}).get("city"),
-                            "state": job.get("location", {}).get("state"),
-                            "country": job.get("location", {}).get("country")
-                        },
-                        "job_url": job.get("job_url", ""),
-                        "job_url_direct": job.get("job_url_direct"),
-                        "description": job.get("description", ""),
-                        "job_type": job.get("job_type"),
-                        "compensation": {
-                            "min_amount": job.get("salary", {}).get("min_amount"),
-                            "max_amount": job.get("salary", {}).get("max_amount"),
-                            "currency": job.get("salary", {}).get("currency", "USD"),
-                            "interval": job.get("salary", {}).get("interval", "yearly")
-                        },
-                        "date_posted": job.get("date_posted"),
-                        "site": "linkedin",
-                        "job_level": job.get("experience_level"),
-                        "is_remote": job.get("remote", False)
-                    }
-                    jobspy_jobs.append(jobspy_job)
-                
+                    normalized_job = normalize_job_to_scraped_job(job, "linkedin")
+                    normalized_jobs.append(normalized_job)
+
                 persistence_summary = loop.run_until_complete(
-                    persist_jobs(records=jobspy_jobs, site_name="linkedin")
+                    persist_jobs(records=normalized_jobs, site_name="linkedin")
                 )
-                logger.info(f"LinkedIn run {run_id}: Persisted jobs - {persistence_summary}")
-                
+                logger.info(f"LinkedIn run {run_id}: Normalized and persisted {len(normalized_jobs)} jobs - {persistence_summary}")
+
             except Exception as e:
-                logger.error(f"LinkedIn run {run_id}: Failed to persist jobs: {e}")
+                logger.error(f"LinkedIn run {run_id}: Failed to normalize/persist jobs: {e}")
                 persistence_summary = {
                     "inserted": 0,
                     "skipped_duplicates": 0,
-                    "errors": [f"Persistence failed: {str(e)}"]
+                    "errors": [f"Normalization/persistence failed: {str(e)}"]
                 }
         
         # Update final status
