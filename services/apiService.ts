@@ -51,6 +51,13 @@ const safeParseJson = (data: any, fieldName: string, recordId: string): any => {
     return data; // Return as is if it's not a string or object
 };
 
+const FASTAPI_BASE = FASTAPI_BASE_URL.replace(/\/+$/u, '') || '/api';
+
+const buildFastApiUrl = (path = ''): string => {
+    const normalizedPath = path ? (path.startsWith('/') ? path : `/${path}`) : '';
+    return `${FASTAPI_BASE}${normalizedPath}`;
+};
+
 
 const parseDateString = (dateString: string | null | undefined): DateInfo => {
     if (!dateString) return { year: new Date().getFullYear(), month: 1 };
@@ -133,7 +140,7 @@ export const checkPostgrestHealth = async (): Promise<{ status: number; statusTe
 
 export const checkFastApiHealth = async (): Promise<{ status: number; statusText: string; data: any; }> => {
     // Assuming the FastAPI health endpoint is at /health
-    return genericHealthCheck(`${FASTAPI_BASE_URL}/health`);
+    return genericHealthCheck(buildFastApiUrl('health'));
 };
 
 
@@ -1253,7 +1260,7 @@ export const getSiteSchedules = async (): Promise<SiteSchedule[]> => {
 };
 
 export const getJobSites = async (): Promise<SiteDetails[]> => {
-    const response = await fetch(`${FASTAPI_BASE_URL}/job-feed/sites`);
+    const response = await fetch(buildFastApiUrl('job-feed/sites'));
     const rawData = await handleResponse(response);
 
     if (rawData && rawData.status === 'success' && rawData.data) {
@@ -1308,7 +1315,7 @@ export const deleteSiteSchedule = async (scheduleId: string): Promise<void> => {
 
 // Generic uploader for JSON data
 const uploadJsonDocument = async (endpoint: string, payload: object): Promise<UploadSuccessResponse> => {
-    const response = await fetch(`${FASTAPI_BASE_URL}${endpoint}`, {
+    const response = await fetch(buildFastApiUrl(endpoint), {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)
@@ -1322,7 +1329,7 @@ export const uploadJobSearchStrategy = (payload: any) => uploadJsonDocument('/do
 
 // Uploader for resume file data
 export const uploadResume = async (formData: FormData): Promise<UploadSuccessResponse> => {
-    const response = await fetch(`${FASTAPI_BASE_URL}/documents/resume`, {
+    const response = await fetch(buildFastApiUrl('documents/resume'), {
         method: 'POST',
         body: formData,
         // No 'Content-Type' header here for FormData, browser sets it.
@@ -1332,13 +1339,13 @@ export const uploadResume = async (formData: FormData): Promise<UploadSuccessRes
 
 export const getUploadedDocuments = async (profileId: string): Promise<UploadedDocument[]> => {
     if (!profileId) return [];
-    const response = await fetch(`${FASTAPI_BASE_URL}/documents?profile_id=${profileId}`);
+    const response = await fetch(`${buildFastApiUrl('documents')}?profile_id=${profileId}`);
     const data = await handleResponse(response);
     return (data?.documents || []).sort((a: UploadedDocument, b: UploadedDocument) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 };
 
 export const deleteUploadedDocument = async (documentId: string, contentType: ContentType): Promise<void> => {
-    const response = await fetch(`${FASTAPI_BASE_URL}/documents/${documentId}`, {
+    const response = await fetch(buildFastApiUrl(`documents/${documentId}`), {
         method: 'DELETE',
     });
     await handleResponse(response);
@@ -1380,7 +1387,7 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
         params.append('min_score', String(normalizedScore));
     }
 
-    const response = await fetch(`${FASTAPI_BASE_URL}/jobs/reviews?${params.toString()}`);
+    const response = await fetch(`${buildFastApiUrl('jobs/reviews')}?${params.toString()}`);
     const rawData = await handleResponse(response);
 
     const items = (rawData.jobs || []).map((entry: any) => {
@@ -1460,7 +1467,7 @@ export const overrideJobReview = async (
     jobId: string, 
     overrideData: JobReviewOverrideRequest
 ): Promise<JobReviewOverrideResponse> => {
-    const response = await fetch(`${FASTAPI_BASE_URL}/jobs/reviews/${jobId}/override`, {
+    const response = await fetch(buildFastApiUrl(`jobs/reviews/${jobId}/override`), {
         method: 'POST',
         headers,
         body: JSON.stringify(overrideData),
