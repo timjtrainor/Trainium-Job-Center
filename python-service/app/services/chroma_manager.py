@@ -510,7 +510,7 @@ class ChromaManager:
 
             # Mark existing document as not latest (if it exists)
             if existing_latest:
-                await self.mark_version_not_latest(existing_latest["document_id"])
+                self.mark_version_not_latest(existing_latest["document_id"])
 
             # Determine version number for new document
             next_version = 1
