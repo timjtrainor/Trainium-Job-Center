@@ -48,7 +48,7 @@ north_star_matcher:
           latest_version: true
   memory: false
   max_iter: 1
-  llm: "openai/gpt-5-mini"
+  llm: "ollama/gpt-oss:20b"
 
 trajectory_mastery_matcher:
   role: >
@@ -75,7 +75,7 @@ trajectory_mastery_matcher:
           latest_version: true
   memory: false
   max_iter: 1
-  llm: "openai/gpt-5-mini"
+  llm: "ollama/gpt-oss:20b"
 
 values_compass_matcher:
   role: >
@@ -102,7 +102,7 @@ values_compass_matcher:
           latest_version: true
   memory: false
   max_iter: 1
-  llm: "openai/gpt-5-mini"
+  llm: "ollama/gpt-oss:20b"
 
 lifestyle_alignment_matcher:
   role: >
@@ -129,7 +129,7 @@ lifestyle_alignment_matcher:
           latest_version: true
   memory: false
   max_iter: 1
-  llm: "openai/gpt-5-mini"
+  llm: "ollama/gpt-oss:20b"
 
 compensation_philosophy_matcher:
   role: >
@@ -156,7 +156,7 @@ compensation_philosophy_matcher:
           latest_version: true
   memory: false
   max_iter: 1
-  llm: "openai/gpt-5-mini"
+  llm: "ollama/gpt-oss:20b"
 
 purpose_impact_matcher:
   role: >
@@ -188,7 +188,7 @@ purpose_impact_matcher:
           latest_version: true
   memory: false
   max_iter: 1
-  llm: "openai/gpt-5-mini"
+  llm: "ollama/gpt-oss:20b"
 
 industry_focus_matcher:
   role: >
@@ -220,7 +220,7 @@ industry_focus_matcher:
           latest_version: true
   memory: false
   max_iter: 1
-  llm: "openai/gpt-5-mini"
+  llm: "ollama/gpt-oss:20b"
 
 company_filters_matcher:
   role: >
@@ -252,7 +252,7 @@ company_filters_matcher:
           latest_version: true
   memory: false
   max_iter: 1
-  llm: "openai/gpt-5-mini"
+  llm: "ollama/gpt-oss:20b"
 
 constraints_matcher:
   role: >
@@ -285,7 +285,7 @@ constraints_matcher:
           latest_version: true
   memory: false
   max_iter: 1
-  llm: "openai/gpt-5-mini"
+  llm: "ollama/gpt-oss:20b"
 
 # Manager Agent for combining specialist results
 brand_match_manager:
@@ -330,4 +330,4 @@ brand_match_manager:
     Provide a balanced overall summary that emphasizes constraints, compensation, and trajectory while noting other dimensions.
   memory: false
   max_iter: 1
-  llm: "openai/gpt-5-mini"
+  llm: "ollama/gpt-oss:20b"
