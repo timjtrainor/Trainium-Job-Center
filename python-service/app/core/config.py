@@ -45,7 +45,7 @@ class Settings:
 
         # ChromaDB Configuration
         self.chroma_url: str = os.getenv("CHROMA_URL", "chromadb")
-        self.chroma_port: int = int(os.getenv("CHROMA_PORT", "8000"))
+        self.chroma_port: int = int(os.getenv("CHROMA_PORT", "8001"))
         
         # Embedding Configuration
         self.embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "sentence_transformer")

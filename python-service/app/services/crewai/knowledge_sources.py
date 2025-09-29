@@ -23,7 +23,7 @@ class ChromaKnowledgeSource(BaseKnowledgeSource):
         self,
         collection_name: str,
         host: str = "chromadb",
-        port: int = 8000,
+        port: int = 8001,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 5,
         search_type: str = "similarity"
@@ -173,7 +173,7 @@ def create_knowledge_source_from_config(config: Dict[str, Any]) -> ChromaKnowled
     return ChromaKnowledgeSource(
         collection_name=chroma_config.get("collection"),
         host=chroma_config.get("host", "chromadb"),
-        port=chroma_config.get("port", 8000),
+        port=chroma_config.get("port", 8001),
         filters=chroma_config.get("filters", {}),
         top_k=chroma_config.get("top_k", 5)
     )
