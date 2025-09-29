@@ -328,23 +328,109 @@ async def get_queue_status(
 ):
     """
     Get information about the current queue status.
-    
+
     Returns:
         StandardResponse containing queue metrics and status
     """
     try:
         logger.info("Queue status request received")
-        
+
         if not queue_service.initialized:
             await queue_service.initialize()
-        
+
         queue_info = queue_service.get_queue_info()
-        
+
         return create_success_response(
             data=queue_info,
             message="Queue status retrieved successfully"
         )
-        
+
     except Exception as e:
         logger.error(f"Error getting queue status: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get queue status: {str(e)}")
+
+
+@router.post("/queue/clear-orphaned-locks", response_model=StandardResponse)
+async def clear_orphaned_locks(
+    pattern: str = Query("scrape_lock:*", description="Redis key pattern for locks to clear"),
+    max_age_hours: int = Query(24, description="Maximum age in hours for locks to consider orphaned"),
+    queue_service: QueueService = Depends(get_queue_service),
+):
+    """
+    Clear orphaned Redis locks that have no corresponding active jobs.
+
+    Args:
+        pattern: Redis key pattern to match (default: scrape locks)
+        max_age_hours: Maximum age for locks before considering them orphaned
+
+    Returns:
+        StandardResponse containing cleanup results
+    """
+    try:
+        logger.info(f"Orphaned lock cleanup requested for pattern: {pattern}, max_age: {max_age_hours}h")
+
+        if not queue_service.initialized:
+            await queue_service.initialize()
+
+        cleanup_result = queue_service.clear_orphaned_locks(
+            pattern=pattern,
+            max_age_hours=max_age_hours
+        )
+
+        if "error" in cleanup_result:
+            raise HTTPException(status_code=500, detail=cleanup_result["error"])
+
+        return create_success_response(
+            data=cleanup_result,
+            message=f"Cleared {cleanup_result['locks_cleared']} orphaned locks"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error clearing orphaned locks: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to clear orphaned locks: {str(e)}")
+
+
+@router.get("/queue/locks", response_model=StandardResponse)
+async def get_active_locks(
+    pattern: str = Query("scrape_lock:*", description="Redis key pattern for locks to check"),
+    queue_service: QueueService = Depends(get_queue_service),
+):
+    """
+    Get information about active Redis locks.
+
+    Args:
+        pattern: Redis key pattern to check
+
+    Returns:
+        StandardResponse containing lock information
+    """
+    try:
+        logger.info(f"Active locks request received for pattern: {pattern}")
+
+        if not queue_service.initialized:
+            await queue_service.initialize()
+
+        locks = []
+        lock_keys = queue_service.redis_conn.keys(pattern)
+
+        for lock_key_bytes in lock_keys:
+            lock_key = lock_key_bytes.decode('utf-8')
+            lock_value = queue_service.check_redis_lock(lock_key)
+
+            if lock_value:
+                lock_value_str = lock_value.decode('utf-8')
+                locks.append({
+                    "key": lock_key,
+                    "value": lock_value_str
+                })
+
+        return create_success_response(
+            data={"locks": locks, "count": len(locks)},
+            message=f"Found {len(locks)} active locks"
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting active locks: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get active locks: {str(e)}")

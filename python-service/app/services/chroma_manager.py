@@ -98,14 +98,19 @@ class ChromaManager:
         self.register_collection_config(ChromaCollectionConfig(
             name="career_brand",
             collection_type=CollectionType.CAREER_BRAND,
-            description="Personal career branding and positioning documents",
+            description="Personal career branding and positioning documents with versioning",
             chunk_size=300,
             chunk_overlap=50,
             metadata_schema={
                 "section": "str",
                 "tags": "str",
                 "title": "str",
-                "type": "str"
+                "type": "str",
+                "latest_version": "bool",      # Version control flag
+                "version": "int",              # Version number
+                "timestamp": "str",            # ISO timestamp
+                "narrative_id": "str",         # Which narrative owns this
+                "uploaded_at": "str"           # Upload timestamp
             }
         ))
 
@@ -485,6 +490,219 @@ class ChromaManager:
         except Exception as e:
             logger.error(f"Failed to delete collection '{collection_name}': {e}")
             return False
+
+    async def upload_career_brand_document(
+        self,
+        section: str,
+        content: str,
+        title: str,
+        narrative_id: str
+    ) -> ChromaUploadResponse:
+        """
+        Upload a career brand document with automatic versioning.
+
+        This method ensures only one "latest" version exists per section and narrative.
+        Previous versions are marked as not latest, but preserved for audit trail.
+        """
+        try:
+            # Find existing latest document for this section/narrative combo
+            existing_latest = await self.find_latest_by_section_and_narrative(section, narrative_id)
+
+            # Mark existing document as not latest (if it exists)
+            if existing_latest:
+                self.mark_version_not_latest(existing_latest["document_id"])
+
+            # Determine version number for new document
+            next_version = 1
+            if existing_latest and existing_latest.get("version"):
+                next_version = existing_latest["version"] + 1
+
+            # Create metadata with versioning
+            metadata = {
+                "section": section,
+                "latest_version": True,  # This is now the latest
+                "version": next_version,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "narrative_id": narrative_id,
+                "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                "type": "career_brand_document"
+            }
+
+            # Upload the new document as latest version
+            result = await self.upload_document(
+                collection_name="career_brand",
+                title=title,
+                document_text=content,
+                metadata=metadata,
+                tags=["career_brand", section, f"v{next_version}", "latest"]
+            )
+
+            if result.success:
+                logger.info(
+                    f"Successfully uploaded career brand document: {section} v{next_version} "
+                    f"for narrative {narrative_id}"
+                )
+            else:
+                logger.error(f"Failed to upload career brand document: {result.message}")
+
+            return result
+
+        except Exception as e:
+            error_msg = f"Failed to upload versioned career brand document for {section}: {str(e)}"
+            logger.error(error_msg)
+            return ChromaUploadResponse(
+                success=False,
+                message=error_msg,
+                collection_name="career_brand",
+                document_id="",
+                chunks_created=0,
+                error_type="VERSIONING_ERROR"
+            )
+
+    async def find_latest_by_section_and_narrative(
+        self,
+        section: str,
+        narrative_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Find the latest document for a specific section and narrative.
+
+        Returns the most recent document that has latest_version=true.
+        """
+        try:
+            result = await self.search_collection(
+                collection_name="career_brand",
+                query="",  # Empty query to get all
+                n_results=1,
+                where={
+                    "section": section,
+                    "narrative_id": narrative_id,
+                    "latest_version": True
+                },
+                include_metadata=True
+            )
+
+            if result["success"] and result["documents"] and result["metadatas"]:
+                metadata = result["metadatas"][0]
+                return {
+                    "document_id": metadata["doc_id"],
+                    "content": result["documents"][0],
+                    "metadata": metadata,
+                    "version": metadata.get("version", 1)
+                }
+
+            return None
+
+        except Exception as e:
+            logger.error(
+                f"Failed to find latest document for section '{section}' "
+                f"narrative '{narrative_id}': {e}"
+            )
+            return None
+
+    async def mark_version_not_latest(self, document_id: str) -> bool:
+        """
+        Mark a document version as not latest.
+
+        This updates the metadata to remove the latest_version flag.
+        Used when a newer version is uploaded.
+        """
+        try:
+            client = self._get_client()
+            collection = client.get_collection("career_brand")
+
+            # Get all chunks for this document (they share the doc_id)
+            where_filter = {"doc_id": document_id}
+
+            # Query to find all chunks for this document
+            results = collection.get(where=where_filter, include=["metadatas"])
+
+            if not results["metadatas"]:
+                logger.warning(f"No chunks found for document {document_id}")
+                return False
+
+            # Update each chunk's metadata to remove latest_version flag
+            chunk_ids = results["ids"]
+            updated_metadatas = []
+
+            for metadata in results["metadatas"]:
+                updated_metadata = dict(metadata)  # Make a copy
+                updated_metadata["latest_version"] = False  # Remove latest flag
+                updated_metadatas.append(updated_metadata)
+
+            # Update the collection in batch
+            collection.update(
+                ids=chunk_ids,
+                metadatas=updated_metadatas
+            )
+
+            logger.info(f"Marked document {document_id} as not latest")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to mark document {document_id} as not latest: {e}")
+            return False
+
+    async def get_career_brand_version_history(
+        self,
+        section: str,
+        narrative_id: str,
+        include_content: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        Get version history for a career brand section.
+
+        Returns all versions (old and latest) for audit and review purposes.
+        """
+        try:
+            result = await self.search_collection(
+                collection_name="career_brand",
+                query="",  # Empty query to get all
+                n_results=50,  # Get many potential versions
+                where={
+                    "section": section,
+                    "narrative_id": narrative_id
+                },
+                include_metadata=True
+            )
+
+            if not result["success"] or not result["documents"]:
+                return []
+
+            # Process and deduplicate by document_id (since multiple chunks per doc)
+            version_map = {}
+
+            for i, (content, metadata) in enumerate(
+                zip(result["documents"], result["metadatas"])
+            ):
+                doc_id = metadata["doc_id"]
+                version = metadata.get("version", 1)
+
+                if doc_id not in version_map:
+                    version_map[doc_id] = {
+                        "document_id": doc_id,
+                        "version": version,
+                        "latest_version": metadata.get("latest_version", False),
+                        "timestamp": metadata.get("timestamp"),
+                        "uploaded_at": metadata.get("uploaded_at"),
+                        "title": metadata.get("title"),
+                        "content_preview": content[:200] + "..." if len(content) > 200 else content
+                    }
+
+                    if include_content:
+                        version_map[doc_id]["full_content"] = content
+
+            # Sort by version number (descending) to show latest first
+            versions = list(version_map.values())
+            versions.sort(key=lambda x: x["version"], reverse=True)
+
+            return versions
+
+        except Exception as e:
+            logger.error(
+                f"Failed to get version history for {section}/{narrative_id}: {e}"
+            )
+            return []
 
 
 # Global manager instance

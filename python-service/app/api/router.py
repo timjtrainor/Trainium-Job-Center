@@ -10,6 +10,7 @@ from .v1.endpoints.job_review import router as job_review_router
 from .v1.endpoints.jobs import router as jobs_router
 from .v1.endpoints.chroma import router as chroma_router
 from .v1.endpoints.chroma_manager import router as chroma_manager_router
+from .v1.endpoints.career_brand import router as career_brand_router
 from .v1.endpoints.company import router as company_router
 from .v1.endpoints.linkedin_job_search import router as linkedin_job_search_router
 from .v1.endpoints.linkedin_recommended_jobs import router as linkedin_recommended_jobs_router
@@ -25,6 +26,7 @@ api_router.include_router(crewai_personal_brand_router, prefix="/crewai", tags=[
 api_router.include_router(job_posting_review_router, prefix="/crewai", tags=["CrewAI"])
 api_router.include_router(chroma_router, tags=["Vector-Database"])
 api_router.include_router(chroma_manager_router, tags=["ChromaDB Manager"])
+api_router.include_router(career_brand_router, tags=["Career Brand"])
 
 api_router.include_router(company_router, prefix="/company-research")
 api_router.include_router(linkedin_job_search_router, prefix="/crewai", tags=["CrewAI"])

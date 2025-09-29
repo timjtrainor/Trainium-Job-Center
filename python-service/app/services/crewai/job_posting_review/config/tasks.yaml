@@ -3,6 +3,7 @@ pre_filter_task:
   description: >
     Apply ONLY these rules to the job data:
     - Reject if highest_salary < 180000
+    - Reject if date_posted is older than 21 days
     - Reject if salary is missing AND seniority < "Senior"
     - Reject if Job title does not contain "Product" or "Program"
     - Reject if highest_salary < 210000 AND job_type = "in-person"
@@ -17,108 +18,247 @@ pre_filter_task:
     Example: {"recommend": false, "reason": "Rule 1: salary below 180000"}
   agent: pre_filter_agent
 
+
 # Specialized Brand Dimension Tasks - run in parallel for efficiency
 
 north_star_task:
   description: >
-    Evaluate job alignment with the candidate's North Star & Vision using the career_brand ChromaDB collection.
-    
-    Use search_career_brands with where_filter='{"section": "north_star_vision"}' to retrieve
-    relevant career brand context about the candidate's long-term vision and aspirational goals.
-    
-    Analyze how well this job opportunity aligns with their vision, purpose, and long-term career direction.
-    Provide a score (0-10) and actionable summary (1-2 sentences).
+    Evaluate job alignment with the candidate's North Star & Vision using built-in knowledge access.
+
+    Your knowledge base contains the most recent career brand information filtered to north_star_vision content.
+    Use this knowledge to analyze how well this job opportunity aligns with the candidate's vision,
+    purpose, and long-term career direction.
+
+    Use CONCRETE TIERS with specific criteria:
+    - 1: Critical mismatch (fundamental incompatibility, deal-breaker)
+    - 2: Significant hesitation (major concerns that could impact decision)
+    - 3: Acceptable (some alignment issues but workable fundamentals)
+    - 4: Good match (solid alignment with positive signals)
+    - 5: Exceptional fit (outstanding alignment, rare ideal match)
+
+    Provide a tiered score (1-5) and explain 2-3 SPECIFIC reasons from career brand content.
   expected_output: >
-    JSON with score and summary: {"score": 0-10, "summary": "Brief assessment of North Star & Vision alignment"}
+    JSON with score and reasons: {"score": 1-5, "summary": "Brief assessment with 2-3 specific reasons from career brand"}
   agent: north_star_matcher
   async_execution: true
 
 trajectory_mastery_task:
   description: >
-    Evaluate job alignment with the candidate's Trajectory & Mastery using the career_brand ChromaDB collection.
-    
-    Use search_career_brands with where_filter='{"section": "trajectory_mastery"}' to retrieve
-    relevant career brand context about the candidate's skill development path and mastery goals.
-    
-    Analyze how well this job opportunity supports their learning trajectory, skill building, and expertise development.
-    Provide a score (0-10) and actionable summary (1-2 sentences).
+    Evaluate job alignment with the candidate's Trajectory & Mastery using built-in knowledge access.
+
+    Your knowledge base contains the most recent career brand information filtered to trajectory_mastery content.
+    Use this knowledge to analyze how well this job opportunity supports skill development and career growth.
+
+    Use CONCRETE TIERS with specific criteria:
+    - 1: Critical mismatch (role prevents required skill development, career regression)
+    - 2: Significant hesitation (limited learning opportunities, wrong growth direction)
+    - 3: Acceptable (some skill overlap but minimal growth potential)
+    - 4: Good match (solid skill utilization with learning opportunities)
+    - 5: Exceptional fit (perfect skill alignment and accelerated growth trajectory)
+
+    Provide a tiered score (1-5) and explain 2-3 SPECIFIC reasons from career brand content.
   expected_output: >
-    JSON with score and summary: {"score": 0-10, "summary": "Brief assessment of Trajectory & Mastery alignment"}
+    JSON with score and reasons: {"score": 1-5, "summary": "Brief assessment with 2-3 specific reasons from career brand"}
   agent: trajectory_mastery_matcher
   async_execution: true
 
 values_compass_task:
   description: >
-    Evaluate job alignment with the candidate's Values Compass using the career_brand ChromaDB collection.
-    
-    Use search_career_brands with where_filter='{"section": "values_compass"}' to retrieve
-    relevant career brand context about the candidate's core values and cultural preferences.
-    
-    Analyze how well this job opportunity matches their values, work style, and cultural requirements.
-    Provide a score (0-10) and actionable summary (1-2 sentences).
+    Evaluate job alignment with the candidate's Values Compass using built-in knowledge access.
+
+    Your knowledge base contains the most recent career brand information filtered to values_compass content.
+    Use this knowledge to analyze cultural alignment with core principles and work style preferences.
+
+    Use CONCRETE TIERS with specific criteria:
+    - 1: Critical mismatch (toxic environment conflict with deal-breaker values)
+    - 2: Significant hesitation (multiple value conflicts or style incompatibility)
+    - 3: Acceptable (minor value differences that don't impede core work)
+    - 4: Good match (comfortable cultural alignment with positive signals)
+    - 5: Exceptional fit (perfect cultural match with inspiring environment)
+
+    Provide a tiered score (1-5) and explain 2-3 SPECIFIC reasons from career brand content.
   expected_output: >
-    JSON with score and summary: {"score": 0-10, "summary": "Brief assessment of Values Compass alignment"}
+    JSON with score and reasons: {"score": 1-5, "summary": "Brief assessment with 2-3 specific reasons from career brand"}
   agent: values_compass_matcher
   async_execution: true
 
 lifestyle_alignment_task:
   description: >
-    Evaluate job alignment with the candidate's Lifestyle Alignment using the career_brand ChromaDB collection.
-    
-    Use search_career_brands with where_filter='{"section": "lifestyle_alignment"}' to retrieve
-    relevant career brand context about the candidate's lifestyle preferences and work-life balance needs.
-    
-    Analyze how well this job opportunity supports their lifestyle requirements, location preferences, and personal commitments.
-    Provide a score (0-10) and actionable summary (1-2 sentences).
+    Evaluate job alignment with the candidate's Lifestyle Alignment using built-in knowledge access.
+
+    Your knowledge base contains the most recent career brand information filtered to lifestyle_alignment content.
+    Use this knowledge to analyze work-life balance, location requirements, and personal commitments.
+
+    Use CONCRETE TIERS with specific criteria:
+    - 1: Critical mismatch (incompatible work situation vs. family needs/geography)
+    - 2: Significant hesitation (major travel/remote issues that strain commitments)
+    - 3: Acceptable (manageable arrangement with some flexibility trade-offs)
+    - 4: Good match (comfortable work-life balance with positive arrangement signals)
+    - 5: Exceptional fit (perfect location/remote setup with excellent work-life support)
+
+    Provide a tiered score (1-5) and explain 2-3 SPECIFIC reasons from career brand content.
   expected_output: >
-    JSON with score and summary: {"score": 0-10, "summary": "Brief assessment of Lifestyle Alignment"}
+    JSON with score and reasons: {"score": 1-5, "summary": "Brief assessment with 2-3 specific reasons from career brand"}
   agent: lifestyle_alignment_matcher
   async_execution: true
 
 compensation_philosophy_task:
   description: >
-    Evaluate job alignment with the candidate's Compensation Philosophy using the career_brand ChromaDB collection.
-    
-    Use search_career_brands with where_filter='{"section": "compensation_philosophy"}' to retrieve
-    relevant career brand context about the candidate's compensation expectations and financial goals.
-    
-    Analyze how well this job opportunity meets their financial requirements, equity preferences, and benefit expectations.
-    Provide a score (0-10) and actionable summary (1-2 sentences).
+    Evaluate job alignment with the candidate's Compensation Philosophy using built-in knowledge access.
+
+    Your knowledge base contains the most recent career brand information filtered to compensation_philosophy content.
+    Use this knowledge to analyze financial alignment with salary floors, equity preferences, and expectations.
+
+    Use CONCRETE TIERS with specific criteria:
+    - 1: Critical mismatch (far below salary floor with unacceptable equity)
+    - 2: Significant hesitation (below floor or inappropriate stage/terms)
+    - 3: Acceptable (meets floor but may have wanted stage/equity preferences)
+    - 4: Good match (solid financials with positive equity/stage signals)
+    - 5: Exceptional fit (perfect compensation alignment with excellent equity terms)
+
+    Provide a tiered score (1-5) and explain 2-3 SPECIFIC reasons from career brand content.
   expected_output: >
-    JSON with score and summary: {"score": 0-10, "summary": "Brief assessment of Compensation Philosophy alignment"}
+    JSON with score and reasons: {"score": 1-5, "summary": "Brief assessment with 2-3 specific reasons from career brand"}
   agent: compensation_philosophy_matcher
+  async_execution: true
+
+purpose_impact_task:
+  description: >
+    Evaluate job alignment with the candidate's Purpose & Impact using built-in knowledge access.
+
+    Your knowledge base contains the most recent career brand information filtered to purpose_impact content.
+    Use this knowledge to analyze mission alignment with "making the world better" through societal contribution.
+
+    NOTE: Your evaluation can influence recommendations but does NOT serve as an absolute veto - provide contextual insight.
+
+    Use CONCRETE TIERS with specific criteria:
+    - 1: Critical mismatch (mission fundamentally opposed to societal betterment)
+    - 2: Significant hesitation (neutral or slightly misaligned with impact goals)
+    - 3: Acceptable (partial alignment but not core mission focus)
+    - 4: Good match (meaningful impact potential with positive societal contribution)
+    - 5: Exceptional fit (perfect alignment with major world-betterment impact)
+
+    Provide a tiered score (1-5) and explain 2-3 SPECIFIC reasons from career brand content.
+  expected_output: >
+    JSON with score and reasons: {"score": 1-5, "summary": "Brief assessment with 2-3 specific reasons from career brand"}
+  agent: purpose_impact_matcher
+  async_execution: true
+
+industry_focus_task:
+  description: >
+    Evaluate job alignment with the candidate's Industry Focus using built-in knowledge access.
+
+    Your knowledge base contains the most recent career brand information filtered to industry_focus content.
+    Use this knowledge to analyze sector alignment with preferred domains (Healthcare, EdTech, Productivity, FinTech).
+
+    NOTE: This evaluation has VERY LOW PRIORITY - provide context but don't expect it to drive major decisions.
+
+    Use CONCRETE TIERS with specific criteria:
+    - 1: Critical mismatch (opposes preferred sectors or enters strongly avoided industries)
+    - 2: Significant hesitation (neutral industry with weak sector alignment)
+    - 3: Acceptable (some tangential relevance but not preferred focus)
+    - 4: Good match (decent industry alignment with positive sector signals)
+    - 5: Exceptional fit (perfect alignment with top-preferred industry sectors)
+
+    Provide a tiered score (1-5) and explain 2-3 SPECIFIC reasons from career brand content.
+  expected_output: >
+    JSON with score and reasons: {"score": 1-5, "summary": "Brief assessment with 2-3 specific reasons from career brand"}
+  agent: industry_focus_matcher
+  async_execution: true
+
+company_filters_task:
+  description: >
+    Evaluate job alignment with the candidate's Company Filters using built-in knowledge access.
+
+    Your knowledge base contains the most recent career brand information filtered to company_filters content.
+    Use this knowledge to analyze organizational culture with preferred company types and avoid criteria.
+
+    NOTE: This evaluation has VERY LOW PRIORITY - provide minimal context only.
+
+    Use CONCRETE TIERS with specific criteria:
+    - 1: Critical mismatch (clearly matches avoided company types like PE flips or extractive industries)
+    - 2: Significant hesitation (potentially problematic culture but not clearly violating)
+    - 3: Acceptable (neutral culture without strong signals either way)
+    - 4: Good match (some alignment with preferred cultures like growth-stage transparent execs)
+    - 5: Exceptional fit (perfect company culture match with exciting organizational signals)
+
+    Provide a tiered score (1-5) and explain 2-3 SPECIFIC reasons from career brand content.
+  expected_output: >
+    JSON with score and reasons: {"score": 1-5, "summary": "Brief assessment with 2-3 specific reasons from career brand"}
+  agent: company_filters_matcher
+  async_execution: true
+
+constraints_task:
+  description: >
+    Evaluate job compliance with the candidate's Constraints using built-in knowledge access.
+
+    Your knowledge base contains the most recent career brand information filtered to constraints content.
+    Use this knowledge to identify CRITICAL CONSTRAINTS that CAN SERVE AS ABSOLUTE VETOS.
+
+    Use CONCRETE TIERS with specific criteria:
+    - 1: Critical mismatch (violates deal-breakers: toxic cultures, founder micromanagement, geography, citizenship)
+    - 2: Significant hesitation (multiple constraint concerns, potential work authorization issues)
+    - 3: Acceptable (one minor constraint issue but largely compliant)
+    - 4: Good match (fully compliant with positive availability signals)
+    - 5: Exceptional fit (perfect compliance plus exciting timing/availability factors)
+
+    If any constraints are violated, clearly flag the deal-breaker in constraint_issues.
+    This evaluation has HIGH PRIORITY - constraint violations override all positive signals.
+
+    Provide a tiered score (1-5) and identify any constraint issues in a separate field.
+  expected_output: >
+    JSON with score and constraint issues: {"score": 1-5, "constraint_issues": "Specific deal-breakers violated or 'none' if compliant"}
+  agent: constraints_matcher
   async_execution: true
 
 # Manager task that combines specialist results
 brand_match_task:
   description: >
-    Synthesize the results from all five brand dimension specialists into a comprehensive brand alignment assessment.
-    
-    You will receive context from: north_star_task, trajectory_mastery_task, values_compass_task, 
-    lifestyle_alignment_task, and compensation_philosophy_task.
-    
-    Calculate overall_alignment_score using weighted averages:
-    - north_star: 0.20 (20%)
-    - trajectory_mastery: 0.25 (25%) 
-    - values_compass: 0.15 (15%)
-    - lifestyle_alignment: 0.15 (15%)
-    - compensation_philosophy: 0.25 (25%)
-    
-    Formula: overall_score = (north_star * 0.20) + (trajectory_mastery * 0.25) + (values_compass * 0.15) + (lifestyle_alignment * 0.15) + (compensation_philosophy * 0.25)
-    
-    Provide a balanced overall summary highlighting key strengths and concerns.
+    Synthesize the results from all nine brand dimension specialists into a comprehensive brand alignment assessment
+    using weighted scoring to reflect relative importance with user-specified priorities.
+
+    You will receive context from: north_star_task, trajectory_mastery_task, values_compass_task,
+    lifestyle_alignment_task, compensation_philosophy_task, purpose_impact_task, industry_focus_task,
+    company_filters_task, and constraints_task.
+
+    CONSTRAINTS TAKE HIGHEST PRIORITY and can serve as ABSOLUTE VETOS:
+    - If constraints_task determines constraints are violated, the job MUST NOT be recommended
+    - Constraint violations override all positive signals
+
+    Calculate overall_alignment_score using these user-specified weights:
+    - constraints: 0.25 (25%) - CAN VETO, deal-breakers override everything
+    - compensation_philosophy: 0.20 (20%) - Financial requirements critical
+    - trajectory_mastery: 0.18 (18%) - Career growth and skills development
+    - north_star: 0.15 (15%) - Long-term vision alignment
+    - values_compass: 0.10 (10%) - Cultural fit and values
+    - lifestyle_alignment: 0.08 (8%) - Work-life balance and location
+    - purpose_impact: 0.03 (3%) - Mission alignment, doesn't veto but influences
+    - industry_focus: 0.01 (1%) - VERY LOW priority, sector preferences
+    - company_filters: 0.00 (0%) - VERY LOW priority, company culture context only
+
+    Formula: overall_score = (constraints * 0.25) + (compensation_philosophy * 0.20) + (trajectory_mastery * 0.18) +
+                           (north_star * 0.15) + (values_compass * 0.10) + (lifestyle_alignment * 0.08) +
+                           (purpose_impact * 0.03) + (industry_focus * 0.01) + (company_filters * 0.00)
+
+    Provide a balanced overall summary that emphasizes constraints, compensation, and trajectory
+    while noting other dimensions. Flag any constraint violations prominently.
   expected_output: >
-    Comprehensive JSON with all dimensions plus weighted overall assessment and recommendation:
+    Comprehensive JSON with all nine dimensions plus weighted overall assessment and recommendation:
     {
-      "north_star": {"score": 0-10, "summary": "Brief North Star & Vision assessment"},
-      "trajectory_mastery": {"score": 0-10, "summary": "Brief Trajectory & Mastery assessment"},
-      "values_compass": {"score": 0-10, "summary": "Brief Values Compass assessment"},
-      "lifestyle_alignment": {"score": 0-10, "summary": "Brief Lifestyle Alignment assessment"},
-      "compensation_philosophy": {"score": 0-10, "summary": "Brief Compensation Philosophy assessment"},
+      "north_star": {"score": 1-5, "summary": "Brief assessment with specific reasons from career brand"},
+      "trajectory_mastery": {"score": 1-5, "summary": "Brief assessment with specific reasons"},
+      "values_compass": {"score": 1-5, "summary": "Brief assessment with specific reasons"},
+      "lifestyle_alignment": {"score": 1-5, "summary": "Brief assessment with specific reasons"},
+      "compensation_philosophy": {"score": 1-5, "summary": "Brief assessment with specific reasons"},
+      "purpose_impact": {"score": 1-5, "summary": "Brief assessment with specific reasons"},
+      "industry_focus": {"score": 1-5, "summary": "Brief assessment with specific reasons"},
+      "company_filters": {"score": 1-5, "summary": "Brief assessment with specific reasons"},
+      "constraints": {"score": 1-5, "constraint_issues": "Specific deal-breakers violated or 'none'"},
       "overall_alignment_score": 0-10,
-      "overall_summary": "Balanced 1-2 sentence summary highlighting key insights",
+      "overall_summary": "Balanced summary emphasizing constraints, compensation, trajectory",
       "recommend": true/false,
-      "confidence": "high/medium/low"
+      "confidence": "high/medium/low",
+      "constraint_issues": "Any constraint violations flagged"
     }
   validation_schema:
     type: object
@@ -128,8 +268,8 @@ brand_match_task:
         properties:
           score:
             type: int
-            minimum: 0
-            maximum: 10
+            minimum: 1
+            maximum: 5
           summary:
             type: string
       trajectory_mastery:
@@ -137,8 +277,8 @@ brand_match_task:
         properties:
           score:
             type: int
-            minimum: 0
-            maximum: 10
+            minimum: 1
+            maximum: 5
           summary:
             type: string
       values_compass:
@@ -146,8 +286,8 @@ brand_match_task:
         properties:
           score:
             type: int
-            minimum: 0
-            maximum: 10
+            minimum: 1
+            maximum: 5
           summary:
             type: string
       lifestyle_alignment:
@@ -155,8 +295,8 @@ brand_match_task:
         properties:
           score:
             type: int
-            minimum: 0
-            maximum: 10
+            minimum: 1
+            maximum: 5
           summary:
             type: string
       compensation_philosophy:
@@ -164,12 +304,48 @@ brand_match_task:
         properties:
           score:
             type: int
-            minimum: 0
-            maximum: 10
+            minimum: 1
+            maximum: 5
           summary:
             type: string
+      purpose_impact:
+        type: object
+        properties:
+          score:
+            type: int
+            minimum: 1
+            maximum: 5
+          summary:
+            type: string
+      industry_focus:
+        type: object
+        properties:
+          score:
+            type: int
+            minimum: 1
+            maximum: 5
+          summary:
+            type: string
+      company_filters:
+        type: object
+        properties:
+          score:
+            type: int
+            minimum: 1
+            maximum: 5
+          summary:
+            type: string
+      constraints:
+        type: object
+        properties:
+          score:
+            type: int
+            minimum: 1
+            maximum: 5
+          constraint_issues:
+            type: string
       overall_alignment_score:
-        type: int
+        type: number
         minimum: 0
         maximum: 10
       overall_summary:
@@ -179,63 +355,27 @@ brand_match_task:
       confidence:
         type: string
         enum: [low, medium, high]
+      constraint_issues:
+        type: string
     required:
       - north_star
       - trajectory_mastery
       - values_compass
       - lifestyle_alignment
       - compensation_philosophy
+      - purpose_impact
+      - industry_focus
+      - company_filters
+      - constraints
       - overall_alignment_score
       - overall_summary
       - recommend
       - confidence
+      - constraint_issues
     additionalProperties: false
   constraints:
     - Only output valid JSON. Do not include markdown formatting or extra text.
     - Do not include explanations, reasoning, or commentary in the output.
+    - Constraints always trump scoring - flag violations prominently.
   agent: brand_match_manager
-  context: [north_star_task, trajectory_mastery_task, values_compass_task, lifestyle_alignment_task, compensation_philosophy_task]
-
-orchestration_task:
-  description: >
-    You are the Job Review Orchestrator managing the evaluation pipeline for structured job data: {{job_posting}}
-
-    **OPTIMIZED WORKFLOW** (quick_fit removed):
-    
-    Your workflow:
-    1. Start with pre_filter_agent to apply rejection criteria (salary, seniority, job_type)
-    2. **STOP IMMEDIATELY** if pre_filter_agent returns recommend: false - do not run any more tasks
-    3. If pre-filter passes, run brand matching workflow (5 specialist agents + manager in parallel)
-    4. Combine results for final recommendation
-    
-    **EARLY TERMINATION RULE**: If pre_filter_agent recommends rejection, immediately return final decision without further analysis.
-    
-    **CONCISE OUTPUT FORMAT**:
-    Return exactly this JSON structure:
-    ```json
-    {
-      "final": {
-        "recommend": boolean,
-        "rationale": "Concise explanation (1-2 sentences max)", 
-        "confidence": "low|medium|high"
-      },
-      "personas": [
-        {
-          "id": "agent_name", 
-          "recommend": boolean,
-          "reason": "Brief agent reason (1 sentence)"
-        }
-      ],
-      "tradeoffs": ["max 2-3 key tradeoffs if any"],
-      "actions": ["max 1-2 key actions if any"],
-      "sources": ["list of agents that contributed"]
-    }
-    ```
-    
-    **PERFORMANCE OPTIMIZATION**:
-    - Use "Delegate work to coworker" tool for each agent
-    - Keep all text concise - no verbose explanations
-    - Include only agents that actually ran in the personas array
-  expected_output: >
-    Concise JSON object with keys: final, personas, tradeoffs, actions, sources.
-  agent: managing_agent
+  context: [north_star_task, trajectory_mastery_task, values_compass_task, lifestyle_alignment_task, compensation_philosophy_task, purpose_impact_task, industry_focus_task, company_filters_task, constraints_task]
