@@ -161,6 +161,9 @@ def optimize_fresh_job_window(site_name: str, current_hour_window: Optional[int]
 
     # If no current window, start with middle value
     if current_hour_window is None:
+        if not available_windows:
+            logger.warning(f"No available windows for site '{site_name}', returning default value 24.")
+            return 24  # Default fallback value
         return available_windows[len(available_windows) // 2]  # Middle value
 
     # Cycle to next window, wrap around if needed
