@@ -131,9 +131,10 @@ async def scrape_jobs(
             if not scrape_run_id:
                 raise HTTPException(status_code=500, detail="Failed to create scrape run record")
             
-            # Enqueue the job
-            job_info = queue_service.enqueue_scraping_job(
+            # Enqueue the job with site-level locking to prevent bot detection
+            job_info = queue_service.enqueue_with_site_lock(
                 payload=payload,
+                site_name=payload.get("site_name", "unknown"),
                 site_schedule_id=None,
                 trigger="manual",
                 run_id=run_id
