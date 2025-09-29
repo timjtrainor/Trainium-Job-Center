@@ -138,19 +138,20 @@ class SchedulerService:
 
                     payload = {**payload_dict, "site_name": schedule["site_name"]}
 
-                    # Choose the appropriate queue method based on site type
+                    # Use site-locked enqueueing to prevent overlapping execution per site
                     if site_name.lower() == "linkedin":
-                        # Use LinkedIn job search for LinkedIn sites
-                        job_info = self.queue_service.enqueue_linkedin_job_search(
+                        # Use LinkedIn job search for LinkedIn sites with site locking
+                        job_info = self.queue_service.enqueue_linkedin_with_site_lock(
                             payload=payload,
                             site_schedule_id=schedule_id,
                             trigger="schedule",
                             run_id=run_id
                         )
                     else:
-                        # Use regular scraping for other sites
-                        job_info = self.queue_service.enqueue_scraping_job(
+                        # Use regular scraping for other sites with site locking
+                        job_info = self.queue_service.enqueue_with_site_lock(
                             payload=payload,
+                            site_name=site_name,
                             site_schedule_id=schedule_id,
                             trigger="schedule",
                             run_id=run_id
