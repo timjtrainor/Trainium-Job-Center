@@ -173,7 +173,7 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
                         </div>
 
                         {/* Score Badge */}
-                        <div className={`px-3 py-1 rounded-full text-white text-sm font-semibold ${getScoreColor(currentJob.overall_alignment_score)} bg-white bg-opacity-90`}>
+                        <div className={`px-3 py-1 rounded-full text-sm font-semibold ${getScoreColor(currentJob.overall_alignment_score)} bg-white bg-opacity-90`}>
                             {currentJob.overall_alignment_score.toFixed(1)}/10
                         </div>
                     </div>
