@@ -18,7 +18,7 @@ from .v1.endpoints.brand_driven_job_search import router as brand_driven_job_sea
 
 from ..routes.jobs_fit_review import router as jobs_fit_review_router
 
-api_router = APIRouter()
+api_router = APIRouter(prefix="/api")
 
 api_router.include_router(jobspy_router, prefix="/job-feed", tags=["Job Feed"])
 api_router.include_router(scheduler_router, prefix="/scheduler", tags=["Scheduler"])

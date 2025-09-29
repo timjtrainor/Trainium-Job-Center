@@ -11,11 +11,16 @@ export default defineConfig(({ mode }) => {
         host: true, // Listen on all network interfaces
         port: 5173, // The port inside the container
         proxy: {
-          // Proxy API requests to the PostgREST service
+          // Proxy FastAPI requests to the Python service
+          '/api': {
+            target: 'http://python-service:8000', // FastAPI service
+            changeOrigin: true,
+          },
+          // Proxy other API requests to the PostgREST service
           // Any request to a path that doesn't have a file extension (like /products)
           // will be forwarded to the target.
           '/^(?!.*\\.\\w+$).*$': {
-            target: 'http://postgrest:3000', // The service name and port from docker-compose
+            target: 'http://postgrest:3000', // PostgREST service
             changeOrigin: true,
           }
         }
