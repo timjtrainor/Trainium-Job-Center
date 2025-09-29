@@ -203,3 +203,35 @@ async def delete_career_brand_document(
             status_code=500,
             detail=f"Failed to delete document: {str(e)}"
         )
+
+
+@router.get("/documents", response_model=List[CareerBrandDocumentInfo])
+async def get_uploaded_documents(
+    profile_id: str = Query(..., description="Profile ID (narrative ID) for filtering documents"),
+    show_history: bool = Query(False, description="Whether to show full version history"),
+    service: CareerBrandService = Depends(get_career_brand_service)
+):
+    """
+    Get uploaded documents for a profile/narrative (matches frontend expectations).
+
+    This endpoint matches the frontend's expected URL pattern:
+    GET /api/documents?profile_id={profile_id}
+
+    Maps profile_id (frontend term) to narrative_id (backend term) for compatibility.
+    """
+    try:
+        await service.initialize()
+        documents = await service.get_career_brand_documents(
+            narrative_id=profile_id,  # Map profile_id to narrative_id
+            show_history=show_history
+        )
+
+        logger.info(f"Retrieved {len(documents)} documents for profile {profile_id}")
+        return documents
+
+    except Exception as e:
+        logger.error(f"Failed to get documents for profile {profile_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve documents: {str(e)}"
+        )

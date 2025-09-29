@@ -61,14 +61,14 @@ services:
     container_name: trainium_chromadb
     restart: always
     ports:
-      - "${CHROMA_PORT:-8001}:8000"
+      - "${CHROMA_PORT:-8001}:8001"
     volumes:
       - chroma_data:/chroma/chroma
     environment:
       - CHROMA_SERVER_HOST=0.0.0.0
-      - CHROMA_SERVER_HTTP_PORT=8000
+      - CHROMA_HOST_PORT=8001
     healthcheck:
-      test: [ "CMD", "/bin/bash", "-c", "cat < /dev/null > /dev/tcp/localhost/8000" ]
+      test: [ "CMD", "/bin/bash", "-c", "cat < /dev/null > /dev/tcp/localhost/8001" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -82,6 +82,8 @@ services:
     restart: always
     ports:
       - "${FRONTEND_PORT}:5173"
+    environment:
+      DOCKER: true
     volumes:
       # Mount the current directory ('.') which is the frontend source code
       - .:/app
@@ -95,6 +97,31 @@ services:
     depends_on:
       - postgrest
       - python-service
+
+  # Llama.cpp local inference server with model access from Hugging Face
+  llama-cpp:
+    image: ghcr.io/ggerganov/llama.cpp:server
+    container_name: trainium_llama_cpp
+    build:
+      context: .
+      dockerfile: Dockerfile.llamacpp
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - llama_models:/models:ro
+    environment:
+      - LLAMA_CURL_DISABLE_TLS=1
+    command: >
+      --model /models/phi-2.Q4_K_M.gguf
+      --host 0.0.0.0
+      --port 8080
+      --ctx-size 2048
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Defines the Python AI microservice
   python-service:
@@ -111,11 +138,13 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DEBUG: ${DEBUG:-false}
+      PYTHONUNBUFFERED: 1
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       TAVILY_API_KEY: ${TAVILY_API_KEY}
       LLM_PREFERENCE: ${LLM_PREFERENCE}
       OLLAMA_HOST: ${OLLAMA_HOST}
+      LLAMA_CPP_HOST: http://llama-cpp:8080
       POSTGREST_URL: ${POSTGREST_URL}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
@@ -134,10 +163,12 @@ services:
         condition: service_healthy
       chromadb:
         condition: service_healthy
+      llama-cpp:
+        condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -270,5 +301,4 @@ volumes:
   postgres_data:
   redis_data:
   chroma_data:
-
-
+  llama_models:

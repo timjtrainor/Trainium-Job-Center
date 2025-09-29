@@ -13,14 +13,14 @@ export default defineConfig(({ mode }) => {
         proxy: {
           // Proxy FastAPI requests to the Python service
           '/api': {
-            target: 'http://python-service:8000', // FastAPI service
+            target: env.DOCKER === 'true' ? 'http://python-service:8000' : 'http://localhost:8180', // Docker internal vs localhost
             changeOrigin: true,
           },
           // Proxy other API requests to the PostgREST service
           // Any request to a path that doesn't have a file extension (like /products)
           // will be forwarded to the target.
           '/^(?!.*\\.\\w+$).*$': {
-            target: 'http://postgrest:3000', // PostgREST service
+            target: env.DOCKER === 'true' ? 'http://postgrest:3000' : 'http://localhost:3000', // Docker internal vs localhost
             changeOrigin: true,
           }
         }

@@ -7,6 +7,8 @@ from typing import Optional
 from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
 
+from ..knowledge_sources import get_knowledge_sources_from_config
+
 # Set environment variables to minimize CrewAI logging and event issues
 os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "true")
 os.environ.setdefault("CREWAI_DISABLE_EVENTS", "true")
@@ -24,6 +26,24 @@ class JobPostingReviewCrew:
     agents_config = "config/agents.yaml"
     tasks_config = "config/tasks.yaml"
 
+    def _create_agent_with_knowledge_sources(self, agent_config: dict) -> Agent:
+        """Create an agent and replace knowledge sources with concrete implementations."""
+        # Remove knowledge_sources from config to prevent abstract class instantiation
+        config_copy = agent_config.copy()
+        knowledge_sources_config = config_copy.pop('knowledge_sources', None)
+
+        # Create agent without knowledge sources
+        agent = Agent(config=config_copy)
+
+        # Add concrete knowledge sources if they were specified
+        if knowledge_sources_config:
+            concrete_sources = get_knowledge_sources_from_config(knowledge_sources_config)
+            if concrete_sources:
+                # Add knowledge sources to the agent
+                agent.knowledge_sources = concrete_sources
+
+        return agent
+
     @agent
     def pre_filter_agent(self) -> Agent:
         """Agent that applies hard-coded rejection rules to filter unqualified jobs."""
@@ -32,47 +52,47 @@ class JobPostingReviewCrew:
     @agent
     def north_star_matcher(self) -> Agent:
         """Agent that evaluates job alignment with user's North Star & Vision."""
-        return Agent(config=self.agents_config["north_star_matcher"])  # type: ignore[index]
+        return self._create_agent_with_knowledge_sources(self.agents_config["north_star_matcher"])  # type: ignore[index]
 
     @agent
     def trajectory_mastery_matcher(self) -> Agent:
         """Agent that evaluates job alignment with user's Trajectory & Mastery goals."""
-        return Agent(config=self.agents_config["trajectory_mastery_matcher"])  # type: ignore[index]
+        return self._create_agent_with_knowledge_sources(self.agents_config["trajectory_mastery_matcher"])  # type: ignore[index]
 
     @agent
     def values_compass_matcher(self) -> Agent:
         """Agent that evaluates job alignment with user's Values Compass."""
-        return Agent(config=self.agents_config["values_compass_matcher"])  # type: ignore[index]
+        return self._create_agent_with_knowledge_sources(self.agents_config["values_compass_matcher"])  # type: ignore[index]
 
     @agent
     def lifestyle_alignment_matcher(self) -> Agent:
         """Agent that evaluates job alignment with user's Lifestyle preferences."""
-        return Agent(config=self.agents_config["lifestyle_alignment_matcher"])  # type: ignore[index]
+        return self._create_agent_with_knowledge_sources(self.agents_config["lifestyle_alignment_matcher"])  # type: ignore[index]
 
     @agent
     def compensation_philosophy_matcher(self) -> Agent:
         """Agent that evaluates job alignment with user's Compensation Philosophy."""
-        return Agent(config=self.agents_config["compensation_philosophy_matcher"])  # type: ignore[index]
+        return self._create_agent_with_knowledge_sources(self.agents_config["compensation_philosophy_matcher"])  # type: ignore[index]
 
     @agent
     def purpose_impact_matcher(self) -> Agent:
         """Agent that evaluates job alignment with user's Purpose & Impact goals."""
-        return Agent(config=self.agents_config["purpose_impact_matcher"])  # type: ignore[index]
+        return self._create_agent_with_knowledge_sources(self.agents_config["purpose_impact_matcher"])  # type: ignore[index]
 
     @agent
     def industry_focus_matcher(self) -> Agent:
         """Agent that evaluates job alignment with user's Industry Focus preferences."""
-        return Agent(config=self.agents_config["industry_focus_matcher"])  # type: ignore[index]
+        return self._create_agent_with_knowledge_sources(self.agents_config["industry_focus_matcher"])  # type: ignore[index]
 
     @agent
     def company_filters_matcher(self) -> Agent:
         """Agent that evaluates job alignment with user's Company culture preferences."""
-        return Agent(config=self.agents_config["company_filters_matcher"])  # type: ignore[index]
+        return self._create_agent_with_knowledge_sources(self.agents_config["company_filters_matcher"])  # type: ignore[index]
 
     @agent
     def constraints_matcher(self) -> Agent:
         """Agent that evaluates job compliance with user's hard requirements and deal-breakers."""
-        return Agent(config=self.agents_config["constraints_matcher"])  # type: ignore[index]
+        return self._create_agent_with_knowledge_sources(self.agents_config["constraints_matcher"])  # type: ignore[index]
 
     @agent
     def brand_match_manager(self) -> Agent:

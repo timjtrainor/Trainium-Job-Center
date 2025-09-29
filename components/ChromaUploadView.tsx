@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { DocumentTextIcon, TrashIcon, EyeIcon, SparklesIcon, ArrowUturnLeftIcon, CheckIcon, RocketLaunchIcon } from './IconComponents';
 import * as apiService from '../services/apiService';
+import { FASTAPI_BASE_URL } from '../constants';
 import { StrategicNarrative, UploadedDocument, ContentType, UploadSuccessResponse } from '../types';
 import { useToast } from '../hooks/useToast';
 
@@ -15,6 +16,12 @@ const CONTENT_TYPES: { [key in ContentType]: { name: string; description: string
         description: 'Upload one of your 9 brand framework sections',
         endpoint: '/career-brand',
         sections: ['North Star', 'Values', 'Positioning Statement', 'Signature Capability', 'Impact Story'],
+    },
+    career_brand_full: {
+        name: 'Career Brand (Full Document)',
+        description: 'Upload your complete Career Brand document - automatically splits by H1 headers',
+        endpoint: '/documents/career-brand/full',
+        sections: [],
     },
     career_path: {
         name: 'Career Path',
@@ -176,12 +183,12 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
     const validate = () => {
         const newErrors: { [key: string]: string } = {};
         if (!narrativeId) newErrors.narrative = "Narrative is required.";
-        if (!title.trim()) newErrors.title = "Title is required.";
-        if (contentType !== 'resume' && !content.trim()) {
+        if (contentType !== 'career_brand_full' && !title.trim()) newErrors.title = "Title is required.";
+        if (contentType !== 'resume' && contentType !== 'career_brand_full' && !content.trim()) {
             newErrors.content = "Content is required.";
         }
-        if (contentType === 'resume' && !file) {
-            newErrors.file = "A file is required for resume uploads.";
+        if ((contentType === 'resume' || contentType === 'career_brand_full') && !file) {
+            newErrors.file = contentType === 'career_brand_full' ? "A file is required for full document uploads." : "A file is required for resume uploads.";
         }
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -189,20 +196,48 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
     
     const handleSubmit = async () => {
         if (!validate()) return;
-        
+
         setIsUploading(true);
         try {
             let result: UploadSuccessResponse;
             const finalSection = contentType === 'resume' ? 'resume' : section;
 
-            if (contentType === 'resume' && file) {
+            if ((contentType === 'resume' || contentType === 'career_brand_full') && file) {
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('profile_id', narrativeId);
-                formData.append('section', finalSection);
-                formData.append('title', title);
                 formData.append('metadata', JSON.stringify({ uploaded_at: new Date().toISOString() }));
-                result = await apiService.uploadResume(formData);
+
+                if (contentType === 'resume') {
+                    formData.append('section', finalSection);
+                    formData.append('title', title);
+                    result = await apiService.uploadResume(formData);
+                } else if (contentType === 'career_brand_full') {
+                    // Use the FastAPI endpoint for full document processing
+                    const fastApiBase = FASTAPI_BASE_URL.replace(/\/+$/u, '') || '/api';
+                    const url = `${fastApiBase}${CONTENT_TYPES[contentType].endpoint}`;
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (!response.ok || data.success === false) {
+                        throw new Error(data.detail || data.message || 'Upload failed');
+                    }
+                    // Convert response format to match UploadSuccessResponse
+                    result = {
+                        success: true,
+                        message: data.message || 'Upload successful',
+                        document: {
+                            id: 'bulk_upload',
+                            profile_id: narrativeId,
+                            title: file.name,
+                            content_type: contentType,
+                            section: 'multiple_sections',
+                            created_at: new Date().toISOString(),
+                        }
+                    };
+                }
             } else {
                 const payload = {
                     profile_id: narrativeId,
@@ -256,7 +291,7 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
                             {errors.narrative && <p className="text-xs text-red-500 mt-1">{errors.narrative}</p>}
                         </div>
 
-                        {contentType !== 'resume' && (
+                        {contentType !== 'resume' && contentType !== 'career_brand_full' && (
                             <div>
                                 <label htmlFor="section" className={labelClass}>Section</label>
                                 <select id="section" value={section} onChange={e => setSection(e.target.value)} className={inputClass}>
@@ -264,18 +299,25 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
                                 </select>
                             </div>
                         )}
-                        
-                        <div>
-                            <label htmlFor="title" className={labelClass}>Title</label>
-                            <input type="text" id="title" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} />
-                            {errors.title && <p className="text-xs text-red-500 mt-1">{errors.title}</p>}
-                        </div>
 
-                        {contentType === 'resume' ? (
+                        {contentType !== 'career_brand_full' && (
                             <div>
-                                <label htmlFor="file" className={labelClass}>Resume File</label>
-                                <input type="file" id="file" ref={fileInputRef} onChange={e => setFile(e.target.files ? e.target.files[0] : null)} accept=".txt,.md" className="text-sm" />
-                                <p className="text-xs text-slate-500 mt-1">Please upload a plain text (.txt, .md) file. PDF/DOCX support requires additional libraries.</p>
+                                <label htmlFor="title" className={labelClass}>Title</label>
+                                <input type="text" id="title" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} />
+                                {errors.title && <p className="text-xs text-red-500 mt-1">{errors.title}</p>}
+                            </div>
+                        )}
+
+                        {(contentType === 'resume' || contentType === 'career_brand_full') ? (
+                            <div>
+                                <label htmlFor="file" className={labelClass}>{contentType === 'career_brand_full' ? 'Full Career Brand Document' : 'Resume File'}</label>
+                                <input type="file" id="file" ref={fileInputRef} onChange={e => setFile(e.target.files ? e.target.files[0] : null)} accept=".txt,.md,.markdown" className="text-sm" />
+                                <p className="text-xs text-slate-500 mt-1">
+                                    {contentType === 'career_brand_full'
+                                        ? "Upload your complete Career Brand document. Each H1 header (#) will be parsed as a separate section."
+                                        : "Please upload a plain text (.txt, .md) file. PDF/DOCX support requires additional libraries."
+                                    }
+                                </p>
                                 {errors.file && <p className="text-xs text-red-500 mt-1">{errors.file}</p>}
                             </div>
                         ) : (

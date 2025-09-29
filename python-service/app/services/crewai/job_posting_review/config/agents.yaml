@@ -15,7 +15,7 @@ pre_filter_agent:
     4. Reject if highest_salary < 210000 AND job_type = "in-person" → reason: "Rule 4: in-person salary below 210000"
     5. Reject if job title does not contain "Product" or "Program" → reason: "Rule 5: job title does not contain 'Product' or 'Program'"
     Otherwise → {"recommend": true}
-  llm: "ollama/gpt-oss:20b"
+  llm: "llamacpp/phi-2"
   allow_delegation: false
   max_iter: 1
   verbose: false
@@ -37,18 +37,18 @@ north_star_matcher:
 
     Use your knowledge of the candidate's most recent career vision content to assess
     how well this job opportunity supports their long-term goals and aspirations.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "north_star_vision"
-          latest_version: true
+  # knowledge_sources:
+  #   - type: chroma
+  #     config:
+  #       host: "chromadb"
+  #       port: 8000
+  #       collection: "career_brand"
+  #       filters:
+  #         section: "north_star_vision"
+  #         latest_version: true
   memory: false
   max_iter: 1
-  llm: "ollama/gpt-oss:20b"
+  llm: "llamacpp/phi-2"
 
 trajectory_mastery_matcher:
   role: >
@@ -64,18 +64,18 @@ trajectory_mastery_matcher:
 
     Use your knowledge of the candidate's most recent skill development trajectory
     to assess how well this job opportunity supports their growth and mastery goals.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "trajectory_mastery"
-          latest_version: true
+  # TEMPORARILY DISABLED - knowledge_sources:
+  #   - type: chroma
+  #     config:
+  #       host: "chromadb"
+  #       port: 8000
+  #       collection: "career_brand"
+  #       filters:
+  #         section: "trajectory_mastery"
+  #         latest_version: true
   memory: false
   max_iter: 1
-  llm: "ollama/gpt-oss:20b"
+  llm: "llamacpp/phi-2"
 
 values_compass_matcher:
   role: >
@@ -91,18 +91,18 @@ values_compass_matcher:
 
     Use your knowledge of the candidate's most recent values and cultural preferences
     to assess how well this job opportunity matches their core principles and work style.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "values_compass"
-          latest_version: true
+  # TEMPORARILY DISABLED - knowledge_sources:
+  #   - type: chroma
+  #     config:
+  #       host: "chromadb"
+  #       port: 8000
+  #       collection: "career_brand"
+  #       filters:
+  #         section: "values_compass"
+  #         latest_version: true
   memory: false
   max_iter: 1
-  llm: "ollama/gpt-oss:20b"
+  llm: "llamacpp/phi-2"
 
 lifestyle_alignment_matcher:
   role: >
@@ -118,18 +118,18 @@ lifestyle_alignment_matcher:
 
     Use your knowledge of the candidate's most recent lifestyle preferences and work-life balance needs
     to assess how well this job opportunity supports their personal and professional balance.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "lifestyle_alignment"
-          latest_version: true
+  # TEMPORARILY DISABLED - knowledge_sources:
+  #   - type: chroma
+  #     config:
+  #       host: "chromadb"
+  #       port: 8000
+  #       collection: "career_brand"
+  #       filters:
+  #         section: "lifestyle_alignment"
+  #         latest_version: true
   memory: false
   max_iter: 1
-  llm: "ollama/gpt-oss:20b"
+  llm: "llamacpp/phi-2"
 
 compensation_philosophy_matcher:
   role: >
@@ -145,18 +145,18 @@ compensation_philosophy_matcher:
 
     Use your knowledge of the candidate's most recent compensation expectations and financial goals
     to assess how well this job opportunity meets their salary and benefits requirements.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "compensation_philosophy"
-          latest_version: true
+  # TEMPORARILY DISABLED - knowledge_sources:
+  #   - type: chroma
+  #     config:
+  #       host: "chromadb"
+  #       port: 8000
+  #       collection: "career_brand"
+  #       filters:
+  #         section: "compensation_philosophy"
+  #         latest_version: true
   memory: false
   max_iter: 1
-  llm: "ollama/gpt-oss:20b"
+  llm: "llamacpp/phi-2"
 
 purpose_impact_matcher:
   role: >
@@ -177,18 +177,18 @@ purpose_impact_matcher:
 
     Use your knowledge of the candidate's most recent purpose and impact goals
     to assess how well this job opportunity aligns with their mission to "make the world better."
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "purpose_impact"
-          latest_version: true
+  # TEMPORARILY DISABLED - knowledge_sources:
+  #   - type: chroma
+  #     config:
+  #       host: "chromadb"
+  #       port: 8000
+  #       collection: "career_brand"
+  #       filters:
+  #         section: "purpose_impact"
+  #         latest_version: true
   memory: false
   max_iter: 1
-  llm: "ollama/gpt-oss:20b"
+  llm: "llamacpp/phi-2"
 
 industry_focus_matcher:
   role: >
@@ -209,18 +209,18 @@ industry_focus_matcher:
 
     Use your knowledge of the candidate's most recent industry preferences
     to provide sector alignment context for the final recommendation.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "industry_focus"
-          latest_version: true
+  # TEMPORARILY DISABLED - knowledge_sources:
+  #   - type: chroma
+  #     config:
+  #       host: "chromadb"
+  #       port: 8000
+  #       collection: "career_brand"
+  #       filters:
+  #         section: "industry_focus"
+  #         latest_version: true
   memory: false
   max_iter: 1
-  llm: "ollama/gpt-oss:20b"
+  llm: "llamacpp/phi-2"
 
 company_filters_matcher:
   role: >
@@ -241,18 +241,18 @@ company_filters_matcher:
 
     Use your knowledge of the candidate's most recent company culture preferences
     to provide organizational alignment context for the final recommendation.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "company_filters"
-          latest_version: true
+  # TEMPORARILY DISABLED - knowledge_sources:
+  #   - type: chroma
+  #     config:
+  #       host: "chromadb"
+  #       port: 8000
+  #       collection: "career_brand"
+  #       filters:
+  #         section: "company_filters"
+  #         latest_version: true
   memory: false
   max_iter: 1
-  llm: "ollama/gpt-oss:20b"
+  llm: "llamacpp/phi-2"
 
 constraints_matcher:
   role: >
@@ -274,18 +274,18 @@ constraints_matcher:
     If constraints are violated, clearly communicate the deal-breaker reasoning.
     Use your knowledge of the candidate's most recent hard requirements and deal-breakers
     to assess whether this job opportunity is fundamentally viable.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "constraints"
-          latest_version: true
+  # TEMPORARILY DISABLED - knowledge_sources:
+  #   - type: chroma
+  #     config:
+  #       host: "chromadb"
+  #       port: 8000
+  #       collection: "career_brand"
+  #       filters:
+  #         section: "constraints"
+  #         latest_version: true
   memory: false
   max_iter: 1
-  llm: "ollama/gpt-oss:20b"
+  llm: "llamacpp/phi-2"
 
 # Manager Agent for combining specialist results
 brand_match_manager:
@@ -330,4 +330,4 @@ brand_match_manager:
     Provide a balanced overall summary that emphasizes constraints, compensation, and trajectory while noting other dimensions.
   memory: false
   max_iter: 1
-  llm: "ollama/gpt-oss:20b"
+  llm: "llamacpp/phi-2"
