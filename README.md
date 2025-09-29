@@ -114,6 +114,8 @@ sqitch deploy
 ```bash
 # Frontend
 npm install
+# Configure FastAPI host (optional if using default /api proxy)
+echo "VITE_FASTAPI_BASE_URL=http://localhost:8000" > .env.local
 npm run dev
 
 # Python service
@@ -126,6 +128,12 @@ python worker.py        # Job processing
 python scheduler_daemon.py  # Scheduled jobs
 python poller_daemon.py     # Job polling
 ```
+
+### Frontend Environment Variables
+
+- `VITE_FASTAPI_BASE_URL`: URL for the FastAPI service used by the UI. Defaults to `/api`, which supports reverse proxies that
+  mount the backend behind the frontend domain. Set this when the FastAPI service runs on a different host or port (for example,
+  `http://localhost:8000`).
 
 ### Verification
 
