@@ -98,30 +98,7 @@ services:
       - postgrest
       - python-service
 
-  # Llama.cpp local inference server with model access from Hugging Face
-  llama-cpp:
-    image: ghcr.io/ggerganov/llama.cpp:server
-    container_name: trainium_llama_cpp
-    build:
-      context: .
-      dockerfile: Dockerfile.llamacpp
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    volumes:
-      - llama_models:/models:ro
-    environment:
-      - LLAMA_CURL_DISABLE_TLS=1
-    command: >
-      --model /models/phi-2.Q4_K_M.gguf
-      --host 0.0.0.0
-      --port 8080
-      --ctx-size 2048
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+
 
   # Defines the Python AI microservice
   python-service:
@@ -134,7 +111,6 @@ services:
     ports:
       - "${PYTHON_SERVICE_PORT:-8000}:8000"
     environment:
-      # Environment configuration for Python service
       ENVIRONMENT: ${ENVIRONMENT:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DEBUG: ${DEBUG:-false}
@@ -142,9 +118,9 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       TAVILY_API_KEY: ${TAVILY_API_KEY}
-      LLM_PREFERENCE: ${LLM_PREFERENCE}
-      OLLAMA_HOST: ${OLLAMA_HOST}
-      LLAMA_CPP_HOST: http://llama-cpp:8080
+      LLM_PREFERENCE: ollama:qwen3:8b,openai:gpt-4o-mini,gemini:gemini-2.0-flash-lite
+      OLLAMA_HOST: http://host.docker.internal:11434
+      OLLAMA_API_BASE: http://host.docker.internal:11434
       POSTGREST_URL: ${POSTGREST_URL}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
@@ -162,8 +138,6 @@ services:
       redis:
         condition: service_healthy
       chromadb:
-        condition: service_healthy
-      llama-cpp:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -189,8 +163,9 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       TAVILY_API_KEY: ${TAVILY_API_KEY}
-      LLM_PREFERENCE: ${LLM_PREFERENCE}
-      OLLAMA_HOST: ${OLLAMA_HOST}
+      LLM_PREFERENCE: ollama:qwen3:8b,openai:gpt-4o-mini,gemini:gemini-2.0-flash-lite
+      OLLAMA_HOST: http://host.docker.internal:11434
+      OLLAMA_API_BASE: http://host.docker.internal:11434
       POSTGREST_URL: ${POSTGREST_URL}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
@@ -225,8 +200,9 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       TAVILY_API_KEY: ${TAVILY_API_KEY}
-      LLM_PREFERENCE: ${LLM_PREFERENCE}
-      OLLAMA_HOST: ${OLLAMA_HOST}
+      LLM_PREFERENCE: ollama:qwen3:8b,openai:gpt-4o-mini,gemini:gemini-2.0-flash-lite
+      OLLAMA_HOST: http://host.docker.internal:11434
+      OLLAMA_API_BASE: http://host.docker.internal:11434
       POSTGREST_URL: ${POSTGREST_URL}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
@@ -301,4 +277,4 @@ volumes:
   postgres_data:
   redis_data:
   chroma_data:
-  llama_models:
+  

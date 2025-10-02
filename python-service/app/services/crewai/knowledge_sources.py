@@ -19,6 +19,12 @@ class ChromaKnowledgeSource(BaseKnowledgeSource):
     Provides vector-based retrieval of relevant documents for agent context.
     """
 
+    collection_name: str
+    host: str = "chromadb"
+    port: int = 8001
+    filters: Optional[Dict[str, Any]] = {}
+    top_k: int = 5
+
     def __init__(
         self,
         collection_name: str,
@@ -39,13 +45,17 @@ class ChromaKnowledgeSource(BaseKnowledgeSource):
             top_k: Maximum number of documents to retrieve
             search_type: Type of search ("similarity" or "mmr")
         """
-        super().__init__()
-        self.collection_name = collection_name
-        self.host = host
-        self.port = port
-        self.filters = filters or {}
-        self.top_k = top_k
-        self.search_type = search_type
+        # Initialize Pydantic model with required data
+        data = {
+            'collection_name': collection_name,
+            'host': host,
+            'port': port,
+            'filters': filters or {},
+            'top_k': top_k
+        }
+        super().__init__(**data)
+        # Store non-pydantic attributes
+        object.__setattr__(self, '_search_type', search_type)
 
         # Initialize ChromaDB client
         self._chroma_service = ChromaService()

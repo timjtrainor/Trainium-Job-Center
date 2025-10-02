@@ -15,6 +15,11 @@ import chromadb
 from crewai.knowledge.source.string_knowledge_source import StringKnowledgeSource
 from crewai.knowledge.storage.knowledge_storage import KnowledgeStorage
 
+
+class KnowledgeSourceLoadError(Exception):
+    """Exception raised when knowledge sources cannot be loaded from external dependencies."""
+    pass
+
 # IMPORT MODELS AT MODULE LEVEL for CrewAI dynamic imports
 from models.creaii_schemas import PreFilterResult, BrandDimensionAnalysis, ConstraintsAnalysis, BrandMatchComplete
 
@@ -39,18 +44,32 @@ class JobPostingReviewCrew:
     tasks_config = "config/tasks.yaml"
 
     def _inject_knowledge_sources_into_agents(self, crew_instance):
-        """ENABLE proper ChromaDB knowledge sources with error handling."""
+        """ENABLE proper ChromaDB knowledge sources with error handling and retry logic."""
 
-        try:
-            # Connect to external ChromaDB container
-            client = chromadb.HttpClient(host="chromadb", port=8001)
-            # Test connection with heartbeat
-            client.heartbeat()
-            logger.info("✅ ChromaDB connection successful")
-        except Exception as e:
-            logger.warning(f"⚠️ ChromaDB connection failed: {e}")
-            logger.warning("🔄 Falling back to no knowledge sources")
-            return
+        import time
+
+        # Retry connection with exponential backoff
+        client = None
+        for attempt in range(3):
+            try:
+                # Connect to external ChromaDB container
+                client = chromadb.HttpClient(host="chromadb", port=8001)
+                # Test connection with heartbeat
+                client.heartbeat()
+                logger.info(f"✅ ChromaDB connection successful (attempt {attempt + 1})")
+                break
+            except Exception as e:
+                if attempt == 2:
+                    raise KnowledgeSourceLoadError(
+                        f"Cannot load knowledge sources: ChromaDB connection failed after 3 attempts: {e}. "
+                        f"The job review system cannot operate without career context knowledge. "
+                        f"Please ensure the ChromaDB service is running and accessible."
+                    )
+                else:
+                    wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                    logger.warning(f"⚠️ ChromaDB connection attempt {attempt + 1} failed: {e}")
+                    logger.info(f"⏳ Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)
 
         # Setup knowledge for each agent type
         knowledge_mapping = {}
@@ -89,19 +108,17 @@ class JobPostingReviewCrew:
             client = chromadb.HttpClient(host="chromadb", port=8001)
             collection = client.get_collection("career_brand")
 
-            # Query documents with specific dimension metadata
-            results = collection.query(
-                query_texts=[""],  # Empty query to get all documents with this dimension
+            # Use get() with metadata filter instead of query() with empty string
+            # This is more efficient and semantically correct for metadata filtering
+            results = collection.get(
                 where={"dimension": dimension_name},
-                n_results=50,  # Get up to 50 documents for comprehensive coverage
+                limit=50,  # Get up to 50 documents for comprehensive coverage
                 include=["documents", "metadatas"]
             )
 
             # Combine all matching documents into knowledge content
-            if results['documents'] and len(results['documents']) > 0:
-                content_parts = []
-                for doc_list in results['documents']:
-                    content_parts.extend(doc_list if isinstance(doc_list, list) else [doc_list])
+            if results and results.get('documents') and len(results['documents']) > 0:
+                content_parts = results['documents']
                 content = "\n\n".join(content_parts)
                 logger.info(f"✅ Loaded {len(content_parts)} documents for {dimension_name}")
             else:
@@ -356,10 +373,25 @@ class JobPostingReviewCrew:
     @task
     def brand_match_task(self):
         """Task to synthesize all brand dimension analyses into final recommendation."""
-        # Build Task with explicit parameters (not using config= to avoid overrides)
+
         return Task(
-            description=self.tasks_config["brand_match_task"]["description"],
-            expected_output=self.tasks_config["brand_match_task"]["expected_output"],
+            description="""
+            SYNTHESIS TASK: Receive results from 9 specialist agents as context PLUS a pre-calculated overall_alignment_score.
+
+            Your job is:
+            1. VERIFY you have all 9 specialist results as context
+            2. APPLY constraint veto logic (if constraints score ≤ 2, recommend=false regardless of calculated score)
+            3. DETERMINE confidence level based on the overall_alignment_score ranges
+            4. WRITE comprehensive summary explaining all dimensions and recommendations
+            5. OUTPUT complete final assessment structure
+
+            MATH CALCULATIONS AND THRESHOLDS ARE HANDLED BY THE SYSTEM - Focus on synthesis and judgment.
+
+            CONSTRAINT VETO ALWAYS APPLIES: Deal-breakers override positive scores.
+
+            CRITICAL: Output complete BrandMatchComplete JSON structure including all individual results.
+            """,
+            expected_output="Complete BrandMatchComplete JSON with pre-calculated overall_alignment_score and comprehensive synthesis",
             output_pydantic=BrandMatchComplete,
             agent=self.brand_match_manager(),
             context=[
@@ -372,7 +404,7 @@ class JobPostingReviewCrew:
                 self.industry_focus_task(),
                 self.company_filters_task(),
                 self.constraints_task(),
-            ],
+            ]
         )
 
     @crew
@@ -395,8 +427,8 @@ class JobPostingReviewCrew:
                 self.brand_match_manager(),
             ],
             tasks=[
-                self.pre_filter_task(),
-                # All brand analysis tasks run in parallel
+                self.pre_filter_task(),  # Runs first
+                # All brand analysis tasks run in parallel (async_execution=True)
                 self.north_star_task(),
                 self.trajectory_mastery_task(),
                 self.values_compass_task(),
@@ -406,7 +438,7 @@ class JobPostingReviewCrew:
                 self.industry_focus_task(),
                 self.company_filters_task(),
                 self.constraints_task(),
-                # Final synthesis task
+                # Final synthesis task - waits for all parallel tasks
                 self.brand_match_task(),
             ],
             process=Process.sequential,  # Orchestration handled externally

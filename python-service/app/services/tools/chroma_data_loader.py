@@ -261,8 +261,6 @@ As AI reshaped the industry, I evolved again — into an adoption and trust buil
 Across every role, I’ve been a translator between technical and business stakeholders — at Nike, I built personas that helped data teams understand their “customers” and shifted them toward business-value delivery. And I’ve been a focused problem solver, keeping teams aligned on what truly matters and delivering results on time and under budget.
 Looking forward, I’m building toward my North Star: to lead as a Director of AI Product, shaping human-centered AI systems that expand access, reduce cost barriers, and earn adoption and trust. While my direct domain experience has been in EdTech and regulated SaaS (HIPAA exposure), I’m now focused on applying those lessons to healthcare, where the stakes are highest. By 2035, I aim to help make AI-enabled healthcare accessible and affordable to 100M people — while training the next generation of product leaders to carry that mission forward.
 """
-EMBED = get_embedding_function()
-
 # token-aware chunker is best; placeholder uses words
 def chunk_words(text: str, words_per_chunk=300, overlap=50) -> List[str]:
     words = text.split()
@@ -278,31 +276,78 @@ def chunk_words(text: str, words_per_chunk=300, overlap=50) -> List[str]:
 def sha1(s: str) -> str:
     return hashlib.sha1(s.encode("utf-8")).hexdigest()
 
-client = get_chroma_client()  # ensure PersistentClient(path="./data/chroma")
+def initialize_career_brand_collection(force_reset: bool = False) -> None:
+    """
+    Initialize the career_brand ChromaDB collection with the career brand framework.
 
-collection = client.get_or_create_collection(
-    name=COLL_NAME,
-    embedding_function=EMBED,
-    metadata={"purpose":"career brand definition","embed_model":"BAAI/bge-m3"}
-)
+    WARNING: This operation will DELETE EXISTING DATA if force_reset=True or if the collection
+    does not exist and needs to be created with different embedding dimensions.
 
-doc_id = str(uuid.uuid4())
-chunks = chunk_words(DOC_TEXT, 300, 50)
+    This function is intentionally NOT called during module import to prevent accidental
+    data loss. You must explicitly call this function when you want to initialize/reset
+    the career brand data.
+    """
+    if not force_reset:
+        print(f"⚠️  SAFETY CHECK: To initialize/update the {COLL_NAME} collection, you must pass force_reset=True")
+        print("   Usage: initialize_career_brand_collection(force_reset=True)")
+        return
 
-ids = [f"{doc_id}::c{i}" for i in range(len(chunks))]
-metas = [{
-    "title": TITLE,
-    "tags": TAGS,
-    "created_at": CREATED_AT,
-    "version": "v1",
-    "type": "career_brand_doc",
-    "seq": i,
-    "doc_id": doc_id,
-    "content_hash": sha1(chunks[i]),
-} for i in range(len(chunks))]
+    # Get embedding function lazily when needed (not at module level for safety)
+    embed = get_embedding_function()
 
-collection.add(
-    ids=ids,
-    documents=chunks,
-    metadatas=metas,
-)
+    client = get_chroma_client()  # ensure PersistentClient(path="./data/chroma")
+
+    # Delete old collection if it exists (to handle embedding dimension change)
+    try:
+        client.delete_collection(COLL_NAME)
+        print(f"✅ Deleted old {COLL_NAME} collection")
+    except Exception as e:
+        print(f"ℹ️  No existing collection to delete or delete failed: {e}")
+
+    collection = client.get_or_create_collection(
+        name=COLL_NAME,
+        embedding_function=embed,
+        metadata={"purpose":"career brand definition","embed_model":"all-MiniLM-L6-v2"}
+    )
+    print(f"✅ Created new {COLL_NAME} collection with all-MiniLM-L6-v2 embeddings")
+
+    doc_id = str(uuid.uuid4())
+    chunks = chunk_words(DOC_TEXT, 300, 50)
+
+    ids = [f"{doc_id}::c{i}" for i in range(len(chunks))]
+    metas = [{
+        "title": TITLE,
+        "tags": ",".join(TAGS),  # Convert list to comma-separated string
+        "created_at": CREATED_AT,
+        "version": "v1",
+        "type": "career_brand_doc",
+        "seq": i,
+        "doc_id": doc_id,
+        "content_hash": sha1(chunks[i]),
+    } for i in range(len(chunks))]
+
+    collection.add(
+        ids=ids,
+        documents=chunks,
+        metadatas=metas,
+    )
+    print(f"✅ Added {len(chunks)} career brand document chunks to collection")
+    print("✅ Career brand collection initialized successfully!")
+
+
+# DEPRECATED: Module-level initialization removed for safety
+# Use initialize_career_brand_collection(force_reset=True) instead
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) == 2 and sys.argv[1] == "--force-reset":
+        print("🔄 Force reset requested via CLI")
+        initialize_career_brand_collection(force_reset=True)
+    elif len(sys.argv) == 1:
+        print("⚠️  SAFETY: This module no longer initializes the collection on import")
+        print("   To initialize the career_brand collection, run with: --force-reset")
+        print("   Usage: python chroma_data_loader.py --force-reset")
+    else:
+        print("❌ Invalid usage. Use: python chroma_data_loader.py --force-reset")
+        sys.exit(1)
