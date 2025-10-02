@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getReviewedJobs, ReviewedJobsFilters, ReviewedJobsSort } from '../services/apiService';
 import { ReviewedJob, PaginatedResponse, ReviewedJobRecommendation } from '../types';
-import { LoadingSpinner, CheckIcon, XCircleIcon } from './IconComponents';
+import { LoadingSpinner, CheckIcon, XCircleIcon, TableCellsIcon, Squares2X2Icon } from './IconComponents';
 import { JobReviewModal } from './JobReviewModal';
+import { JobCardView } from './JobCardView';
 
 const SortableHeader = ({ label, sortKey, currentSort, onSort }: { label: string, sortKey: ReviewedJobsSort['by'], currentSort: ReviewedJobsSort, onSort: (by: ReviewedJobsSort['by']) => void }) => {
     const isCurrent = currentSort.by === sortKey;
@@ -38,11 +39,12 @@ export const ReviewedJobsView = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(1);
-    const [filters, setFilters] = useState<ReviewedJobsFilters>({ recommendation: 'All' });
+    const [filters, setFilters] = useState<ReviewedJobsFilters>({ recommendation: 'Recommended' });
     const [sort, setSort] = useState<ReviewedJobsSort>({ by: 'date_posted', order: 'desc' });
     const [minScoreFilter, setMinScoreFilter] = useState('');
     const [selectedJob, setSelectedJob] = useState<ReviewedJob | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
 
     const fetchJobs = useCallback(async () => {
         setIsLoading(true);
@@ -200,9 +202,37 @@ export const ReviewedJobsView = () => {
                             <input type="number" id="score-filter" value={minScoreFilter} onChange={handleScoreFilterChange} min="0" max="10" step="0.1" className="mt-1 block w-full sm:w-24 rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="e.g., 7.5" />
                         </div>
                     </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setViewMode('cards')}
+                            className={`p-2 rounded-lg ${viewMode === 'cards' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'}`}
+                            title="Card view"
+                        >
+                            <Squares2X2Icon className="h-5 w-5" />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('table')}
+                            className={`p-2 rounded-lg ${viewMode === 'table' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'}`}
+                            title="Table view"
+                        >
+                            <TableCellsIcon className="h-5 w-5" />
+                        </button>
+                    </div>
                 </div>
                 <div className="mt-4">
-                    {isLoading ? <div className="flex justify-center items-center p-8"><LoadingSpinner /><span className="ml-2">Loading...</span></div> : error ? <div className="p-4 bg-red-50 text-red-700 rounded-md">Error: {error}</div> : renderTable()}
+                    {isLoading ? (
+                        <div className="flex justify-center items-center p-8"><LoadingSpinner /><span className="ml-2">Loading...</span></div>
+                    ) : error ? (
+                        <div className="p-4 bg-red-50 text-red-700 rounded-md">Error: {error}</div>
+                    ) : viewMode === 'cards' ? (
+                        data && <JobCardView
+                            jobs={data.items}
+                            onOverrideSuccess={handleOverrideSuccess}
+                            currentPage={page}
+                            onPageChange={setPage}
+                            isLoading={isLoading}
+                        />
+                    ) : renderTable()}
                 </div>
                 {!isLoading && data && data.pages > 1 && (
                     <div className="flex items-center justify-between mt-4">

@@ -29,6 +29,22 @@ try:
 except ImportError:
     genai = None
 
+try:
+    from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+    HAS_TENACITY = True
+except ImportError:
+    # Create no-op versions of all tenacity functions to avoid import errors
+    def retry(*args, **kwargs):
+        def decorator(f):
+            return f  # Return function unchanged
+        return decorator
+    def stop_after_attempt(*args, **kwargs):
+        pass  # Dummy, won't be used since retry is no-op
+    def wait_exponential(*args, **kwargs):
+        pass  # Dummy, won't be used since retry is no-op
+    retry_if_exception_type = None
+    HAS_TENACITY = False
+
 from ...core.config import resolve_api_key
 
 
@@ -58,39 +74,79 @@ class OllamaClient(BaseLLMClient):
 
     def __init__(self, model: str, host: str = "http://localhost:11434") -> None:
         super().__init__(model)
-        self.host = host
+        self.hosts = [host]
+        # Add fallback if using docker internal
+        if "host.docker.internal" in host:
+            self.hosts.append(host.replace("host.docker.internal", "localhost"))
 
     def is_available(self) -> bool:
-        """Check if Ollama service is available."""
+        """Check if Ollama service is available on any configured host."""
         if ollama is None:
             logger.warning("Ollama client not available - package not installed")
             return False
 
-        try:
-            # Quick health check
-            response = httpx.get(f"{self.host}/api/tags", timeout=5)
-            return response.status_code == 200
-        except Exception as e:
-            logger.warning(f"Ollama service not available at {self.host}: {e}")
+        if httpx is None:
+            logger.warning("httpx not available - cannot check Ollama health")
             return False
 
-    def generate(self, prompt: str, **kwargs: Dict) -> str:
-        """Generate text using Ollama."""
-        if not self.is_available():
-            raise ConnectionError(f"Ollama service not available at {self.host}")
+        for host in self.hosts:
+            try:
+                # Quick health check
+                response = httpx.get(f"{host}/api/tags", timeout=5)
+                if response.status_code == 200:
+                    return True
+            except Exception as e:
+                logger.debug(f"Ollama service not available at {host}: {e}")
+                continue
 
-        try:
-            # Use ollama client
-            client = ollama.Client(host=self.host)
-            response = client.chat(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                options=kwargs.get("options", {})
-            )
-            return response["message"]["content"]
-        except Exception as e:
-            logger.error(f"Ollama generation failed: {e}")
-            raise
+        logger.warning(f"Ollama service not available on any host: {self.hosts}")
+        return False
+
+    def generate(self, prompt: str, **kwargs: Dict) -> str:
+        """Generate text using Ollama with retry logic."""
+        return self._generate_with_retry(prompt, **kwargs)
+
+    if HAS_TENACITY:
+        @retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=2, max=10),
+            retry=retry_if_exception_type((httpx.RequestError, httpx.ConnectError, ConnectionError))
+        )
+        def _generate_with_retry(self, prompt: str, **kwargs: Dict) -> str:
+            """Generate with retry (when tenacity is available)."""
+            return self._generate_impl(prompt, **kwargs)
+    else:
+        def _generate_with_retry(self, prompt: str, **kwargs: Dict) -> str:
+            """Generate without retry (when tenacity is not available)."""
+            return self._generate_impl(prompt, **kwargs)
+
+    def _generate_impl(self, prompt: str, **kwargs: Dict) -> str:
+        """Generate text using Ollama, trying all configured hosts in sequence."""
+        last_error = None
+        for host in self.hosts:
+            try:
+                # Check health for this specific host
+                response = httpx.get(f"{host}/api/tags", timeout=5)
+                if response.status_code == 200:
+                    # Use ollama client with this working host
+                    client = ollama.Client(host=host)
+                    response = client.chat(
+                        model=self.model,
+                        messages=[{"role": "user", "content": prompt}],
+                        options=kwargs.get("options", {})
+                    )
+                    return response["message"]["content"]
+                else:
+                    error = RuntimeError(f"Host {host} returned status {response.status_code}")
+                    logger.warning(f"Ollama host {host} not healthy: {error}")
+                    last_error = error
+            except Exception as e:
+                logger.warning(f"Ollama generation failed at {host}: {e}")
+                last_error = e
+                continue
+
+        # All hosts failed
+        raise last_error or ConnectionError(f" Ollama service not available on any host: {self.hosts}")
 
 
 class OpenAIClient(BaseLLMClient):
@@ -161,7 +217,7 @@ class GeminiClient(BaseLLMClient):
         """Generate text using Gemini."""
         if not self.is_available():
             raise ValueError("Gemini client not properly configured")
-            
+
         try:
             response = self.client.models.generate_content(
                 model=self.model,
@@ -173,10 +229,63 @@ class GeminiClient(BaseLLMClient):
             raise
 
 
+class VLLMClient(BaseLLMClient):
+    """Client for vLLM server with OpenAI-compatible API."""
+
+    provider = "vllm"
+
+    def __init__(self, model: str, host: str = "http://localhost:8000") -> None:
+        super().__init__(model)
+        self.host = host
+
+    def is_available(self) -> bool:
+        """Check if vLLM service is available."""
+        if httpx is None:
+            logger.warning("httpx not available for vLLM client")
+            return False
+
+        try:
+            # Quick health check using vLLM health endpoint
+            response = httpx.get(f"{self.host}/health", timeout=5)
+            return response.status_code == 200
+        except Exception as e:
+            logger.warning(f"vLLM service not available at {self.host}: {e}")
+            return False
+
+    def generate(self, prompt: str, **kwargs: Dict) -> str:
+        """Generate text using vLLM OpenAI API."""
+        if not self.is_available():
+            raise ConnectionError(f"vLLM service not available at {self.host}")
+
+        try:
+            # Use OpenAI-compatible API endpoint
+            url = f"{self.host}/v1/chat/completions"
+            data = {
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": kwargs.get("max_tokens", 1000),
+                "temperature": kwargs.get("temperature", 0.7),
+                "stream": False
+            }
+
+            response = httpx.post(url, json=data, timeout=60)
+
+            if response.status_code != 200:
+                raise RuntimeError(f"vLLM API error: {response.status_code} - {response.text}")
+
+            result = response.json()
+            return result["choices"][0]["message"]["content"].strip()
+
+        except Exception as e:
+            logger.error(f"vLLM generation failed: {e}")
+            raise
+
+
 _CLIENT_FACTORIES: Dict[str, type[BaseLLMClient]] = {
     OllamaClient.provider: OllamaClient,
     OpenAIClient.provider: OpenAIClient,
     GeminiClient.provider: GeminiClient,
+    VLLMClient.provider: VLLMClient,
 }
 
 
@@ -232,6 +341,12 @@ class LLMRouter:
                 settings = get_settings()
                 ollama_host = getattr(settings, 'ollama_host', 'http://localhost:11434')
                 kwargs['host'] = ollama_host
+            elif provider == "vllm":
+                # Allow configurable vLLM host
+                from ...core.config import get_settings
+                settings = get_settings()
+                vllm_host = getattr(settings, 'vllm_host', 'http://localhost:8000')
+                kwargs['host'] = vllm_host
 
             self._clients[key] = create_llm_client(provider, model, **kwargs)
         return self._clients[key]

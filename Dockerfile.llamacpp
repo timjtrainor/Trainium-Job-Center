@@ -1,0 +1,16 @@
+FROM ghcr.io/ggerganov/llama.cpp:server
+
+# Pre-download and store model in build cache
+# This example uses Microsoft Phi-2 (2.7B) - excellent for cost-conscious, well-defined processes
+RUN mkdir -p /models && \
+    cd /models && \
+    # Download Phi-2 model (quantized GGUF version from TheBloke)
+    curl -L -o phi-2.Q4_K_M.gguf "https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf" && \
+    # Alternative: Mistral-7B Instruct (if you prefer)
+    # curl -L -o mistral-7b-instruct-v0.1.Q4_K_M.gguf "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.1-GGUF/resolve/main/mistral-7b-instruct-v0.1.Q4_K_M.gguf" && \
+    # Alternative: Orca Mini (fine-tuned for helpfulness)
+    # curl -L -o orca_mini_v3_13b.Q4_K_M.gguf "https://huggingface.co/TheBloke/orca_mini_v3_13B-GGUF/resolve/main/orca_mini_v3_13b.Q4_K_M.gguf" && \
+    ls -la /models/
+
+# Copy models to final image
+VOLUME ["/models"]

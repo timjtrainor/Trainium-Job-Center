@@ -39,20 +39,33 @@ class DatabaseService:
         return None
 
     async def initialize(self) -> bool:
-        """Initialize database connection pool."""
-        try:
-            self.pool = await asyncpg.create_pool(
-                self.settings.database_url,
-                min_size=2,
-                max_size=10,
-                command_timeout=30
-            )
-            self.initialized = True
-            logger.info("Database connection pool initialized")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to initialize database pool: {str(e)}")
-            return False
+        """Initialize database connection pool with retry logic."""
+        import asyncio
+
+        for attempt in range(5):  # Retry up to 5 times
+            try:
+                self.pool = await asyncpg.create_pool(
+                    self.settings.database_url,
+                    min_size=1,
+                    max_size=5,
+                    command_timeout=15  # Reduced timeout
+                )
+                self.initialized = True
+                logger.info("Database connection pool initialized")
+                return True
+            except Exception as e:
+                error_msg = str(e)
+                if "sorry, too many clients already" in error_msg:
+                    wait_time = (attempt + 1) * 2  # 2, 4, 6, 8, 10 seconds
+                    logger.warning(f"Too many clients, retrying in {wait_time}s (attempt {attempt + 1}/5)")
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(f"Failed to initialize database pool: {error_msg}")
+                    return False
+
+        logger.error("Failed to initialize database pool after 5 attempts")
+        return False
 
     async def close(self):
         """Close database connection pool."""
@@ -225,7 +238,7 @@ class DatabaseService:
             logger.error(f"Failed to check site lock: {str(e)}")
             return True  # Err on the side of caution
 
-    async def insert_persona_evaluation(self, evaluation: "PersonaEvaluation") -> bool:
+    async def insert_persona_evaluation(self, evaluation: Dict[str, Any]) -> bool:
         """Persist a persona evaluation result."""
         if not self.initialized:
             await self.initialize()
@@ -254,7 +267,7 @@ class DatabaseService:
             logger.error(f"Failed to insert evaluation: {str(e)}")
             return False
 
-    async def insert_decision(self, decision: "Decision") -> bool:
+    async def insert_decision(self, decision: Dict[str, Any]) -> bool:
         """Persist final judge decision."""
         if not self.initialized:
             await self.initialize()
@@ -580,7 +593,7 @@ class DatabaseService:
 
         if recommendation is not None:
             param_count += 1
-            where_conditions.append(f"jr.recommend = ${param_count}")
+            where_conditions.append(f"COALESCE(jr.override_recommend, jr.recommend) = ${param_count}")
             params.append(recommendation)
 
         if min_score is not None:
@@ -749,4 +762,3 @@ class DatabaseService:
 def get_database_service() -> DatabaseService:
     """Create a new database service instance."""
     return DatabaseService()
-

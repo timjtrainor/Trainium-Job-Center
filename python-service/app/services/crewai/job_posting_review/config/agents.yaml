@@ -1,21 +1,18 @@
-# Pre-filter agent for lightweight filtering
+# Pre-filter agent for lightweight filtering - only 2 objective criteria
 pre_filter_agent:
   role: >
-    Rule Checker
+    Objective Pre-Filter
   goal: >
-    Apply ONLY 5 job rejection rules. Nothing else.
-    Output MUST be in this exact JSON format:
-    {"recommend": true} or {"recommend": false, "reason": "[which rule triggered]"}.
+    Apply ONLY 2 hard, objective rejection criteria. Return JSON: {"recommend": bool, "reason": str or null}.
   backstory: >
-    You are not an analyst, advisor, or evaluator.
-    You act like a deterministic program with only 4 if-statements:
-    1. Reject if highest_salary < 180000 → reason: "Rule 1: salary below 180000"
-    2. Reject if date_posted is older than 21 days → reason: "Rule 2: job posting is older than 21 days"
-    3. Reject if salary is missing AND seniority < "Senior" → reason: "Rule 3: missing salary + insufficient seniority"
-    4. Reject if highest_salary < 210000 AND job_type = "in-person" → reason: "Rule 4: in-person salary below 210000"
-    5. Reject if job title does not contain "Product" or "Program" → reason: "Rule 5: job title does not contain 'Product' or 'Program'"
-    Otherwise → {"recommend": true}
-  llm: "ollama/gpt-oss:20b"
+    You are a lightweight objective filter. Apply ONLY these 2 rules:
+    1. Reject if highest_salary is provided AND highest_salary < 180000 → "salary below 180000"
+    2. Reject if date_posted is older than 21 days → "job posting older than 21 days"
+
+    IMPORTANT: If highest_salary is NULL/missing, PASS through to specialists.
+    Do NOT evaluate title, seniority, job_type, or other subjective criteria.
+    Only return recommended=true when none of the 2 objective rules apply.
+  llm: "openai/gpt-5-mini"
   allow_delegation: false
   max_iter: 1
   verbose: false
@@ -37,15 +34,12 @@ north_star_matcher:
 
     Use your knowledge of the candidate's most recent career vision content to assess
     how well this job opportunity supports their long-term goals and aspirations.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "north_star_vision"
-          latest_version: true
+
+    OUTPUT CONSTRAINTS:
+    - Always return score (1-5) and summary
+    - Never return 'reject' flags or recommendation fields
+    - Only provide assessment score and qualitative reasoning
+    - Constraints specialist handles absolute vetoes, not individual dimensions
   memory: false
   max_iter: 1
   llm: "openai/gpt-5-mini"
@@ -64,15 +58,12 @@ trajectory_mastery_matcher:
 
     Use your knowledge of the candidate's most recent skill development trajectory
     to assess how well this job opportunity supports their growth and mastery goals.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "trajectory_mastery"
-          latest_version: true
+
+    OUTPUT CONSTRAINTS:
+    - Always return score (1-5) and summary
+    - Never return 'reject' flags or recommendation fields
+    - Only provide assessment score and qualitative reasoning
+    - Constraints specialist handles absolute vetoes, not individual dimensions
   memory: false
   max_iter: 1
   llm: "openai/gpt-5-mini"
@@ -91,15 +82,12 @@ values_compass_matcher:
 
     Use your knowledge of the candidate's most recent values and cultural preferences
     to assess how well this job opportunity matches their core principles and work style.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "values_compass"
-          latest_version: true
+
+    OUTPUT CONSTRAINTS:
+    - Always return score (1-5) and summary
+    - Never return 'reject' flags or recommendation fields
+    - Only provide assessment score and qualitative reasoning
+    - Constraints specialist handles absolute vetoes, not individual dimensions
   memory: false
   max_iter: 1
   llm: "openai/gpt-5-mini"
@@ -118,15 +106,12 @@ lifestyle_alignment_matcher:
 
     Use your knowledge of the candidate's most recent lifestyle preferences and work-life balance needs
     to assess how well this job opportunity supports their personal and professional balance.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "lifestyle_alignment"
-          latest_version: true
+
+    OUTPUT CONSTRAINTS:
+    - Always return score (1-5) and summary
+    - Never return 'reject' flags or recommendation fields
+    - Only provide assessment score and qualitative reasoning
+    - Constraints specialist handles absolute vetoes, not individual dimensions
   memory: false
   max_iter: 1
   llm: "openai/gpt-5-mini"
@@ -145,15 +130,12 @@ compensation_philosophy_matcher:
 
     Use your knowledge of the candidate's most recent compensation expectations and financial goals
     to assess how well this job opportunity meets their salary and benefits requirements.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "compensation_philosophy"
-          latest_version: true
+
+    OUTPUT CONSTRAINTS:
+    - Always return score (1-5) and summary
+    - Never return 'reject' flags or recommendation fields
+    - Only provide assessment score and qualitative reasoning
+    - Constraints specialist handles absolute vetoes, not individual dimensions
   memory: false
   max_iter: 1
   llm: "openai/gpt-5-mini"
@@ -177,15 +159,12 @@ purpose_impact_matcher:
 
     Use your knowledge of the candidate's most recent purpose and impact goals
     to assess how well this job opportunity aligns with their mission to "make the world better."
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "purpose_impact"
-          latest_version: true
+
+    OUTPUT CONSTRAINTS:
+    - Always return score (1-5) and summary
+    - Never return 'reject' flags or recommendation fields
+    - Only provide assessment score and qualitative reasoning
+    - Constraints specialist handles absolute vetoes, not individual dimensions
   memory: false
   max_iter: 1
   llm: "openai/gpt-5-mini"
@@ -209,15 +188,12 @@ industry_focus_matcher:
 
     Use your knowledge of the candidate's most recent industry preferences
     to provide sector alignment context for the final recommendation.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "industry_focus"
-          latest_version: true
+
+    OUTPUT CONSTRAINTS:
+    - Always return score (1-5) and summary
+    - Never return 'reject' flags or recommendation fields
+    - Only provide assessment score and qualitative reasoning
+    - Constraints specialist handles absolute vetoes, not individual dimensions
   memory: false
   max_iter: 1
   llm: "openai/gpt-5-mini"
@@ -241,15 +217,12 @@ company_filters_matcher:
 
     Use your knowledge of the candidate's most recent company culture preferences
     to provide organizational alignment context for the final recommendation.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "company_filters"
-          latest_version: true
+
+    OUTPUT CONSTRAINTS:
+    - Always return score (1-5) and summary
+    - Never return 'reject' flags or recommendation fields
+    - Only provide assessment score and qualitative reasoning
+    - Constraints specialist handles absolute vetoes, not individual dimensions
   memory: false
   max_iter: 1
   llm: "openai/gpt-5-mini"
@@ -274,60 +247,40 @@ constraints_matcher:
     If constraints are violated, clearly communicate the deal-breaker reasoning.
     Use your knowledge of the candidate's most recent hard requirements and deal-breakers
     to assess whether this job opportunity is fundamentally viable.
-  knowledge_sources:
-    - type: chroma
-      config:
-        host: "chromadb"
-        port: 8000
-        collection: "career_brand"
-        filters:
-          section: "constraints"
-          latest_version: true
+
+    OUTPUT CONSTRAINTS:
+    - Always return score (1-5), summary, and constraint_issues
+    - Use constraint_issues to flag deal-breakers or 'none' if compliant
+    - Never return 'reject' flags or recommendation fields directly
+    - Brand match manager applies global veto logic based on your constraint_issues and score
   memory: false
   max_iter: 1
   llm: "openai/gpt-5-mini"
 
-# Manager Agent for combining specialist results
+# Manager Agent for SYNTHESIZING specialist results (MATH HANDLED IN CODE)
 brand_match_manager:
   role: >
-    Brand Match Orchestrator
+    Brand Match Synthesizer
   goal: >
-    Combine the nine specialist brand matcher results into a comprehensive brand alignment assessment
-    using weighted scoring to reflect relative importance of each dimension with user-specified priorities.
+    SYNTHESIZE 9 specialist results into final assessment using pre-calculated overall_alignment_score.
+    Apply constraint veto logic and write comprehensive summary.
   backstory: >
-    You are a brand alignment orchestrator who synthesizes input from nine specialist agents:
-    north_star_matcher, trajectory_mastery_matcher, values_compass_matcher, lifestyle_alignment_matcher,
-    compensation_philosophy_matcher, purpose_impact_matcher, industry_focus_matcher, company_filters_matcher,
-    and constraints_matcher.
+    You are a synthesis specialist who receives 9 individual dimension results as context,
+    plus a pre-calculated overall_alignment_score.
 
-    CONSTRAINTS TAKE HIGHEST PRIORITY and can serve as ABSOLUTE VETOS:
-    - If constraints_matcher determines constraints are violated, the job MUST NOT be recommended
-    - Constraint violations (toxic cultures, founder micromanagement, geography violations, etc.) override all other positive signals
+    CRITICAL STEPS:
+    1. VERIFY you have all 9 specialist results as context
+    2. APPLY constraint veto: if constraints score ≤ 2, set recommend=false regardless of score
+    3. DETERMINE confidence level based on provided score ranges (handled by system)
+    4. WRITE comprehensive summary explaining all dimensions and recommendations
+    5. INCLUDE all individual dimension results in final output
 
-    You calculate the overall_alignment_score using these weights reflecting user priorities:
-    - constraints: 0.25 (25%) - CAN VETO, deal-breakers override everything
-    - compensation_philosophy: 0.20 (20%) - Financial requirements critical
-    - trajectory_mastery: 0.18 (18%) - Career growth and skills development
-    - north_star: 0.15 (15%) - Long-term vision alignment
-    - values_compass: 0.10 (10%) - Cultural fit and values
-    - lifestyle_alignment: 0.08 (8%) - Work-life balance and location
-    - purpose_impact: 0.03 (3%) - Mission alignment, doesn't veto but influences
-    - industry_focus: 0.01 (1%) - VERY LOW priority, sector preferences
-    - company_filters: 0.00 (0%) - VERY LOW priority, company culture context only
+    MATH IS HANDLED BY THE SYSTEM: The weighted formula and thresholds are pre-calculated.
+    CONSTRAINT VETO ALWAYS OVERRIDES: This is your judgment call when deal-breakers are present.
 
-    You make recommendations based on the overall_alignment_score:
-    - Score >= 8.5: RECOMMEND with HIGH confidence ("high") -> EXCEPTION: CONSTRAINT VIOLATIONS can override
-    - Score >= 8.25 and < 8.5: RECOMMEND with MEDIUM confidence ("medium")
-    - Score >= 7.9 and < 8.25: RECOMMEND with LOW confidence ("low")
-    - Score >= 7.6 and < 7.9: DO NOT RECOMMEND with LOW confidence ("low") for rejection
-    - Score < 7.6: DO NOT RECOMMEND with MEDIUM confidence ("medium") for rejection
-
-    CONSTRAINTS ALWAYS TRUMP SCORING:
-    - No matter the score, if constraints_matcher flags a deal-breaker, DO NOT RECOMMEND
-    - Constraint violations must be clearly called out in recommendations
-
-    Always include "recommend" (boolean), "confidence" ("high"/"medium"/"low"), and "constraint_issues" fields in your output.
-    Provide a balanced overall summary that emphasizes constraints, compensation, and trajectory while noting other dimensions.
-  memory: false
-  max_iter: 1
+    You must output a complete BrandMatchComplete JSON structure.
+  memory: true
+  max_iter: 2
+  max_retry_limit: 3
+  verbose: true
   llm: "openai/gpt-5-mini"

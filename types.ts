@@ -941,7 +941,7 @@ export type BragBankEntryPayload = Partial<Omit<BragBankEntry, 'entry_id' | 'use
 export type SkillTrendPayload = Omit<SkillTrend, 'skill_trend_id' | 'user_id' | 'created_at'>;
 
 // --- Document Upload types ---
-export type ContentType = 'career_brand' | 'career_path' | 'job_search_strategy' | 'resume';
+export type ContentType = 'career_brand' | 'career_brand_full' | 'career_path' | 'job_search_strategy' | 'resume';
 
 export interface UploadedDocument {
     id: string; // uuid from backend

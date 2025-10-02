@@ -330,6 +330,48 @@ export const ClipboardDocumentCheckIcon = ({ className }: { className: string })
 
 export const CircleStackIcon = ({ className }: { className: string }): React.ReactNode => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375" />
+    </svg>
+);
+
+export const ChevronLeftIcon = ({ className }: { className: string }): React.ReactNode => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+    </svg>
+);
+
+export const ChevronRightIcon = ({ className }: { className: string }): React.ReactNode => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+    </svg>
+);
+
+export const ThumbUpIcon = ({ className }: { className: string }): React.ReactNode => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6.633 10.5c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H14.25c-.193 0-.383.062-.562.18a.75.75 0 01-.79 0c-.179-.118-.369-.18-.562-.18H10.5a2.25 2.25 0 01-1.497-4.05c.29-.502.83-1.314.83-1.314-.194.002-.39-.025-.583-.08a4.067 4.067 0 01-2.068-1.486c-.33-.467-.513-1.025-.569-1.581a.75.75 0 01.068-.8A.75.75 0 013 6.25H4.23a2.25 2.25 0 012.11 1.566c.08.204.142.413.182.628a.75.75 0 01-.158.74c-.178.22-.44.42-.715.59A2.25 2.25 0 016.632 10.5z" />
+    </svg>
+);
+
+export const ThumbDownIcon = ({ className }: { className: string }): React.ReactNode => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 15h2.25m8.024-9.75c-.011 1.218-.097 2.596-.683 3.847-.312.605-.945.948-1.627.907h-3.126c-.663 0-.948-.477-.725-1.282.266-.558.362-.914.723-1.218A2.25 2.25 0 0016.5 6v-.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v15.15c0 1.411.704 2.671 1.773 3.33a1.464 1.464 0 001.738 0 1.593 1.593 0 000-2.252c-.624-.667-.756-1.472-.378-2.192.345-.691.803-1.408 1.27-2.042a5.317 5.317 0 011.374-1.664c.422-.312.652-.577.655-.979.006-.61.168-1.076.57-1.519.176-.186.336-.429.429-.64a.619.619 0 00.008-.666 1.554 1.554 0 01-.122-.231c-.055-.139-.055-.277 0-.415a.618.618 0 00-.062-.406c-.081-.13-.22-.512-.417-.833a2.197 2.197 0 00-.833-.694c-.37-.22-.786-.33-1.22-.383-.264-.03-.349.26-.336.52.046.038.129.068.25.112a3.498 3.498 0 01.655.316c.295.186.375.612.185.914-.092.141-.214.241-.363.218-.29-.052-.566.009-.866.25-.502.353-.955.652-1.417.93a1.415 1.415 0 00-.47.433c-.121.247-.11.544-.11.79v.1c0 1.238.37 2.42 1.054 3.45.345.522.76.98 1.23 1.4-.78.243-1.744.378-2.74.378H3.75a2.25 2.25 0 01-2.25-2.25v-2.25z" />
+    </svg>
+);
+
+export const InformationCircleIcon = ({ className }: { className: string }): React.ReactNode => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+    </svg>
+);
+
+export const TableCellsIcon = ({ className }: { className: string }): React.ReactNode => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+    </svg>
+);
+
+export const Squares2X2Icon = ({ className }: { className: string }): React.ReactNode => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
     </svg>
 );

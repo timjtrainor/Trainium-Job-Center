@@ -38,14 +38,14 @@ class Settings:
         
         # LLM Configuration
         self.llm_preference: str = os.getenv(
-            "LLM_PREFERENCE", 
-            "ollama:gpt-oss:20b,gemini:gemini-1.5-flash,openai:gpt-5-mini"
+            "LLM_PREFERENCE",
+            "ollama:gpt-oss:20b,openai:gpt-5-mini,gemini:gemini-1.5-flash,vllm:..."
         )
         self.ollama_host: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
         # ChromaDB Configuration
         self.chroma_url: str = os.getenv("CHROMA_URL", "chromadb")
-        self.chroma_port: int = int(os.getenv("CHROMA_PORT", "8000"))
+        self.chroma_port: int = int(os.getenv("CHROMA_PORT", "8001"))
         
         # Embedding Configuration
         self.embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "sentence_transformer")
