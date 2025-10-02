@@ -3,6 +3,8 @@ Job persistence service for storing scraped job data to PostgreSQL.
 Handles idempotent upserts and batch processing with error handling.
 """
 import asyncio
+import hashlib
+import re
 from typing import List, Dict, Any, Optional, Union
 from datetime import datetime, timezone
 import asyncpg
@@ -12,6 +14,7 @@ from loguru import logger
 from ...core.config import get_settings
 from ...schemas.jobspy import ScrapedJob
 from .database import get_database_service
+from .company_normalization import normalize_company_name
 
 
 class JobPersistenceService:
@@ -137,6 +140,20 @@ class JobPersistenceService:
             "scraped_at": datetime.now(timezone.utc).isoformat()
         }
         
+        # Generate canonical key for cross-site deduplication
+        canonical_key = None
+        if job.company and job.title:
+            canonical_key = self._generate_canonical_key(job.title, job.company)
+
+        # Generate content fingerprint for semantic deduplication
+        fingerprint = None
+        if job.description and len(job.description) > 100:
+            fingerprint = self._generate_fingerprint(
+                job.description,
+                job.title or '',
+                job.company or ''
+            )
+
         return {
             "site": site_name,
             "job_url": job.job_url,
@@ -144,7 +161,7 @@ class JobPersistenceService:
             "company": job.company,
             "company_url": None,  # Not available from JobSpy currently
             "location_country": None,  # Future: parse from job.location
-            "location_state": None,    # Future: parse from job.location  
+            "location_state": None,    # Future: parse from job.location
             "location_city": None,     # Future: parse from job.location
             "is_remote": job.is_remote,
             "job_type": job.job_type,
@@ -158,9 +175,9 @@ class JobPersistenceService:
             "date_posted": date_posted,
             "ingested_at": datetime.now(timezone.utc),
             "source_raw": source_raw,
-            "canonical_key": None,     # Future: deduplication key
-            "fingerprint": None,       # Future: content hash
-            "duplicate_group_id": None # Future: cross-board grouping
+            "canonical_key": canonical_key,
+            "fingerprint": fingerprint,
+            "duplicate_group_id": None  # Populated by post-processing job
         }
     
     async def _upsert_job(self, conn: asyncpg.Connection, job_data: Dict[str, Any]) -> str:
@@ -226,6 +243,115 @@ class JobPersistenceService:
         except Exception as e:
             logger.error(f"Database error during job upsert: {e}")
             raise
+
+    def _generate_canonical_key(self, title: str, company: str) -> str:
+        """
+        Generate normalized canonical key for cross-site deduplication.
+
+        Uses company normalization to handle large companies (Amazon/AWS, Microsoft/Azure, etc.)
+        and title normalization to handle variations (Sr./Senior, PM/Product Manager).
+
+        Args:
+            title: Job title
+            company: Company name
+
+        Returns:
+            Canonical key for deduplication (e.g., "amazon_senior_product_manager")
+        """
+        # Normalize company using alias mapping
+        company_clean = normalize_company_name(company)
+
+        # Normalize title
+        title_clean = title.lower()
+
+        # Expand common abbreviations
+        title_clean = title_clean.replace('sr.', 'senior')
+        title_clean = title_clean.replace('sr ', 'senior ')
+        title_clean = title_clean.replace('jr.', 'junior')
+        title_clean = title_clean.replace('jr ', 'junior ')
+        title_clean = title_clean.replace(' mgr', ' manager')
+        title_clean = title_clean.replace('mgr ', 'manager ')
+        title_clean = title_clean.replace(' pm ', ' product manager ')
+        title_clean = title_clean.replace(' eng ', ' engineer ')
+
+        # Remove Roman numerals (I, II, III, IV, V)
+        title_clean = re.sub(r'\b(i{1,3}|iv|v|vi{1,3})\b', '', title_clean)
+
+        # Remove level numbers (1, 2, 3, etc.)
+        title_clean = re.sub(r'\b\d+\b', '', title_clean)
+
+        # Remove special characters and normalize whitespace
+        title_clean = re.sub(r'[^a-z0-9\s]+', ' ', title_clean)
+        title_clean = re.sub(r'\s+', '_', title_clean).strip('_')
+
+        canonical = f"{company_clean}_{title_clean}"
+
+        logger.debug(f"Canonical key: {company} + {title} → {canonical}")
+        return canonical
+
+    def _generate_fingerprint(self, description: str, title: str, company: str) -> str:
+        """
+        Generate content-based fingerprint for semantic duplicate detection.
+
+        Uses shingling and hashing to detect jobs with similar descriptions
+        even if posted on different sites with minor formatting differences.
+
+        Args:
+            description: Job description text
+            title: Job title (for additional context)
+            company: Company name (for additional context)
+
+        Returns:
+            MD5 hash fingerprint for content matching
+        """
+        # Normalize description text
+        text = description.lower()
+
+        # Remove HTML/markdown formatting
+        text = re.sub(r'<[^>]+>', '', text)
+        text = re.sub(r'[#*`_\[\]()]', '', text)
+
+        # Remove common boilerplate phrases that vary between sites
+        boilerplate_phrases = [
+            'equal opportunity employer',
+            'we are an equal',
+            'apply now',
+            'click here',
+            'eeo statement',
+            'apply today',
+            'learn more',
+            'submit resume',
+            'send resume',
+            'visit our website',
+        ]
+        for phrase in boilerplate_phrases:
+            text = text.replace(phrase, '')
+
+        # Remove excessive whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+
+        # Create word shingles (3-word sequences) for fuzzy matching
+        words = text.split()
+        if len(words) < 3:
+            # Too short for shingling, just hash the whole thing
+            combined = f"{company.lower()}_{title.lower()}_{text}"
+            return hashlib.md5(combined.encode()).hexdigest()
+
+        # Generate shingles
+        shingles = []
+        for i in range(len(words) - 2):
+            shingle = ' '.join(words[i:i+3])
+            shingles.append(shingle)
+
+        # Sort and join shingles for consistent hashing
+        shingle_text = '|'.join(sorted(set(shingles)))
+
+        # Create final fingerprint with company and title context
+        combined = f"{company.lower()}_{title.lower()}_{hashlib.sha256(shingle_text.encode()).hexdigest()[:16]}"
+        fingerprint = hashlib.md5(combined.encode()).hexdigest()
+
+        logger.debug(f"Fingerprint: {company} + {title} → {fingerprint}")
+        return fingerprint
 
 def get_job_persistence_service() -> JobPersistenceService:
     """Create a new job persistence service instance."""
