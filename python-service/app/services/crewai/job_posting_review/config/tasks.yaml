@@ -32,12 +32,14 @@ north_star_task:
     assign score=2 (significant hesitation) and note "insufficient data to assess alignment" in summary.
     Do NOT fabricate details or make assumptions about missing information.
 
-    Use CONCRETE TIERS with specific criteria:
-    - 1: Critical mismatch (fundamental incompatibility, deal-breaker)
-    - 2: Significant hesitation (major concerns that could impact decision OR insufficient data)
-    - 3: Acceptable (some alignment issues but workable fundamentals)
-    - 4: Good match (solid alignment with positive signals)
-    - 5: Exceptional fit (outstanding alignment, rare ideal match)
+    SCORE using the 1-5 RATING SCALE (you MUST use the full range):
+    - Score 1: Critical mismatch (fundamental incompatibility, deal-breaker)
+    - Score 2: Significant hesitation (major concerns that could impact decision OR insufficient data)
+    - Score 3: Acceptable (some alignment issues but workable fundamentals)
+    - Score 4: Good match (solid alignment with positive signals)
+    - Score 5: Exceptional fit (outstanding alignment, rare ideal match)
+
+    IMPORTANT: Use the FULL 1-5 scale. Do NOT limit yourself to only 1, 2, or 3.
 
   expected_output: BrandDimensionAnalysis
   agent: north_star_matcher
@@ -54,12 +56,14 @@ trajectory_mastery_task:
     assign score=2 (significant hesitation) and note "insufficient technical detail" in summary.
     Do NOT fabricate details or make assumptions about missing information.
 
-    Use CONCRETE TIERS with specific criteria:
-    - 1: Critical mismatch (role prevents required skill development, career regression)
-    - 2: Significant hesitation (limited learning opportunities, wrong growth direction, OR insufficient data)
-    - 3: Acceptable (some skill overlap but minimal growth potential)
-    - 4: Good match (solid skill utilization with learning opportunities)
-    - 5: Exceptional fit (perfect skill alignment and accelerated growth trajectory)
+    SCORE using the 1-5 RATING SCALE (you MUST use the full range):
+    - Score 1: Critical mismatch (role prevents required skill development, career regression)
+    - Score 2: Significant hesitation (limited learning opportunities, wrong growth direction, OR insufficient data)
+    - Score 3: Acceptable (some skill overlap but minimal growth potential)
+    - Score 4: Good match (solid skill utilization with learning opportunities)
+    - Score 5: Exceptional fit (perfect skill alignment and accelerated growth trajectory)
+
+    IMPORTANT: Use the FULL 1-5 scale. Do NOT limit yourself to only 1, 2, or 3.
 
   expected_output: BrandDimensionAnalysis
   agent: trajectory_mastery_matcher
@@ -72,12 +76,14 @@ values_compass_task:
     Your knowledge base contains the most recent career brand information filtered to values_compass content.
     Use this knowledge to analyze cultural alignment with core principles and work style preferences.
 
-    Use CONCRETE TIERS with specific criteria:
-    - 1: Critical mismatch (toxic environment conflict with deal-breaker values)
-    - 2: Significant hesitation (multiple value conflicts or style incompatibility)
-    - 3: Acceptable (minor value differences that don't impede core work)
-    - 4: Good match (comfortable cultural alignment with positive signals)
-    - 5: Exceptional fit (perfect cultural match with inspiring environment)
+    SCORE using the 1-5 RATING SCALE (you MUST use the full range):
+    - Score 1: Critical mismatch (toxic environment conflict with deal-breaker values)
+    - Score 2: Significant hesitation (multiple value conflicts or style incompatibility)
+    - Score 3: Acceptable (minor value differences that don't impede core work)
+    - Score 4: Good match (comfortable cultural alignment with positive signals)
+    - Score 5: Exceptional fit (perfect cultural match with inspiring environment)
+
+    IMPORTANT: Use the FULL 1-5 scale. Do NOT limit yourself to only 1, 2, or 3.
 
   expected_output: BrandDimensionAnalysis
   agent: values_compass_matcher
@@ -90,12 +96,14 @@ lifestyle_alignment_task:
     Your knowledge base contains the most recent career brand information filtered to lifestyle_alignment content.
     Use this knowledge to analyze work-life balance, location requirements, and personal commitments.
 
-    Use CONCRETE TIERS with specific criteria:
-    - 1: Critical mismatch (incompatible work situation vs. family needs/geography)
-    - 2: Significant hesitation (major travel/remote issues that strain commitments)
-    - 3: Acceptable (manageable arrangement with some flexibility trade-offs)
-    - 4: Good match (comfortable work-life balance with positive arrangement signals)
-    - 5: Exceptional fit (perfect location/remote setup with excellent work-life support)
+    SCORE using the 1-5 RATING SCALE (you MUST use the full range):
+    - Score 1: Critical mismatch (incompatible work situation vs. family needs/geography)
+    - Score 2: Significant hesitation (major travel/remote issues that strain commitments)
+    - Score 3: Acceptable (manageable arrangement with some flexibility trade-offs)
+    - Score 4: Good match (comfortable work-life balance with positive arrangement signals)
+    - Score 5: Exceptional fit (perfect location/remote setup with excellent work-life support)
+
+    IMPORTANT: Use the FULL 1-5 scale. Do NOT limit yourself to only 1, 2, or 3.
 
   expected_output: BrandDimensionAnalysis
   agent: lifestyle_alignment_matcher
@@ -108,12 +116,14 @@ compensation_philosophy_task:
     Your knowledge base contains the most recent career brand information filtered to compensation_philosophy content.
     Use this knowledge to analyze financial alignment with salary floors, equity preferences, and expectations.
 
-    Use CONCRETE TIERS with specific criteria:
-    - 1: Critical mismatch (far below salary floor with unacceptable equity)
-    - 2: Significant hesitation (below floor or inappropriate stage/terms)
-    - 3: Acceptable (meets floor but may have wanted stage/equity preferences)
-    - 4: Good match (solid financials with positive equity/stage signals)
-    - 5: Exceptional fit (perfect compensation alignment with excellent equity terms)
+    SCORE using the 1-5 RATING SCALE (you MUST use the full range):
+    - Score 1: Critical mismatch (far below salary floor with unacceptable equity)
+    - Score 2: Significant hesitation (below floor or inappropriate stage/terms)
+    - Score 3: Acceptable (meets floor but may have wanted stage/equity preferences)
+    - Score 4: Good match (solid financials with positive equity/stage signals)
+    - Score 5: Exceptional fit (perfect compensation alignment with excellent equity terms)
+
+    IMPORTANT: Use the FULL 1-5 scale. Do NOT limit yourself to only 1, 2, or 3.
 
   expected_output: BrandDimensionAnalysis
   agent: compensation_philosophy_matcher
@@ -128,12 +138,14 @@ purpose_impact_task:
 
     NOTE: Your evaluation can influence recommendations but does NOT serve as an absolute veto - provide contextual insight.
 
-    Use CONCRETE TIERS with specific criteria:
-    - 1: Critical mismatch (mission fundamentally opposed to societal betterment)
-    - 2: Significant hesitation (neutral or slightly misaligned with impact goals)
-    - 3: Acceptable (partial alignment but not core mission focus)
-    - 4: Good match (meaningful impact potential with positive societal contribution)
-    - 5: Exceptional fit (perfect alignment with major world-betterment impact)
+    SCORE using the 1-5 RATING SCALE (you MUST use the full range):
+    - Score 1: Critical mismatch (mission fundamentally opposed to societal betterment)
+    - Score 2: Significant hesitation (neutral or slightly misaligned with impact goals)
+    - Score 3: Acceptable (partial alignment but not core mission focus)
+    - Score 4: Good match (meaningful impact potential with positive societal contribution)
+    - Score 5: Exceptional fit (perfect alignment with major world-betterment impact)
+
+    IMPORTANT: Use the FULL 1-5 scale. Do NOT limit yourself to only 1, 2, or 3.
 
   expected_output: BrandDimensionAnalysis
   agent: purpose_impact_matcher
@@ -148,12 +160,14 @@ industry_focus_task:
 
     NOTE: This evaluation has VERY LOW PRIORITY - provide context but don't expect it to drive major decisions.
 
-    Use CONCRETE TIERS with specific criteria:
-    - 1: Critical mismatch (opposes preferred sectors or enters strongly avoided industries)
-    - 2: Significant hesitation (neutral industry with weak sector alignment)
-    - 3: Acceptable (some tangential relevance but not preferred focus)
-    - 4: Good match (decent industry alignment with positive sector signals)
-    - 5: Exceptional fit (perfect alignment with top-preferred industry sectors)
+    SCORE using the 1-5 RATING SCALE (you MUST use the full range):
+    - Score 1: Critical mismatch (opposes preferred sectors or enters strongly avoided industries)
+    - Score 2: Significant hesitation (neutral industry with weak sector alignment)
+    - Score 3: Acceptable (some tangential relevance but not preferred focus)
+    - Score 4: Good match (decent industry alignment with positive sector signals)
+    - Score 5: Exceptional fit (perfect alignment with top-preferred industry sectors)
+
+    IMPORTANT: Use the FULL 1-5 scale. Do NOT limit yourself to only 1, 2, or 3.
 
   expected_output: BrandDimensionAnalysis
   agent: industry_focus_matcher
@@ -168,12 +182,14 @@ company_filters_task:
 
     NOTE: This evaluation has VERY LOW PRIORITY - provide minimal context only.
 
-    Use CONCRETE TIERS with specific criteria:
-    - 1: Critical mismatch (clearly matches avoided company types like PE flips or extractive industries)
-    - 2: Significant hesitation (potentially problematic culture but not clearly violating)
-    - 3: Acceptable (neutral culture without strong signals either way)
-    - 4: Good match (some alignment with preferred cultures like growth-stage transparent execs)
-    - 5: Exceptional fit (perfect company culture match with exciting organizational signals)
+    SCORE using the 1-5 RATING SCALE (you MUST use the full range):
+    - Score 1: Critical mismatch (clearly matches avoided company types like PE flips or extractive industries)
+    - Score 2: Significant hesitation (potentially problematic culture but not clearly violating)
+    - Score 3: Acceptable (neutral culture without strong signals either way)
+    - Score 4: Good match (some alignment with preferred cultures like growth-stage transparent execs)
+    - Score 5: Exceptional fit (perfect company culture match with exciting organizational signals)
+
+    IMPORTANT: Use the FULL 1-5 scale. Do NOT limit yourself to only 1, 2, or 3.
 
   expected_output: BrandDimensionAnalysis
   agent: company_filters_matcher
@@ -190,12 +206,14 @@ constraints_task:
     work authorization requirements, start date, manager culture), treat as score=2 and flag in constraint_issues.
     List what's missing: "Missing: location policy, work authorization requirements" etc.
 
-    Use CONCRETE TIERS with specific criteria:
-    - 1: Critical mismatch (violates deal-breakers: toxic cultures, founder micromanagement, geography, citizenship)
-    - 2: Significant hesitation (multiple constraint concerns, potential work authorization issues, OR missing critical info)
-    - 3: Acceptable (one minor constraint issue but largely compliant)
-    - 4: Good match (fully compliant with positive availability signals)
-    - 5: Exceptional fit (perfect compliance plus exciting timing/availability factors)
+    SCORE using the 1-5 RATING SCALE (you MUST use the full range):
+    - Score 1: Critical mismatch (violates deal-breakers: toxic cultures, founder micromanagement, geography, citizenship)
+    - Score 2: Significant hesitation (multiple constraint concerns, potential work authorization issues, OR missing critical info)
+    - Score 3: Acceptable (one minor constraint issue but largely compliant)
+    - Score 4: Good match (fully compliant with positive availability signals)
+    - Score 5: Exceptional fit (perfect compliance plus exciting timing/availability factors)
+
+    IMPORTANT: Use the FULL 1-5 scale. Do NOT limit yourself to only 1, 2, or 3.
 
     If any constraints are violated, clearly flag the deal-breaker in constraint_issues.
     This evaluation has HIGH PRIORITY - constraint violations override all positive signals.
