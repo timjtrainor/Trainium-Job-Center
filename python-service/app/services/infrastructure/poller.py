@@ -39,13 +39,13 @@ class PollerService:
             return False
 
     async def get_pending_review_jobs(self) -> List[Dict[str, Any]]:
-        """Get jobs with status='pending_review' from the database."""
+        """Get jobs with status='pending_review' from the database, ensuring deduplication by canonical_key."""
         if not self.initialized:
             await self.initialize()
-        
+
         query = """
-        SELECT id, title, company, site, job_url, ingested_at
-        FROM public.jobs 
+        SELECT id, title, company, site, job_url, ingested_at, canonical_key
+        FROM public.jobs
         WHERE status = 'pending_review'
         ORDER BY ingested_at ASC
         LIMIT 100
@@ -134,10 +134,23 @@ class PollerService:
                 return 0
             
             enqueued_count = 0
-            
+            processed_canonical_keys = set()
+
             for job in pending_jobs:
                 job_id = str(job["id"])
-                
+                canonical_key = job.get("canonical_key")
+
+                # Skip if we've already processed a job with this canonical_key
+                if canonical_key and canonical_key in processed_canonical_keys:
+                    logger.debug(f"Skipping duplicate job {job_id} - canonical_key {canonical_key} already processed")
+                    # Update status to skipped_duplicate to avoid reprocessing
+                    await self.update_job_status(job_id, "duplicate")
+                    continue
+
+                # Mark this canonical_key as processed
+                if canonical_key:
+                    processed_canonical_keys.add(canonical_key)
+
                 try:
                     # Enqueue job for review
                     task_id = self.enqueue_job_review(job_id, job)

@@ -38,7 +38,7 @@ export enum AppView {
   POST_INTERVIEW_DEBRIEF,
 }
 
-export type ApplicationDetailTab = 'overview' | 'analysis' | 'resume' | 'interviews';
+export type ApplicationDetailTab = 'overview' | 'analysis' | 'resume' | 'interviews' | 'ai-content';
 export type ApplicationLabTab = 'lab' | 'formulas' | 'offers';
 
 // Represents the steps in the new application flow
@@ -246,6 +246,7 @@ export interface JobApplication {
   tailored_resume_json?: Resume;
   application_questions?: ApplicationQuestion[];
   application_message?: string;
+  workflow_mode?: string; // 'ai_generated', 'fast_track', or 'manual'
   // New relational data
   messages?: Message[];
   interviews?: Interview[];
@@ -981,9 +982,17 @@ export interface ReviewedJob {
   confidence: number; // 0.0 to 1.0
   overall_alignment_score: number; // 0.0 to 10.0
   is_eligible_for_application: boolean;
+  salary_min?: string | null;
+  salary_max?: string | null;
+  salary_currency?: string | null;
+  salary_range?: string | null;
   // AI review details
   rationale?: string; // AI explanation for the recommendation
+  tldr_summary?: string; // Crew AI job description TLDR from crew_output JSON
   confidence_level?: string; // 'high' | 'medium' | 'low'
+  crew_output?: Record<string, unknown> | null;
+  // Job description content
+  description?: string | null;
   // HITL override fields
   override_recommend?: boolean | null;
   override_comment?: string | null;

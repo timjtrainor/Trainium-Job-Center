@@ -226,11 +226,12 @@ export const ReviewedJobsView = () => {
                         <div className="p-4 bg-red-50 text-red-700 rounded-md">Error: {error}</div>
                     ) : viewMode === 'cards' ? (
                         data && <JobCardView
-                            jobs={data.items}
+                            jobs={data.items.filter(job => job.override_recommend === null || job.override_recommend === undefined)}
                             onOverrideSuccess={handleOverrideSuccess}
                             currentPage={page}
                             onPageChange={setPage}
                             isLoading={isLoading}
+                            activeNarrativeId={undefined} // TODO: Pass actual active narrative from parent
                         />
                     ) : renderTable()}
                 </div>

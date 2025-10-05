@@ -15,6 +15,9 @@ from .v1.endpoints.company import router as company_router
 from .v1.endpoints.linkedin_job_search import router as linkedin_job_search_router
 from .v1.endpoints.linkedin_recommended_jobs import router as linkedin_recommended_jobs_router
 from .v1.endpoints.brand_driven_job_search import router as brand_driven_job_search_router
+from .v1.endpoints.linkedin_jobs import router as linkedin_jobs_router
+from .v1.endpoints.applications import router as applications_router
+from .v1.endpoints.glassdoor_enrichment import router as glassdoor_enrichment_router
 
 from ..routes.jobs_fit_review import router as jobs_fit_review_router
 
@@ -38,6 +41,9 @@ api_router.include_router(job_review_router, tags=["Job Review"])
 
 # Jobs API
 api_router.include_router(jobs_router, tags=["Jobs"])
+api_router.include_router(linkedin_jobs_router, tags=["LinkedIn Jobs"])
+api_router.include_router(applications_router, tags=["Applications"])
+api_router.include_router(glassdoor_enrichment_router, tags=["Glassdoor Enrichment"])
 
 # Health check
 api_router.include_router(health_router, tags=["Health"])

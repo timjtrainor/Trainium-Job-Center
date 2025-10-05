@@ -7,6 +7,7 @@ from typing import Optional, List, Dict, Any
 from loguru import logger
 from datetime import datetime, timezone
 import json
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from ...core.config import get_settings
 
@@ -66,6 +67,65 @@ class DatabaseService:
 
         logger.error("Failed to initialize database pool after 5 attempts")
         return False
+
+    @staticmethod
+    def _get_currency_symbol(currency: Optional[str]) -> str:
+        """Return a currency symbol for common codes, fallback to '$'."""
+        if not currency:
+            return "$"
+
+        currency_upper = currency.upper()
+        symbol_map = {
+            "USD": "$",
+            "CAD": "$",
+            "AUD": "$",
+            "NZD": "$",
+            "EUR": "€",
+            "GBP": "£",
+            "JPY": "¥"
+        }
+
+        return symbol_map.get(currency_upper, "$")
+
+    def _format_salary_value(self, amount: Optional[Any], currency: Optional[str]) -> Optional[str]:
+        """Format a numeric salary into a compact string (e.g., $90k)."""
+        if amount is None:
+            return None
+
+        try:
+            decimal_amount = Decimal(str(amount))
+        except (InvalidOperation, TypeError):
+            return None
+
+        symbol = self._get_currency_symbol(currency)
+        abs_amount = decimal_amount.copy_abs()
+
+        if abs_amount >= Decimal("1000"):
+            value_in_thousands = (decimal_amount / Decimal("1000")).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+            value_str = format(value_in_thousands, "f").rstrip("0").rstrip(".")
+            if not value_str:
+                value_str = "0"
+            return f"{symbol}{value_str}k"
+
+        formatted_number = format(decimal_amount, ",")
+        return f"{symbol}{formatted_number}"
+
+    def _format_salary_range(
+        self,
+        salary_min: Optional[Any],
+        salary_max: Optional[Any],
+        currency: Optional[str]
+    ) -> Optional[str]:
+        """Create a human-readable salary range string."""
+        formatted_min = self._format_salary_value(salary_min, currency)
+        formatted_max = self._format_salary_value(salary_max, currency)
+
+        if formatted_min and formatted_max:
+            if formatted_min == formatted_max:
+                return formatted_min
+            return f"{formatted_min} - {formatted_max}"
+
+        return formatted_min or formatted_max
 
     async def close(self):
         """Close database connection pool."""
@@ -407,10 +467,10 @@ class DatabaseService:
 
         query = """
         INSERT INTO public.job_reviews (
-            job_id, recommend, confidence, rationale, personas, tradeoffs, 
-            actions, sources, crew_output, processing_time_seconds, 
+            job_id, recommend, confidence, rationale, personas, tradeoffs,
+            actions, sources, overall_alignment_score, crew_output, processing_time_seconds,
             crew_version, model_used, error_message, retry_count
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         ON CONFLICT (job_id) DO UPDATE SET
             recommend = EXCLUDED.recommend,
             confidence = EXCLUDED.confidence,
@@ -419,6 +479,7 @@ class DatabaseService:
             tradeoffs = EXCLUDED.tradeoffs,
             actions = EXCLUDED.actions,
             sources = EXCLUDED.sources,
+            overall_alignment_score = EXCLUDED.overall_alignment_score,
             crew_output = EXCLUDED.crew_output,
             processing_time_seconds = EXCLUDED.processing_time_seconds,
             crew_version = EXCLUDED.crew_version,
@@ -433,7 +494,7 @@ class DatabaseService:
             logger.info(f"Attempting to insert job review for job_id: {job_id}")
             logger.debug(f"Review data keys: {list(review_data.keys())}")
             logger.debug(f"Recommend: {review_data.get('recommend')}, Confidence: {review_data.get('confidence')}")
-            
+
             async with self.pool.acquire() as conn:
                 result = await conn.execute(
                     query,
@@ -445,7 +506,12 @@ class DatabaseService:
                     json.dumps(review_data.get("tradeoffs")) if review_data.get("tradeoffs") else None,
                     json.dumps(review_data.get("actions")) if review_data.get("actions") else None,
                     json.dumps(review_data.get("sources")) if review_data.get("sources") else None,
-                    json.dumps(review_data.get("crew_output")) if review_data.get("crew_output") else None,
+                    review_data.get("overall_alignment_score"),  # Separate column for alignment score
+                    # crew_output includes tldr_summary (but not overall_alignment_score since it's separate)
+                    json.dumps({
+                        **(review_data.get("crew_output") or {}),
+                        "tldr_summary": review_data.get("tldr_summary")
+                    }) if review_data.get("crew_output") or review_data.get("tldr_summary") else None,
                     review_data.get("processing_time_seconds"),
                     review_data.get("crew_version"),
                     review_data.get("model_used"),
@@ -657,7 +723,7 @@ class DatabaseService:
 
         # Main query with pagination
         data_query = f"""
-        SELECT 
+        SELECT
             j.id as job_id,
             j.title,
             j.company,
@@ -673,6 +739,8 @@ class DatabaseService:
             jr.recommend,
             jr.confidence,
             jr.rationale,
+            jr.overall_alignment_score,
+            jr.crew_output,
             jr.personas,
             jr.tradeoffs,
             jr.actions,
@@ -701,9 +769,11 @@ class DatabaseService:
                 
                 jobs = []
                 for row in rows:
-                    # Calculate alignment score from confidence
+                    # Get alignment score from database column (calculated by orchestrator)
+                    # Default to confidence-based calculation if not available
                     confidence_scores = {"high": 0.8, "medium": 0.6, "low": 0.4}
-                    alignment_score = confidence_scores.get(row["confidence"], 0.4)
+                    fallback_alignment_score = confidence_scores.get(row["confidence"], 0.4)
+                    alignment_score = row.get("overall_alignment_score", fallback_alignment_score) or fallback_alignment_score
 
                     # Normalize location strings that may be null
                     raw_location = row["location"]
@@ -712,6 +782,16 @@ class DatabaseService:
                         location_value = cleaned_location if cleaned_location else None
                     else:
                         location_value = None
+
+                    # Extract TLDR summary from crew_output JSON and keep full crew_output for dimension data
+                    crew_output = self._deserialize_json_field(row.get("crew_output"))
+                    tldr_summary = crew_output.get("tldr_summary") if crew_output else None
+
+                    salary_range_formatted = self._format_salary_range(
+                        row["salary_min"],
+                        row["salary_max"],
+                        row["salary_currency"]
+                    )
 
                     job_data = {
                         "job": {
@@ -726,6 +806,7 @@ class DatabaseService:
                             "salary_min": row["salary_min"],
                             "salary_max": row["salary_max"],
                             "salary_currency": row["salary_currency"],
+                            "salary_range": salary_range_formatted,
                             "is_remote": row["is_remote"]
                         },
                         "review": {
@@ -735,6 +816,8 @@ class DatabaseService:
                             "reviewer": row["reviewer"],
                             "review_date": row["review_date"],
                             "rationale": row["rationale"],
+                            "tldr_summary": tldr_summary,
+                            "crew_output": crew_output,  # Include full crew_output for dimension data
                             "personas": self._deserialize_json_field(row["personas"]),
                             "tradeoffs": self._deserialize_json_field(row["tradeoffs"]),
                             "actions": self._deserialize_json_field(row["actions"]),
@@ -757,6 +840,223 @@ class DatabaseService:
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             return {"jobs": [], "total_count": 0}
+
+    async def get_job_by_url(self, url: str) -> Optional[Dict[str, Any]]:
+        """Get job by URL for duplicate detection."""
+        if not self.initialized:
+            await self.initialize()
+
+        query = """
+        SELECT id, title, company_name, workflow_status, url
+        FROM jobs
+        WHERE url = $1
+        LIMIT 1
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow(query, url)
+                return dict(row) if row else None
+        except Exception as e:
+            logger.error(f"Failed to get job by URL: {str(e)}")
+            return None
+
+    async def get_job_by_normalized_fields(
+        self,
+        normalized_company: str,
+        normalized_title: str
+    ) -> Optional[Dict[str, Any]]:
+        """Get job by normalized company and title for duplicate detection."""
+        if not self.initialized:
+            await self.initialize()
+
+        query = """
+        SELECT id, title, company_name, workflow_status, url
+        FROM jobs
+        WHERE normalized_company = $1 AND normalized_title = $2
+        LIMIT 1
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow(query, normalized_company, normalized_title)
+                return dict(row) if row else None
+        except Exception as e:
+            logger.error(f"Failed to get job by normalized fields: {str(e)}")
+            return None
+
+    async def get_company_by_normalized_name(self, normalized_name: str) -> Optional[Dict[str, Any]]:
+        """Get company by normalized name for matching."""
+        if not self.initialized:
+            await self.initialize()
+
+        query = """
+        SELECT company_id, company_name, normalized_name, company_url
+        FROM companies
+        WHERE normalized_name = $1
+        LIMIT 1
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow(query, normalized_name)
+                return dict(row) if row else None
+        except Exception as e:
+            logger.error(f"Failed to get company by normalized name: {str(e)}")
+            return None
+
+    async def create_company(self, company_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new company."""
+        if not self.initialized:
+            await self.initialize()
+
+        query = """
+        INSERT INTO companies (
+            company_name, normalized_name, company_url, source, is_recruiting_firm, created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, NOW())
+        RETURNING company_id, company_name, normalized_name
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    query,
+                    company_data.get('company_name'),
+                    company_data.get('normalized_name'),
+                    company_data.get('company_url', ''),
+                    company_data.get('source', 'manual'),
+                    company_data.get('is_recruiting_firm', False)
+                )
+                return dict(row) if row else {}
+        except Exception as e:
+            logger.error(f"Failed to create company: {str(e)}")
+            raise
+
+    async def update_company(self, company_id: str, updates: Dict[str, Any]) -> bool:
+        """Update company fields."""
+        if not self.initialized:
+            await self.initialize()
+
+        # Build dynamic update query
+        set_clauses = []
+        params = []
+        param_count = 1
+
+        for key, value in updates.items():
+            if key in ['mission', 'values']:
+                # JSONB fields
+                set_clauses.append(f"{key} = ${param_count}::jsonb")
+                params.append(json.dumps(value) if not isinstance(value, str) else value)
+            else:
+                set_clauses.append(f"{key} = ${param_count}")
+                params.append(value)
+            param_count += 1
+
+        params.append(company_id)
+
+        query = f"""
+        UPDATE companies
+        SET {', '.join(set_clauses)}, updated_at = NOW()
+        WHERE company_id = ${param_count}
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute(query, *params)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update company: {str(e)}")
+            return False
+
+    async def insert_job(self, job_data: Dict[str, Any]) -> str:
+        """Insert a new job and return job ID."""
+        if not self.initialized:
+            await self.initialize()
+
+        query = """
+        INSERT INTO jobs (
+            title, company_id, company_name, location, description, url,
+            source, workflow_status, date_posted, salary_min, salary_max,
+            scraped_at, normalized_title, normalized_company, created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
+        RETURNING id
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                job_id = await conn.fetchval(
+                    query,
+                    job_data.get('title'),
+                    job_data.get('company_id'),
+                    job_data.get('company_name'),
+                    job_data.get('location'),
+                    job_data.get('description'),
+                    job_data.get('url'),
+                    job_data.get('source', 'manual'),
+                    job_data.get('workflow_status', 'pending_review'),
+                    job_data.get('date_posted'),
+                    job_data.get('salary_min'),
+                    job_data.get('salary_max'),
+                    job_data.get('scraped_at'),
+                    job_data.get('normalized_title'),
+                    job_data.get('normalized_company')
+                )
+                return str(job_id)
+        except Exception as e:
+            logger.error(f"Failed to insert job: {str(e)}")
+            raise
+
+    async def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Get job by ID."""
+        if not self.initialized:
+            await self.initialize()
+
+        query = """
+        SELECT *
+        FROM jobs
+        WHERE id = $1
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow(query, job_id)
+                return dict(row) if row else None
+        except Exception as e:
+            logger.error(f"Failed to get job: {str(e)}")
+            return None
+
+    async def update_job(self, job_id: str, updates: Dict[str, Any]) -> bool:
+        """Update job fields."""
+        if not self.initialized:
+            await self.initialize()
+
+        # Build dynamic update query
+        set_clauses = []
+        params = []
+        param_count = 1
+
+        for key, value in updates.items():
+            set_clauses.append(f"{key} = ${param_count}")
+            params.append(value)
+            param_count += 1
+
+        params.append(job_id)
+
+        query = f"""
+        UPDATE jobs
+        SET {', '.join(set_clauses)}, updated_at = NOW()
+        WHERE id = ${param_count}
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute(query, *params)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update job: {str(e)}")
+            return False
 
 
 def get_database_service() -> DatabaseService:

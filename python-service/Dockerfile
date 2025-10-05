@@ -8,10 +8,32 @@ ENV PYTHONDONTWRITEBYTECODE=1
 # Set the working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including Playwright browser dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         curl \
+        libglib2.0-0 \
+        libnss3 \
+        libnspr4 \
+        libdbus-1-3 \
+        libatk1.0-0 \
+        libatk-bridge2.0-0 \
+        libcups2 \
+        libdrm2 \
+        libxkbcommon0 \
+        libatspi2.0-0 \
+        libx11-6 \
+        libxcomposite1 \
+        libxdamage1 \
+        libxext6 \
+        libxfixes3 \
+        libxrandr2 \
+        libgbm1 \
+        libpango-1.0-0 \
+        libcairo2 \
+        libasound2 \
+        libxcb1 \
+        libexpat1 \
         && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -28,6 +50,9 @@ COPY . .
 RUN useradd --create-home --shell /bin/bash app \
     && chown -R app:app /app
 USER app
+
+# Install Playwright browsers as the app user
+RUN playwright install chromium
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

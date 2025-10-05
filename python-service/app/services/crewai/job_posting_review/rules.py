@@ -67,18 +67,60 @@ def deduplicate_items(items: List[str]) -> List[str]:
     return result
 
 
+def clean_llm_json_response(raw_output: str) -> str:
+    """
+    Clean LLM response to extract pure JSON, handling common formatting issues.
+    Designed for Gemma3, Phi3, and other models that wrap JSON in markdown.
+    """
+    import re
+
+    # Strip whitespace
+    cleaned = raw_output.strip()
+
+    # Remove markdown code blocks (```json ... ``` or ``` ... ```)
+    if cleaned.startswith('```'):
+        # Find the content between code fences
+        match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', cleaned, re.DOTALL)
+        if match:
+            cleaned = match.group(1).strip()
+
+    # Remove any remaining markdown artifacts
+    cleaned = re.sub(r'^```json\s*', '', cleaned)
+    cleaned = re.sub(r'^```\s*', '', cleaned)
+    cleaned = re.sub(r'\s*```$', '', cleaned)
+
+    # Remove any leading/trailing text before/after JSON
+    # Look for the first { and last }
+    json_start = cleaned.find('{')
+    json_end = cleaned.rfind('}')
+
+    if json_start != -1 and json_end != -1 and json_end > json_start:
+        cleaned = cleaned[json_start:json_end + 1]
+
+    return cleaned.strip()
+
+
 def extract_json_from_crew_output(raw_output: str) -> Dict[str, Any]:
     """Extract JSON payload from CrewAI agent output."""
     import json
     import re
 
-    # Try direct JSON parsing first
+    # First, clean the response (handles markdown wrapping)
+    cleaned_output = clean_llm_json_response(raw_output)
+
+    # Try direct JSON parsing on cleaned output
+    try:
+        return json.loads(cleaned_output)
+    except json.JSONDecodeError:
+        pass
+
+    # Fallback: Try direct parsing on original (for already-clean JSON)
     try:
         return json.loads(raw_output)
     except json.JSONDecodeError:
         pass
 
-    # Look for JSON in markdown code blocks
+    # Look for JSON in markdown code blocks (legacy support)
     json_match = re.search(r'```(?:json)?\s*\n?(\{.*?\})\s*\n?```', raw_output, re.DOTALL)
     if json_match:
         try:

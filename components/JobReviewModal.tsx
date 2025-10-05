@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ReviewedJob } from '../types';
-import { overrideJobReview, JobReviewOverrideRequest } from '../services/apiService';
+import { overrideJobReview, JobReviewOverrideRequest, JobReviewOverrideResponse } from '../services/apiService';
 import { LoadingSpinner, CheckIcon, XCircleIcon } from './IconComponents';
 
 interface JobReviewModalProps {
@@ -24,8 +24,34 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
 
     if (!isOpen || !job) return null;
 
-    const handleAgree = () => {
-        onClose();
+    const mapOverrideToJob = (result: JobReviewOverrideResponse): ReviewedJob => ({
+        ...job!,
+        recommendation: result.override_recommend ? 'Recommended' : 'Not Recommended',
+        is_eligible_for_application: result.override_recommend,
+        override_recommend: result.override_recommend,
+        override_comment: result.override_comment,
+        override_by: result.override_by,
+        override_at: result.override_at,
+    });
+
+    const handleAgree = async () => {
+        setIsSubmitting(true);
+        setError(null);
+
+        try {
+            const result = await overrideJobReview(job!.job_id, {
+                override_recommend: true,
+                override_comment: 'Human reviewer confirmed AI recommendation',
+            });
+
+            onOverrideSuccess(mapOverrideToJob(result));
+            onClose();
+        } catch (err) {
+            console.error('Failed to record agreement override', err);
+            setError(err instanceof Error ? err.message : 'Failed to record agreement');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const handleOverride = () => {
@@ -50,18 +76,9 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
                 override_comment: overrideComment.trim(),
             };
 
-            await overrideJobReview(job.job_id, overrideData);
+            const result = await overrideJobReview(job.job_id, overrideData);
 
-            // Update the job object with override data
-            const updatedJob: ReviewedJob = {
-                ...job,
-                override_recommend: overrideRecommendation,
-                override_comment: overrideComment.trim(),
-                override_by: 'system_admin', // Placeholder until user auth exists
-                override_at: new Date().toISOString(),
-            };
-
-            onOverrideSuccess(updatedJob);
+            onOverrideSuccess(mapOverrideToJob(result));
             onClose();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to submit override');
@@ -117,6 +134,12 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
                                     </svg>
                                 </button>
                             </div>
+
+                            {error && !overrideMode && (
+                                <div className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/40 dark:text-red-200">
+                                    {error}
+                                </div>
+                            )}
 
                             <div className="mt-4 space-y-4 max-h-[70vh] overflow-y-auto pr-2">
                                 {/* Job Details */}
@@ -284,21 +307,31 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
                                     <button
                                         type="button"
                                         onClick={handleAgree}
-                                        className="inline-flex w-full justify-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 sm:ml-3 sm:w-auto"
+                                        disabled={isSubmitting}
+                                        className="inline-flex w-full justify-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 sm:ml-3 sm:w-auto disabled:opacity-50"
                                     >
-                                        Agree
+                                        {isSubmitting ? (
+                                            <>
+                                                <LoadingSpinner size="sm" />
+                                                <span className="ml-2">Saving...</span>
+                                            </>
+                                        ) : (
+                                            'Agree'
+                                        )}
                                     </button>
                                     <button
                                         type="button"
                                         onClick={handleOverride}
-                                        className="mt-3 inline-flex w-full justify-center rounded-md bg-yellow-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-yellow-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-600 sm:mt-0 sm:w-auto sm:ml-3"
+                                        disabled={isSubmitting}
+                                        className="mt-3 inline-flex w-full justify-center rounded-md bg-yellow-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-yellow-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-600 sm:mt-0 sm:w-auto sm:ml-3 disabled:opacity-50"
                                     >
                                         Override
                                     </button>
                                     <button
                                         type="button"
                                         onClick={handleCancel}
-                                        className="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-slate-600 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-500 hover:bg-gray-50 dark:hover:bg-slate-500 sm:mt-0 sm:w-auto"
+                                        disabled={isSubmitting}
+                                        className="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-slate-600 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-500 hover:bg-gray-50 dark:hover:bg-slate-500 sm:mt-0 sm:w-auto disabled:opacity-50"
                                     >
                                         Close
                                     </button>

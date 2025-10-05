@@ -9,7 +9,7 @@ import {
     Sprint, SprintAction, CreateSprintPayload, SprintActionPayload, ApplicationQuestion,
     SiteSchedule, SiteDetails, SiteSchedulePayload,
     UploadedDocument, UploadSuccessResponse, ContentType,
-    PaginatedResponse, ReviewedJob
+    PaginatedResponse, ReviewedJob, ReviewedJobRecommendation
 } from '../types';
 import { API_BASE_URL, USER_ID, FASTAPI_BASE_URL } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -1369,6 +1369,22 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
     filters?: ReviewedJobsFilters;
     sort?: ReviewedJobsSort;
 }): Promise<PaginatedResponse<ReviewedJob>> => {
+    const formatSalaryComponent = (value: unknown): string | null => {
+        if (value === null || value === undefined) {
+            return null;
+        }
+
+        const numericValue = Number(value);
+        if (Number.isFinite(numericValue)) {
+            return numericValue.toLocaleString(undefined, {
+                maximumFractionDigits: 2,
+                minimumFractionDigits: 0,
+            });
+        }
+
+        return String(value);
+    };
+
     const params = new URLSearchParams({
         limit: String(size),
         offset: String(Math.max(page - 1, 0) * size),
@@ -1394,11 +1410,13 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
         const job = entry.job || {};
         const review = entry.review || {};
 
-        const recommendation = review.recommendation ? 'Recommended' : 'Not Recommended';
+        const hasOverride = typeof review.override_recommend === 'boolean';
+        const finalRecommendation = hasOverride ? review.override_recommend : review.recommendation;
+        const recommendation: ReviewedJobRecommendation = finalRecommendation ? 'Recommended' : 'Not Recommended';
         const confidenceLookup: Record<string, number> = { high: 0.9, medium: 0.6, low: 0.3 };
 
         const overallScore = typeof review.overall_alignment_score === 'number'
-            ? review.overall_alignment_score * 10
+            ? review.overall_alignment_score
             : 0;
 
         return {
@@ -1411,15 +1429,23 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
             recommendation,
             confidence: confidenceLookup[String(review.confidence).toLowerCase()] ?? 0.3,
             overall_alignment_score: overallScore,
-            is_eligible_for_application: Boolean(review.recommendation),
+            is_eligible_for_application: Boolean(finalRecommendation),
+            salary_min: formatSalaryComponent(job.salary_min),
+            salary_max: formatSalaryComponent(job.salary_max),
+            salary_currency: job.salary_currency ?? null,
+            salary_range: job.salary_range ?? null,
             // AI review details
             rationale: review.rationale ?? null,
+            tldr_summary: review.tldr_summary ?? null,
             confidence_level: review.confidence ?? null,
+            crew_output: review.crew_output ?? null,
             // HITL override fields
             override_recommend: review.override_recommend ?? null,
             override_comment: review.override_comment ?? null,
             override_by: review.override_by ?? null,
             override_at: review.override_at ?? null,
+            // Job description content
+            description: job.description ?? null,
         } as ReviewedJob;
     });
 
@@ -1472,6 +1498,54 @@ export const overrideJobReview = async (
         headers,
         body: JSON.stringify(overrideData),
     });
-    
+
+    return handleResponse(response);
+};
+
+// --- LinkedIn Jobs ---
+
+export const fetchLinkedInJobByUrl = async (url: string): Promise<any> => {
+    const response = await fetch(buildFastApiUrl('linkedin-jobs/fetch-by-url'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ url }),
+    });
+
+    return handleResponse(response);
+};
+
+export const getJobReviewStatus = async (jobId: string): Promise<any> => {
+    const response = await fetch(buildFastApiUrl(`linkedin-jobs/review-status/${jobId}`), {
+        method: 'GET',
+        headers,
+    });
+
+    return handleResponse(response);
+};
+
+export const generateApplicationFromJob = async (jobId: string, narrativeId?: string): Promise<any> => {
+    const url = narrativeId
+        ? buildFastApiUrl(`applications/generate-from-job/${jobId}?narrative_id=${narrativeId}`)
+        : buildFastApiUrl(`applications/generate-from-job/${jobId}`);
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers,
+    });
+
+    return handleResponse(response);
+};
+
+export const createApplicationFromJob = async (jobId: string, mode: string = 'fast_track', narrativeId?: string): Promise<any> => {
+    let url = buildFastApiUrl(`applications/create-from-job/${jobId}?mode=${mode}`);
+    if (narrativeId) {
+        url += `&narrative_id=${narrativeId}`;
+    }
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers,
+    });
+
     return handleResponse(response);
 };

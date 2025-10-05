@@ -19,6 +19,9 @@ jsonschema>=4.0.0
 python-jobspy==1.1.82
 pandas==2.3.2
 
+# Web scraping for Glassdoor job descriptions
+playwright==1.49.1
+
 # Queue and scheduler dependencies
 # Pin to versions available on PyPI to ensure installation succeeds
 rq==1.16.2

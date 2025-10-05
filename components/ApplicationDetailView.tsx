@@ -4,6 +4,7 @@ import { LoadingSpinner, SparklesIcon, PlusCircleIcon, TrashIcon, StrategyIcon, 
 import * as geminiService from '../services/geminiService';
 import { MarkdownPreview } from './MarkdownPreview';
 import { INTERVIEW_TYPES } from '../constants';
+import { AIGeneratedContentReview } from './AIGeneratedContentReview';
 
 interface ApplicationDetailViewProps {
     application: JobApplication;
@@ -253,7 +254,20 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
                     <button onClick={onBack} className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 mb-2">
                         &larr; Back to Applications
                     </button>
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{company.company_name}</h2>
+                    <div className="flex items-center gap-3 mb-2">
+                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{company.company_name}</h2>
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                            application.workflow_mode === 'ai_generated'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
+                                : application.workflow_mode === 'fast_track'
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
+                                : 'bg-gray-100 text-gray-800 dark:bg-gray-900/50 dark:text-gray-300'
+                        }`}>
+                            {application.workflow_mode === 'ai_generated' ? '🚀 Full AI Application' :
+                             application.workflow_mode === 'fast_track' ? '⚡ Fast Track Application' :
+                             '📝 Manual Application'}
+                        </span>
+                    </div>
                     <p className="text-lg text-slate-600 dark:text-slate-300">{application.job_title}</p>
                 </div>
                  <div className="flex gap-2">
@@ -271,6 +285,12 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
                     <button onClick={() => onTabChange?.('overview')} className={tabClass('overview')}>Overview</button>
                     <button onClick={() => onTabChange?.('analysis')} className={tabClass('analysis')}>AI Analysis</button>
                     <button onClick={() => onTabChange?.('resume')} className={tabClass('resume')}>Final Resume</button>
+                    <button onClick={() => onTabChange?.('ai-content')} className={tabClass('ai-content')}>
+                        <div className="flex items-center gap-1">
+                            <SparklesIcon className="h-4 w-4" />
+                            AI Generated
+                        </div>
+                    </button>
                     <button onClick={() => onTabChange?.('interviews')} className={tabClass('interviews')}>Interviews</button>
                 </nav>
             </div>
@@ -351,6 +371,10 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
 
                 {activeTab === 'resume' && (
                     <ResumeViewer resume={application.tailored_resume_json} />
+                )}
+
+                {activeTab === 'ai-content' && (
+                    <AIGeneratedContentReview application={application} />
                 )}
 
                 {activeTab === 'interviews' && (

@@ -10,6 +10,7 @@ from loguru import logger
 from ..jobspy.scraping import scrape_jobs_sync, normalize_job_to_scraped_job
 from .database import get_database_service
 from .job_persistence import persist_jobs
+from ..jobspy.glassdoor_scraper import scrape_glassdoor_job_description, PLAYWRIGHT_AVAILABLE
 
 
 def _coerce_decimals(value: Any) -> Any:
@@ -84,6 +85,7 @@ def scrape_jobs_worker(site_schedule_id: Optional[str] = None,
         
         # Persist scraped jobs if scraping was successful
         persistence_summary = None
+        enrichment_summary = None
         if result.get("jobs") and result.get("status") in ["succeeded", "partial"]:
             try:
                 site_name = payload.get("site_name", "unknown")
@@ -91,10 +93,19 @@ def scrape_jobs_worker(site_schedule_id: Optional[str] = None,
                     persist_jobs(records=result["jobs"], site_name=site_name)
                 )
                 logger.info(f"Run {run_id}: Persisted jobs - {persistence_summary}")
-                
+
                 # Add persistence info to result for logging
                 result["persistence_summary"] = persistence_summary
-                
+
+                # Auto-enrich Glassdoor jobs with full descriptions
+                if site_name.lower() == "glassdoor" and PLAYWRIGHT_AVAILABLE and persistence_summary.get("inserted", 0) > 0:
+                    logger.info(f"Run {run_id}: Starting Glassdoor enrichment for {persistence_summary['inserted']} new jobs")
+                    enrichment_summary = loop.run_until_complete(
+                        _enrich_glassdoor_jobs(result.get("jobs", []), db_service)
+                    )
+                    logger.info(f"Run {run_id}: Glassdoor enrichment - {enrichment_summary}")
+                    result["glassdoor_enrichment_summary"] = enrichment_summary
+
             except Exception as e:
                 logger.error(f"Run {run_id}: Failed to persist jobs: {e}")
                 # Don't fail the entire job for persistence errors
@@ -327,6 +338,8 @@ def process_job_review(job_id: str, max_retries: int = 3) -> Dict[str, Any]:
             "tradeoffs": crew_result.get("tradeoffs", []),
             "actions": crew_result.get("actions", []),
             "sources": crew_result.get("sources", []),
+            "overall_alignment_score": crew_result.get("overall_alignment_score"),  # Extract for database column
+            "tldr_summary": crew_result.get("tldr_summary"),  # Include for crew_output JSON (no separate column)
             "crew_output": crew_result,
             "processing_time_seconds": processing_time,
             "crew_version": "job_posting_review_v1",
@@ -610,3 +623,86 @@ def run_linkedin_job_search(
             "completed_pages": 0,
             "errors_count": 1
         }
+
+
+async def _enrich_glassdoor_jobs(jobs: list, db_service) -> Dict[str, Any]:
+    """
+    Enrich Glassdoor jobs with full descriptions using Playwright scraping.
+
+    Args:
+        jobs: List of scraped job dictionaries with job_url fields
+        db_service: Database service instance
+
+    Returns:
+        Summary dict: {enriched: int, failed: int, skipped: int}
+    """
+    import asyncio
+
+    enriched = 0
+    failed = 0
+    skipped = 0
+
+    for job in jobs:
+        try:
+            # Get job URL from ScrapedJob object or dict
+            if hasattr(job, 'job_url'):
+                job_url = job.job_url
+            else:
+                job_url = job.get('job_url')
+
+            if not job_url:
+                logger.warning(f"Skipping enrichment - no job_url for job: {job}")
+                skipped += 1
+                continue
+
+            # Check if job already has a description
+            if hasattr(job, 'description'):
+                existing_desc = job.description
+            else:
+                existing_desc = job.get('description')
+
+            if existing_desc and len(existing_desc) > 100:
+                logger.debug(f"Skipping enrichment - job already has description: {job_url}")
+                skipped += 1
+                continue
+
+            # Scrape full description
+            logger.info(f"Enriching Glassdoor job: {job_url}")
+            description = await scrape_glassdoor_job_description(job_url, timeout=30000)
+
+            if description:
+                # Find the job ID in database by job_url to update it
+                async with db_service.pool.acquire() as conn:
+                    job_id = await conn.fetchval(
+                        "SELECT id FROM jobs WHERE LOWER(site) = 'glassdoor' AND job_url = $1 LIMIT 1",
+                        job_url
+                    )
+
+                    if job_id:
+                        await conn.execute(
+                            "UPDATE jobs SET description = $1 WHERE id = $2",
+                            description,
+                            job_id
+                        )
+                        enriched += 1
+                        logger.info(f"✓ Enriched Glassdoor job {job_id}: {len(description)} chars")
+                    else:
+                        logger.warning(f"Could not find job in DB for URL: {job_url}")
+                        skipped += 1
+            else:
+                failed += 1
+                logger.warning(f"✗ Failed to scrape description for: {job_url}")
+
+            # Rate limiting: 2 second pause between requests
+            await asyncio.sleep(2)
+
+        except Exception as e:
+            failed += 1
+            logger.error(f"Error enriching Glassdoor job: {e}")
+            continue
+
+    return {
+        "enriched": enriched,
+        "failed": failed,
+        "skipped": skipped
+    }

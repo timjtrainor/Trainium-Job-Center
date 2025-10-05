@@ -32,6 +32,7 @@ const navItems: NavItem[] = [
 ];
 
 const secondaryNavItems = [
+    { path: '/add-linkedin-job', label: 'Add LinkedIn Job', icon: ClipboardDocumentCheckIcon },
     { path: '/health-checks', label: 'Health Checks', icon: AtomGearIcon },
     { path: '/schedule-management', label: 'Job Scheduler', icon: ClockIcon },
     { path: '/chroma-upload', label: 'ChromaDB Upload', icon: CircleStackIcon },
