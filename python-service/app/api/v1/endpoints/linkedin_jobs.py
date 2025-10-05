@@ -178,18 +178,8 @@ async def _fetch_job_via_mcp(url: str) -> dict:
         if not job_details_tool:
             raise Exception("LinkedIn MCP tool 'get_job_details' not available")
 
-        # Call the MCP tool
-        # The tool's run() method is synchronous but internally uses async calls
-        # We need to run it in an executor to avoid blocking the event loop
-        import asyncio
-        import concurrent.futures
-
-        loop = asyncio.get_event_loop()
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            result = await loop.run_in_executor(
-                executor,
-                lambda: job_details_tool.run(url=url)
-            )
+        # Call the MCP tool directly - crewai tools handle their own async context
+        result = job_details_tool.run(url=url)
 
         # Validate required fields
         if not result.get('title') or not result.get('company'):

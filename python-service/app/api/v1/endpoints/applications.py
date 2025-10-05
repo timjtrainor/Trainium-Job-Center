@@ -21,16 +21,16 @@ settings = get_settings()
 
 def format_job_location(job: Dict[str, Any]) -> str:
     """Format job location from separate database fields into a single string."""
-    city = job.get('location_city', '').strip()
-    state = job.get('location_state', '').strip()
-    country = job.get('location_country', '').strip()
+    city = (job.get('location_city') or '').strip()
+    state = (job.get('location_state') or '').strip()
+    country = (job.get('location_country') or '').strip()
 
     parts = [part for part in [city, state, country] if part]
     if parts:
         return ', '.join(parts)
 
     # Fallback to any generic location field
-    return job.get('location', '').strip()
+    return (job.get('location') or '').strip()
 
 
 def format_job_salary(job: Dict[str, Any]) -> Optional[str]:
