@@ -876,6 +876,47 @@ export interface SiteSchedule {
 export type SiteSchedulePayload = Partial<Omit<SiteSchedule, 'id' | 'created_at' | 'updated_at'>>;
 
 
+export type AiTaskType = 'resume_tailoring' | 'company_research' | string;
+
+export interface TaskRunRecord {
+    run_id: string;
+    task_type: AiTaskType;
+    status: 'queued' | 'running' | 'succeeded' | 'failed' | string;
+    trigger: string;
+    reference_id?: string | null;
+    schedule_id?: string | null;
+    task_id?: string | null;
+    started_at?: string | null;
+    finished_at?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+    result?: any;
+    error?: string | null;
+}
+
+export interface TaskEnqueueResponse {
+    run_id: string;
+    task_id: string;
+    status: string;
+}
+
+export interface ResumeTailoringJobPayload {
+    application_id: string;
+    job_description: string;
+    resume_json: Record<string, any>;
+    resume_summary: string;
+    company_context?: Record<string, any>;
+    narrative?: Record<string, any>;
+    job_analysis?: Record<string, any> | null;
+}
+
+export interface CompanyResearchJobPayload {
+    company_id?: string;
+    company_name: string;
+    homepage_url?: string;
+}
+
+
 export const ResumeTemplate: Resume = {
   header: { first_name: "", last_name: "", job_title: "", email: "", phone_number: "", city: "", state: "", links: [] },
   summary: { paragraph: "", bullets: [] },

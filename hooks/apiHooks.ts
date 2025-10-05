@@ -1,6 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as apiService from '../services/apiService';
-import { Company, BaseResume, Resume, SiteSchedule, SiteDetails, SiteSchedulePayload } from '../types';
+import {
+  Company,
+  BaseResume,
+  Resume,
+  SiteSchedule,
+  SiteDetails,
+  SiteSchedulePayload,
+  TaskRunRecord,
+  TaskEnqueueResponse,
+  ResumeTailoringJobPayload,
+  CompanyResearchJobPayload,
+} from '../types';
 
 export const useGetCompanies = () => {
   return useQuery<Company[], Error>({
@@ -68,6 +79,39 @@ export const useDeleteSiteSchedule = () => {
   return useMutation({
     mutationFn: (scheduleId: string) => apiService.deleteSiteSchedule(scheduleId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['siteSchedules'] }),
+  });
+};
+
+export const useEnqueueResumeTailoringJob = () => {
+  return useMutation<TaskEnqueueResponse, Error, ResumeTailoringJobPayload>({
+    mutationFn: apiService.enqueueResumeTailoringJob,
+  });
+};
+
+export const useEnqueueCompanyResearchJob = () => {
+  return useMutation<TaskEnqueueResponse, Error, CompanyResearchJobPayload>({
+    mutationFn: apiService.enqueueCompanyResearchJob,
+  });
+};
+
+interface TaskRunStatusOptions {
+  enabled?: boolean;
+  refetchInterval?: number;
+}
+
+export const useTaskRunStatus = (
+  runId: string | null,
+  { enabled = true, refetchInterval = 4000 }: TaskRunStatusOptions = {}
+) => {
+  return useQuery<TaskRunRecord, Error>({
+    queryKey: ['taskRunStatus', runId],
+    queryFn: () => apiService.getTaskRunStatus(runId!),
+    enabled: Boolean(runId) && enabled,
+    refetchInterval: (data) => {
+      if (!runId || !enabled) return false;
+      if (!data) return refetchInterval;
+      return data.status === 'succeeded' || data.status === 'failed' ? false : refetchInterval;
+    },
   });
 };
 

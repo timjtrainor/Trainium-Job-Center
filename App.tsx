@@ -2,13 +2,14 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { HashRouter, Routes, Route, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
-import { AppView, NewAppStep, Resume, JobApplication, BaseResume, Status, Company, CompanyInfoResult, KeywordsResult, GuidanceResult, Prompt, CompanyPayload, JobApplicationPayload, BaseResumePayload, SkillOptions, ExtractedInitialDetails, Contact, ContactPayload, ApplicationQuestion, WorkExperience, Interview, InterviewPayload, InterviewPrep, MessagePayload, Message, LinkedInPost, LinkedInPostPayload, PromptContext, JobProblemAnalysisResult, UserProfile, StrategicNarrative, StrategicNarrativePayload, UserProfilePayload, LinkedInEngagement, PostResponse, PostResponsePayload, LinkedInEngagementPayload, StandardJobRole, StandardJobRolePayload, ResumeTailoringData, PostSubmissionPlan, InfoField, ResumeHeader, ScoutedOpportunity, Offer, OfferPayload, NinetyDayPlan, Sprint, BragBankEntry, SkillTrend, SkillTrendPayload, BragBankEntryPayload, CreateSprintPayload, SprintAction, AiSprintPlan, AiSprintAction, KeywordDetail, SprintActionPayload, SkillSection, ConsultativeClosePlan, StrategicHypothesisDraft, PostInterviewDebrief, ImpactStory, ApplicationDetailTab, ResumeTemplate, BaseResumePayload as ResumePayload } from './types';
+import { AppView, NewAppStep, Resume, JobApplication, BaseResume, Status, Company, KeywordsResult, GuidanceResult, Prompt, CompanyPayload, JobApplicationPayload, BaseResumePayload, SkillOptions, ExtractedInitialDetails, Contact, ContactPayload, ApplicationQuestion, WorkExperience, Interview, InterviewPayload, InterviewPrep, MessagePayload, Message, LinkedInPost, LinkedInPostPayload, PromptContext, JobProblemAnalysisResult, UserProfile, StrategicNarrative, StrategicNarrativePayload, UserProfilePayload, LinkedInEngagement, PostResponse, PostResponsePayload, LinkedInEngagementPayload, StandardJobRole, StandardJobRolePayload, ResumeTailoringData, PostSubmissionPlan, InfoField, ResumeHeader, ScoutedOpportunity, Offer, OfferPayload, NinetyDayPlan, Sprint, BragBankEntry, SkillTrend, SkillTrendPayload, BragBankEntryPayload, CreateSprintPayload, SprintAction, AiSprintPlan, AiSprintAction, KeywordDetail, SprintActionPayload, SkillSection, ConsultativeClosePlan, StrategicHypothesisDraft, PostInterviewDebrief, ImpactStory, ApplicationDetailTab, ResumeTemplate, BaseResumePayload as ResumePayload, CompanyResearchJobPayload } from './types';
 import * as apiService from './services/apiService';
 import * as geminiService from './services/geminiService';
 import { PROMPTS } from './promptsData';
 import { ensureUniqueAchievementIds } from './utils/resume';
 
 import { ToastProvider, useToast } from './hooks/useToast';
+import { useEnqueueResumeTailoringJob, useTaskRunStatus, useEnqueueCompanyResearchJob } from './hooks/apiHooks';
 
 import { SideNav } from './components/SideNav';
 import { DashboardView } from './components/DashboardView';
@@ -62,6 +63,13 @@ type JobDetailsPayload = {
   jobDescription: string;
 }
 
+type CompanyResearchParams = {
+    companyId: string;
+    companyName: string;
+    homepageUrl?: string;
+    source?: 'modal' | 'new_application';
+};
+
 const AppContent = () => {
     // --- Core App State ---
     const [isAppLoading, setIsAppLoading] = useState(true);
@@ -89,7 +97,7 @@ const AppContent = () => {
     const [sprint, setSprint] = useState<Sprint | null>(null);
 
     // --- New Application Flow State ---
-    const [newAppLoadingState, setNewAppLoadingState] = useState<'idle' | 'extracting' | 'analyzing' | 'keywords' | 'tailoring' | 'saving' | 'planning'>('idle');
+    const [newAppLoadingState, setNewAppLoadingState] = useState<'idle' | 'extracting' | 'analyzing' | 'keywords' | 'tailoring' | 'saving' | 'planning' | 'researching'>('idle');
     const [newAppStep, setNewAppStep] = useState<NewAppStep>(NewAppStep.INITIAL_INPUT);
     const [currentApplicationId, setCurrentApplicationId] = useState<string | null>(null);
     const [isMessageOnlyApp, setIsMessageOnlyApp] = useState(false);
@@ -121,6 +129,11 @@ const AppContent = () => {
     const [resumeAlignmentScore, setResumeAlignmentScore] = useState<number | null>(null);
     const [applicationQuestions, setApplicationQuestions] = useState<ApplicationQuestion[]>([]);
     const [postSubmissionPlan, setPostSubmissionPlan] = useState<PostSubmissionPlan | null>(null);
+    const [resumeTailoringRunId, setResumeTailoringRunId] = useState<string | null>(null);
+    const [pendingResumeBase, setPendingResumeBase] = useState<Resume | null>(null);
+    const [companyResearchRunId, setCompanyResearchRunId] = useState<string | null>(null);
+    const [pendingCompanyResearch, setPendingCompanyResearch] = useState<{ companyId?: string; companyName: string; homepageUrl?: string } | null>(null);
+    const companyResearchPromiseRef = useRef<{ resolve: () => void; reject: (error: Error) => void } | null>(null);
     
     // --- UI/Modal State ---
     const [isReanalyzing, setIsReanalyzing] = useState(false);
@@ -158,8 +171,12 @@ const AppContent = () => {
     const [isDebugMode, setIsDebugMode] = useState(false);
     const [modelName, setModelName] = useState('gemini-2.5-flash');
     const [debugModalState, setDebugModalState] = useState<{ isOpen: boolean; stage: 'request' | 'response'; prompt: string; response: string | null; resolve?: (value: unknown) => void }>({ isOpen: false, stage: 'request', prompt: '', response: null });
-    
+
     // --- Computed State ---
+    const enqueueResumeTailoringMutation = useEnqueueResumeTailoringJob();
+    const enqueueCompanyResearchMutation = useEnqueueCompanyResearchJob();
+    const resumeTailoringStatus = useTaskRunStatus(resumeTailoringRunId, { enabled: !!resumeTailoringRunId });
+    const companyResearchStatus = useTaskRunStatus(companyResearchRunId, { enabled: !!companyResearchRunId });
     const activeNarrative = useMemo(() => strategicNarratives.find(n => n.narrative_id === activeNarrativeId), [strategicNarratives, activeNarrativeId]);
 
     const handleError = (err: unknown, messagePrefix: string) => {
@@ -221,6 +238,269 @@ const AppContent = () => {
     useEffect(() => {
         fetchInitialData();
     }, [fetchInitialData]);
+
+    useEffect(() => {
+        if (!resumeTailoringRunId || !resumeTailoringStatus.data) {
+            return;
+        }
+
+        const statusRecord = resumeTailoringStatus.data;
+
+        if (statusRecord.status === 'running') {
+            return;
+        }
+
+        if (statusRecord.status === 'succeeded' && pendingResumeBase) {
+            const tailoringResult = statusRecord.result as ResumeTailoringData | undefined;
+
+            if (!tailoringResult) {
+                addToast('Resume tailoring completed without result data.', 'warning');
+            } else {
+                setKeywords(tailoringResult.keywords || null);
+                setGuidance(tailoringResult.guidance || null);
+
+                const summarySuggestions = Array.isArray(tailoringResult.summary_suggestions)
+                    ? tailoringResult.summary_suggestions.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+                    : [];
+                const baseSummary = pendingResumeBase.summary?.paragraph || '';
+                const uniqueSummaries = new Set<string>([baseSummary, ...summarySuggestions]);
+                setSummaryParagraphOptions(Array.from(uniqueSummaries).filter((entry) => entry.trim().length > 0));
+
+                const comprehensiveSkills = Array.isArray(tailoringResult.comprehensive_skills)
+                    ? tailoringResult.comprehensive_skills
+                    : [];
+                setAllSkillOptions(comprehensiveSkills);
+
+                const missingKeywordResults = Array.isArray(tailoringResult.missing_keywords)
+                    ? tailoringResult.missing_keywords
+                    : [];
+                setMissingKeywords(missingKeywordResults);
+
+                const alignmentScore = typeof tailoringResult.initial_alignment_score === 'number'
+                    ? tailoringResult.initial_alignment_score
+                    : null;
+                setResumeAlignmentScore(alignmentScore);
+
+                const aiSelectedSkills = Array.isArray(tailoringResult.ai_selected_skills)
+                    ? tailoringResult.ai_selected_skills.filter((skill): skill is string => typeof skill === 'string' && skill.trim().length > 0)
+                    : [];
+
+                const processedExperiences = Array.isArray(tailoringResult.processed_work_experience)
+                    ? tailoringResult.processed_work_experience
+                    : [];
+
+                const updatedWorkExperience = pendingResumeBase.work_experience.map((baseExperience, expIndex) => {
+                    const processedExperience = processedExperiences[expIndex];
+                    let processedAccomplishments: any[] = [];
+                    let processedRest: Record<string, any> = {};
+
+                    if (processedExperience && typeof processedExperience === 'object') {
+                        const { accomplishments: accList, ...rest } = processedExperience as any;
+                        processedAccomplishments = Array.isArray(accList) ? accList : [];
+                        processedRest = rest;
+                    }
+
+                    const baseAccomplishments = Array.isArray(baseExperience.accomplishments)
+                        ? baseExperience.accomplishments
+                        : [];
+
+                    const accomplishmentSource = processedAccomplishments.length > 0 ? processedAccomplishments : baseAccomplishments;
+
+                    const accomplishments = accomplishmentSource.map((acc: any, accIndex: number) => {
+                        const baseAcc = baseAccomplishments[accIndex] || {
+                            achievement_id: uuidv4(),
+                            description: '',
+                            always_include: false,
+                            order_index: accIndex,
+                            keyword_suggestions: [],
+                            relevance_score: null,
+                            original_score: null,
+                        };
+
+                        const keywordSuggestions = Array.isArray(acc?.keyword_suggestions)
+                            ? acc.keyword_suggestions
+                            : Array.isArray(baseAcc.keyword_suggestions)
+                                ? baseAcc.keyword_suggestions
+                                : [];
+
+                        return {
+                            ...baseAcc,
+                            achievement_id: baseAcc.achievement_id || uuidv4(),
+                            description: acc?.description ?? baseAcc.description ?? '',
+                            keyword_suggestions: keywordSuggestions,
+                            relevance_score: acc?.relevance_score ?? baseAcc.relevance_score ?? null,
+                            original_score: acc?.original_score ?? baseAcc.original_score ?? null,
+                            always_include: typeof acc?.always_include === 'boolean' ? acc.always_include : baseAcc.always_include ?? false,
+                            order_index: typeof acc?.order_index === 'number' ? acc.order_index : baseAcc.order_index ?? accIndex,
+                        };
+                    });
+
+                    return {
+                        ...baseExperience,
+                        ...processedRest,
+                        accomplishments,
+                    };
+                });
+
+                const tailoredResume: Resume = ensureUniqueAchievementIds({
+                    ...pendingResumeBase,
+                    summary: { paragraph: baseSummary, bullets: [] },
+                    skills: [{ heading: 'Core Competencies', items: aiSelectedSkills }],
+                    work_experience: updatedWorkExperience,
+                });
+
+                setFinalResume(tailoredResume);
+                setNewAppStep(NewAppStep.TAILOR_RESUME);
+                addToast('Resume tailored successfully!', 'success');
+            }
+
+            setNewAppLoadingState('idle');
+            setPendingResumeBase(null);
+            setResumeTailoringRunId(null);
+            return;
+        }
+
+        if (statusRecord.status === 'failed') {
+            addToast(`Resume tailoring failed: ${statusRecord.error || 'Unknown error'}`, 'error');
+            setNewAppLoadingState('idle');
+            setPendingResumeBase(null);
+            setResumeTailoringRunId(null);
+        }
+    }, [resumeTailoringRunId, resumeTailoringStatus.data, pendingResumeBase, addToast]);
+
+    useEffect(() => {
+        if (!companyResearchRunId || !companyResearchStatus.data) {
+            return;
+        }
+
+        const statusRecord = companyResearchStatus.data;
+
+        if (statusRecord.status === 'running') {
+            return;
+        }
+
+        const finalize = () => {
+            setCompanyResearchRunId(null);
+            setPendingCompanyResearch(null);
+            setCompanyDetailAutoResearch(false);
+            setNewAppLoadingState((prev) => (prev === 'researching' ? 'idle' : prev));
+        };
+
+        const resolveCallback = (completed: boolean, error?: Error) => {
+            if (companyDetailResearchCallback) {
+                companyDetailResearchCallback(completed ? 'completed' : 'failed');
+                setCompanyDetailResearchCallback(null);
+            }
+            if (companyResearchPromiseRef.current) {
+                if (completed) {
+                    companyResearchPromiseRef.current.resolve();
+                } else {
+                    companyResearchPromiseRef.current.reject(error || new Error('Company research failed'));
+                }
+                companyResearchPromiseRef.current = null;
+            }
+        };
+
+        const buildInfoField = (value: any): InfoField => {
+            if (!value) {
+                return { text: '', source: '' };
+            }
+            if (typeof value === 'string') {
+                return { text: value, source: '' };
+            }
+            if (Array.isArray(value)) {
+                return { text: value.filter(Boolean).join(', '), source: '' };
+            }
+            if (typeof value === 'object') {
+                const text = value.text ?? value.summary ?? value.description ?? Object.values(value).filter(Boolean).join('; ');
+                return {
+                    text: typeof text === 'string' ? text : JSON.stringify(text),
+                    source: typeof value.source === 'string' ? value.source : '',
+                };
+            }
+            return { text: String(value), source: '' };
+        };
+
+        const parseResultPayload = (raw: unknown): any => {
+            if (!raw) return undefined;
+            if (typeof raw === 'string') {
+                try {
+                    return JSON.parse(raw);
+                } catch (error) {
+                    console.warn('Unable to parse company research result payload', error);
+                    return undefined;
+                }
+            }
+            return raw;
+        };
+
+        const extractReport = (payload: any): Record<string, any> | null => {
+            if (!payload || typeof payload !== 'object') return null;
+            if (payload.report && typeof payload.report === 'object') return payload.report as Record<string, any>;
+            if (payload.data && typeof payload.data === 'object') return payload.data as Record<string, any>;
+            if (payload.result && typeof payload.result === 'object') return payload.result as Record<string, any>;
+            return payload as Record<string, any>;
+        };
+
+        if (statusRecord.status === 'succeeded') {
+            (async () => {
+                try {
+                    const normalizedPayload = parseResultPayload(statusRecord.result);
+                    const report = extractReport(normalizedPayload);
+
+                    if (report && pendingCompanyResearch?.companyId) {
+                        const updates: CompanyPayload = {
+                            company_name: pendingCompanyResearch.companyName,
+                            company_url: pendingCompanyResearch.homepageUrl,
+                            mission: buildInfoField(report.overall_summary?.summary || report.mission),
+                            values: buildInfoField(report.workplace_culture?.company_values || report.values),
+                            goals: buildInfoField(report.overall_summary?.best_fit_for || report.goals),
+                            issues: buildInfoField(report.overall_summary?.potential_concerns || report.issues),
+                            customer_segments: buildInfoField(report.career_growth?.customer_segments || report.customer_segments),
+                            strategic_initiatives: buildInfoField(report.financial_health?.strategic_initiatives || report.strategic_initiatives),
+                            market_position: buildInfoField(report.financial_health?.financial_trend || report.market_position),
+                            competitors: buildInfoField(report.workplace_culture?.culture_signals || report.competitors),
+                            news: buildInfoField(report.leadership_reputation?.recent_news || report.news),
+                            industry: buildInfoField(report.career_growth?.industry || report.industry),
+                        };
+
+                        await apiService.updateCompany(pendingCompanyResearch.companyId, updates);
+                        await fetchInitialData();
+                        setSelectedCompanyForModal((prev) => {
+                            if (!prev || prev.company_id !== pendingCompanyResearch.companyId) {
+                                return prev;
+                            }
+                            return { ...prev, ...updates } as Company;
+                        });
+                    } else if (!report) {
+                        addToast('Company research completed but no report was returned.', 'warning');
+                    }
+
+                    const companyNameForToast = pendingCompanyResearch?.companyName
+                        || (typeof (report as any)?.company_name === 'string' ? (report as any).company_name : 'company');
+                    addToast(`Company research ready for ${companyNameForToast}`, 'success');
+                    resolveCallback(true);
+                } catch (error) {
+                    const err = error instanceof Error ? error : new Error('Failed to update company with research');
+                    addToast(err.message, 'error');
+                    resolveCallback(false, err);
+                } finally {
+                    finalize();
+                }
+            })();
+        } else if (statusRecord.status === 'failed') {
+            addToast(`Company research failed: ${statusRecord.error || 'Unknown error'}`, 'error');
+            resolveCallback(false, new Error(statusRecord.error || 'Company research failed'));
+            finalize();
+        }
+    }, [
+        companyResearchRunId,
+        companyResearchStatus.data,
+        pendingCompanyResearch,
+        addToast,
+        fetchInitialData,
+        companyDetailResearchCallback,
+    ]);
 
     const handleNavigateToInterviewStudio = (app: JobApplication) => {
         setInitialAppForStudio(app);
@@ -371,7 +651,75 @@ const AppContent = () => {
             handleError(err, 'Failed job analysis');
         }
     };
-    
+
+    const handleCompanyResearch = useCallback(({ companyId, companyName, homepageUrl, source = 'modal' }: CompanyResearchParams): Promise<void> => {
+        if (!companyId) {
+            const error = new Error('A company ID is required to run AI research.');
+            addToast(error.message, 'error');
+            return Promise.reject(error);
+        }
+
+        if (companyResearchRunId) {
+            const error = new Error('Company research is already running. Please wait for it to finish.');
+            addToast(error.message, 'info');
+            return Promise.reject(error);
+        }
+
+        enqueueCompanyResearchMutation.reset();
+
+        setPendingCompanyResearch({ companyId, companyName, homepageUrl });
+        setCompanyResearchRunId(null);
+
+        if (source === 'new_application') {
+            setNewAppLoadingState('researching');
+        }
+
+        addToast(`Researching ${companyName}...`, 'info');
+
+        return new Promise<void>((resolve, reject) => {
+            companyResearchPromiseRef.current = { resolve, reject };
+
+            const payload: CompanyResearchJobPayload = {
+                company_id: companyId,
+                company_name: companyName,
+                homepage_url: homepageUrl,
+            };
+
+            enqueueCompanyResearchMutation
+                .mutateAsync(payload)
+                .then((response) => {
+                    if (!response?.run_id) {
+                        throw new Error('Missing run identifier from company research enqueue response.');
+                    }
+                    setCompanyResearchRunId(response.run_id);
+                })
+                .catch((error) => {
+                    const err = error instanceof Error ? error : new Error('Failed to queue company research');
+                    addToast(err.message, 'error');
+                    if (source === 'new_application') {
+                        setNewAppLoadingState((prev) => (prev === 'researching' ? 'idle' : prev));
+                    }
+                    setPendingCompanyResearch(null);
+                    setCompanyResearchRunId(null);
+                    setCompanyDetailAutoResearch(false);
+                    if (companyDetailResearchCallback) {
+                        companyDetailResearchCallback('failed');
+                        setCompanyDetailResearchCallback(null);
+                    }
+                    if (companyResearchPromiseRef.current) {
+                        companyResearchPromiseRef.current.reject(err);
+                        companyResearchPromiseRef.current = null;
+                    }
+                    reject(err);
+                });
+        });
+    }, [
+        addToast,
+        companyDetailResearchCallback,
+        companyResearchRunId,
+        enqueueCompanyResearchMutation,
+    ]);
+
     const handleConfirmFit = async (isInterested: boolean) => {
         if (!currentApplicationId) return;
         if (!isInterested) {
@@ -440,57 +788,44 @@ const AppContent = () => {
                 setNewAppLoadingState('idle');
              }
         } else {
-            try {
-                const prompt = PROMPTS.find(p => p.id === 'GENERATE_RESUME_TAILORING_DATA');
-                if (!prompt || !jobProblemAnalysisResult || !activeNarrative) throw new Error("Resume tailoring prompt or context missing.");
-                
-                  const context: PromptContext = {
-                      JOB_DESCRIPTION: jobDetails.jobDescription,
-                      CORE_PROBLEM_ANALYSIS: JSON.stringify(jobProblemAnalysisResult.core_problem_analysis),
-                      KEY_SUCCESS_METRICS: jobProblemAnalysisResult.key_success_metrics.join(', '),
-                      FULL_RESUME_JSON: JSON.stringify(sanitizedResume),
-                      RESUME_SUMMARY: sanitizedResume.summary.paragraph,
-                      POSITIONING_STATEMENT: activeNarrative.positioning_statement,
-                      MASTERY: activeNarrative.signature_capability,
-                      JOB_CONTEXT_JSON: JSON.stringify({ title: jobDetails.jobTitle, company: jobDetails.companyName, keywords }),
-                      MISSION: jobDetails.mission || '',
-                      VALUES: jobDetails.values || '',
-                  };
-
-                const result = await geminiService.generateResumeTailoringData(context, prompt.content);
-                
-                setKeywords(result.keywords || null);
-                setGuidance(result.guidance || null);
-                
-                  const uniqueSummaries = new Set([sanitizedResume.summary.paragraph, ...(result.summary_suggestions || [])]);
-                setSummaryParagraphOptions(Array.from(uniqueSummaries));
-                
-                setAllSkillOptions(result.comprehensive_skills || []);
-                setMissingKeywords(result.missing_keywords || []);
-                setResumeAlignmentScore(result.initial_alignment_score || null);
-
-                  const tailoredResume: Resume = ensureUniqueAchievementIds({
-                      ...sanitizedResume,
-                      summary: { paragraph: sanitizedResume.summary.paragraph, bullets: [] },
-                      skills: [{ heading: 'Core Competencies', items: result.ai_selected_skills || [] }],
-                      work_experience: (result.processed_work_experience || []).map((exp, expIndex) => ({
-                          ...sanitizedResume.work_experience[expIndex],
-                          accomplishments: (exp.accomplishments || []).map((acc, accIndex) => ({
-                              ...(sanitizedResume.work_experience[expIndex].accomplishments[accIndex] || { achievement_id: uuidv4(), description: '', always_include: false, order_index: 0 }),
-                              description: acc.description,
-                              keyword_suggestions: acc.keyword_suggestions,
-                              relevance_score: acc.relevance_score,
-                              original_score: acc.original_score,
-                          }))
-                      }))
-                  });
-                  setFinalResume(tailoredResume);
-                setNewAppStep(NewAppStep.TAILOR_RESUME);
-
-            } catch (err) {
-                handleError(err, 'Failed to tailor resume');
-            } finally {
+            if (!currentApplicationId) {
+                handleError(new Error('Missing application context'), 'Failed to queue resume tailoring');
                 setNewAppLoadingState('idle');
+                return;
+            }
+
+            try {
+                const companyContext = {
+                    mission: { text: jobDetails.mission || '', source: '' },
+                    values: { text: jobDetails.values || '', source: '' },
+                };
+
+                const narrativeContext = activeNarrative
+                    ? {
+                        positioning_statement: activeNarrative.positioning_statement,
+                        signature_capability: activeNarrative.signature_capability,
+                    }
+                    : {};
+
+                const payload: ResumeTailoringJobPayload = {
+                    application_id: currentApplicationId,
+                    job_description: jobDetails.jobDescription,
+                    resume_json: sanitizedResume,
+                    resume_summary: sanitizedResume.summary.paragraph,
+                    company_context: companyContext,
+                    narrative: narrativeContext,
+                    job_analysis: jobProblemAnalysisResult || undefined,
+                };
+
+                setPendingResumeBase(sanitizedResume);
+                setResumeTailoringRunId(null);
+                addToast('Tailoring resume with AI...', 'info');
+                const response = await enqueueResumeTailoringMutation.mutateAsync(payload);
+                setResumeTailoringRunId(response.run_id);
+            } catch (err) {
+                setPendingResumeBase(null);
+                setNewAppLoadingState('idle');
+                handleError(err, 'Failed to queue resume tailoring');
             }
         }
     };
@@ -1169,7 +1504,15 @@ const AppContent = () => {
             onCreateMessage={handleCreateMessage}
             onOpenCreateCompanyModal={(data) => { setInitialCompanyData(data); setIsCompanyModalOpen(true); }}
             onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }}
-            onResearch={async (details) => { await apiService.updateCompany(details.id, { company_name: details.name, company_url: details.url }); }}
+            onResearch={async (details) => {
+                await apiService.updateCompany(details.id, { company_name: details.name, company_url: details.url });
+                await handleCompanyResearch({
+                    companyId: details.id,
+                    companyName: details.name,
+                    homepageUrl: details.url,
+                    source: 'modal',
+                });
+            }}
             onDeleteContact={handleDeleteContact}
             prompts={PROMPTS}
             activeNarrative={activeNarrative}
@@ -1434,48 +1777,14 @@ const AppContent = () => {
                                 onOpenCreateCompanyModal={(data) => { setInitialCompanyData(data); setIsCompanyModalOpen(true); }}
                                 onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }}
                                 onResearch={async (details) => {
-                                    const prompt = PROMPTS.find(p => p.id === 'COMPANY_GOAL_ANALYSIS')?.content || '';
-                                    const researchContext = {
-                                        COMPANY_NAME: details.name,
-                                        COMPANY_HOMEPAGE: details.url || 'https://example.com',
-                                    };
-
-                                    const researchCallback = companyDetailResearchCallback;
-
-                                    try {
-                                        const aiResearchResult = await geminiService.researchCompanyInfo(researchContext, prompt);
-
-                                        const companyUpdates = {
-                                            company_name: details.name,
-                                            company_url: details.url,
-                                            mission: { text: aiResearchResult.mission?.text || '', source: aiResearchResult.mission?.source || '' },
-                                            values: { text: aiResearchResult.values?.text || '', source: aiResearchResult.values?.source || '' },
-                                            goals: { text: aiResearchResult.goals?.text || '', source: aiResearchResult.goals?.source || '' },
-                                            issues: { text: aiResearchResult.issues?.text || '', source: aiResearchResult.issues?.source || '' },
-                                            customer_segments: { text: aiResearchResult.customer_segments?.text || '', source: aiResearchResult.customer_segments?.source || '' },
-                                            strategic_initiatives: { text: aiResearchResult.strategic_initiatives?.text || '', source: aiResearchResult.strategic_initiatives?.source || '' },
-                                            market_position: { text: aiResearchResult.market_position?.text || '', source: aiResearchResult.market_position?.source || '' },
-                                            competitors: { text: aiResearchResult.competitors?.text || '', source: aiResearchResult.competitors?.source || '' },
-                                            news: { text: aiResearchResult.news?.text || '', source: aiResearchResult.news?.source || '' },
-                                            industry: { text: aiResearchResult.industry?.text || '', source: aiResearchResult.industry?.source || '' }
-                                        };
-
-                                        await apiService.updateCompany(details.id, companyUpdates);
-                                        await fetchInitialData();
-
-                                        if (researchCallback) {
-                                            researchCallback('completed');
-                                            setCompanyDetailResearchCallback(null);
-                                        }
-                                    } catch (error) {
-                                        if (researchCallback) {
-                                            researchCallback('failed');
-                                            setCompanyDetailResearchCallback(null);
-                                        }
-                                        throw error;
-                                    } finally {
-                                        setCompanyDetailAutoResearch(false);
-                                    }
+                                    const researchSource = companyDetailAutoResearch ? 'new_application' : 'modal';
+                                    await apiService.updateCompany(details.id, { company_name: details.name, company_url: details.url });
+                                    await handleCompanyResearch({
+                                        companyId: details.id,
+                                        companyName: details.name,
+                                        homepageUrl: details.url,
+                                        source: researchSource,
+                                    });
                                 }}
                                 onDeleteContact={handleDeleteContact}
                                 prompts={PROMPTS}

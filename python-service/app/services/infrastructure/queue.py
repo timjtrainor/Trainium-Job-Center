@@ -10,18 +10,25 @@ from loguru import logger
 
 from ...core.config import get_settings
 from .database import get_database_service
-from .worker import scrape_jobs_worker, process_job_review, run_linkedin_job_search
+from .worker import (
+    scrape_jobs_worker,
+    process_job_review,
+    run_linkedin_job_search,
+    process_resume_tailoring_job,
+    process_company_research_job,
+)
 
 
 class QueueService:
     """Service for managing job queues with RQ."""
-    
+
     def __init__(self):
         self.settings = get_settings()
         self.redis_conn: Optional[redis.Redis] = None
         self.queue: Optional[Queue] = None  # Main scraping queue
         self.review_queue: Optional[Queue] = None  # Job review queue
         self.initialized = False
+        self.db_service = get_database_service()
 
     async def initialize(self) -> bool:
         """Initialize Redis connection and queue."""
@@ -51,10 +58,34 @@ class QueueService:
             self.initialized = True
             logger.info(f"Queue service initialized - Scraping queue: {self.settings.rq_queue_name}, Review queue: {self.settings.job_review_queue_name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize queue service: {str(e)}")
             return False
+
+    def _set_job_metadata(
+        self,
+        job,
+        *,
+        run_id: str,
+        task_type: str,
+        reference_id: Optional[str] = None,
+        schedule_id: Optional[str] = None,
+        trigger: str = "manual"
+    ) -> None:
+        """Attach common metadata to an RQ job."""
+        try:
+            job.meta = job.meta or {}
+            job.meta.update({
+                "run_id": run_id,
+                "task_type": task_type,
+                "reference_id": reference_id,
+                "schedule_id": schedule_id,
+                "trigger": trigger,
+            })
+            job.save_meta()
+        except Exception as exc:  # pragma: no cover - meta failures should not block execution
+            logger.warning(f"Failed to persist metadata for job {job.id}: {exc}")
 
     def enqueue_scraping_job(self, 
                            payload: Dict[str, Any],
@@ -171,7 +202,7 @@ class QueueService:
         logger.info(f"Enqueued {successful}/{len(job_ids)} job reviews successfully")
         return results
 
-    def enqueue_linkedin_job_search(self, 
+    def enqueue_linkedin_job_search(self,
                                    payload: Dict[str, Any],
                                    site_schedule_id: Optional[str] = None,
                                    trigger: str = "manual",
@@ -215,9 +246,18 @@ class QueueService:
                 job_id=run_id,  # Use run_id as job_id for consistency
                 result_ttl=self.settings.rq_result_ttl
             )
-            
+
+            self._set_job_metadata(
+                job,
+                run_id=run_id,
+                task_type="linkedin_job_search",
+                reference_id=payload.get("site_name"),
+                schedule_id=site_schedule_id,
+                trigger=trigger,
+            )
+
             logger.info(f"Enqueued LinkedIn job search - run_id: {run_id}, task_id: {job.id}, trigger: {trigger}")
-            
+
             return {
                 "task_id": job.id,
                 "run_id": run_id
@@ -411,6 +451,112 @@ class QueueService:
             trigger=trigger,
             run_id=run_id
         )
+
+    def enqueue_resume_tailoring_job(
+        self,
+        *,
+        application_id: str,
+        payload: Dict[str, Any],
+        run_id: str,
+        trigger: str = "manual",
+        schedule_id: Optional[str] = None,
+    ) -> Optional[Dict[str, str]]:
+        """Queue a resume tailoring task on the review queue."""
+
+        if not self.initialized:
+            logger.error("Queue service not initialized")
+            return None
+
+        if not self.review_queue:
+            logger.error("Review queue not configured")
+            return None
+
+        try:
+            job = self.review_queue.enqueue(
+                process_resume_tailoring_job,
+                application_id=application_id,
+                payload=payload,
+                run_id=run_id,
+                schedule_id=schedule_id,
+                job_id=run_id,
+                job_timeout=self.settings.rq_job_timeout,
+                result_ttl=self.settings.rq_result_ttl,
+            )
+
+            self._set_job_metadata(
+                job,
+                run_id=run_id,
+                task_type="resume_tailoring",
+                reference_id=application_id,
+                schedule_id=schedule_id,
+                trigger=trigger,
+            )
+
+            logger.info(
+                "Enqueued resume tailoring job",
+                application_id=application_id,
+                run_id=run_id,
+                task_id=job.id,
+            )
+
+            return {"task_id": job.id, "run_id": run_id}
+
+        except Exception as exc:
+            logger.error(f"Failed to enqueue resume tailoring job for application {application_id}: {exc}")
+            return None
+
+    def enqueue_company_research_job(
+        self,
+        *,
+        company_id: Optional[str],
+        payload: Dict[str, Any],
+        run_id: str,
+        trigger: str = "manual",
+        schedule_id: Optional[str] = None,
+    ) -> Optional[Dict[str, str]]:
+        """Queue a company research task on the review queue."""
+
+        if not self.initialized:
+            logger.error("Queue service not initialized")
+            return None
+
+        if not self.review_queue:
+            logger.error("Review queue not configured")
+            return None
+
+        try:
+            job = self.review_queue.enqueue(
+                process_company_research_job,
+                company_id=company_id,
+                payload=payload,
+                run_id=run_id,
+                schedule_id=schedule_id,
+                job_id=run_id,
+                job_timeout=self.settings.rq_job_timeout,
+                result_ttl=self.settings.rq_result_ttl,
+            )
+
+            self._set_job_metadata(
+                job,
+                run_id=run_id,
+                task_type="company_research",
+                reference_id=company_id,
+                schedule_id=schedule_id,
+                trigger=trigger,
+            )
+
+            logger.info(
+                "Enqueued company research job",
+                company_id=company_id,
+                run_id=run_id,
+                task_id=job.id,
+            )
+
+            return {"task_id": job.id, "run_id": run_id}
+
+        except Exception as exc:
+            logger.error(f"Failed to enqueue company research job: {exc}")
+            return None
 
     def release_redis_lock(self, key: str, value: str) -> bool:
         """Release a Redis lock if we own it."""
