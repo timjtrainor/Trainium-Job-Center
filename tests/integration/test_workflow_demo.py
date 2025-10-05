@@ -111,7 +111,12 @@ def test_end_to_end_workflow_simulation(job_persistence_service):
     # Check nullable/future fields are properly set
     assert first_job["company_url"] is None
     assert first_job["location_country"] is None
-    assert first_job["canonical_key"] is None
+
+    # canonical_key is now populated by company normalization
+    assert first_job["canonical_key"] is not None
+    assert isinstance(first_job["canonical_key"], str)
+    # Should be normalized company + title format
+    assert "techcorp" in first_job["canonical_key"].lower()
     
     print("✅ Field mapping verification passed!")
     

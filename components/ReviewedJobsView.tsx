@@ -4,6 +4,7 @@ import { ReviewedJob, PaginatedResponse, ReviewedJobRecommendation } from '../ty
 import { LoadingSpinner, CheckIcon, XCircleIcon, TableCellsIcon, Squares2X2Icon } from './IconComponents';
 import { JobReviewModal } from './JobReviewModal';
 import { JobCardView } from './JobCardView';
+import { useToast } from '../hooks/useToast';
 
 const SortableHeader = ({ label, sortKey, currentSort, onSort }: { label: string, sortKey: ReviewedJobsSort['by'], currentSort: ReviewedJobsSort, onSort: (by: ReviewedJobsSort['by']) => void }) => {
     const isCurrent = currentSort.by === sortKey;
@@ -40,11 +41,26 @@ export const ReviewedJobsView = () => {
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(1);
     const [filters, setFilters] = useState<ReviewedJobsFilters>({ recommendation: 'Recommended' });
-    const [sort, setSort] = useState<ReviewedJobsSort>({ by: 'date_posted', order: 'desc' });
+    const [sort, setSort] = useState<ReviewedJobsSort>({ by: 'overall_alignment_score', order: 'desc' });
     const [minScoreFilter, setMinScoreFilter] = useState('');
     const [selectedJob, setSelectedJob] = useState<ReviewedJob | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
+    const { addToast } = useToast();
+
+    const handleJobRemoval = useCallback((jobId: string) => {
+        setData(prev => {
+            if (!prev) {
+                return prev;
+            }
+
+            const filteredItems = prev.items.filter(item => item.job_id !== jobId);
+            return {
+                ...prev,
+                items: filteredItems
+            };
+        });
+    }, []);
 
     const fetchJobs = useCallback(async () => {
         setIsLoading(true);
@@ -102,17 +118,9 @@ export const ReviewedJobsView = () => {
         setSelectedJob(null);
     };
 
-    const handleOverrideSuccess = (updatedJob: ReviewedJob) => {
-        // Update the job in the current data
-        if (data) {
-            const updatedItems = data.items.map(item => 
-                item.job_id === updatedJob.job_id ? updatedJob : item
-            );
-            setData({
-                ...data,
-                items: updatedItems
-            });
-        }
+    const handleOverrideSuccess = (jobId: string, message: string) => {
+        handleJobRemoval(jobId);
+        addToast(message, 'success');
     };
 
     const renderTable = () => {
@@ -231,6 +239,7 @@ export const ReviewedJobsView = () => {
                             currentPage={page}
                             onPageChange={setPage}
                             isLoading={isLoading}
+                            activeNarrativeId={undefined} // TODO: Pass actual active narrative from parent
                         />
                     ) : renderTable()}
                 </div>

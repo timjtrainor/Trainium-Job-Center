@@ -21,10 +21,10 @@ class KnowledgeSourceLoadError(Exception):
     pass
 
 # IMPORT MODELS AT MODULE LEVEL for CrewAI dynamic imports
-from models.creaii_schemas import PreFilterResult, BrandDimensionAnalysis, ConstraintsAnalysis, BrandMatchComplete
+from models.creaii_schemas import BrandDimensionAnalysis, ConstraintsAnalysis, BrandMatchComplete, TldrSummary
 
 # Make models available globally for CrewAI imports
-__all__ = ["PreFilterResult", "BrandDimensionAnalysis", "ConstraintsAnalysis", "BrandMatchComplete"]
+__all__ = ["BrandDimensionAnalysis", "ConstraintsAnalysis", "BrandMatchComplete", "TldrSummary"]
 
 # Set environment variables to minimize CrewAI logging and event issues
 os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "true")
@@ -42,6 +42,39 @@ class JobPostingReviewCrew:
 
     agents_config = "config/agents.yaml"
     tasks_config = "config/tasks.yaml"
+
+    def __init__(self):
+        """Initialize crew and apply JSON cleanup patches for Ollama models."""
+        super().__init__()
+        self._apply_json_cleanup_patch()
+
+    def _apply_json_cleanup_patch(self):
+        """
+        Monkey patch CrewAI's converter to clean JSON responses before parsing.
+        This handles Gemma3/Phi3 models that wrap JSON in markdown code blocks.
+        """
+        try:
+            from crewai.utilities.converter import Converter
+            from .rules import clean_llm_json_response
+
+            # Save original to_pydantic method
+            original_to_pydantic = Converter.to_pydantic
+
+            def patched_to_pydantic(self, current_attempt=1):
+                """Cleaned version that strips markdown before parsing."""
+                # Clean the text before parsing
+                if hasattr(self, 'text') and self.text:
+                    self.text = clean_llm_json_response(self.text)
+                # Call original method
+                return original_to_pydantic(self, current_attempt)
+
+            # Apply the patch
+            Converter.to_pydantic = patched_to_pydantic
+            logger.info("✅ Applied JSON cleanup patch to CrewAI converter")
+
+        except Exception as e:
+            logger.warning(f"⚠️ Could not apply JSON cleanup patch: {e}")
+            logger.info("   JSON cleanup will still work via extract_json_from_crew_output")
 
     def _inject_knowledge_sources_into_agents(self, crew_instance):
         """ENABLE proper ChromaDB knowledge sources with error handling and retry logic."""
@@ -71,7 +104,7 @@ class JobPostingReviewCrew:
                     logger.info(f"⏳ Retrying in {wait_time} seconds...")
                     time.sleep(wait_time)
 
-        # Setup knowledge for each agent type
+        # Setup knowledge for each agent type (only 5 dimensions now)
         knowledge_mapping = {}
         try:
             knowledge_mapping = {
@@ -80,54 +113,73 @@ class JobPostingReviewCrew:
                 'values_compass_matcher': self._setup_values_compass_knowledge_source(client),
                 'lifestyle_alignment_matcher': self._setup_lifestyle_alignment_knowledge_source(client),
                 'compensation_philosophy_matcher': self._setup_compensation_philosophy_knowledge_source(client),
-                'purpose_impact_matcher': self._setup_purpose_impact_knowledge_source(client),
-                'industry_focus_matcher': self._setup_industry_focus_knowledge_source(client),
-                'company_filters_matcher': self._setup_company_filters_knowledge_source(client),
-                'constraints_matcher': self._setup_constraints_knowledge_source(client),
             }
             logger.info(f"✅ Created {len(knowledge_mapping)} knowledge sources")
         except Exception as e:
             logger.warning(f"⚠️ Failed to setup knowledge sources: {e}")
             return
 
-        # Assign knowledge sources to agents by role
+        # Assign knowledge sources to agents by matching role keywords
+        # Map role keywords to knowledge sources
+        role_keywords_map = {
+            'north_star': 'north_star_matcher',
+            'trajectory': 'trajectory_mastery_matcher',
+            'values': 'values_compass_matcher',
+            'lifestyle': 'lifestyle_alignment_matcher',
+            'compensation': 'compensation_philosophy_matcher',
+        }
+
         counter = 0
         for agent in crew_instance.agents:
             if hasattr(agent, 'role') and agent.role:
-                if agent.role in knowledge_mapping:
-                    agent.knowledge_sources = [knowledge_mapping[agent.role]]
-                    counter += 1
+                role_lower = agent.role.lower()
+                # Find matching knowledge source by keyword in role
+                for keyword, knowledge_key in role_keywords_map.items():
+                    if keyword in role_lower and knowledge_key in knowledge_mapping:
+                        agent.knowledge_sources = [knowledge_mapping[knowledge_key]]
+                        counter += 1
+                        logger.info(f"✅ Assigned {knowledge_key} knowledge to agent: {agent.role[:50]}...")
+                        break
 
         logger.info(f"✅ Injected knowledge sources into {counter} agents")
 
     def _create_filtered_knowledge_source(self, dimension_name, content_description="career brand data"):
-        """Create knowledge source with metadata-filtered career brand data from single collection."""
+        """Create knowledge source filtered by dimension metadata from ChromaDB.
+
+        Documents uploaded via the UI are split by H1 headings and saved with a 'dimension'
+        metadata field (e.g., 'north_star', 'trajectory_mastery', 'values', etc.).
+        We filter to get only the relevant dimension's content for each agent.
+        """
 
         try:
-            # Connect to ChromaDB and query career_brand collection with metadata filter
+            # Connect to ChromaDB and get dimension-specific documents
             client = chromadb.HttpClient(host="chromadb", port=8001)
             collection = client.get_collection("career_brand")
 
-            # Use get() with metadata filter instead of query() with empty string
-            # This is more efficient and semantically correct for metadata filtering
+            # Filter by dimension metadata
             results = collection.get(
                 where={"dimension": dimension_name},
-                limit=50,  # Get up to 50 documents for comprehensive coverage
+                limit=50,  # Get up to 50 chunks for this dimension
                 include=["documents", "metadatas"]
             )
 
-            # Combine all matching documents into knowledge content
+            # Combine matching documents into knowledge content
             if results and results.get('documents') and len(results['documents']) > 0:
-                content_parts = results['documents']
+                # Sort by seq if available to maintain chunk order
+                docs_with_meta = list(zip(results['documents'], results['metadatas']))
+                docs_with_meta.sort(key=lambda x: x[1].get('seq', 0))
+
+                content_parts = [doc for doc, _ in docs_with_meta]
                 content = "\n\n".join(content_parts)
-                logger.info(f"✅ Loaded {len(content_parts)} documents for {dimension_name}")
+                logger.info(f"✅ Loaded {len(content_parts)} documents for dimension: {dimension_name}")
             else:
                 content = f"No career brand data available for {dimension_name}"
                 logger.warning(f"⚠️ No documents found for dimension: {dimension_name}")
 
         except Exception as e:
             logger.warning(f"⚠️ Failed to load {dimension_name} data from ChromaDB: {e}")
-            content = f"No career brand data available for {dimension_name} due to connection error"
+            logger.exception(e)  # Log full traceback for debugging
+            content = f"No career brand data available for {dimension_name} due to connection error: {e}"
 
         # Create StringKnowledgeSource with the filtered content
         knowledge = StringKnowledgeSource(content=content)
@@ -139,7 +191,7 @@ class JobPostingReviewCrew:
 
     def _setup_north_star_knowledge_source(self, client):
         """North Star vision knowledge with metadata filtering."""
-        return self._create_filtered_knowledge_source("north_star_vision", "north star vision data")
+        return self._create_filtered_knowledge_source("north_star", "north star vision data")
 
     def _setup_trajectory_mastery_knowledge_source(self, client):
         """Trajectory mastery knowledge with metadata filtering."""
@@ -147,7 +199,7 @@ class JobPostingReviewCrew:
 
     def _setup_values_compass_knowledge_source(self, client):
         """Values compass knowledge with metadata filtering."""
-        return self._create_filtered_knowledge_source("values_compass", "values compass data")
+        return self._create_filtered_knowledge_source("values", "values compass data")
 
     def _setup_lifestyle_alignment_knowledge_source(self, client):
         """Lifestyle alignment knowledge with metadata filtering."""
@@ -156,28 +208,6 @@ class JobPostingReviewCrew:
     def _setup_compensation_philosophy_knowledge_source(self, client):
         """Compensation philosophy knowledge with metadata filtering."""
         return self._create_filtered_knowledge_source("compensation_philosophy", "compensation philosophy data")
-
-    def _setup_purpose_impact_knowledge_source(self, client):
-        """Purpose impact knowledge with metadata filtering."""
-        return self._create_filtered_knowledge_source("purpose_impact", "purpose impact data")
-
-    def _setup_industry_focus_knowledge_source(self, client):
-        """Industry focus knowledge with metadata filtering."""
-        return self._create_filtered_knowledge_source("industry_focus", "industry focus data")
-
-    def _setup_company_filters_knowledge_source(self, client):
-        """Company filters knowledge with metadata filtering."""
-        return self._create_filtered_knowledge_source("company_filters", "company filters data")
-
-    def _setup_constraints_knowledge_source(self, client):
-        """Constraints knowledge with metadata filtering."""
-        return self._create_filtered_knowledge_source("constraints", "constraints data")
-
-    @agent
-    def pre_filter_agent(self) -> Agent:
-        """Agent that applies hard-coded rejection rules to filter unqualified jobs."""
-        agent = Agent(config=self.agents_config["pre_filter_agent"], use_stop_words=False)  # type: ignore[index]
-        return agent
 
     @agent
     def north_star_matcher(self) -> Agent:
@@ -210,57 +240,16 @@ class JobPostingReviewCrew:
         return agent
 
     @agent
-    def purpose_impact_matcher(self) -> Agent:
-        """Agent that evaluates job alignment with user's Purpose & Impact goals."""
-        agent = Agent(config=self.agents_config["purpose_impact_matcher"], use_stop_words=False)  # type: ignore[index]
-        return agent
-
-    @agent
-    def industry_focus_matcher(self) -> Agent:
-        """Agent that evaluates job alignment with user's Industry Focus preferences."""
-        agent = Agent(config=self.agents_config["industry_focus_matcher"], use_stop_words=False)  # type: ignore[index]
-        return agent
-
-    @agent
-    def company_filters_matcher(self) -> Agent:
-        """Agent that evaluates job alignment with user's Company culture preferences."""
-        agent = Agent(config=self.agents_config["company_filters_matcher"], use_stop_words=False)  # type: ignore[index]
-        return agent
-
-    @agent
-    def constraints_matcher(self) -> Agent:
-        """Agent that evaluates job compliance with user's hard requirements and deal-breakers."""
-        agent = Agent(config=self.agents_config["constraints_matcher"], use_stop_words=False)  # type: ignore[index]
-        return agent
-
-    @agent
     def brand_match_manager(self) -> Agent:
         """Manager agent that synthesizes brand dimension specialist results."""
         agent = Agent(config=self.agents_config["brand_match_manager"], use_stop_words=False)  # type: ignore[index]
         return agent
 
-    @task
-    def pre_filter_task(self):
-        """Task to evaluate basic job qualifications with rule-based filtering."""
-
-        # Debug: Test model creation and import
-        logger.info("🔍 Testing PreFilterResult model import and creation...")
-        try:
-            test_model = PreFilterResult(recommend=True, reason="Test import")
-            logger.info(f"✅ PreFilterResult model creation successful: {test_model.dict()}")
-        except Exception as e:
-            logger.error(f"❌ PreFilterResult model creation failed: {e}")
-            logger.error("💡 This suggests the model import or definition is broken")
-            # Continue without pydantic validation to keep pipeline working
-            logger.warning("⚠️ Falling back to basic JSON validation (no pydantic)")
-
-        # Build Task with explicit parameters (not using config= to avoid overrides)
-        return Task(
-            description=self.tasks_config["pre_filter_task"]["description"],
-            expected_output=self.tasks_config["pre_filter_task"]["expected_output"],
-            output_pydantic=PreFilterResult,
-            agent=self.pre_filter_agent(),
-        )
+    @agent
+    def tldr_summarizer(self) -> Agent:
+        """Agent that creates concise TLDR summaries for quick human review."""
+        agent = Agent(config=self.agents_config["tldr_summarizer"], use_stop_words=False)  # type: ignore[index]
+        return agent
 
     @task
     def north_star_task(self):
@@ -323,75 +312,34 @@ class JobPostingReviewCrew:
         )
 
     @task
-    def purpose_impact_task(self):
-        """Task to analyze job alignment with Purpose & Impact."""
-        # Build Task with explicit parameters (not using config= to avoid overrides)
-        return Task(
-            description=self.tasks_config["purpose_impact_task"]["description"],
-            expected_output=self.tasks_config["purpose_impact_task"]["expected_output"],
-            output_pydantic=BrandDimensionAnalysis,
-            agent=self.purpose_impact_matcher(),
-            async_execution=True,
-        )
-
-    @task
-    def industry_focus_task(self):
-        """Task to analyze job alignment with Industry Focus."""
-        # Build Task with explicit parameters (not using config= to avoid overrides)
-        return Task(
-            description=self.tasks_config["industry_focus_task"]["description"],
-            expected_output=self.tasks_config["industry_focus_task"]["expected_output"],
-            output_pydantic=BrandDimensionAnalysis,
-            agent=self.industry_focus_matcher(),
-            async_execution=True,
-        )
-
-    @task
-    def company_filters_task(self):
-        """Task to analyze job alignment with Company Filters."""
-        # Build Task with explicit parameters (not using config= to avoid overrides)
-        return Task(
-            description=self.tasks_config["company_filters_task"]["description"],
-            expected_output=self.tasks_config["company_filters_task"]["expected_output"],
-            output_pydantic=BrandDimensionAnalysis,
-            agent=self.company_filters_matcher(),
-            async_execution=True,
-        )
-
-    @task
-    def constraints_task(self):
-        """Task to analyze job compliance with Constraints."""
-        # Build Task with explicit parameters (not using config= to avoid overrides)
-        return Task(
-            description=self.tasks_config["constraints_task"]["description"],
-            expected_output=self.tasks_config["constraints_task"]["expected_output"],
-            output_pydantic=ConstraintsAnalysis,
-            agent=self.constraints_matcher(),
-            async_execution=True,
-        )
-
-    @task
     def brand_match_task(self):
         """Task to synthesize all brand dimension analyses into final recommendation."""
 
         return Task(
             description="""
-            SYNTHESIS TASK: Receive results from 9 specialist agents as context PLUS a pre-calculated overall_alignment_score.
+            SYNTHESIS TASK: Combine the 5 specialist results and CALCULATE the weighted overall_alignment_score yourself.
 
             Your job is:
-            1. VERIFY you have all 9 specialist results as context
-            2. APPLY constraint veto logic (if constraints score ≤ 2, recommend=false regardless of calculated score)
-            3. DETERMINE confidence level based on the overall_alignment_score ranges
-            4. WRITE comprehensive summary explaining all dimensions and recommendations
-            5. OUTPUT complete final assessment structure
+            1. VERIFY you have all 5 specialist results as context (north_star, trajectory_mastery, values_compass, lifestyle_alignment, compensation_philosophy).
+            2. CALCULATE overall_alignment_score using the weighted 0-10 conversion provided in your agent instructions and round to two decimals (numeric literal, no quotes).
+            3. DETERMINE confidence level based on the calculated score and set recommend=true when the score >= 5.0.
+            4. WRITE a comprehensive overall_summary (5-7 sentences, <=150 words) that cites key evidence from each dimension.
+            5. OUTPUT the complete BrandMatchComplete JSON exactly once using this structure:
+               {
+                 "north_star": {"score": <1-5>, "summary": "..."},
+                 "trajectory_mastery": {"score": <1-5>, "summary": "..."},
+                 "values_compass": {"score": <1-5>, "summary": "..."},
+                 "lifestyle_alignment": {"score": <1-5>, "summary": "..."},
+                 "compensation_philosophy": {"score": <1-5>, "summary": "..."},
+                 "overall_alignment_score": <float>,
+                 "overall_summary": "...",
+                 "recommend": <true|false>,
+                 "confidence": "<low|medium|high>"
+               }
 
-            MATH CALCULATIONS AND THRESHOLDS ARE HANDLED BY THE SYSTEM - Focus on synthesis and judgment.
-
-            CONSTRAINT VETO ALWAYS APPLIES: Deal-breakers override positive scores.
-
-            CRITICAL: Output complete BrandMatchComplete JSON structure including all individual results.
+            CRITICAL: overall_alignment_score must be the weighted calculation result and appear as an unquoted number. Do not add extra fields or free text.
             """,
-            expected_output="Complete BrandMatchComplete JSON with pre-calculated overall_alignment_score and comprehensive synthesis",
+            expected_output="Complete BrandMatchComplete JSON with calculated numeric overall_alignment_score and comprehensive synthesis",
             output_pydantic=BrandMatchComplete,
             agent=self.brand_match_manager(),
             context=[
@@ -400,11 +348,19 @@ class JobPostingReviewCrew:
                 self.values_compass_task(),
                 self.lifestyle_alignment_task(),
                 self.compensation_philosophy_task(),
-                self.purpose_impact_task(),
-                self.industry_focus_task(),
-                self.company_filters_task(),
-                self.constraints_task(),
             ]
+        )
+
+    @task
+    def tldr_summary_task(self):
+        """Task to create concise TLDR summary for quick human review."""
+        # Build Task with explicit parameters (not using config= to avoid overrides)
+        return Task(
+            description=self.tasks_config["tldr_summary_task"]["description"],
+            expected_output=self.tasks_config["tldr_summary_task"]["expected_output"],
+            output_pydantic=TldrSummary,
+            agent=self.tldr_summarizer(),
+            async_execution=True,
         )
 
     @crew
@@ -412,32 +368,26 @@ class JobPostingReviewCrew:
         """Crew definition focused on agent/task configuration."""
         crew_instance = Crew(
             agents=[
-                self.pre_filter_agent(),
-                # All 9 parallel brand dimension specialists
+                # 5 parallel brand dimension specialists (reduced from 9)
                 self.north_star_matcher(),
                 self.trajectory_mastery_matcher(),
                 self.values_compass_matcher(),
                 self.lifestyle_alignment_matcher(),
                 self.compensation_philosophy_matcher(),
-                self.purpose_impact_matcher(),
-                self.industry_focus_matcher(),
-                self.company_filters_matcher(),
-                self.constraints_matcher(),
+                # TLDR summarizer runs in parallel with evaluation tasks
+                self.tldr_summarizer(),
                 # Manager that synthesizes results
                 self.brand_match_manager(),
             ],
             tasks=[
-                self.pre_filter_task(),  # Runs first
-                # All brand analysis tasks run in parallel (async_execution=True)
+                # 5 brand analysis tasks run in parallel (async_execution=True)
                 self.north_star_task(),
                 self.trajectory_mastery_task(),
                 self.values_compass_task(),
                 self.lifestyle_alignment_task(),
                 self.compensation_philosophy_task(),
-                self.purpose_impact_task(),
-                self.industry_focus_task(),
-                self.company_filters_task(),
-                self.constraints_task(),
+                # TLDR summary task runs in parallel with evaluation tasks
+                self.tldr_summary_task(),
                 # Final synthesis task - waits for all parallel tasks
                 self.brand_match_task(),
             ],

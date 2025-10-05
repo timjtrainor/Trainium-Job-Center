@@ -15,9 +15,11 @@ interface SelectResumeStepProps {
   keywords: KeywordsResult | null;
   userProfile: UserProfile | null;
   applicationNarrative: StrategicNarrative | null;
+  application?: { workflow_mode?: string; job_application_id?: string } | null;
+  onSkipToAnswerQuestions?: () => void;
 }
 
-export const SelectResumeStep = ({ baseResumes, onNext, isLoading, keywords, userProfile, applicationNarrative }: SelectResumeStepProps): React.ReactNode => {
+export const SelectResumeStep = ({ baseResumes, onNext, isLoading, keywords, userProfile, applicationNarrative, application, onSkipToAnswerQuestions }: SelectResumeStepProps): React.ReactNode => {
     const [selectedResumeId, setSelectedResumeId] = useState<string>('');
     const [customResumeJson, setCustomResumeJson] = useState<string>(JSON.stringify(BLANK_RESUME_CONTENT, null, 2));
     const [error, setError] = useState<string | null>(null);
@@ -76,11 +78,25 @@ export const SelectResumeStep = ({ baseResumes, onNext, isLoading, keywords, use
         }
     };
     
-  return (
+    const isFastTrack = application?.workflow_mode === 'fast_track';
+
+    return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Select a Base Resume</h2>
-        <p className="mt-1 text-slate-600 dark:text-slate-400">Choose one of your saved resumes to tailor for this job, or paste a new one.</p>
+        <div className="flex items-center gap-3 mb-2">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">Select a Base Resume</h2>
+          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+            isFastTrack
+              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
+              : 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
+          }`}>
+            {isFastTrack ? '⚡ Fast Track' : '📝 Manual Application'}
+          </span>
+        </div>
+        <p className="mt-1 text-slate-600 dark:text-slate-400">
+          Choose one of your saved resumes to tailor for this job, or paste a new one.
+          You can tailor your resume for this specific role, or skip directly to answering application questions.
+        </p>
       </div>
 
        <div>
@@ -124,7 +140,17 @@ export const SelectResumeStep = ({ baseResumes, onNext, isLoading, keywords, use
           </div>
        )}
       
-      <div className="flex items-center justify-end space-x-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+      <div className="flex items-center justify-between space-x-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+        {onSkipToAnswerQuestions && (
+          <button
+            type="button"
+            onClick={onSkipToAnswerQuestions}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+          >
+            Skip to Answer Questions →
+          </button>
+        )}
         <button
           type="button"
           onClick={handleNext}

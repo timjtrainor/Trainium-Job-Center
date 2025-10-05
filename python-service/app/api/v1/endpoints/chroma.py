@@ -108,35 +108,37 @@ async def upload_full_career_brand_document(
             """Map section titles to Career Brand categories."""
             title_lower = title.lower()
 
-            # Direct mappings
+            # Direct mappings - ORDER MATTERS (most specific first)
             if 'north star' in title_lower:
                 return 'North Star'
             elif 'trajectory' in title_lower or 'mastery' in title_lower:
                 return 'Trajectory & Mastery'
+            elif 'values' in title_lower and 'compass' in title_lower:
+                return 'Values Compass'
             elif 'values' in title_lower:
                 return 'Values'
-            elif 'positioning' in title_lower:
-                return 'Positioning Statement'
-            elif 'signature' in title_lower:
-                return 'Signature Capability'
-            elif 'impact' in title_lower:
-                return 'Impact Story'
             elif 'lifestyle' in title_lower:
                 return 'Lifestyle Alignment'
             elif 'compensation' in title_lower:
                 return 'Compensation Philosophy'
-            elif 'purpose' in title_lower:
+            elif 'purpose' in title_lower and 'impact' in title_lower:
                 return 'Purpose & Impact'
+            elif 'narrative' in title_lower or 'proof' in title_lower:
+                return 'Narratives & Proof Points'
+            elif 'career story' in title_lower or 'career brand framework' in title_lower:
+                return 'Career Story'
+            elif 'positioning' in title_lower:
+                return 'Positioning Statement'
+            elif 'signature' in title_lower:
+                return 'Signature Capability'
+            elif 'impact story' in title_lower or 'impact' in title_lower:
+                return 'Impact Story'
             elif 'industry' in title_lower:
                 return 'Industry Focus'
             elif 'company' in title_lower and 'filter' in title_lower:
                 return 'Company Filters'
             elif 'constraint' in title_lower:
                 return 'Constraints'
-            elif 'narrative' in title_lower or 'proof' in title_lower:
-                return 'Narratives & Proof Points'
-            elif 'career story' in title_lower:
-                return 'Career Story'
 
             # Default fallback
             return title.strip()
@@ -150,6 +152,10 @@ async def upload_full_career_brand_document(
                 detail="No H1 sections found in the document. Ensure main sections start with '# ' (not '## ')"
             )
 
+        logger.info(f"Parsed {len(sections)} H1 sections from document")
+        for i, section in enumerate(sections):
+            logger.info(f"  Section {i+1}: '{section['title']}' ({len(section['content'])} chars)")
+
         # Initialize service
         await chroma_service.initialize()
 
@@ -157,21 +163,25 @@ async def upload_full_career_brand_document(
 
         for section in sections:
             try:
-                # Skip metadata/version sections (typically start with Version/Updated)
-                if any(keyword in section["title"].lower() for keyword in ['version', 'updated', 'last updated', 'review cadence']):
+                # Skip the first metadata section if it's just "Career Brand Framework" with version info
+                title_lower = section["title"].lower()
+                if 'career brand framework' in title_lower and len(section["content"]) < 200:
+                    logger.info(f"Skipping metadata section: {section['title']}")
                     continue
 
                 # Map to career brand category
                 career_brand_category = map_section_to_career_brand_category(section["title"])
+                logger.info(f"Processing section '{section['title']}' → category '{career_brand_category}'")
 
-                # Generate unique collection name
-                collection_name = f"career_brand_{chroma_service._sha1_hash(career_brand_category)[:8]}"
+                # Use single career_brand collection for all sections
+                collection_name = "career_brand"
 
-                # Create metadata
+                # Create metadata with dimension field for filtering
                 uploaded_at = datetime.now(timezone.utc).isoformat()
                 metadata = {
                     "profile_id": "",  # Will be set from query param or extracted
                     "section": career_brand_category,
+                    "dimension": career_brand_category.lower().replace(" & ", "_").replace(" ", "_"),  # Add dimension field for filtering
                     "source": file.filename or "uploaded_document",
                     "original_title": section["title"],
                     "uploaded_at": uploaded_at

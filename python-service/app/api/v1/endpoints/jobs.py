@@ -94,7 +94,14 @@ async def get_job_reviews(
     """
     try:
         # Validate sort parameters
-        valid_sort_fields = ["date_posted", "company", "title", "review_date", "recommendation"]
+        valid_sort_fields = [
+            "date_posted",
+            "company",
+            "title",
+            "review_date",
+            "recommendation",
+            "overall_alignment_score"
+        ]
         if sort_by not in valid_sort_fields:
             raise HTTPException(
                 status_code=400, 

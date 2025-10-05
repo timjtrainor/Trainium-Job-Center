@@ -17,6 +17,8 @@ class JobReviewData(BaseModel):
     tradeoffs: Optional[List[Any]] = Field(None, description="Trade-off analysis")
     actions: Optional[List[Any]] = Field(None, description="Recommended actions")
     sources: Optional[List[Any]] = Field(None, description="Information sources used")
+    tldr_summary: Optional[str] = Field(None, description="Concise 10-20 second TLDR summary for quick human review")
+    crew_output: Optional[Dict[str, Any]] = Field(None, description="Raw CrewAI agent output including dimension scores")
     override_recommend: Optional[bool] = Field(None, description="Human override of AI recommendation")
     override_comment: Optional[str] = Field(None, description="Human reviewer comment explaining the override decision")
     override_by: Optional[str] = Field(None, description="Identifier of the human reviewer who made the override")
@@ -36,6 +38,7 @@ class JobDetails(BaseModel):
     salary_min: Optional[Decimal] = Field(None, description="Minimum salary amount")
     salary_max: Optional[Decimal] = Field(None, description="Maximum salary amount")
     salary_currency: Optional[str] = Field(None, description="Salary currency")
+    salary_range: Optional[str] = Field(None, description="Formatted salary range for display")
     is_remote: Optional[bool] = Field(None, description="Remote work flag")
 
 

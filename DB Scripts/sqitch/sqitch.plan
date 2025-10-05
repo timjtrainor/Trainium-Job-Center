@@ -7,3 +7,7 @@ jobs_table_init 2025-01-24T18:00:00Z System Administrator <root@localhost> # Cre
 job_reviews_table 2025-01-25T08:00:00Z System Administrator <root@localhost> # Create job_reviews table for AI review results
 add_job_status_field 2025-01-25T10:00:00Z System Administrator <root@localhost> # Add status field to jobs table for review workflow
 add_hitl_override_fields 2025-01-26T14:00:00Z System Administrator <root@localhost> # Add HITL override fields to job_reviews table
+jobs_deduplication_indexes [jobs_table_init] 2025-01-28T10:00:00Z System Administrator <root@localhost> # Add indexes for cross-site job deduplication
+jobs_deduplicated_view [jobs_table_init jobs_deduplication_indexes] 2025-01-28T10:30:00Z System Administrator <root@localhost> # Create deduplicated view for job review workflow
+add_duplicate_status_field [jobs_deduplicated_view] 2025-10-05T00:00:00Z System Administrator <root@localhost> # Add duplicate_status field for preventive deduplication
+backfill_application_missing_data [add_duplicate_status_field] 2025-10-05T01:00:00Z System Administrator <root@localhost> # Backfill missing job_link, salary, location, and company data for applications created from jobs

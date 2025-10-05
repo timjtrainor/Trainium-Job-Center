@@ -466,10 +466,11 @@ async def health_check_integration():
     
     print("\n📊 Prometheus-style Metrics:")
     prometheus_output = await prometheus_metrics()
-    for line in prometheus_output.split('\n')[:5]:  # Show first 5 metrics
+    metrics_lines = prometheus_output.splitlines()
+    for line in metrics_lines[:5]:  # Show first 5 metrics
         print(f"  {line}")
-    if len(prometheus_output.split('\n')) > 5:
-        print(f"  ... and {len(prometheus_output.split('\n')) - 5} more metrics")
+    if len(metrics_lines) > 5:
+        print(f"  ... and {len(metrics_lines) - 5} more metrics")
 
 
 async def main():

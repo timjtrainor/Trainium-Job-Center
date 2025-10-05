@@ -1,18 +1,23 @@
 """Thin orchestrator for coordinating CrewAI job posting review workflow."""
 
-from typing import Dict, Any, Optional
+import os
 import json
 import asyncio
 import hashlib
 from datetime import datetime
+from typing import Dict, Any, Optional
 from loguru import logger
 
 # Career brand analysis - import pydantic models for proper parsing
 from .rules import (generate_job_id, validate_job_posting, get_current_iso_timestamp,
                    deduplicate_items, extract_json_from_crew_output)
+from decimal import Decimal
+from datetime import timezone
+
 from .crew import get_job_posting_review_crew
 from ....services.feedback_transformer import get_feedback_transformer
-from models.creaii_schemas import PreFilterResult, BrandMatchComplete
+from .single_agent import BrandMatchSingleAgentEvaluator
+from models.creaii_schemas import BrandMatchComplete
 
 
 _TASK_KEY_ALIASES = {
@@ -22,12 +27,16 @@ _TASK_KEY_ALIASES = {
     "values_compass": "values_compass_task",
     "lifestyle_alignment": "lifestyle_alignment_task",
     "compensation_philosophy": "compensation_philosophy_task",
-    "purpose_impact": "purpose_impact_task",
-    "industry_focus": "industry_focus_task",
-    "company_filters": "company_filters_task",
-    "constraints": "constraints_task",
     "brand_match": "brand_match_task",
 }
+
+_DIMENSION_KEYS = [
+    "north_star",
+    "trajectory_mastery",
+    "values_compass",
+    "lifestyle_alignment",
+    "compensation_philosophy",
+]
 
 
 class JobPostingOrchestrator:
@@ -35,6 +44,9 @@ class JobPostingOrchestrator:
 
     def __init__(self):
         self._crew_cache = None
+        self._single_agent_evaluator: Optional[BrandMatchSingleAgentEvaluator] = None
+        flag_value = os.getenv("JOB_REVIEW_SINGLE_AGENT", "true").strip().lower()
+        self._use_single_agent = flag_value not in {"0", "false", "no"}
 
     @property
     def crew(self):
@@ -42,6 +54,12 @@ class JobPostingOrchestrator:
         if self._crew_cache is None:
             self._crew_cache = get_job_posting_review_crew()
         return self._crew_cache
+
+    @property
+    def single_agent_evaluator(self) -> BrandMatchSingleAgentEvaluator:
+        if self._single_agent_evaluator is None:
+            self._single_agent_evaluator = BrandMatchSingleAgentEvaluator()
+        return self._single_agent_evaluator
 
     async def evaluate_job_posting_async(self, job_posting: Dict[str, Any],
                                        correlation_id: Optional[str] = None) -> Dict[str, Any]:
@@ -62,9 +80,9 @@ class JobPostingOrchestrator:
 
         # Execute the CrewAI workflow with pre-filter optimization
         try:
-            # PHASE 1: Run pre-filter task only
-            logger.info(f"🔍 Running pre-filter for job_id: {job_id}")
-            pre_filter_result = await self._run_pre_filter(validated_job, job_id, correlation_id)
+            # PHASE 1: Run structured pre-filter using database fields
+            logger.info(f"🔍 Running structured pre-filter for job_id: {job_id}")
+            pre_filter_result = self._apply_structured_pre_filter(validated_job, job_posting)
 
             # Check if pre-filter rejected the job
             if not pre_filter_result.get("recommend", True):
@@ -76,6 +94,16 @@ class JobPostingOrchestrator:
 
             logger.info(f"✅ Pre-filter passed for job_id: {job_id} - proceeding with full analysis")
 
+            if self._use_single_agent:
+                try:
+                    logger.info("⚙️ Running single-call evaluator with cached branding payload")
+                    single_agent_result = await self._run_single_agent(
+                        validated_job, job_posting, job_id, correlation_id, pre_filter_result
+                    )
+                    return single_agent_result
+                except Exception as exc:
+                    logger.error(f"Single-agent evaluation failed, falling back to CrewAI: {exc}")
+
             # PHASE 2: Run full crew with the job posting context
             result = self.crew.kickoff(inputs={
                 "job_posting": validated_job.model_dump(),
@@ -83,40 +111,45 @@ class JobPostingOrchestrator:
                 "correlation_id": correlation_id
             })
 
-            # DEBUG: Log what CrewAI actually returns
-            print("🔍 DEBUG: CrewAI Raw Result:")
-            if hasattr(result, 'raw') and result.raw:
-                print(f"Raw output ({type(result.raw)}): {result.raw[:500]}...")
-            if hasattr(result, 'json_dict') and result.json_dict:
-                print("JSON dict:", json.dumps(result.json_dict, indent=2))
-            if hasattr(result, 'tasks_output'):
-                tasks_output = result.tasks_output
-                if isinstance(tasks_output, dict):
-                    keys = list(tasks_output.keys()) if tasks_output else []
-                    print("Tasks output keys:", keys or "None")
-                    iterable = tasks_output.items()
-                elif isinstance(tasks_output, list):
-                    print("Tasks output list length:", len(tasks_output))
-                    iterable = []
-                    for idx, entry in enumerate(tasks_output):
-                        if isinstance(entry, dict):
-                            name = entry.get("task_name") or entry.get("name") or f"task_{idx}"
-                            payload = entry.get("output") or entry.get("result") or entry
-                        else:
-                            name = f"task_{idx}"
-                            payload = entry
-                        iterable.append((name, payload))
-                else:
-                    print("Tasks output type:", type(tasks_output))
-                    iterable = []
-
-                for task_name, task_output in iterable:
-                    if task_output:
-                        print(f"  {task_name} -> {type(task_output)}: {str(task_output)[:100]}...")
-            print("=== END CREW OUTPUT ===")
+            # DEBUG: Log what CrewAI actually returns (commented out for production)
+            # print("🔍 DEBUG: CrewAI Raw Result:")
+            # if hasattr(result, 'raw') and result.raw:
+            #     print(f"Raw output ({type(result.raw)}): {result.raw[:500]}...")
+            # if hasattr(result, 'json_dict') and result.json_dict:
+            #     print("JSON dict:", json.dumps(result.json_dict, indent=2))
+            # if hasattr(result, 'tasks_output'):
+            #     tasks_output = result.tasks_output
+            #     if isinstance(tasks_output, dict):
+            #         keys = list(tasks_output.keys()) if tasks_output else []
+            #         print("Tasks output keys:", keys or "None")
+            #         iterable = tasks_output.items()
+            #     elif isinstance(tasks_output, list):
+            #         print("Tasks output list length:", len(tasks_output))
+            #         iterable = []
+            #         for idx, entry in enumerate(tasks_output):
+            #             if isinstance(entry, dict):
+            #                 name = entry.get("task_name") or entry.get("name") or f"task_{idx}"
+            #                 payload = entry.get("output") or entry.get("result") or entry
+            #             else:
+            #                 name = f"task_{idx}"
+            #                 payload = entry
+            #             iterable.append((name, payload))
+            #     else:
+            #         print("Tasks output type:", type(tasks_output))
+            #         iterable = []
+            #
+            #     for task_name, task_output in iterable:
+            #         if task_output:
+            #             print(f"  {task_name} -> {type(task_output)}: {str(task_output)[:100]}...")
+            # print("=== END CREW OUTPUT ===")
 
             # Parse the crew result
-            parsed_result = self._parse_crew_result(result, job_posting, correlation_id)
+            parsed_result = self._parse_crew_result(
+                result,
+                job_posting,
+                correlation_id,
+                pre_filter_override=pre_filter_result,
+            )
 
             # Apply feedback transformer for user-friendly explanations
             transformed_result = await self._apply_feedback_transformation(parsed_result)
@@ -163,52 +196,282 @@ class JobPostingOrchestrator:
             # No event loop available
             return asyncio.run(self.evaluate_job_posting_async(job_posting, correlation_id))
 
-    async def _run_pre_filter(self, validated_job: Any, job_id: str, correlation_id: str) -> Dict[str, Any]:
-        """Run only the pre-filter task to check if job should be analyzed."""
-        from .crew import JobPostingReviewCrew
+    async def _run_single_agent(
+        self,
+        validated_job: Any,
+        job_posting: Dict[str, Any],
+        job_id: str,
+        correlation_id: str,
+        pre_filter_result: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Execute the single-call evaluator and build the worker response."""
 
-        # Create a minimal crew with just pre-filter agent and task
-        crew_config = JobPostingReviewCrew()
-        pre_filter_agent = crew_config.pre_filter_agent()
-        pre_filter_task = crew_config.pre_filter_task()
+        evaluator = self.single_agent_evaluator
+        if not evaluator.is_available():
+            raise RuntimeError("Single agent evaluator is not configured")
 
-        # Execute just the pre-filter task
-        from crewai import Crew, Process
-        mini_crew = Crew(
-            agents=[pre_filter_agent],
-            tasks=[pre_filter_task],
-            process=Process.sequential,
-            verbose=False,
-        )
+        evaluation = await evaluator.evaluate(validated_job.model_dump())
+        brand_match_dict = evaluation.brand_match.model_dump()
 
-        result = mini_crew.kickoff(inputs={
-            "job_posting": validated_job.model_dump(),
+        pre_filter = {
+            "recommend": pre_filter_result.get("recommend", True),
+            "reason": pre_filter_result.get("reason"),
+        }
+
+        final_block = {
+            "recommend": brand_match_dict.get("recommend", False),
+            "confidence": brand_match_dict.get("confidence", "low"),
+            "rationale": brand_match_dict.get("overall_summary", "No analysis available"),
+            "constraint_issues": "none",
+        }
+
+        sources = []
+        for dimension in _DIMENSION_KEYS:
+            dim_data = brand_match_dict.get(dimension)
+            if isinstance(dim_data, dict):
+                sources.append(
+                    {
+                        "dimension": dimension,
+                        "score": dim_data.get("score", 0),
+                        "summary": dim_data.get("summary", ""),
+                    }
+                )
+
+        tldr_summary = evaluation.tldr_summary.strip() if evaluation.tldr_summary else ""
+        if not tldr_summary:
+            tldr_summary = "TLDR summary not available due to agent processing error."
+
+        result_payload: Dict[str, Any] = {
             "job_id": job_id,
-            "correlation_id": correlation_id
-        })
+            "correlation_id": correlation_id,
+            "job_intake": job_posting,
+            "final": final_block,
+            "pre_filter": pre_filter,
+            "personas": [],
+            "tradeoffs": [],
+            "actions": [],
+            "sources": sources,
+            "overall_alignment_score": brand_match_dict.get("overall_alignment_score", 0),
+            "tldr_summary": tldr_summary,
+            "brand_match": brand_match_dict,
+        }
 
-        # Extract the pre-filter result from TaskOutput
-        if hasattr(result, 'tasks_output') and result.tasks_output:
-            tasks_output = result.tasks_output
-            if isinstance(tasks_output, list) and len(tasks_output) > 0:
-                task_output = tasks_output[0]
-            elif isinstance(tasks_output, dict):
-                task_output = tasks_output.get('pre_filter_task')
+        # Mirror dimension analyses at top-level for downstream transformers.
+        for dimension in _DIMENSION_KEYS:
+            if dimension in brand_match_dict:
+                result_payload[dimension] = brand_match_dict[dimension]
+
+        result_payload["overall_summary"] = brand_match_dict.get("overall_summary", "")
+
+        return result_payload
+
+    def _apply_structured_pre_filter(
+        self,
+        validated_job: Any,
+        raw_job_posting: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Apply salary/date filters using structured fields instead of CrewAI."""
+
+        salary_value = self._extract_max_salary(validated_job, raw_job_posting)
+        if salary_value is not None and salary_value > 0 and salary_value < 180000:
+            return {"recommend": False, "reason": "salary below 180000"}
+
+        posted_date = self._extract_posted_date(validated_job, raw_job_posting)
+        if posted_date is not None:
+            now = datetime.now(timezone.utc)
+            # Normalize both to naive UTC for comparison
+            if posted_date.tzinfo is None:
+                posted_dt = posted_date.replace(tzinfo=timezone.utc)
             else:
-                task_output = None
+                posted_dt = posted_date.astimezone(timezone.utc)
 
-            if task_output:
-                if hasattr(task_output, 'pydantic') and task_output.pydantic:
-                    if hasattr(task_output.pydantic, 'model_dump'):
-                        return task_output.pydantic.model_dump()
-                    elif hasattr(task_output.pydantic, 'dict'):
-                        return task_output.pydantic.dict()
-                elif hasattr(task_output, 'json_dict') and task_output.json_dict:
-                    return task_output.json_dict
+            age_days = (now - posted_dt).days
+            if age_days > 21:
+                return {"recommend": False, "reason": "job posting older than 21 days"}
 
-        # Default to recommend if extraction failed
-        logger.warning("Failed to extract pre-filter result, defaulting to recommend=True")
         return {"recommend": True, "reason": None}
+
+    def _extract_max_salary(self, validated_job: Any, raw_job_posting: Dict[str, Any]) -> Optional[float]:
+        """Extract maximum salary from various structured sources."""
+
+        candidates = [
+            getattr(validated_job, "highest_salary", None),
+            raw_job_posting.get("highest_salary"),
+            raw_job_posting.get("max_amount"),
+            raw_job_posting.get("salary_max"),
+        ]
+
+        for nested_key in ("salary", "salary_info", "compensation", "salary_data"):
+            nested = raw_job_posting.get(nested_key)
+            if isinstance(nested, dict):
+                candidates.append(nested.get("max_amount"))
+                candidates.append(nested.get("salary_max"))
+
+        for value in candidates:
+            if value in (None, "", []):
+                continue
+            numeric = self._coerce_numeric(value)
+            if numeric is not None:
+                if numeric <= 0:
+                    continue
+                return numeric
+        return None
+
+    def _extract_posted_date(
+        self,
+        validated_job: Any,
+        raw_job_posting: Dict[str, Any],
+    ) -> Optional[datetime]:
+        """Extract and parse job posting date from structured data."""
+
+        candidates = [
+            getattr(validated_job, "date_posted", None),
+            raw_job_posting.get("date_posted"),
+            raw_job_posting.get("posted_at"),
+            raw_job_posting.get("posting_date"),
+        ]
+
+        for value in candidates:
+            if value is None:
+                continue
+            parsed = self._parse_datetime(value)
+            if parsed is not None:
+                return parsed
+        return None
+
+    def _coerce_numeric(self, value: Any) -> Optional[float]:
+        """Convert raw numeric inputs to float when possible."""
+
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, Decimal):
+            return float(value)
+        if isinstance(value, str):
+            cleaned = ''.join(ch for ch in value if ch.isdigit() or ch in {'.', '-', ','})
+            if not cleaned:
+                return None
+            cleaned = cleaned.replace(',', '')
+            try:
+                return float(cleaned)
+            except ValueError:
+                return None
+        return None
+
+    def _parse_datetime(self, value: Any) -> Optional[datetime]:
+        """Parse date strings or datetime objects into timezone-aware datetimes."""
+
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                return value.replace(tzinfo=timezone.utc)
+            return value
+
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return None
+
+            # Normalize trailing Z to UTC offset
+            if text.endswith('Z'):
+                text = text[:-1] + '+00:00'
+
+            for fmt in (
+                "%Y-%m-%d",
+                "%Y-%m-%dT%H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%dT%H:%M:%S%z",
+                "%Y-%m-%dT%H:%M:%S.%f%z",
+            ):
+                try:
+                    parsed = datetime.strptime(text, fmt)
+                    if parsed.tzinfo is None:
+                        return parsed.replace(tzinfo=timezone.utc)
+                    return parsed
+                except ValueError:
+                    continue
+
+        return None
+
+    def _get_task_output_by_name(self, tasks_output: Any, *names: str) -> Optional[Any]:
+        if not tasks_output:
+            return None
+
+        name_set = set(names)
+
+        if isinstance(tasks_output, dict):
+            for name in names:
+                if name in tasks_output:
+                    return tasks_output[name]
+            for value in tasks_output.values():
+                candidate = getattr(value, 'task_name', None)
+                if candidate and candidate in name_set:
+                    return value
+            return None
+
+        if isinstance(tasks_output, list):
+            for entry in tasks_output:
+                if entry is None:
+                    continue
+                task_name = self._extract_task_name(entry)
+                if task_name and task_name in name_set:
+                    return entry
+            return None
+
+        return None
+
+    def _extract_task_name(self, entry: Any) -> Optional[str]:
+        candidates = [
+            getattr(entry, 'task_name', None),
+            getattr(entry, 'name', None),
+            getattr(entry, 'id', None),
+        ]
+
+        if isinstance(entry, dict):
+            candidates.extend([
+                entry.get('task_name'),
+                entry.get('name'),
+                entry.get('task'),
+                entry.get('id'),
+            ])
+
+        for candidate in candidates:
+            if isinstance(candidate, str) and candidate:
+                return candidate
+        return None
+
+    def _build_pre_filter_section(
+        self,
+        pre_filter_result: Optional[Any],
+        override: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        if override is not None:
+            return {
+                "recommend": override.get("recommend", True),
+                "reason": override.get("reason"),
+            }
+
+        if not pre_filter_result:
+            return {"recommend": True, "reason": None}
+
+        pre_filter_data: Optional[Dict[str, Any]] = None
+        if hasattr(pre_filter_result, 'pydantic') and pre_filter_result.pydantic:
+            if hasattr(pre_filter_result.pydantic, 'model_dump'):
+                pre_filter_data = pre_filter_result.pydantic.model_dump()
+            elif hasattr(pre_filter_result.pydantic, 'dict'):
+                pre_filter_data = pre_filter_result.pydantic.dict()
+        elif hasattr(pre_filter_result, 'json_dict') and pre_filter_result.json_dict:
+            pre_filter_data = pre_filter_result.json_dict
+        elif hasattr(pre_filter_result, 'model_dump'):
+            pre_filter_data = pre_filter_result.model_dump()
+        elif isinstance(pre_filter_result, dict):
+            pre_filter_data = pre_filter_result
+
+        if not pre_filter_data:
+            return {"recommend": True, "reason": None}
+
+        return {
+            "recommend": pre_filter_data.get("recommend", True),
+            "reason": pre_filter_data.get("reason"),
+        }
 
     def _build_pre_filter_rejection_response(self, job_id: str, correlation_id: str,
                                             job_posting: Dict[str, Any],
@@ -250,8 +513,13 @@ class JobPostingOrchestrator:
             "overall_alignment_score": 0
         }
 
-    def _parse_crew_result(self, crew_result: Any, job_posting: Dict[str, Any],
-                          correlation_id: str) -> Dict[str, Any]:
+    def _parse_crew_result(
+        self,
+        crew_result: Any,
+        job_posting: Dict[str, Any],
+        correlation_id: str,
+        pre_filter_override: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
         Extract validated BrandMatchComplete result from CrewAI and convert to worker-expected format.
         """
@@ -268,23 +536,23 @@ class JobPostingOrchestrator:
             return self._error_response(job_id, correlation_id, job_posting,
                                        "CrewAI returned empty tasks_output")
 
-        # Extract the brand match manager result (should be a validated BrandMatchComplete Pydantic object)
-        brand_match_result = None
         tasks_output = crew_result.tasks_output
 
-        # Handle both list and dict formats
-        if isinstance(tasks_output, list):
-            if len(tasks_output) < 10:
-                logger.warning(f"Expected 10 tasks, got {len(tasks_output)}")
-
-            # tasks_output is a list - find the last item (brand_match_task is the final task)
-            brand_match_result = tasks_output[-1] if tasks_output else None
-        elif isinstance(tasks_output, dict):
-            brand_match_result = tasks_output.get('brand_match_task')
-        else:
-            logger.error(f"Unexpected tasks_output type: {type(tasks_output)}")
-            return self._error_response(job_id, correlation_id, job_posting,
-                                       f"Invalid tasks_output type: {type(tasks_output)}")
+        brand_match_result = self._get_task_output_by_name(
+            tasks_output,
+            "brand_match_task",
+            "brand_match",
+        )
+        tldr_result = self._get_task_output_by_name(
+            tasks_output,
+            "tldr_summary_task",
+            "tldr_summary",
+        )
+        pre_filter_result = None if pre_filter_override else self._get_task_output_by_name(
+            tasks_output,
+            "pre_filter_task",
+            "pre_filter",
+        )
 
         if brand_match_result is None:
             logger.warning("No brand_match_task result found in crew output")
@@ -328,14 +596,38 @@ class JobPostingOrchestrator:
 
         logger.info(f"Successfully extracted brand_data with keys: {list(brand_data.keys())}")
 
-        # Extract pre-filter result
-        pre_filter_result = None
-        if isinstance(tasks_output, list):
-            # pre_filter_task is the first task (index 0)
-            pre_filter_result = tasks_output[0] if len(tasks_output) > 0 else None
-        elif isinstance(tasks_output, dict):
-            pre_filter_result = tasks_output.get('pre_filter_task')
+        # Extract TLDR summary result
+        tldr_data = None
+        if tldr_result:
+            # Extract from TaskOutput same way as brand_match_result
+            if hasattr(tldr_result, 'pydantic') and tldr_result.pydantic:
+                logger.info("Extracting tldr_data from TaskOutput.pydantic")
+                if hasattr(tldr_result.pydantic, 'model_dump'):
+                    tldr_data = tldr_result.pydantic.model_dump()
+                elif hasattr(tldr_result.pydantic, 'dict'):
+                    tldr_data = tldr_result.pydantic.dict()
+            elif hasattr(tldr_result, 'json_dict') and tldr_result.json_dict:
+                logger.info("Extracting tldr_data from TaskOutput.json_dict")
+                tldr_data = tldr_result.json_dict
+            elif hasattr(tldr_result, 'model_dump'):
+                logger.info("Extracting tldr_data from direct Pydantic model")
+                tldr_data = tldr_result.model_dump()
+            elif isinstance(tldr_result, dict):
+                logger.info("tldr_result is already a dict")
+                tldr_data = tldr_result
+            else:
+                logger.warning(f"Cannot extract tldr_data from type: {type(tldr_result)}")
+                tldr_data = {}
+        else:
+            logger.warning("No TLDR result found in crew output - this may indicate an agent failure")
+            tldr_data = {}
 
+        if tldr_data:
+            logger.info(f"Successfully extracted tldr_data: {tldr_data}")
+        else:
+            logger.warning("TLDR data extraction resulted in empty or None result")
+
+        # Extract pre-filter result
         # Convert to worker-expected format
         final = {
             "recommend": brand_data.get("recommend", False),
@@ -344,34 +636,34 @@ class JobPostingOrchestrator:
             "constraint_issues": brand_data.get("constraint_issues", "none")
         }
 
-        pre_filter = {}
-        if pre_filter_result:
-            # Extract from TaskOutput same way as brand_match_result
-            pre_filter_data = None
-            if hasattr(pre_filter_result, 'pydantic') and pre_filter_result.pydantic:
-                logger.info("Extracting pre_filter_data from TaskOutput.pydantic")
-                if hasattr(pre_filter_result.pydantic, 'model_dump'):
-                    pre_filter_data = pre_filter_result.pydantic.model_dump()
-                elif hasattr(pre_filter_result.pydantic, 'dict'):
-                    pre_filter_data = pre_filter_result.pydantic.dict()
-            elif hasattr(pre_filter_result, 'json_dict') and pre_filter_result.json_dict:
-                logger.info("Extracting pre_filter_data from TaskOutput.json_dict")
-                pre_filter_data = pre_filter_result.json_dict
-            elif hasattr(pre_filter_result, 'model_dump'):
-                logger.info("Extracting pre_filter_data from direct Pydantic model")
-                pre_filter_data = pre_filter_result.model_dump()
-            elif isinstance(pre_filter_result, dict):
-                logger.info("pre_filter_result is already a dict")
-                pre_filter_data = pre_filter_result
-            else:
-                logger.warning(f"Cannot extract pre_filter_data from type: {type(pre_filter_result)}")
-                pre_filter_data = {}
+        pre_filter = self._build_pre_filter_section(pre_filter_result, pre_filter_override)
 
-            if pre_filter_data:
-                pre_filter = {
-                    "recommend": pre_filter_data.get("recommend", True),
-                    "reason": pre_filter_data.get("reason")
-                }
+        # Extract individual dimension analyses for sources array
+        sources = []
+        dimension_names = ["north_star", "trajectory_mastery", "values_compass",
+                          "lifestyle_alignment", "compensation_philosophy"]
+
+        for dim_name in dimension_names:
+            if dim_name in brand_data and isinstance(brand_data[dim_name], dict):
+                dim_data = brand_data[dim_name]
+                sources.append({
+                    "dimension": dim_name,
+                    "score": dim_data.get("score", 0),
+                    "summary": dim_data.get("summary", "")
+                })
+
+        # Calculate overall_alignment_score if not provided
+        overall_score = brand_data.get("overall_alignment_score", 0)
+        if overall_score == 0 or overall_score is None:
+            # Fallback: calculate from individual dimension scores
+            overall_score = self._calculate_fallback_alignment_score(brand_data)
+            logger.info(f"Calculated fallback overall_alignment_score: {overall_score}")
+
+        # Extract TLDR summary for inclusion in response
+        tldr_summary = tldr_data.get("tldr_summary", "") if tldr_data else ""
+        if not tldr_summary:
+            logger.warning("No TLDR summary available in tldr_data - providing default message")
+            tldr_summary = "TLDR summary not available due to agent processing error."
 
         # Return structured data that matches worker expectations
         return {
@@ -383,8 +675,9 @@ class JobPostingOrchestrator:
             "personas": [],  # Not implemented yet
             "tradeoffs": [],  # Not implemented yet
             "actions": [],  # Not implemented yet
-            "sources": [],  # Not implemented yet
-            "overall_alignment_score": brand_data.get("overall_alignment_score", 0)
+            "sources": sources,
+            "overall_alignment_score": overall_score,
+            "tldr_summary": tldr_summary  # TLDR summary for quick human review
         }
 
     def _normalize_task_outputs(self, result_data: Any) -> Dict[str, Any]:
@@ -559,8 +852,12 @@ class JobPostingOrchestrator:
                     if "brand_match" in transformed and isinstance(transformed["brand_match"], dict):
                         transformed["brand_match"]["overall_alignment_score"] = overall_score
             else:
-                # Default for missing analysis
-                transformed["overall_alignment_score"] = 0
+                # Preserve any previously calculated score when brand_match block is unavailable
+                existing_score = transformed.get("overall_alignment_score")
+                if existing_score is None:
+                    transformed["overall_alignment_score"] = analysis_result.get("overall_alignment_score", 0)
+                else:
+                    transformed["overall_alignment_score"] = existing_score
 
             return transformed
 
@@ -575,12 +872,12 @@ class JobPostingOrchestrator:
     def _calculate_fallback_alignment_score(self, brand_match: Dict[str, Any]) -> float:
         """
         Fallback calculation of overall alignment score from individual dimension scores.
-        Uses the same weighting as the brand_match_manager for consistency.
+        Uses 5 core dimensions with redistributed weights (removed constraints, purpose_impact, industry_focus, company_filters).
         """
         try:
             dimensions = [
-                "north_star", "trajectory_mastery", "values_compass", "lifestyle_alignment",
-                "compensation_philosophy", "purpose_impact", "industry_focus", "company_filters", "constraints"
+                "north_star", "trajectory_mastery", "values_compass",
+                "lifestyle_alignment", "compensation_philosophy"
             ]
 
             scores = {}
@@ -594,17 +891,14 @@ class JobPostingOrchestrator:
             if not scores:
                 return 0
 
-            # Apply user-specified weights
+            # Redistributed weights for 5 core dimensions (total = 1.00)
+            # Compensation and trajectory remain most important
             weights = {
-                "constraints": 0.25,
-                "compensation_philosophy": 0.20,
-                "trajectory_mastery": 0.18,
-                "north_star": 0.15,
-                "values_compass": 0.10,
-                "lifestyle_alignment": 0.08,
-                "purpose_impact": 0.03,
-                "industry_focus": 0.01,
-                "company_filters": 0.00
+                "compensation_philosophy": 0.30,  # Increased from 0.20
+                "trajectory_mastery": 0.30,       # Increased from 0.18
+                "north_star": 0.20,               # Increased from 0.15
+                "values_compass": 0.15,           # Increased from 0.10
+                "lifestyle_alignment": 0.05,      # Decreased from 0.08
             }
 
             # Calculate weighted average

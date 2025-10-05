@@ -24,8 +24,16 @@ The Python service includes active CrewAI multi-agent services:
 ### 1. Job Posting Review (`job_posting_review`)
 - **Purpose**: Analyzes job postings for fit and alignment with candidate criteria
 - **Location**: `python-service/app/services/crewai/job_posting_review/`
-- **Agents**: Job Intake, Pre-filter, Quick Fit Analyst, Brand Framework Matcher
-- **Usage**: Orchestrated evaluation pipeline with YAML-driven configuration
+- **Agents**:
+  - Pre-filter Agent: Applies hard-coded rejection rules (e.g., salary below $180k)
+  - TLDR Summarizer: Creates concise scannable summaries for quick human review (3-5 bullet points, 10-20 seconds read)
+  - North Star Matcher: Evaluates long-term career vision alignment
+  - Trajectory Mastery Matcher: Assesses skill development trajectory fit
+  - Values Compass Matcher: Checks cultural and values alignment
+  - Lifestyle Alignment Matcher: Reviews work-life balance compatibility
+  - Compensation Philosophy Matcher: Analyzes total compensation alignment
+  - Brand Match Manager: Synthesizes all specialist results into final recommendation
+- **Usage**: Orchestrated evaluation pipeline with YAML-driven configuration, TLDR runs in parallel with analysis tasks
 
 ### 2. Personal Branding (`personal_branding`)
 - **Purpose**: Assists with personal brand development and career positioning

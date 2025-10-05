@@ -275,6 +275,34 @@ class JobReviewService:
                 "message": error_msg
             }
 
+    async def queue_single_job(self, job_id: str, max_retries: int = 3) -> Optional[str]:
+        """
+        Queue a single job for review.
+
+        Args:
+            job_id: UUID of the job to queue
+            max_retries: Maximum retry attempts
+
+        Returns:
+            Task ID if successful, None otherwise
+        """
+        if not self.initialized:
+            await self.initialize()
+
+        try:
+            task_id = self.queue_service.enqueue_job_review(job_id, max_retries)
+
+            if task_id:
+                logger.info(f"Queued job {job_id} for review with task ID: {task_id}")
+                return task_id
+            else:
+                logger.error(f"Failed to queue job {job_id}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Failed to queue job {job_id}: {e}")
+            return None
+
 
 def get_job_review_service() -> JobReviewService:
     """Get job review service instance."""
