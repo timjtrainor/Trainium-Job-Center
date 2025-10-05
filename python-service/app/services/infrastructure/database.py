@@ -3,7 +3,7 @@ Database service for direct PostgreSQL access.
 Handles connections and queries for queue system tables.
 """
 import asyncpg
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from loguru import logger
 from datetime import datetime, timezone
 import json
@@ -19,6 +19,8 @@ class DatabaseService:
         self.settings = get_settings()
         self.pool: Optional[asyncpg.Pool] = None
         self.initialized = False
+        self._column_cache: Dict[Tuple[str, str], bool] = {}
+        self._default_user_id: Optional[str] = None
 
     @staticmethod
     def _deserialize_json_field(value: Any) -> Optional[Any]:
@@ -67,6 +69,64 @@ class DatabaseService:
 
         logger.error("Failed to initialize database pool after 5 attempts")
         return False
+
+    async def _column_exists(self, table_name: str, column_name: str) -> bool:
+        """Check if a given column exists on a table. Uses a simple cache to avoid repeated lookups."""
+        cache_key = (table_name, column_name)
+        if cache_key in self._column_cache:
+            return self._column_cache[cache_key]
+
+        if not self.initialized:
+            await self.initialize()
+
+        if not self.pool:
+            self._column_cache[cache_key] = False
+            return False
+
+        query = """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = $1
+              AND column_name = $2
+        )
+        """
+
+        async with self.pool.acquire() as conn:
+            exists = await conn.fetchval(query, table_name, column_name)
+
+        exists_bool = bool(exists)
+        self._column_cache[cache_key] = exists_bool
+        return exists_bool
+
+    async def get_default_user_id(self) -> Optional[str]:
+        """Fetch and cache a fallback user_id for legacy tables requiring it."""
+        if self._default_user_id is not None:
+            return self._default_user_id
+
+        if not await self._column_exists('companies', 'user_id'):
+            self._default_user_id = None
+            return None
+
+        if not self.initialized:
+            await self.initialize()
+
+        if not self.pool:
+            return None
+
+        query = """
+        SELECT user_id
+        FROM users
+        ORDER BY created_at
+        LIMIT 1
+        """
+
+        async with self.pool.acquire() as conn:
+            user_id = await conn.fetchval(query)
+
+        self._default_user_id = str(user_id) if user_id else None
+        return self._default_user_id
 
     @staticmethod
     def _get_currency_symbol(currency: Optional[str]) -> str:
@@ -645,15 +705,18 @@ class DatabaseService:
     ) -> Dict[str, Any]:
         """
         Get jobs with their reviews, supporting pagination, sorting, and filtering.
-        
+
+        Uses jobs_deduplicated view to ensure only best version of each duplicate group is shown.
+        Filters out jobs that have been human-reviewed (override_recommend IS NOT NULL).
+
         Returns:
             Dict containing 'jobs' list and 'total_count' int
         """
         if not self.initialized:
             await self.initialize()
 
-        # Build WHERE conditions
-        where_conditions = []
+        # Build WHERE conditions for the deduplicated view
+        where_conditions = ["jr.override_recommend IS NULL", "jd.duplicate_status = 'original'"]
         params = []
         param_count = 0
 
@@ -663,79 +726,89 @@ class DatabaseService:
             params.append(recommendation)
 
         if min_score is not None:
-            # For now, we'll use confidence as a proxy for score
-            # In the future, this could be calculated from personas or other fields
             param_count += 1
-            where_conditions.append(f"CASE WHEN jr.confidence = 'high' THEN 0.8 WHEN jr.confidence = 'medium' THEN 0.6 ELSE 0.4 END >= ${param_count}")
-            params.append(min_score)
+            if await self._column_exists('job_reviews', 'overall_alignment_score'):
+                where_conditions.append(f"jr.overall_alignment_score >= ${param_count}")
+                params.append(min_score)
+            else:
+                where_conditions.append(f"CASE WHEN jr.confidence = 'high' THEN 0.8 WHEN jr.confidence = 'medium' THEN 0.6 ELSE 0.4 END >= ${param_count}")
+                params.append(min_score)
 
         if max_score is not None:
             param_count += 1
-            where_conditions.append(f"CASE WHEN jr.confidence = 'high' THEN 0.8 WHEN jr.confidence = 'medium' THEN 0.6 ELSE 0.4 END <= ${param_count}")
-            params.append(max_score)
+            if await self._column_exists('job_reviews', 'overall_alignment_score'):
+                where_conditions.append(f"jr.overall_alignment_score <= ${param_count}")
+                params.append(max_score)
+            else:
+                where_conditions.append(f"CASE WHEN jr.confidence = 'high' THEN 0.8 WHEN jr.confidence = 'medium' THEN 0.6 ELSE 0.4 END <= ${param_count}")
+                params.append(max_score)
 
         if company:
             param_count += 1
-            where_conditions.append(f"j.company ILIKE ${param_count}")
+            where_conditions.append(f"jd.company ILIKE ${param_count}")
             params.append(f"%{company}%")
 
         if source:
             param_count += 1
-            where_conditions.append(f"j.site = ${param_count}")
+            where_conditions.append(f"jd.site = ${param_count}")
             params.append(source)
 
         if is_remote is not None:
             param_count += 1
-            where_conditions.append(f"j.is_remote = ${param_count}")
+            where_conditions.append(f"jd.is_remote = ${param_count}")
             params.append(is_remote)
 
         if date_posted_after:
             param_count += 1
-            where_conditions.append(f"j.date_posted >= ${param_count}")
+            where_conditions.append(f"jd.date_posted >= ${param_count}")
             params.append(date_posted_after)
 
         if date_posted_before:
             param_count += 1
-            where_conditions.append(f"j.date_posted <= ${param_count}")
+            where_conditions.append(f"jd.date_posted <= ${param_count}")
             params.append(date_posted_before)
 
         where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
         # Validate sort parameters
         valid_sort_columns = {
-            "date_posted": "j.date_posted",
-            "company": "j.company",
-            "title": "j.title", 
+            "date_posted": "jd.date_posted",
+            "company": "jd.company",
+            "title": "jd.title",
             "review_date": "jr.created_at",
-            "recommendation": "jr.recommend"
+            "recommendation": "jr.recommend",
+            "overall_alignment_score": "jr.overall_alignment_score"
         }
-        
-        sort_column = valid_sort_columns.get(sort_by, "j.date_posted")
+
+        if sort_by == 'overall_alignment_score' and not await self._column_exists('job_reviews', 'overall_alignment_score'):
+            sort_by = 'review_date'
+
+        sort_column = valid_sort_columns.get(sort_by, valid_sort_columns["overall_alignment_score"]) if sort_by != 'review_date' else valid_sort_columns['review_date']
         sort_order = "DESC" if sort_order.upper() == "DESC" else "ASC"
 
         # Query for total count
         count_query = f"""
         SELECT COUNT(*)
-        FROM public.jobs j
-        INNER JOIN public.job_reviews jr ON j.id = jr.job_id
+        FROM public.jobs_deduplicated jd
+        INNER JOIN public.job_reviews jr ON jd.id = jr.job_id
         {where_clause}
         """
 
-        # Main query with pagination
+        # Main query with pagination using jobs_deduplicated view
         data_query = f"""
         SELECT
-            j.id as job_id,
-            j.title,
-            j.company,
-            j.location_city || COALESCE(', ' || j.location_state, '') || COALESCE(', ' || j.location_country, '') as location,
-            j.job_url as url,
-            j.date_posted,
-            j.site as source,
-            j.description,
-            j.min_amount as salary_min,
-            j.max_amount as salary_max,
-            j.currency as salary_currency,
-            j.is_remote,
+            jd.id as job_id,
+            jd.title,
+            jd.company,
+            jd.location_city || COALESCE(', ' || jd.location_state, '') || COALESCE(', ' || jd.location_country, '') as location,
+            jd.job_url as url,
+            jd.date_posted,
+            jd.site as source,
+            jd.description,
+            jd.min_amount as salary_min,
+            jd.max_amount as salary_max,
+            jd.currency as salary_currency,
+            jd.is_remote,
             jr.recommend,
             jr.confidence,
             jr.rationale,
@@ -751,8 +824,8 @@ class DatabaseService:
             jr.override_comment,
             jr.override_by,
             jr.override_at
-        FROM public.jobs j
-        INNER JOIN public.job_reviews jr ON j.id = jr.job_id
+        FROM public.jobs_deduplicated jd
+        INNER JOIN public.job_reviews jr ON jd.id = jr.job_id
         {where_clause}
         ORDER BY {sort_column} {sort_order}
         LIMIT ${param_count + 1} OFFSET ${param_count + 2}
@@ -885,21 +958,44 @@ class DatabaseService:
             logger.error(f"Failed to get job by normalized fields: {str(e)}")
             return None
 
-    async def get_company_by_normalized_name(self, normalized_name: str) -> Optional[Dict[str, Any]]:
+    async def get_company_by_normalized_name(self, normalized_name: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get company by normalized name for matching."""
         if not self.initialized:
             await self.initialize()
+
+        if not await self._column_exists('companies', 'normalized_name'):
+            return None
+
+        include_user = await self._column_exists('companies', 'user_id')
 
         query = """
         SELECT company_id, company_name, normalized_name, company_url
         FROM companies
         WHERE normalized_name = $1
-        LIMIT 1
         """
+        params: List[Any] = [normalized_name]
+
+        if include_user and user_id:
+            query += " AND user_id = $2"
+            params.append(user_id)
+
+        query += "\n        ORDER BY created_at NULLS LAST\n        LIMIT 1"
 
         try:
             async with self.pool.acquire() as conn:
-                row = await conn.fetchrow(query, normalized_name)
+                row = await conn.fetchrow(query, *params)
+                if not row and include_user and not user_id:
+                    # Attempt without user filter as fallback
+                    row = await conn.fetchrow(
+                        """
+                        SELECT company_id, company_name, normalized_name, company_url
+                        FROM companies
+                        WHERE normalized_name = $1
+                        ORDER BY created_at NULLS LAST
+                        LIMIT 1
+                        """,
+                        normalized_name
+                    )
                 return dict(row) if row else None
         except Exception as e:
             logger.error(f"Failed to get company by normalized name: {str(e)}")
@@ -910,25 +1006,77 @@ class DatabaseService:
         if not self.initialized:
             await self.initialize()
 
-        query = """
-        INSERT INTO companies (
-            company_name, normalized_name, company_url, source, is_recruiting_firm, created_at
-        )
-        VALUES ($1, $2, $3, $4, $5, NOW())
-        RETURNING company_id, company_name, normalized_name
+        columns = ['company_name']
+        placeholders = ['$1']
+        values = [company_data.get('company_name')]
+        param_index = 2
+
+        include_normalized = await self._column_exists('companies', 'normalized_name')
+        if include_normalized and company_data.get('normalized_name') is not None:
+            columns.append('normalized_name')
+            placeholders.append(f'${param_index}')
+            values.append(company_data.get('normalized_name'))
+            param_index += 1
+
+        if await self._column_exists('companies', 'company_url'):
+            columns.append('company_url')
+            placeholders.append(f'${param_index}')
+            values.append(company_data.get('company_url', ''))
+            param_index += 1
+
+        if await self._column_exists('companies', 'source'):
+            columns.append('source')
+            placeholders.append(f'${param_index}')
+            values.append(company_data.get('source', 'manual'))
+            param_index += 1
+
+        if await self._column_exists('companies', 'is_recruiting_firm'):
+            columns.append('is_recruiting_firm')
+            placeholders.append(f'${param_index}')
+            values.append(company_data.get('is_recruiting_firm', False))
+            param_index += 1
+
+        include_user = await self._column_exists('companies', 'user_id')
+        user_value = None
+        if include_user:
+            user_value = company_data.get('user_id') or await self.get_default_user_id()
+            if user_value:
+                columns.append('user_id')
+                placeholders.append(f'${param_index}')
+                values.append(user_value)
+                param_index += 1
+
+        include_created_at = await self._column_exists('companies', 'created_at')
+        include_updated_at = await self._column_exists('companies', 'updated_at')
+
+        if include_created_at:
+            columns.append('created_at')
+            placeholders.append('NOW()')
+
+        if include_updated_at:
+            columns.append('updated_at')
+            placeholders.append('NOW()')
+
+        columns_sql = ', '.join(columns)
+        values_sql = ', '.join(placeholders)
+
+        returning_fields = ['company_id', 'company_name']
+        if include_normalized:
+            returning_fields.append('normalized_name')
+
+        query = f"""
+        INSERT INTO companies ({columns_sql})
+        VALUES ({values_sql})
+        RETURNING {', '.join(returning_fields)}
         """
 
         try:
             async with self.pool.acquire() as conn:
-                row = await conn.fetchrow(
-                    query,
-                    company_data.get('company_name'),
-                    company_data.get('normalized_name'),
-                    company_data.get('company_url', ''),
-                    company_data.get('source', 'manual'),
-                    company_data.get('is_recruiting_firm', False)
-                )
-                return dict(row) if row else {}
+                row = await conn.fetchrow(query, *values)
+                result = dict(row) if row else {}
+                if include_normalized and 'normalized_name' not in result and company_data.get('normalized_name'):
+                    result['normalized_name'] = company_data.get('normalized_name')
+                return result
         except Exception as e:
             logger.error(f"Failed to create company: {str(e)}")
             raise
@@ -944,6 +1092,8 @@ class DatabaseService:
         param_count = 1
 
         for key, value in updates.items():
+            if not await self._column_exists('companies', key):
+                continue
             if key in ['mission', 'values']:
                 # JSONB fields
                 set_clauses.append(f"{key} = ${param_count}::jsonb")
@@ -952,6 +1102,9 @@ class DatabaseService:
                 set_clauses.append(f"{key} = ${param_count}")
                 params.append(value)
             param_count += 1
+
+        if not set_clauses:
+            return False
 
         params.append(company_id)
 
@@ -1038,9 +1191,14 @@ class DatabaseService:
         param_count = 1
 
         for key, value in updates.items():
+            if not await self._column_exists('jobs', key):
+                continue
             set_clauses.append(f"{key} = ${param_count}")
             params.append(value)
             param_count += 1
+
+        if not set_clauses:
+            return False
 
         params.append(job_id)
 

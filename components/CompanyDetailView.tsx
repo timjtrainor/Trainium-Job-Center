@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Company, JobApplication, InfoField, Message, MessagePayload, PromptContext, Prompt, Contact, CompanyPayload, StrategicNarrative } from '../types';
 import * as geminiService from '../services/geminiService';
 import { LoadingSpinner, PlusCircleIcon, TrashIcon, CheckBadgeIcon } from './IconComponents';
@@ -20,6 +20,7 @@ interface CompanyDetailViewProps {
     prompts: Prompt[];
     debugCallbacks?: { before: (p: string) => Promise<void>; after: (r: string) => Promise<void>; };
     activeNarrative: StrategicNarrative | null;
+    autoResearch?: boolean;
 }
 
 type ViewTab = 'intelligence' | 'applications' | 'engagement';
@@ -79,7 +80,7 @@ const InfoFieldDisplay = ({ label, field, isEditing, onChange, children, type = 
     );
 };
 
-export const CompanyDetailView = ({ company, allCompanies, applications, messages, contacts, onBack, onUpdate, onViewApplication, onCreateMessage, onOpenCreateCompanyModal, onOpenContactModal, onResearch, onDeleteContact, prompts, debugCallbacks, activeNarrative }: CompanyDetailViewProps): React.ReactNode => {
+export const CompanyDetailView = ({ company, allCompanies, applications, messages, contacts, onBack, onUpdate, onViewApplication, onCreateMessage, onOpenCreateCompanyModal, onOpenContactModal, onResearch, onDeleteContact, prompts, debugCallbacks, activeNarrative, autoResearch = false }: CompanyDetailViewProps): React.ReactNode => {
     const [activeTab, setActiveTab] = useState<ViewTab>('intelligence');
     const [isEditing, setIsEditing] = useState(false);
     const [editableCompany, setEditableCompany] = useState<Company>(company);
@@ -107,6 +108,8 @@ export const CompanyDetailView = ({ company, allCompanies, applications, message
         }
     }, [company]);
 
+    const autoResearchTriggeredRef = useRef(false);
+
     const handleSave = () => {
         onUpdate(editableCompany);
         setIsEditing(false);
@@ -130,7 +133,7 @@ export const CompanyDetailView = ({ company, allCompanies, applications, message
         });
     };
     
-    const handleResearchClick = async () => {
+    const handleResearchClick = useCallback(async () => {
         setIsResearching(true);
         setError('');
         try {
@@ -147,7 +150,28 @@ export const CompanyDetailView = ({ company, allCompanies, applications, message
         } finally {
             setIsResearching(false);
         }
-    };
+    }, [company.company_id, editableCompany.company_name, editableCompany.company_url, isEditing, onResearch]);
+
+    // Auto-research when requested by the parent view
+    useEffect(() => {
+        if (!autoResearch) {
+            autoResearchTriggeredRef.current = false;
+            return;
+        }
+
+        if (autoResearchTriggeredRef.current || isResearching) {
+            return;
+        }
+
+        autoResearchTriggeredRef.current = true;
+        setActiveTab('intelligence');
+
+        const timer = window.setTimeout(() => {
+            handleResearchClick();
+        }, 300);
+
+        return () => window.clearTimeout(timer);
+    }, [autoResearch, isResearching, handleResearchClick]);
     
     const handleGenerateComments = async () => {
         if (!postText) {

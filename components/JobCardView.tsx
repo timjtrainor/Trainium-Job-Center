@@ -5,10 +5,11 @@ import { overrideJobReview, JobReviewOverrideRequest, JobReviewOverrideResponse 
 import * as apiService from '../services/apiService';
 import { CheckIcon, XCircleIcon, ChevronLeftIcon, ChevronRightIcon, UsersIcon, ThumbUpIcon, ThumbDownIcon, InformationCircleIcon, SparklesIcon, DocumentTextIcon, XMarkIcon, MapPinIcon, CalendarIcon, CurrencyDollarIcon } from './IconComponents';
 import { MarkdownPreview } from './MarkdownPreview';
+import { useToast } from '../hooks/useToast';
 
 interface JobCardViewProps {
     jobs: ReviewedJob[];
-    onOverrideSuccess: (updatedJob: ReviewedJob) => void;
+    onOverrideSuccess: (jobId: string, message: string) => void;
     currentPage: number;
     onPageChange: (page: number) => void;
     isLoading?: boolean;
@@ -26,7 +27,9 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
     const [currentIndex, setCurrentIndex] = useState(0);
     const [showDetails, setShowDetails] = useState(false);
     const [showJDModal, setShowJDModal] = useState(false);
+    const [pendingAction, setPendingAction] = useState<null | 'reject' | 'fast-track' | 'full-ai'>(null);
     const navigate = useNavigate();
+    const { addToast } = useToast();
 
     // Reset index when jobs change
     useEffect(() => {
@@ -70,19 +73,11 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
         return () => window.removeEventListener('keydown', handleKeyPress);
     }, [currentIndex, jobs, showDetails, showJDModal]);
 
-    const applyOverrideUpdate = useCallback((job: ReviewedJob, result: JobReviewOverrideResponse): ReviewedJob => ({
-        ...job,
-        recommendation: result.override_recommend ? 'Recommended' : 'Not Recommended',
-        is_eligible_for_application: result.override_recommend,
-        override_recommend: result.override_recommend,
-        override_comment: result.override_comment,
-        override_by: result.override_by,
-        override_at: result.override_at,
-    }), []);
-
     const safeIndex = jobs.length > 0
         ? Math.min(currentIndex, Math.max(0, jobs.length - 1))
         : 0;
+
+    const isActionPending = pendingAction !== null;
 
     useEffect(() => {
         if (jobs.length === 0) {
@@ -123,18 +118,25 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
             return;
         }
 
+        if (pendingAction) {
+            return;
+        }
+
+        setPendingAction('reject');
         try {
-            const overrideResult = await overrideJobReview(job.job_id, {
+            await overrideJobReview(job.job_id, {
                 override_recommend: false,
                 override_comment: 'Human reviewer rejected via swipe',
             });
 
-            onOverrideSuccess(applyOverrideUpdate(job, overrideResult));
+            onOverrideSuccess(job.job_id, 'Job marked as not recommended');
             nextCard();
         } catch (err) {
-            console.error('Failed to reject job:', err);
+            addToast('Failed to update recommendation', 'error');
+        } finally {
+            setPendingAction(null);
         }
-    }, [applyOverrideUpdate, jobs, safeIndex, nextCard, onOverrideSuccess]);
+    }, [jobs, safeIndex, nextCard, onOverrideSuccess, pendingAction, addToast]);
 
     const handleFastTrack = useCallback(async () => {
         const job = jobs.length > 0 ? jobs[safeIndex] : undefined;
@@ -142,25 +144,30 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
             return;
         }
 
+        if (pendingAction) {
+            return;
+        }
+
+        setPendingAction('fast-track');
         try {
             // Create application without AI generation
-            const app = await apiService.createApplicationFromJob(job.job_id, 'fast_track', activeNarrativeId || undefined);
+            await apiService.createApplicationFromJob(job.job_id, 'fast_track', activeNarrativeId || undefined);
 
-            console.log('Fast-tracked job:', job.title, 'Application created:', app.application_id);
-
-            const overrideResult = await overrideJobReview(job.job_id, {
+            await overrideJobReview(job.job_id, {
                 override_recommend: true,
                 override_comment: 'Human reviewer fast-tracked application',
             });
 
-            onOverrideSuccess(applyOverrideUpdate(job, overrideResult));
+            onOverrideSuccess(job.job_id, 'Fast-track application started');
 
             // Stay in job review mode - no navigation
             nextCard();
         } catch (err) {
-            console.error('Failed to fast-track job:', err);
+            addToast('Failed to fast-track job', 'error');
+        } finally {
+            setPendingAction(null);
         }
-    }, [activeNarrativeId, applyOverrideUpdate, jobs, safeIndex, nextCard, onOverrideSuccess]);
+    }, [activeNarrativeId, jobs, safeIndex, nextCard, onOverrideSuccess, pendingAction, addToast]);
 
     const handleFullAI = useCallback(async () => {
         const job = jobs.length > 0 ? jobs[safeIndex] : undefined;
@@ -168,25 +175,30 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
             return;
         }
 
+        if (pendingAction) {
+            return;
+        }
+
+        setPendingAction('full-ai');
         try {
             // Trigger application creation (no automatic AI)
-            const app = await apiService.generateApplicationFromJob(job.job_id, activeNarrativeId || undefined);
+            await apiService.generateApplicationFromJob(job.job_id, activeNarrativeId || undefined);
 
-            console.log('Full AI setup for job:', job.title, 'Application created:', app.application_id);
-
-            const overrideResult = await overrideJobReview(job.job_id, {
+            await overrideJobReview(job.job_id, {
                 override_recommend: true,
                 override_comment: 'Human reviewer approved via full AI workflow',
             });
 
-            onOverrideSuccess(applyOverrideUpdate(job, overrideResult));
+            onOverrideSuccess(job.job_id, 'AI application created');
 
             // Stay in job review mode - no navigation
             nextCard();
         } catch (err) {
-            console.error('Failed to create application:', err);
+            addToast('Failed to create AI application', 'error');
+        } finally {
+            setPendingAction(null);
         }
-    }, [activeNarrativeId, applyOverrideUpdate, jobs, safeIndex, nextCard, onOverrideSuccess]);
+    }, [activeNarrativeId, jobs, safeIndex, nextCard, onOverrideSuccess, pendingAction, addToast]);
 
     if (isLoading) {
         return (

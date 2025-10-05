@@ -1390,7 +1390,7 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
         offset: String(Math.max(page - 1, 0) * size),
     });
 
-    const sortByParam = sort.by === 'overall_alignment_score' ? 'review_date' : sort.by;
+    const sortByParam = sort.by;
     params.append('sort_by', sortByParam);
     params.append('sort_order', sort.order.toUpperCase());
 
@@ -1399,8 +1399,7 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
     }
 
     if (typeof filters.min_score === 'number') {
-        const normalizedScore = filters.min_score / 10; // API expects 0-1 range
-        params.append('min_score', String(normalizedScore));
+        params.append('min_score', String(filters.min_score));
     }
 
     const response = await fetch(`${buildFastApiUrl('jobs/reviews')}?${params.toString()}`);

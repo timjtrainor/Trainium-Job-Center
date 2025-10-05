@@ -217,8 +217,12 @@ async def _match_or_create_company(company_name: str, job_data: dict) -> str:
     # Normalize company name
     normalized_name = normalize_company_name(company_name)
 
+    user_id = job_data.get('user_id')
+    if not user_id:
+        user_id = await db_service.get_default_user_id()
+
     # Check for existing company
-    existing = await db_service.get_company_by_normalized_name(normalized_name)
+    existing = await db_service.get_company_by_normalized_name(normalized_name, user_id)
 
     if existing:
         logger.info(f"Matched to existing company: {existing.get('company_name')}")
@@ -230,7 +234,8 @@ async def _match_or_create_company(company_name: str, job_data: dict) -> str:
         "normalized_name": normalized_name,
         "company_url": _extract_company_url_from_job_url(job_data.get('url', '')),
         "source": "linkedin_auto",
-        "is_recruiting_firm": False
+        "is_recruiting_firm": False,
+        "user_id": user_id,
     })
 
     company_id = new_company.get('company_id') if isinstance(new_company, dict) else new_company.company_id

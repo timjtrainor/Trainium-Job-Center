@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { ReviewedJob } from '../types';
-import { overrideJobReview, JobReviewOverrideRequest, JobReviewOverrideResponse } from '../services/apiService';
+import { overrideJobReview, JobReviewOverrideRequest } from '../services/apiService';
 import { LoadingSpinner, CheckIcon, XCircleIcon } from './IconComponents';
 
 interface JobReviewModalProps {
     job: ReviewedJob | null;
     isOpen: boolean;
     onClose: () => void;
-    onOverrideSuccess: (updatedJob: ReviewedJob) => void;
+    onOverrideSuccess: (jobId: string, message: string) => void;
 }
 
 export const JobReviewModal: React.FC<JobReviewModalProps> = ({
@@ -24,27 +24,17 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
 
     if (!isOpen || !job) return null;
 
-    const mapOverrideToJob = (result: JobReviewOverrideResponse): ReviewedJob => ({
-        ...job!,
-        recommendation: result.override_recommend ? 'Recommended' : 'Not Recommended',
-        is_eligible_for_application: result.override_recommend,
-        override_recommend: result.override_recommend,
-        override_comment: result.override_comment,
-        override_by: result.override_by,
-        override_at: result.override_at,
-    });
-
     const handleAgree = async () => {
         setIsSubmitting(true);
         setError(null);
 
         try {
-            const result = await overrideJobReview(job!.job_id, {
+            await overrideJobReview(job!.job_id, {
                 override_recommend: true,
                 override_comment: 'Human reviewer confirmed AI recommendation',
             });
 
-            onOverrideSuccess(mapOverrideToJob(result));
+            onOverrideSuccess(job.job_id, 'AI recommendation confirmed');
             onClose();
         } catch (err) {
             console.error('Failed to record agreement override', err);
@@ -76,9 +66,9 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
                 override_comment: overrideComment.trim(),
             };
 
-            const result = await overrideJobReview(job.job_id, overrideData);
+            await overrideJobReview(job.job_id, overrideData);
 
-            onOverrideSuccess(mapOverrideToJob(result));
+            onOverrideSuccess(job.job_id, overrideRecommendation ? 'Job approved for application' : 'Job removed from recommendations');
             onClose();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to submit override');

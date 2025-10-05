@@ -129,6 +129,16 @@ const AppContent = () => {
     const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
     const [initialCompanyData, setInitialCompanyData] = useState<Partial<CompanyPayload> | null>(null);
     const [isCompanyModalForNewApp, setIsCompanyModalForNewApp] = useState(false);
+    type CompanyDetailModalOptions = {
+        autoResearch?: boolean;
+        homepageUrl?: string;
+        onResearchComplete?: (status: 'completed' | 'failed') => void;
+    };
+
+    const [isCompanyDetailModalOpen, setIsCompanyDetailModalOpen] = useState(false);
+    const [selectedCompanyForModal, setSelectedCompanyForModal] = useState<Company | null>(null);
+    const [companyDetailAutoResearch, setCompanyDetailAutoResearch] = useState(false);
+    const [companyDetailResearchCallback, setCompanyDetailResearchCallback] = useState<((status: 'completed' | 'failed') => void) | null>(null);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [isJdModalOpen, setIsJdModalOpen] = useState(false);
     const [isGuidanceModalOpen, setIsGuidanceModalOpen] = useState(false);
@@ -827,10 +837,10 @@ const AppContent = () => {
 
     const handleResumeApplication = (appToResume: JobApplication) => {
         resetNewAppFlow();
-    
+
         setCurrentApplicationId(appToResume.job_application_id);
         setActiveNarrativeId(appToResume.narrative_id);
-    
+
         const company = companies.find(c => c.company_id === appToResume.company_id);
         setJobDetails({
             companyName: company?.company_name || '',
@@ -844,48 +854,57 @@ const AppContent = () => {
             mission: company?.mission?.text || '',
             values: company?.values?.text || '',
         });
-    
+
         setJobProblemAnalysisResult(appToResume.job_problem_analysis_result || null);
         setStrategicFitScore(appToResume.strategic_fit_score || null);
         setAssumedRequirements(appToResume.assumed_requirements || []);
-    
+
         const parsedKeywords = typeof appToResume.keywords === 'string' ? JSON.parse(appToResume.keywords) : appToResume.keywords;
         const parsedGuidance = typeof appToResume.guidance === 'string' ? JSON.parse(appToResume.guidance) : appToResume.guidance;
         setKeywords(parsedKeywords || null);
         setGuidance(parsedGuidance || null);
-    
+
         const wasMessageOnly = !!appToResume.application_message && !appToResume.tailored_resume_json;
         setIsMessageOnlyApp(wasMessageOnly);
-        
+
         setFinalResume(appToResume.tailored_resume_json || null);
         setApplicationQuestions(appToResume.application_questions || []);
         setFinalApplicationMessage(appToResume.application_message || '');
-    
+
         if (appToResume.why_this_job && appToResume.next_steps_plan) {
             setPostSubmissionPlan({
                 why_this_job: appToResume.why_this_job,
                 next_steps_plan: appToResume.next_steps_plan,
             });
         }
-    
+
+        // ENHANCEMENT: Applications from AI Jobs Board always start at "Paste JD" to allow JDS review/editing
         let resumeStep: NewAppStep;
-        if (appToResume.why_this_job) {
-            resumeStep = NewAppStep.POST_SUBMIT_PLAN;
-        } else if (appToResume.application_message) {
-            resumeStep = NewAppStep.CRAFT_MESSAGE;
-        } else if (appToResume.application_questions && appToResume.application_questions.length > 0) {
-            resumeStep = NewAppStep.ANSWER_QUESTIONS;
-        } else if (appToResume.tailored_resume_json) {
-            resumeStep = NewAppStep.DOWNLOAD_RESUME;
-        } else if (appToResume.keywords) {
-            resumeStep = NewAppStep.RESUME_SELECT;
-        } else if (appToResume.job_problem_analysis_result) {
-            resumeStep = NewAppStep.AI_PROBLEM_ANALYSIS;
+        const isFromJobsBoard = appToResume.source_job_id !== null;
+
+        if (isFromJobsBoard) {
+            // Jobs board applications start at Paste JD (editable) regardless of completion status
+            resumeStep = NewAppStep.INITIAL_INPUT;
         } else {
-            resumeStep = NewAppStep.AI_PROBLEM_ANALYSIS;
+            // Regular applications resume from their last completed step
+            if (appToResume.why_this_job) {
+                resumeStep = NewAppStep.POST_SUBMIT_PLAN;
+            } else if (appToResume.application_message) {
+                resumeStep = NewAppStep.CRAFT_MESSAGE;
+            } else if (appToResume.application_questions && appToResume.application_questions.length > 0) {
+                resumeStep = NewAppStep.ANSWER_QUESTIONS;
+            } else if (appToResume.tailored_resume_json) {
+                resumeStep = NewAppStep.DOWNLOAD_RESUME;
+            } else if (appToResume.keywords) {
+                resumeStep = NewAppStep.RESUME_SELECT;
+            } else if (appToResume.job_problem_analysis_result) {
+                resumeStep = NewAppStep.AI_PROBLEM_ANALYSIS;
+            } else {
+                resumeStep = NewAppStep.AI_PROBLEM_ANALYSIS;
+            }
         }
+
         setNewAppStep(resumeStep);
-    
         navigate('/new-application');
     };
     
@@ -1143,6 +1162,7 @@ const AppContent = () => {
             applications={applications}
             messages={messages.filter(m => m.company_id === companyId)}
             contacts={contacts}
+            autoResearch={false}
             onBack={() => navigate('/engagement')}
             onUpdate={async (payload) => { await apiService.updateCompany(company.company_id, payload); fetchInitialData(); }}
             onViewApplication={(appId) => navigate(`/application/${appId}`)}
@@ -1274,9 +1294,27 @@ const AppContent = () => {
                         onIsMessageOnlyChange={setIsMessageOnlyApp}
                     />}
                     {newAppStep === NewAppStep.JOB_DETAILS && <JobDetailsStep onNext={handleJobDetailsSubmit} isLoading={false} initialJobDetails={jobDetails} narratives={strategicNarratives} selectedNarrativeId={activeNarrativeId!} />}
-                    {newAppStep === NewAppStep.COMPANY_CONFIRMATION && <CompanyConfirmationStep initialCompanyName={jobDetails.companyName} allCompanies={companies} onConfirm={handleCompanySelectionAndAnalyze} onOpenCreateCompanyModal={() => { setIsCompanyModalForNewApp(true); setInitialCompanyData({ company_name: jobDetails.companyName, company_url: jobDetails.jobLink, is_recruiting_firm: jobDetails.isRecruitingFirm }); setIsCompanyModalOpen(true); }} isLoading={newAppLoadingState === 'analyzing'} />}
+                    {newAppStep === NewAppStep.COMPANY_CONFIRMATION && <CompanyConfirmationStep initialCompanyName={jobDetails.companyName} allCompanies={companies} onConfirm={handleCompanySelectionAndAnalyze} onOpenCreateCompanyModal={() => { setIsCompanyModalForNewApp(true); setInitialCompanyData({ company_name: jobDetails.companyName, company_url: jobDetails.jobLink, is_recruiting_firm: jobDetails.isRecruitingFirm }); setIsCompanyModalOpen(true); }} onOpenCompanyDetailModal={(companyId, options) => {
+                        const company = companies.find(c => c.company_id === companyId);
+                        if (!company) return;
+
+                        const companyForModal: Company = {
+                            ...company,
+                            company_url: options?.homepageUrl ?? company.company_url,
+                        };
+
+                        setSelectedCompanyForModal(companyForModal);
+                        setCompanyDetailAutoResearch(!!options?.autoResearch);
+                        if (options?.onResearchComplete) {
+                            const callback = options.onResearchComplete;
+                            setCompanyDetailResearchCallback(() => (status: 'completed' | 'failed') => callback(status));
+                        } else {
+                            setCompanyDetailResearchCallback(null);
+                        }
+                        setIsCompanyDetailModalOpen(true);
+                    }} isLoading={newAppLoadingState === 'analyzing'} />}
                     {newAppStep === NewAppStep.AI_PROBLEM_ANALYSIS && <ProblemAnalysisStep jobProblemAnalysisResult={jobProblemAnalysisResult} strategicFitScore={strategicFitScore} assumedRequirements={assumedRequirements} onConfirm={handleConfirmFit} companyName={jobDetails.companyName} isLoadingAnalysis={!jobProblemAnalysisResult} isConfirming={newAppLoadingState === 'keywords'} />}
-                    {newAppStep === NewAppStep.RESUME_SELECT && baseResumes && userProfile && <SelectResumeStep baseResumes={baseResumes} onNext={handleResumeSelect} isLoading={newAppLoadingState === 'tailoring'} prompts={PROMPTS} keywords={keywords} userProfile={userProfile} applicationNarrative={activeNarrative} />}
+                    {newAppStep === NewAppStep.RESUME_SELECT && baseResumes && userProfile && <SelectResumeStep baseResumes={baseResumes} onNext={handleResumeSelect} isLoading={newAppLoadingState === 'tailoring'} prompts={PROMPTS} keywords={keywords} userProfile={userProfile} applicationNarrative={activeNarrative} application={currentApplicationId ? applications.find(a => a.job_application_id === currentApplicationId) : null} onSkipToAnswerQuestions={() => setNewAppStep(NewAppStep.ANSWER_QUESTIONS)} />}
                     {newAppStep === NewAppStep.TAILOR_RESUME && finalResume && <TailorResumeStep finalResume={finalResume} setFinalResume={setFinalResume} summaryParagraphOptions={summaryParagraphOptions} allSkillOptions={allSkillOptions} keywords={keywords} missingKeywords={missingKeywords} setMissingKeywords={setMissingKeywords} onNext={handleSaveTailoredResume} isLoading={newAppLoadingState === 'saving'} prompts={PROMPTS} userProfile={userProfile} activeNarrative={activeNarrative} jobTitle={jobDetails.jobTitle} companyName={jobDetails.companyName} resumeAlignmentScore={resumeAlignmentScore} onRecalculateScore={handleRecalculateScore} />}
                     {newAppStep === NewAppStep.CRAFT_MESSAGE && <CraftMessageStep drafts={applicationMessageDrafts} onSelectDraft={setFinalApplicationMessage} finalMessage={finalApplicationMessage} setFinalMessage={setFinalApplicationMessage} onNext={handleSaveMessage} isLoading={newAppLoadingState === 'saving'} />}
                     {newAppStep === NewAppStep.DOWNLOAD_RESUME && finalResume && <DownloadResumeStep finalResume={finalResume} companyName={jobDetails.companyName} onNext={() => setNewAppStep(NewAppStep.ANSWER_QUESTIONS)} isLoading={false} />}
@@ -1344,6 +1382,109 @@ const AppContent = () => {
 
              {isContactModalOpen && <ContactModal isOpen={isContactModalOpen} onClose={() => setIsContactModalOpen(false)} onSaveContact={handleSaveContact} onCreateMessage={handleCreateMessage} onAddNewCompany={() => setIsCompanyModalOpen(true)} contact={selectedContact} companies={companies} applications={applications} baseResumes={baseResumes} linkedInPosts={linkedInPosts} userProfile={userProfile} strategicNarratives={strategicNarratives} activeNarrativeId={activeNarrativeId} prompts={PROMPTS} onDeleteContact={handleDeleteContact} />}
              {isCompanyModalOpen && <CreateCompanyModal isOpen={isCompanyModalOpen} onClose={() => setIsCompanyModalOpen(false)} onCreate={isCompanyModalForNewApp ? handleCreateCompanyForNewApp : handleCreateCompany} initialData={initialCompanyData} prompts={PROMPTS} />}
+             {isCompanyDetailModalOpen && selectedCompanyForModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-hidden">
+                        <div className="flex justify-between items-center p-6 border-b border-slate-200 dark:border-slate-700">
+                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Company Research Results</h2>
+                            <button
+                                onClick={() => {
+                                    if (companyDetailResearchCallback) {
+                                        companyDetailResearchCallback('failed');
+                                        setCompanyDetailResearchCallback(null);
+                                    }
+                                    setIsCompanyDetailModalOpen(false);
+                                    setSelectedCompanyForModal(null);
+                                    setCompanyDetailAutoResearch(false);
+                                }}
+                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="overflow-y-auto max-h-[calc(90vh-80px)]">
+                            <CompanyDetailView
+                                company={selectedCompanyForModal}
+                                allCompanies={companies}
+                                applications={applications}
+                                messages={messages.filter(m => m.company_id === selectedCompanyForModal.company_id)}
+                                contacts={contacts}
+                                autoResearch={companyDetailAutoResearch}
+                                onBack={() => {
+                                    if (companyDetailResearchCallback) {
+                                        companyDetailResearchCallback('failed');
+                                        setCompanyDetailResearchCallback(null);
+                                    }
+                                    setIsCompanyDetailModalOpen(false);
+                                    setSelectedCompanyForModal(null);
+                                    setCompanyDetailAutoResearch(false);
+                                }}
+                                onUpdate={async (payload) => { await apiService.updateCompany(selectedCompanyForModal.company_id, payload); fetchInitialData(); }}
+                                onViewApplication={(appId) => {
+                                    if (companyDetailResearchCallback) {
+                                        companyDetailResearchCallback('failed');
+                                        setCompanyDetailResearchCallback(null);
+                                    }
+                                    setIsCompanyDetailModalOpen(false);
+                                    setSelectedCompanyForModal(null);
+                                    setCompanyDetailAutoResearch(false);
+                                    navigate(`/application/${appId}`);
+                                }}
+                                onCreateMessage={handleCreateMessage}
+                                onOpenCreateCompanyModal={(data) => { setInitialCompanyData(data); setIsCompanyModalOpen(true); }}
+                                onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }}
+                                onResearch={async (details) => {
+                                    const prompt = PROMPTS.find(p => p.id === 'COMPANY_GOAL_ANALYSIS')?.content || '';
+                                    const researchContext = {
+                                        COMPANY_NAME: details.name,
+                                        COMPANY_HOMEPAGE: details.url || 'https://example.com',
+                                    };
+
+                                    const researchCallback = companyDetailResearchCallback;
+
+                                    try {
+                                        const aiResearchResult = await geminiService.researchCompanyInfo(researchContext, prompt);
+
+                                        const companyUpdates = {
+                                            company_name: details.name,
+                                            company_url: details.url,
+                                            mission: { text: aiResearchResult.mission?.text || '', source: aiResearchResult.mission?.source || '' },
+                                            values: { text: aiResearchResult.values?.text || '', source: aiResearchResult.values?.source || '' },
+                                            goals: { text: aiResearchResult.goals?.text || '', source: aiResearchResult.goals?.source || '' },
+                                            issues: { text: aiResearchResult.issues?.text || '', source: aiResearchResult.issues?.source || '' },
+                                            customer_segments: { text: aiResearchResult.customer_segments?.text || '', source: aiResearchResult.customer_segments?.source || '' },
+                                            strategic_initiatives: { text: aiResearchResult.strategic_initiatives?.text || '', source: aiResearchResult.strategic_initiatives?.source || '' },
+                                            market_position: { text: aiResearchResult.market_position?.text || '', source: aiResearchResult.market_position?.source || '' },
+                                            competitors: { text: aiResearchResult.competitors?.text || '', source: aiResearchResult.competitors?.source || '' },
+                                            news: { text: aiResearchResult.news?.text || '', source: aiResearchResult.news?.source || '' },
+                                            industry: { text: aiResearchResult.industry?.text || '', source: aiResearchResult.industry?.source || '' }
+                                        };
+
+                                        await apiService.updateCompany(details.id, companyUpdates);
+                                        await fetchInitialData();
+
+                                        if (researchCallback) {
+                                            researchCallback('completed');
+                                            setCompanyDetailResearchCallback(null);
+                                        }
+                                    } catch (error) {
+                                        if (researchCallback) {
+                                            researchCallback('failed');
+                                            setCompanyDetailResearchCallback(null);
+                                        }
+                                        throw error;
+                                    } finally {
+                                        setCompanyDetailAutoResearch(false);
+                                    }
+                                }}
+                                onDeleteContact={handleDeleteContact}
+                                prompts={PROMPTS}
+                                activeNarrative={activeNarrative}
+                            />
+                        </div>
+                    </div>
+                </div>
+             )}
         </div>
     );
 };

@@ -30,6 +30,7 @@ SELECT DISTINCT ON (COALESCE(canonical_key, id::text))
     j.canonical_key,
     j.fingerprint,
     j.duplicate_group_id,
+    j.duplicate_status,
     -- Aggregated fields showing all sites where this job was found
     ARRAY_AGG(j.site) OVER (
         PARTITION BY COALESCE(canonical_key, id::text)
@@ -46,11 +47,13 @@ FROM public.jobs j
 ORDER BY
     COALESCE(canonical_key, id::text),
     -- Prioritization logic: prefer jobs with more complete information
-    -- 1. Prefer jobs with salary information
+    -- 1. Prefer jobs with duplicate_status = 'original' (not hidden duplicates)
+    CASE WHEN j.duplicate_status = 'original' THEN 0 ELSE 1 END,
+    -- 2. Prefer jobs with salary information
     CASE WHEN j.min_amount IS NOT NULL THEN 0 ELSE 1 END,
-    -- 2. Prefer most recently posted
+    -- 3. Prefer most recently posted
     j.date_posted DESC NULLS LAST,
-    -- 3. Prefer earliest ingestion (first discovered)
+    -- 4. Prefer earliest ingestion (first discovered)
     j.ingested_at ASC;
 
 -- Comments

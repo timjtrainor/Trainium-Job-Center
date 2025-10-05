@@ -19,6 +19,40 @@ router = APIRouter(prefix="/applications", tags=["Applications"])
 settings = get_settings()
 
 
+def format_job_location(job: Dict[str, Any]) -> str:
+    """Format job location from separate database fields into a single string."""
+    city = job.get('location_city', '').strip()
+    state = job.get('location_state', '').strip()
+    country = job.get('location_country', '').strip()
+
+    parts = [part for part in [city, state, country] if part]
+    if parts:
+        return ', '.join(parts)
+
+    # Fallback to any generic location field
+    return job.get('location', '').strip()
+
+
+def format_job_salary(job: Dict[str, Any]) -> Optional[str]:
+    """Format job salary range from min/max amounts."""
+    min_amount = job.get('salary_min')
+    max_amount = job.get('salary_max')
+    currency = job.get('currency', 'USD')
+
+    if min_amount is not None or max_amount is not None:
+        min_str = f"{min_amount:,}" if min_amount else ""
+        max_str = f"{max_amount:,}" if max_amount else ""
+
+        if min_str and max_str:
+            return f"${min_str}-${max_str}"
+        elif min_str:
+            return f"${min_str}+"
+        elif max_str:
+            return f"Up to ${max_str}"
+
+    return None
+
+
 class ApplicationResponse(BaseModel):
     success: bool
     application_id: str
@@ -44,18 +78,55 @@ async def _ensure_job_company(
     if not normalized_name:
         return None
 
-    existing_company = await db_service.get_company_by_normalized_name(normalized_name)
+    # First check if company with exact name already exists (unique constraint)
+    await db_service.initialize()  # Ensure pool is ready
+    async with db_service.pool.acquire() as conn:
+        exact_match = await conn.fetchrow("""
+            SELECT company_id, company_name
+            FROM companies
+            WHERE company_name = $1
+            LIMIT 1
+        """, company_name)
+
+    if exact_match:
+        company_id = str(exact_match["company_id"])
+        # Update job with the existing company
+        await db_service.update_job(job_id, {
+            "company_id": company_id,
+            "company_name": company_name,
+            "normalized_company": normalized_name,
+        })
+        job["company_id"] = company_id
+        job.setdefault("company_name", company_name)
+        return company_id
+
+    # If no exact match, try normalized name matching (if column exists)
+    existing_company = await db_service.get_company_by_normalized_name(normalized_name, None)
     if existing_company:
         company_id = existing_company.get("company_id")
-    else:
-        created_company = await db_service.create_company({
-            "company_name": company_name,
-            "normalized_name": normalized_name,
-            "company_url": job.get("company_url") or job.get("job_url") or job.get("url") or "",
-            "source": "application_auto",
-            "is_recruiting_firm": False,
-        })
-        company_id = created_company.get("company_id") if isinstance(created_company, dict) else None
+        # Update company name to be consistent if different, then update job
+        if company_id:
+            current_name = existing_company.get("company_name", "")
+            if current_name != company_name:
+                await db_service.update_company(company_id, {"company_name": company_name})
+            await db_service.update_job(job_id, {
+                "company_id": company_id,
+                "company_name": company_name,
+                "normalized_company": normalized_name,
+            })
+            job["company_id"] = company_id
+            job.setdefault("company_name", company_name)
+            return str(company_id)
+
+    # If no existing company found, create one
+    created_company = await db_service.create_company({
+        "company_name": company_name,
+        "normalized_name": normalized_name if await db_service._column_exists('companies', 'normalized_name') else None,
+        "company_url": job.get("company_url") or job.get("job_url") or job.get("url") or "",
+        "source": "application_auto",
+        "is_recruiting_firm": False,
+    })
+    company_id = created_company.get("company_id") if isinstance(created_company, dict) else None
 
     if company_id:
         await db_service.update_job(job_id, {
@@ -138,7 +209,7 @@ async def generate_application_from_job(job_id: str, narrative_id: str = None):
             else:
                 status_id = status['status_id']
 
-            # Create application record
+            # Create application record with properly formatted data
             app_id = await conn.fetchval("""
                 INSERT INTO job_applications (
                     company_id,
@@ -163,9 +234,9 @@ async def generate_application_from_job(job_id: str, narrative_id: str = None):
                 status_id,
                 job.get('title', 'Untitled Position'),
                 job.get('description', ''),
-                job.get('url', ''),
-                f"${job.get('salary_min', '')}-${job.get('salary_max', '')}" if job.get('salary_min') else None,
-                job.get('location', ''),
+                job.get('job_url') or job.get('url', ''),  # Use consistent field naming
+                format_job_salary(job),
+                format_job_location(job),
                 narrative['narrative_id'],
                 narrative['user_id'],
                 UUID(job_id),
@@ -361,7 +432,7 @@ async def create_application_from_job(job_id: str, mode: str = "fast_track", nar
             else:
                 status_id = status['status_id']
 
-            # Create application record
+            # Create application record with properly formatted data
             app_id = await conn.fetchval("""
                 INSERT INTO job_applications (
                     company_id,
@@ -384,9 +455,9 @@ async def create_application_from_job(job_id: str, mode: str = "fast_track", nar
                 status_id,
                 job.get('title', 'Untitled Position'),
                 job.get('description', ''),
-                job.get('url', ''),
-                f"${job.get('salary_min', '')}-${job.get('salary_max', '')}" if job.get('salary_min') else None,
-                job.get('location', ''),
+                job.get('job_url') or job.get('url', ''),  # Use consistent field naming
+                format_job_salary(job),
+                format_job_location(job),
                 narrative['narrative_id'],
                 narrative['user_id'],
                 UUID(job_id),

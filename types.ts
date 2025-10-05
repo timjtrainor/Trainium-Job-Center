@@ -234,6 +234,7 @@ export interface JobApplication {
   salary?: string;
   location?: string;
   remote_status?: 'Remote' | 'Hybrid' | 'On-site';
+  source_job_id?: string; // References job ID from reviewed jobs when created from AI Jobs Board
   date_applied: string;
   created_at: string;
   status?: Status;
