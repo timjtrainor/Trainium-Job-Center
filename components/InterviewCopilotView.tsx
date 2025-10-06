@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { JobApplication, Interview, StrategicNarrative, ImpactStory, StorytellingFormat, StarBody, ScopeBody, WinsBody, SpotlightBody, InterviewPayload, Company } from '../types';
 import { CheckIcon, GripVerticalIcon, MicrophoneIcon, ClipboardDocumentCheckIcon, SparklesIcon, LoadingSpinner } from './IconComponents';
 import { Switch } from './Switch';
@@ -28,6 +28,21 @@ const STORY_FORMAT_COLORS: { [key in StorytellingFormat]: string } = {
     SPOTLIGHT: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300',
 };
 
+
+const appendUnique = (existing: string, addition: string) => {
+    const trimmedAddition = addition.trim();
+    if (!trimmedAddition) return existing;
+
+    if (!existing.trim()) {
+        return trimmedAddition;
+    }
+
+    if (existing.includes(trimmedAddition)) {
+        return existing;
+    }
+
+    return `${existing.trimEnd()}\n\n${trimmedAddition}`;
+};
 
 const CoPilotSection = ({ title, children, className = '' }: { title: string, children: React.ReactNode, className?: string }) => (
     <div className={`bg-white dark:bg-slate-800 p-3 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 ${className}`}>
@@ -77,6 +92,8 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
     const [isSavingNotes, setIsSavingNotes] = useState(false);
     const [notesSuccess, setNotesSuccess] = useState(false);
     const [isGeneratingPrep, setIsGeneratingPrep] = useState(false);
+
+    const jobAnalysis = useMemo(() => application.job_problem_analysis_result, [application]);
 
     useEffect(() => {
         const opening = interview.strategic_opening || `"I'm a product leader who excels at ${activeNarrative.positioning_statement}. My understanding is the core challenge here is ${application.job_problem_analysis_result?.core_problem_analysis.core_problem}. That's a problem I'm familiar with from my time when I ${activeNarrative.impact_story_title}."`;
@@ -147,6 +164,16 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
     
     const interviewer = interview.interview_contacts?.[0];
 
+    const coreProblem = jobAnalysis?.core_problem_analysis?.core_problem?.trim();
+    const keyMetrics = jobAnalysis?.key_success_metrics || [];
+    const roleLevers = jobAnalysis?.role_levers || [];
+    const potentialBlockers = jobAnalysis?.potential_blockers || [];
+    const roleTags = jobAnalysis?.tags || [];
+
+    const handleQuickAdd = (text: string) => {
+        setNotepadContent(prev => appendUnique(prev, text));
+    };
+
     return (
         <div className="fixed inset-0 z-50 bg-slate-900 bg-opacity-75 flex items-center justify-center p-4">
             <div className="bg-slate-100 dark:bg-slate-900 rounded-xl shadow-2xl flex flex-col h-full w-full">
@@ -180,7 +207,122 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
                 <main className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-3 gap-3 p-3">
                     {/* Left Column: Co-pilot Content */}
                     <div className="md:col-span-2 overflow-y-auto space-y-3 pr-2">
-                         <CoPilotSection title="Top of Mind">
+                        {jobAnalysis && (
+                            <CoPilotSection title="Role Intelligence">
+                                <div className="space-y-3 text-xs text-slate-600 dark:text-slate-300">
+                                    <div className="space-y-1">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                                <p className="font-bold text-slate-500 dark:text-slate-400">Core Problem</p>
+                                                <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{coreProblem || 'N/A'}</p>
+                                            </div>
+                                            {coreProblem && (
+                                                <button
+                                                    onClick={() => handleQuickAdd(`Core Problem: ${coreProblem}`)}
+                                                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
+                                                >
+                                                    <ClipboardDocumentCheckIcon className="h-4 w-4" />
+                                                    Copy to Notepad
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <p className="font-bold text-slate-500 dark:text-slate-400">Key Success Metrics</p>
+                                            {keyMetrics.length > 0 && (
+                                                <button
+                                                    onClick={() => handleQuickAdd(`Key Success Metrics:\n${keyMetrics.map(metric => `• ${metric}`).join('\n')}`)}
+                                                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
+                                                >
+                                                    <ClipboardDocumentCheckIcon className="h-4 w-4" />
+                                                    Copy to Notepad
+                                                </button>
+                                            )}
+                                        </div>
+                                        {keyMetrics.length > 0 ? (
+                                            <ul className="mt-1 list-disc pl-4 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+                                                {keyMetrics.map((metric, index) => (
+                                                    <li key={index}>{metric}</li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">N/A</p>
+                                        )}
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <p className="font-bold text-slate-500 dark:text-slate-400">Levers</p>
+                                            {roleLevers.length > 0 && (
+                                                <button
+                                                    onClick={() => handleQuickAdd(`Levers:\n${roleLevers.map(lever => `• ${lever}`).join('\n')}`)}
+                                                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
+                                                >
+                                                    <ClipboardDocumentCheckIcon className="h-4 w-4" />
+                                                    Copy to Notepad
+                                                </button>
+                                            )}
+                                        </div>
+                                        {roleLevers.length > 0 ? (
+                                            <ul className="mt-1 list-disc pl-4 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+                                                {roleLevers.map((lever, index) => (
+                                                    <li key={index}>{lever}</li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">N/A</p>
+                                        )}
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <p className="font-bold text-slate-500 dark:text-slate-400">Potential Blockers</p>
+                                            {potentialBlockers.length > 0 && (
+                                                <button
+                                                    onClick={() => handleQuickAdd(`Potential Blockers:\n${potentialBlockers.map(blocker => `• ${blocker}`).join('\n')}`)}
+                                                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
+                                                >
+                                                    <ClipboardDocumentCheckIcon className="h-4 w-4" />
+                                                    Copy to Notepad
+                                                </button>
+                                            )}
+                                        </div>
+                                        {potentialBlockers.length > 0 ? (
+                                            <ul className="mt-1 list-disc pl-4 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+                                                {potentialBlockers.map((blocker, index) => (
+                                                    <li key={index}>{blocker}</li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">N/A</p>
+                                        )}
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <p className="font-bold text-slate-500 dark:text-slate-400">Tags</p>
+                                            {roleTags.length > 0 && (
+                                                <button
+                                                    onClick={() => handleQuickAdd(`Tags: ${roleTags.map(tag => `#${tag}`).join(' ')}`)}
+                                                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
+                                                >
+                                                    <ClipboardDocumentCheckIcon className="h-4 w-4" />
+                                                    Copy to Notepad
+                                                </button>
+                                            )}
+                                        </div>
+                                        {roleTags.length > 0 ? (
+                                            <div className="mt-1 flex flex-wrap gap-1">
+                                                {roleTags.map((tag, index) => (
+                                                    <span key={index} className="inline-flex items-center rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200">#{tag}</span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">N/A</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </CoPilotSection>
+                        )}
+                        <CoPilotSection title="Top of Mind">
                             <div className="text-xs space-y-1">
                                 <p><strong className="text-slate-600 dark:text-slate-300">Interviewing with:</strong> {interviewer ? `${interviewer.first_name} ${interviewer.last_name}` : 'N/A'}</p>
                                 <p><strong className="text-slate-600 dark:text-slate-300">Role:</strong> {interview.interview_type}</p>
