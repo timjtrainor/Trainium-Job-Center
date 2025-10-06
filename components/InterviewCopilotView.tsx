@@ -140,6 +140,12 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
     const [editableQuestions, setEditableQuestions] = useState('');
     const [notepadContent, setNotepadContent] = useState('');
     const [askedQuestions, setAskedQuestions] = useState<Set<string>>(new Set());
+    type CoverageState = { metrics: Set<string>; levers: Set<string>; blockers: Set<string>; };
+    const [covered, setCovered] = useState<CoverageState>(() => ({
+        metrics: new Set<string>(),
+        levers: new Set<string>(),
+        blockers: new Set<string>(),
+    }));
     
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
@@ -155,6 +161,14 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
         setEditableQuestions((interview.strategic_questions_to_ask || []).join('\n'));
         setNotepadContent(interview.notes || '');
     }, [interview, activeNarrative, application]);
+
+    useEffect(() => {
+        setCovered({
+            metrics: new Set<string>(),
+            levers: new Set<string>(),
+            blockers: new Set<string>(),
+        });
+    }, [interview.interview_id, jobAnalysis]);
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -223,6 +237,35 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
     const roleLevers = jobAnalysis?.role_levers || [];
     const potentialBlockers = jobAnalysis?.potential_blockers || [];
     const roleTags = jobAnalysis?.tags || [];
+
+    const totalCoverageItems = keyMetrics.length + roleLevers.length + potentialBlockers.length;
+    const coveredCount = covered.metrics.size + covered.levers.size + covered.blockers.size;
+    const coveragePercent = totalCoverageItems === 0 ? 0 : Math.round((coveredCount / totalCoverageItems) * 100);
+
+    const toggleCoverage = (category: keyof CoverageState, item: string) => {
+        setCovered(prev => {
+            const next: CoverageState = {
+                metrics: new Set(prev.metrics),
+                levers: new Set(prev.levers),
+                blockers: new Set(prev.blockers),
+            };
+            const targetSet = next[category];
+            if (targetSet.has(item)) {
+                targetSet.delete(item);
+            } else {
+                targetSet.add(item);
+            }
+            return next;
+        });
+    };
+
+    const resetCoverage = () => {
+        setCovered({
+            metrics: new Set<string>(),
+            levers: new Set<string>(),
+            blockers: new Set<string>(),
+        });
+    };
 
     const handleQuickAdd = (text: string) => {
         setNotepadContent(prev => appendUnique(prev, text));
@@ -371,6 +414,102 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
                                             </div>
                                         ) : (
                                             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">N/A</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </CoPilotSection>
+                        )}
+                        {jobAnalysis && totalCoverageItems > 0 && (
+                            <CoPilotSection title="Interview Coverage Tracker">
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                        <span aria-live="polite">Covered {coveredCount} of {totalCoverageItems} ({coveragePercent}%)</span>
+                                        <button
+                                            type="button"
+                                            onClick={resetCoverage}
+                                            className="text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 rounded"
+                                        >
+                                            Reset
+                                        </button>
+                                    </div>
+                                    <div className="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden" role="progressbar" aria-valuenow={coveragePercent} aria-valuemin={0} aria-valuemax={100} aria-label="Coverage progress">
+                                        <div className="h-full bg-indigo-500 transition-all duration-300" style={{ width: `${coveragePercent}%` }} />
+                                    </div>
+                                    <div className="space-y-3">
+                                        {keyMetrics.length > 0 && (
+                                            <fieldset>
+                                                <legend className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Key Success Metrics</legend>
+                                                <div className="mt-2 space-y-2">
+                                                    {keyMetrics.map((metric, index) => {
+                                                        const id = `metric-${index}`;
+                                                        const isChecked = covered.metrics.has(metric);
+                                                        return (
+                                                            <div key={`${metric}-${index}`} className="flex items-start gap-2">
+                                                                <input
+                                                                    id={id}
+                                                                    type="checkbox"
+                                                                    checked={isChecked}
+                                                                    onChange={() => toggleCoverage('metrics', metric)}
+                                                                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                                />
+                                                                <label htmlFor={id} className={`text-sm leading-tight text-slate-700 dark:text-slate-200 ${isChecked ? 'line-through text-slate-400 dark:text-slate-500' : ''}`}>
+                                                                    {metric}
+                                                                </label>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </fieldset>
+                                        )}
+                                        {roleLevers.length > 0 && (
+                                            <fieldset>
+                                                <legend className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Levers</legend>
+                                                <div className="mt-2 space-y-2">
+                                                    {roleLevers.map((lever, index) => {
+                                                        const id = `lever-${index}`;
+                                                        const isChecked = covered.levers.has(lever);
+                                                        return (
+                                                            <div key={`${lever}-${index}`} className="flex items-start gap-2">
+                                                                <input
+                                                                    id={id}
+                                                                    type="checkbox"
+                                                                    checked={isChecked}
+                                                                    onChange={() => toggleCoverage('levers', lever)}
+                                                                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                                />
+                                                                <label htmlFor={id} className={`text-sm leading-tight text-slate-700 dark:text-slate-200 ${isChecked ? 'line-through text-slate-400 dark:text-slate-500' : ''}`}>
+                                                                    {lever}
+                                                                </label>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </fieldset>
+                                        )}
+                                        {potentialBlockers.length > 0 && (
+                                            <fieldset>
+                                                <legend className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Potential Blockers</legend>
+                                                <div className="mt-2 space-y-2">
+                                                    {potentialBlockers.map((blocker, index) => {
+                                                        const id = `blocker-${index}`;
+                                                        const isChecked = covered.blockers.has(blocker);
+                                                        return (
+                                                            <div key={`${blocker}-${index}`} className="flex items-start gap-2">
+                                                                <input
+                                                                    id={id}
+                                                                    type="checkbox"
+                                                                    checked={isChecked}
+                                                                    onChange={() => toggleCoverage('blockers', blocker)}
+                                                                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                                />
+                                                                <label htmlFor={id} className={`text-sm leading-tight text-slate-700 dark:text-slate-200 ${isChecked ? 'line-through text-slate-400 dark:text-slate-500' : ''}`}>
+                                                                    {blocker}
+                                                                </label>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </fieldset>
                                         )}
                                     </div>
                                 </div>
