@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { JobApplication, Interview, StrategicNarrative, ImpactStory, StorytellingFormat, StarBody, ScopeBody, WinsBody, SpotlightBody, InterviewPayload, Company } from '../types';
+import { JobApplication, Interview, StrategicNarrative, ImpactStory, StorytellingFormat, StarBody, ScopeBody, WinsBody, SpotlightBody, InterviewPayload, Company, JobProblemAnalysisResult } from '../types';
 import { CheckIcon, GripVerticalIcon, MicrophoneIcon, ClipboardDocumentCheckIcon, SparklesIcon, LoadingSpinner } from './IconComponents';
 import { Switch } from './Switch';
 
@@ -53,10 +53,35 @@ const CoPilotSection = ({ title, children, className = '' }: { title: string, ch
     </div>
 );
 
-const ImpactStoryTrigger = ({ story }: { story: ImpactStory }) => {
+const ImpactStoryTrigger = ({
+    story,
+    jobAnalysis,
+    onAppendNotepad,
+}: {
+    story: ImpactStory;
+    jobAnalysis?: JobProblemAnalysisResult;
+    onAppendNotepad: (text: string) => void;
+}) => {
     const formatName = story.format || 'STAR';
     const badgeColor = STORY_FORMAT_COLORS[formatName];
     const orderedFields = STORY_FORMAT_FIELDS[formatName];
+
+    const cues = jobAnalysis
+        ? [
+              ...(jobAnalysis.key_success_metrics || []).map((value) => ({
+                  label: 'Success Metric',
+                  value,
+              })),
+              ...(jobAnalysis.role_levers || []).map((value) => ({
+                  label: 'Lever',
+                  value,
+              })),
+              ...(jobAnalysis.potential_blockers || []).map((value) => ({
+                  label: 'Blocker',
+                  value,
+              })),
+          ].slice(0, 3)
+        : [];
 
     return (
         <details className="p-2 rounded-md bg-slate-200 dark:bg-slate-700">
@@ -76,6 +101,35 @@ const ImpactStoryTrigger = ({ story }: { story: ImpactStory }) => {
                     })
                 ) : <p>No speaker notes.</p>}
              </div>
+            {cues.length > 0 && (
+                <div className="mt-3 rounded-md border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/70 p-2 text-xs text-slate-600 dark:text-slate-300">
+                    <p className="font-semibold uppercase tracking-wide text-[10px] text-slate-500 dark:text-slate-400">Align this story to…</p>
+                    <ul className="mt-2 space-y-2">
+                        {cues.map(({ label, value }, index) => {
+                            const prompt = `Emphasize how you solved ${value}.`;
+                            const stub = `Emphasize how I solved ${value} by `;
+                            return (
+                                <li key={`${label}-${index}`} className="flex items-start justify-between gap-2">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                            <span className="inline-flex h-1.5 w-1.5 rounded-full bg-indigo-500" aria-hidden="true" />
+                                            {label}
+                                        </div>
+                                        <p className="text-[11px] font-medium text-slate-700 dark:text-slate-200">{prompt}</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => onAppendNotepad(stub)}
+                                        className="flex-shrink-0 inline-flex items-center rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-300 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500"
+                                    >
+                                        Add stub
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </div>
+            )}
         </details>
     )
 }
@@ -354,7 +408,12 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
                         </CoPilotSection>
                         <CoPilotSection title="Impact Story Triggers">
                             {(activeNarrative.impact_stories || []).map(story => (
-                               <ImpactStoryTrigger key={story.story_id} story={story} />
+                               <ImpactStoryTrigger
+                                   key={story.story_id}
+                                   story={story}
+                                   jobAnalysis={jobAnalysis}
+                                   onAppendNotepad={handleQuickAdd}
+                               />
                             ))}
                              {(!activeNarrative.impact_stories || activeNarrative.impact_stories.length === 0) && (
                                 <p className="text-xs text-slate-500 dark:text-slate-400 text-center">No impact stories defined.</p>
