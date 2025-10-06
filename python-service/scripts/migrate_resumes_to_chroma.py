@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+# Standard library
 import asyncio
 import os
 import sys
@@ -10,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Third-party
 import httpx
 from loguru import logger
 
