@@ -625,6 +625,225 @@ def run_linkedin_job_search(
         }
 
 
+def process_resume_tailoring_job(
+    application_id: str,
+    payload: Dict[str, Any],
+    run_id: Optional[str] = None,
+    schedule_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Worker entry point for resume tailoring generation."""
+
+    import asyncio
+    from ..ai.application_generator import get_application_generator
+
+    if not run_id:
+        run_id = f"resume_{uuid.uuid4().hex[:8]}"
+
+    db_service = get_database_service()
+
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    if not db_service.initialized:
+        loop.run_until_complete(db_service.initialize())
+
+    loop.run_until_complete(
+        db_service.update_ai_task_run(
+            run_id,
+            status="running",
+            started_at=datetime.now(timezone.utc),
+        )
+    )
+
+    ai_service = get_application_generator()
+    start_time = datetime.now(timezone.utc)
+
+    try:
+        result = loop.run_until_complete(
+            ai_service.generate_resume_tailoring_data(
+                job_description=payload.get("job_description", ""),
+                full_resume_json=payload.get("resume_json", {}),
+                resume_summary=payload.get("resume_summary", ""),
+                company_context=payload.get("company_context", {}),
+                narrative=payload.get("narrative", {}),
+                job_analysis=payload.get("job_analysis"),
+            )
+        )
+
+        finished_at = datetime.now(timezone.utc)
+        loop.run_until_complete(
+            db_service.update_ai_task_run(
+                run_id,
+                status="succeeded",
+                result=result,
+                finished_at=finished_at,
+            )
+        )
+
+        logger.info(
+            "Resume tailoring job completed",
+            application_id=application_id,
+            run_id=run_id,
+        )
+
+        return {
+            "status": "succeeded",
+            "run_id": run_id,
+            "application_id": application_id,
+            "schedule_id": schedule_id,
+            "result": result,
+            "started_at": start_time.isoformat(),
+            "finished_at": finished_at.isoformat(),
+        }
+
+    except Exception as exc:
+        finished_at = datetime.now(timezone.utc)
+        error_message = str(exc)
+        loop.run_until_complete(
+            db_service.update_ai_task_run(
+                run_id,
+                status="failed",
+                error=error_message,
+                finished_at=finished_at,
+            )
+        )
+
+        logger.error(
+            "Resume tailoring job failed",
+            application_id=application_id,
+            run_id=run_id,
+            error=error_message,
+        )
+
+        return {
+            "status": "failed",
+            "run_id": run_id,
+            "application_id": application_id,
+            "schedule_id": schedule_id,
+            "error": error_message,
+        }
+
+
+def process_company_research_job(
+    company_id: Optional[str],
+    payload: Dict[str, Any],
+    run_id: Optional[str] = None,
+    schedule_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Worker entry point for company research tasks."""
+
+    import asyncio
+    from ..crewai.research_company.crew import ResearchCompanyCrew
+
+    if not run_id:
+        run_id = f"company_{uuid.uuid4().hex[:8]}"
+
+    db_service = get_database_service()
+
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    if not db_service.initialized:
+        loop.run_until_complete(db_service.initialize())
+
+    loop.run_until_complete(
+        db_service.update_ai_task_run(
+            run_id,
+            status="running",
+            started_at=datetime.now(timezone.utc),
+        )
+    )
+
+    import json
+    import re
+
+    crew = ResearchCompanyCrew().crew()
+    company_name = payload.get("company_name") or payload.get("name")
+    inputs = {
+        "company_name": company_name,
+        **{k: v for k, v in payload.items() if k != "company_name"},
+    }
+
+    try:
+        crew_result = crew.kickoff(inputs=inputs)
+        raw_output = getattr(crew_result, "raw", str(crew_result))
+
+        parsed_report = None
+        if raw_output:
+            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_output, re.DOTALL)
+            if not match:
+                match = re.search(r"(\{.*\})", raw_output, re.DOTALL)
+            if match:
+                try:
+                    parsed_report = json.loads(match.group(1))
+                except json.JSONDecodeError:
+                    parsed_report = None
+
+        result_payload = {
+            "raw": raw_output,
+            "report": parsed_report,
+        }
+
+        finished_at = datetime.now(timezone.utc)
+        loop.run_until_complete(
+            db_service.update_ai_task_run(
+                run_id,
+                status="succeeded",
+                result=result_payload,
+                finished_at=finished_at,
+            )
+        )
+
+        logger.info(
+            "Company research job completed",
+            company_id=company_id,
+            run_id=run_id,
+        )
+
+        return {
+            "status": "succeeded",
+            "run_id": run_id,
+            "company_id": company_id,
+            "schedule_id": schedule_id,
+            "result": result_payload,
+            "finished_at": finished_at.isoformat(),
+        }
+
+    except Exception as exc:
+        finished_at = datetime.now(timezone.utc)
+        error_message = str(exc)
+
+        loop.run_until_complete(
+            db_service.update_ai_task_run(
+                run_id,
+                status="failed",
+                error=error_message,
+                finished_at=finished_at,
+            )
+        )
+
+        logger.error(
+            "Company research job failed",
+            company_id=company_id,
+            run_id=run_id,
+            error=error_message,
+        )
+
+        return {
+            "status": "failed",
+            "run_id": run_id,
+            "company_id": company_id,
+            "schedule_id": schedule_id,
+            "error": error_message,
+        }
+
+
 async def _enrich_glassdoor_jobs(jobs: list, db_service) -> Dict[str, Any]:
     """
     Enrich Glassdoor jobs with full descriptions using Playwright scraping.

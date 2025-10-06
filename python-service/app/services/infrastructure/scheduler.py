@@ -90,18 +90,6 @@ class SchedulerService:
 
                     lock_acquired = True
 
-                    # Create scrape run record
-                    scrape_run_id = await self.db_service.create_scrape_run(
-                        run_id=run_id,
-                        site_schedule_id=schedule_id,
-                        task_id="",  # Will be updated after enqueueing
-                        trigger="schedule"
-                    )
-
-                    if not scrape_run_id:
-                        logger.error(f"Failed to create scrape run record for {site_name}")
-                        continue
-
                     # Enqueue the job with site name included in payload
                     payload_dict = schedule["payload"]
                     if isinstance(payload_dict, str):
@@ -109,12 +97,6 @@ class SchedulerService:
                             payload_dict = json.loads(payload_dict)
                         except json.JSONDecodeError as json_err:
                             logger.error(f"Failed to parse payload JSON for {site_name}: {json_err}")
-                            if run_id:
-                                await self.db_service.update_scrape_run_status(
-                                    run_id=run_id,
-                                    status="failed",
-                                    message=f"Failed to parse payload JSON: {json_err}"
-                                )
                             if lock_acquired and lock_key and lock_value:
                                 self.queue_service.release_redis_lock(lock_key, lock_value)
                                 lock_acquired = False
@@ -124,12 +106,6 @@ class SchedulerService:
                     # Ensure payload_dict is a dictionary
                     if not isinstance(payload_dict, dict):
                         logger.error(f"Payload is not a dictionary for {site_name}: {type(payload_dict)}")
-                        if run_id:
-                            await self.db_service.update_scrape_run_status(
-                                run_id=run_id,
-                                status="failed",
-                                message=f"Payload must be a dictionary, got {type(payload_dict).__name__}"
-                            )
                         if lock_acquired and lock_key and lock_value:
                             self.queue_service.release_redis_lock(lock_key, lock_value)
                             lock_acquired = False
@@ -137,36 +113,88 @@ class SchedulerService:
                         continue
 
                     payload = {**payload_dict, "site_name": schedule["site_name"]}
+                    task_type = (payload_dict or {}).get("task_type", "scrape").lower()
 
-                    # Use site-locked enqueueing to prevent overlapping execution per site
-                    if site_name.lower() == "linkedin":
-                        # Use LinkedIn job search for LinkedIn sites with site locking
-                        job_info = self.queue_service.enqueue_linkedin_with_site_lock(
-                            payload=payload,
-                            site_schedule_id=schedule_id,
+                    job_info: Optional[Dict[str, str]] = None
+
+                    if task_type == "resume_tailoring":
+                        reference_id = payload_dict.get("application_id")
+                        await self.db_service.create_ai_task_run(
+                            run_id=run_id,
+                            task_type="resume_tailoring",
                             trigger="schedule",
-                            run_id=run_id
+                            reference_id=reference_id,
+                            schedule_id=schedule_id,
+                            payload=payload_dict,
+                        )
+                        job_info = self.queue_service.enqueue_resume_tailoring_job(
+                            application_id=reference_id,
+                            payload=payload_dict,
+                            run_id=run_id,
+                            trigger="schedule",
+                            schedule_id=schedule_id,
+                        )
+                    elif task_type == "company_research":
+                        reference_id = payload_dict.get("company_id")
+                        await self.db_service.create_ai_task_run(
+                            run_id=run_id,
+                            task_type="company_research",
+                            trigger="schedule",
+                            reference_id=reference_id,
+                            schedule_id=schedule_id,
+                            payload=payload_dict,
+                        )
+                        job_info = self.queue_service.enqueue_company_research_job(
+                            company_id=reference_id,
+                            payload=payload_dict,
+                            run_id=run_id,
+                            trigger="schedule",
+                            schedule_id=schedule_id,
                         )
                     else:
-                        # Use regular scraping for other sites with site locking
-                        job_info = self.queue_service.enqueue_with_site_lock(
-                            payload=payload,
-                            site_name=site_name,
+                        scrape_run_id = await self.db_service.create_scrape_run(
+                            run_id=run_id,
                             site_schedule_id=schedule_id,
+                            task_id="",
                             trigger="schedule",
-                            run_id=run_id
                         )
+
+                        if not scrape_run_id:
+                            logger.error(f"Failed to create scrape run record for {site_name}")
+                            continue
+
+                        if site_name.lower() == "linkedin":
+                            job_info = self.queue_service.enqueue_linkedin_with_site_lock(
+                                payload=payload,
+                                site_schedule_id=schedule_id,
+                                trigger="schedule",
+                                run_id=run_id
+                            )
+                        else:
+                            job_info = self.queue_service.enqueue_with_site_lock(
+                                payload=payload,
+                                site_name=site_name,
+                                site_schedule_id=schedule_id,
+                                trigger="schedule",
+                                run_id=run_id
+                            )
 
                     if job_info:
                         task_id = job_info["task_id"]
 
-                        # Update scrape run with task_id
-                        await self.db_service.update_scrape_run_status(
-                            run_id=run_id,
-                            status="queued",
-                            task_id=task_id,
-                            message=f"Scheduled scrape for {site_name}"
-                        )
+                        if task_type in {"resume_tailoring", "company_research"}:
+                            await self.db_service.update_ai_task_run(
+                                run_id,
+                                status="queued",
+                                task_id=task_id,
+                            )
+                        else:
+                            await self.db_service.update_scrape_run_status(
+                                run_id=run_id,
+                                status="queued",
+                                task_id=task_id,
+                                message=f"Scheduled scrape for {site_name}"
+                            )
 
                         # Calculate next run time with jitter
                         interval_minutes = schedule["interval_minutes"]
@@ -178,9 +206,12 @@ class SchedulerService:
                         await self.db_service.update_site_schedule_next_run(schedule_id, next_run_at)
 
                         logger.info(
-                            f"Enqueued scheduled job for {site_name} - "
-                            f"run_id: {run_id}, task_id: {task_id}, "
-                            f"next_run: {next_run_at.isoformat()}"
+                            "Enqueued scheduled job",
+                            site_name=site_name,
+                            task_type=task_type,
+                            run_id=run_id,
+                            task_id=task_id,
+                            next_run=next_run_at.isoformat(),
                         )
 
                         jobs_enqueued += 1
@@ -194,13 +225,19 @@ class SchedulerService:
                     else:
                         logger.error(f"Failed to enqueue job for {site_name}")
 
-                        # Update scrape run to failed
                         if run_id:
-                            await self.db_service.update_scrape_run_status(
-                                run_id=run_id,
-                                status="failed",
-                                message="Failed to enqueue job"
-                            )
+                            if task_type in {"resume_tailoring", "company_research"}:
+                                await self.db_service.update_ai_task_run(
+                                    run_id,
+                                    status="failed",
+                                    error="Failed to enqueue job",
+                                )
+                            else:
+                                await self.db_service.update_scrape_run_status(
+                                    run_id=run_id,
+                                    status="failed",
+                                    message="Failed to enqueue job"
+                                )
 
                         if lock_acquired and lock_key and lock_value:
                             self.queue_service.release_redis_lock(lock_key, lock_value)
