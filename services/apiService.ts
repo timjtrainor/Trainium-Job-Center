@@ -9,7 +9,8 @@ import {
     Sprint, SprintAction, CreateSprintPayload, SprintActionPayload, ApplicationQuestion,
     SiteSchedule, SiteDetails, SiteSchedulePayload,
     UploadedDocument, UploadSuccessResponse, ContentType,
-    PaginatedResponse, ReviewedJob, ReviewedJobRecommendation
+    PaginatedResponse, ReviewedJob, ReviewedJobRecommendation,
+    TaskEnqueueResponse, TaskRunRecord, ResumeTailoringJobPayload, CompanyResearchJobPayload
 } from '../types';
 import { API_BASE_URL, USER_ID, FASTAPI_BASE_URL } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -1603,6 +1604,39 @@ export const fetchLinkedInJobByUrl = async (url: string): Promise<any> => {
 
 export const getJobReviewStatus = async (jobId: string): Promise<any> => {
     const response = await fetch(buildFastApiUrl(`linkedin-jobs/review-status/${jobId}`), {
+        method: 'GET',
+        headers,
+    });
+
+    return handleResponse(response);
+};
+
+export const enqueueResumeTailoringJob = async (
+    payload: ResumeTailoringJobPayload
+): Promise<TaskEnqueueResponse> => {
+    const response = await fetch(buildFastApiUrl('tasks/resume-tailoring'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+    });
+
+    return handleResponse(response);
+};
+
+export const enqueueCompanyResearchJob = async (
+    payload: CompanyResearchJobPayload
+): Promise<TaskEnqueueResponse> => {
+    const response = await fetch(buildFastApiUrl('tasks/company-research'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+    });
+
+    return handleResponse(response);
+};
+
+export const getTaskRunStatus = async (runId: string): Promise<TaskRunRecord> => {
+    const response = await fetch(buildFastApiUrl(`tasks/${runId}`), {
         method: 'GET',
         headers,
     });

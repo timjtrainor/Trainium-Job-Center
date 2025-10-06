@@ -20,6 +20,7 @@ from .v1.endpoints.applications import router as applications_router
 from .v1.endpoints.glassdoor_enrichment import router as glassdoor_enrichment_router
 
 from ..routes.jobs_fit_review import router as jobs_fit_review_router
+from ..routes.task_runs import router as task_runs_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -48,5 +49,6 @@ api_router.include_router(glassdoor_enrichment_router, tags=["Glassdoor Enrichme
 # Health check
 api_router.include_router(health_router, tags=["Health"])
 api_router.include_router(jobs_fit_review_router, tags=["job-posting-fit-review"])
+api_router.include_router(task_runs_router, tags=["AI Tasks"])
 
 __all__ = ["api_router"]

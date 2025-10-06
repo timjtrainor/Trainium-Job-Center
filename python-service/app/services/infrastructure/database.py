@@ -21,6 +21,7 @@ class DatabaseService:
         self.initialized = False
         self._column_cache: Dict[Tuple[str, str], bool] = {}
         self._default_user_id: Optional[str] = None
+        self._ai_task_table_initialized: bool = False
 
     @staticmethod
     def _deserialize_json_field(value: Any) -> Optional[Any]:
@@ -193,6 +194,188 @@ class DatabaseService:
             await self.pool.close()
             self.initialized = False
             logger.info("Database connection pool closed")
+
+    async def _ensure_ai_task_runs_table(self) -> None:
+        """Create ai_task_runs table if it does not exist."""
+        if self._ai_task_table_initialized:
+            return
+
+        if not self.initialized:
+            await self.initialize()
+
+        if not self.pool:
+            raise RuntimeError("Database pool not initialized")
+
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS ai_task_runs (
+            run_id TEXT PRIMARY KEY,
+            task_type TEXT NOT NULL,
+            trigger TEXT NOT NULL DEFAULT 'manual',
+            status TEXT NOT NULL DEFAULT 'queued',
+            reference_id TEXT,
+            schedule_id TEXT,
+            payload JSONB,
+            result JSONB,
+            error TEXT,
+            task_id TEXT,
+            started_at TIMESTAMPTZ,
+            finished_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        """
+
+        create_indexes_sql = """
+        CREATE INDEX IF NOT EXISTS idx_ai_task_runs_task_type ON ai_task_runs(task_type);
+        CREATE INDEX IF NOT EXISTS idx_ai_task_runs_status ON ai_task_runs(status);
+        CREATE INDEX IF NOT EXISTS idx_ai_task_runs_created_at ON ai_task_runs(created_at DESC);
+        """
+
+        async with self.pool.acquire() as conn:
+            await conn.execute(create_table_sql)
+            await conn.execute(create_indexes_sql)
+
+        self._ai_task_table_initialized = True
+
+    async def create_ai_task_run(
+        self,
+        run_id: str,
+        task_type: str,
+        *,
+        trigger: str = "manual",
+        reference_id: Optional[str] = None,
+        schedule_id: Optional[str] = None,
+        payload: Optional[Dict[str, Any]] = None
+    ) -> Optional[str]:
+        """Persist a new AI task run record."""
+
+        await self._ensure_ai_task_runs_table()
+
+        if not self.pool:
+            return None
+
+        query = """
+        INSERT INTO ai_task_runs (run_id, task_type, trigger, status, reference_id, schedule_id, payload)
+        VALUES ($1, $2, $3, 'queued', $4, $5, $6)
+        ON CONFLICT (run_id) DO UPDATE SET
+            task_type = EXCLUDED.task_type,
+            trigger = EXCLUDED.trigger,
+            reference_id = EXCLUDED.reference_id,
+            schedule_id = EXCLUDED.schedule_id,
+            payload = EXCLUDED.payload,
+            status = 'queued',
+            updated_at = NOW()
+        RETURNING run_id
+        """
+
+        payload_json = json.dumps(payload) if payload is not None else None
+
+        try:
+            async with self.pool.acquire() as conn:
+                result = await conn.fetchval(
+                    query,
+                    run_id,
+                    task_type,
+                    trigger,
+                    reference_id,
+                    schedule_id,
+                    payload_json
+                )
+            return str(result) if result else None
+        except Exception as e:
+            logger.error(f"Failed to create AI task run {run_id}: {str(e)}")
+            return None
+
+    async def update_ai_task_run(
+        self,
+        run_id: str,
+        *,
+        status: Optional[str] = None,
+        task_id: Optional[str] = None,
+        result: Optional[Any] = None,
+        error: Optional[str] = None,
+        started_at: Optional[datetime] = None,
+        finished_at: Optional[datetime] = None
+    ) -> bool:
+        """Update stored metadata for an AI task run."""
+
+        await self._ensure_ai_task_runs_table()
+
+        if not self.pool:
+            return False
+
+        updates = ["updated_at = NOW()"]
+        params: List[Any] = []
+
+        if status is not None:
+            updates.append("status = ${}".format(len(params) + 2))
+            params.append(status)
+
+        if task_id is not None:
+            updates.append("task_id = ${}".format(len(params) + 2))
+            params.append(task_id)
+
+        if result is not None:
+            updates.append("result = ${}".format(len(params) + 2))
+            params.append(json.dumps(result))
+
+        if error is not None:
+            updates.append("error = ${}".format(len(params) + 2))
+            params.append(error)
+
+        if started_at is not None:
+            updates.append("started_at = ${}".format(len(params) + 2))
+            params.append(started_at)
+
+        if finished_at is not None:
+            updates.append("finished_at = ${}".format(len(params) + 2))
+            params.append(finished_at)
+
+        if len(updates) == 1:  # Only updated_at
+            return True
+
+        query = f"""
+        UPDATE ai_task_runs
+        SET {', '.join(updates)}
+        WHERE run_id = $1
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute(query, run_id, *params)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update AI task run {run_id}: {str(e)}")
+            return False
+
+    async def get_ai_task_run(self, run_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve metadata for an AI task run."""
+
+        await self._ensure_ai_task_runs_table()
+
+        if not self.pool:
+            return None
+
+        query = """
+        SELECT run_id, task_type, trigger, status, reference_id, schedule_id,
+               payload, result, error, task_id, started_at, finished_at,
+               created_at, updated_at
+        FROM ai_task_runs
+        WHERE run_id = $1
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow(query, run_id)
+                if not row:
+                    return None
+                record = dict(row)
+                record["payload"] = self._deserialize_json_field(record.get("payload"))
+                record["result"] = self._deserialize_json_field(record.get("result"))
+                return record
+        except Exception as e:
+            logger.error(f"Failed to fetch AI task run {run_id}: {str(e)}")
+            return None
 
     async def get_enabled_site_schedules(self) -> List[Dict[str, Any]]:
         """Get all enabled site schedules that are due for execution."""
