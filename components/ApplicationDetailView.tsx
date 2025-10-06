@@ -445,38 +445,43 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
                             })}
                              
                              {editingInterviewId ? (
-                                <div className="mt-4 p-4 rounded-lg bg-slate-100 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600">
-                                    <h4 className="font-bold text-slate-800 dark:text-slate-200 mb-3">{editingInterviewId === 'new' ? 'Add New Interview' : 'Edit Interview'}</h4>
-                                    <div className="space-y-4">
-                                        <div><label className={labelClass}>Interview Type</label><select value={editableInterview.interview_type || ''} onChange={e => setEditableInterview(prev => ({...prev, interview_type: e.target.value}))} className={inputClass}><option value="">Select type...</option>{INTERVIEW_TYPES.map(type => <option key={type} value={type}>{type}</option>)}</select></div>
-                                        <div><label className={labelClass}>Date</label><input type="date" value={editableInterview.interview_date || ''} onChange={e => setEditableInterview(prev => ({...prev, interview_date: e.target.value}))} className={inputClass} /></div>
-                                        <div>
-                                            <label className={labelClass}>Interviewers</label>
-                                            <div className="mt-1 max-h-32 overflow-y-auto border rounded-md p-2 space-y-1 bg-white dark:bg-slate-800">
-                                                {relevantContactsForInterview.map(contact => (
-                                                    <div key={contact.contact_id} className="flex items-center"><input type="checkbox" id={`contact-${contact.contact_id}`} checked={editableInterview.contact_ids?.includes(contact.contact_id) || false} onChange={e => { const { checked } = e.target; setEditableInterview(prev => ({...prev, contact_ids: checked ? [...(prev.contact_ids || []), contact.contact_id] : (prev.contact_ids || []).filter(id => id !== contact.contact_id)})); }} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><label htmlFor={`contact-${contact.contact_id}`} className="ml-2 text-sm text-slate-700 dark:text-slate-300">{contact.first_name} {contact.last_name}</label></div>
-                                                ))}
-                                                {relevantContactsForInterview.length === 0 && (
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400 p-2">
-                                                        No relevant contacts found. Add contacts for "{company.company_name}" or for recruiting firms in the Engagement Hub.
+                                (() => {
+                                    const isInterviewTypeInvalid = !editableInterview.interview_type || editableInterview.interview_type.trim() === '';
+                                    return (
+                                        <div className="mt-4 p-4 rounded-lg bg-slate-100 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600">
+                                            <h4 className="font-bold text-slate-800 dark:text-slate-200 mb-3">{editingInterviewId === 'new' ? 'Add New Interview' : 'Edit Interview'}</h4>
+                                            <div className="space-y-4">
+                                                <div><label className={labelClass}>Interview Type</label><select value={editableInterview.interview_type || ''} onChange={e => setEditableInterview(prev => ({...prev, interview_type: e.target.value}))} className={inputClass}><option value="">Select type...</option>{INTERVIEW_TYPES.map(type => <option key={type} value={type}>{type}</option>)}</select></div>
+                                                <div><label className={labelClass}>Date</label><input type="date" value={editableInterview.interview_date || ''} onChange={e => setEditableInterview(prev => ({...prev, interview_date: e.target.value}))} className={inputClass} /></div>
+                                                <div>
+                                                    <label className={labelClass}>Interviewers</label>
+                                                    <div className="mt-1 max-h-32 overflow-y-auto border rounded-md p-2 space-y-1 bg-white dark:bg-slate-800">
+                                                        {relevantContactsForInterview.map(contact => (
+                                                            <div key={contact.contact_id} className="flex items-center"><input type="checkbox" id={`contact-${contact.contact_id}`} checked={editableInterview.contact_ids?.includes(contact.contact_id) || false} onChange={e => { const { checked } = e.target; setEditableInterview(prev => ({...prev, contact_ids: checked ? [...(prev.contact_ids || []), contact.contact_id] : (prev.contact_ids || []).filter(id => id !== contact.contact_id)})); }} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><label htmlFor={`contact-${contact.contact_id}`} className="ml-2 text-sm text-slate-700 dark:text-slate-300">{contact.first_name} {contact.last_name}</label></div>
+                                                        ))}
+                                                        {relevantContactsForInterview.length === 0 && (
+                                                            <p className="text-xs text-slate-500 dark:text-slate-400 p-2">
+                                                                No relevant contacts found. Add contacts for "{company.company_name}" or for recruiting firms in the Engagement Hub.
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div><label className={labelClass}>Notes</label><textarea rows={4} value={editableInterview.notes || ''} onChange={e => setEditableInterview(prev => ({...prev, notes: e.target.value}))} className={inputClass} /></div>
+                                                <div className="space-y-3">
+                                                {isInterviewTypeInvalid && (
+                                                    <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded-md">
+                                                        Please select an interview type before saving.
                                                     </p>
                                                 )}
+                                                <div className="flex justify-end gap-2">
+                                                    <button onClick={() => { setEditingInterviewId(null); setEditableInterview({}); }} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-white dark:bg-slate-700 ring-1 ring-inset ring-slate-300 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600">Cancel</button>
+                                                    <button onClick={() => handleSaveInterview({ job_application_id: application.job_application_id, ...editableInterview }, editingInterviewId === 'new' ? undefined : editingInterviewId)} disabled={isSaving || isInterviewTypeInvalid} className="px-3 py-1.5 text-sm font-semibold rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">{isSaving ? <LoadingSpinner/> : 'Save'}</button>
+                                                </div>
+                                            </div>
                                             </div>
                                         </div>
-                                        <div><label className={labelClass}>Notes</label><textarea rows={4} value={editableInterview.notes || ''} onChange={e => setEditableInterview(prev => ({...prev, notes: e.target.value}))} className={inputClass} /></div>
-                                        <div className="space-y-3">
-                                        {(!editableInterview.interview_type || editableInterview.interview_type.trim() === '') && (
-                                            <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded-md">
-                                                Please select an interview type before saving.
-                                            </p>
-                                        )}
-                                        <div className="flex justify-end gap-2">
-                                            <button onClick={() => { setEditingInterviewId(null); setEditableInterview({}); }} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-white dark:bg-slate-700 ring-1 ring-inset ring-slate-300 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600">Cancel</button>
-                                            <button onClick={() => handleSaveInterview({ job_application_id: application.job_application_id, ...editableInterview }, editingInterviewId === 'new' ? undefined : editingInterviewId)} disabled={isSaving || !editableInterview.interview_type || editableInterview.interview_type.trim() === ''} className="px-3 py-1.5 text-sm font-semibold rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">{isSaving ? <LoadingSpinner/> : 'Save'}</button>
-                                        </div>
-                                    </div>
-                                    </div>
-                                </div>
+                                    );
+                                })()
                              ) : (
                                 <button onClick={() => { setEditingInterviewId('new'); setEditableInterview({ interview_date: new Date().toISOString().split('T')[0] }); }} className="w-full flex justify-center items-center gap-2 py-3 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition">
                                     <PlusCircleIcon className="h-5 w-5" /> Add Interview
