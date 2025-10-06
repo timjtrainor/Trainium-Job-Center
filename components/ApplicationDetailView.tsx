@@ -464,7 +464,17 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
                                             </div>
                                         </div>
                                         <div><label className={labelClass}>Notes</label><textarea rows={4} value={editableInterview.notes || ''} onChange={e => setEditableInterview(prev => ({...prev, notes: e.target.value}))} className={inputClass} /></div>
-                                        <div className="flex justify-end gap-2"><button onClick={() => { setEditingInterviewId(null); setEditableInterview({}); }} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-white dark:bg-slate-700 ring-1 ring-inset ring-slate-300 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600">Cancel</button><button onClick={() => handleSaveInterview({ job_application_id: application.job_application_id, ...editableInterview }, editingInterviewId === 'new' ? undefined : editingInterviewId)} disabled={isSaving} className="px-3 py-1.5 text-sm font-semibold rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">{isSaving ? <LoadingSpinner/> : 'Save'}</button></div>
+                                        <div className="space-y-3">
+                                        {(!editableInterview.interview_type || editableInterview.interview_type.trim() === '') && (
+                                            <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded-md">
+                                                Please select an interview type before saving.
+                                            </p>
+                                        )}
+                                        <div className="flex justify-end gap-2">
+                                            <button onClick={() => { setEditingInterviewId(null); setEditableInterview({}); }} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-white dark:bg-slate-700 ring-1 ring-inset ring-slate-300 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600">Cancel</button>
+                                            <button onClick={() => handleSaveInterview({ job_application_id: application.job_application_id, ...editableInterview }, editingInterviewId === 'new' ? undefined : editingInterviewId)} disabled={isSaving || !editableInterview.interview_type || editableInterview.interview_type.trim() === ''} className="px-3 py-1.5 text-sm font-semibold rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">{isSaving ? <LoadingSpinner/> : 'Save'}</button>
+                                        </div>
+                                    </div>
                                     </div>
                                 </div>
                              ) : (
