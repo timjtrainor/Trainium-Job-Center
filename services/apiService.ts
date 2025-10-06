@@ -1356,12 +1356,116 @@ export const deleteUploadedDocument = async (documentId: string, contentType: Co
 export interface ReviewedJobsFilters {
   recommendation?: 'All' | 'Recommended' | 'Not Recommended';
   min_score?: number;
+  max_score?: number;
+  company?: string;
+  source?: string;
+  is_remote?: boolean | null;
+  date_posted_after?: string;
+  date_posted_before?: string;
 }
 
 export interface ReviewedJobsSort {
   by: 'date_posted' | 'overall_alignment_score' | 'review_date';
   order: 'asc' | 'desc';
 }
+
+export const buildReviewedJobsSearchParams = ({ page = 1, size = 15, filters = {}, sort = { by: 'date_posted', order: 'desc' } }: {
+    page?: number;
+    size?: number;
+    filters?: ReviewedJobsFilters;
+    sort?: ReviewedJobsSort;
+}): URLSearchParams => {
+    const params = new URLSearchParams({
+        limit: String(size),
+        offset: String(Math.max(page - 1, 0) * size),
+    });
+
+    const sortByParam = sort.by;
+    params.append('sort_by', sortByParam);
+    params.append('sort_order', sort.order.toUpperCase());
+
+    if (filters.recommendation && filters.recommendation !== 'All') {
+        params.append('recommendation', filters.recommendation === 'Recommended' ? 'true' : 'false');
+    }
+
+    if (typeof filters.min_score === 'number') {
+        params.append('min_score', String(filters.min_score));
+    }
+
+    if (typeof filters.max_score === 'number') {
+        params.append('max_score', String(filters.max_score));
+    }
+
+    if (filters.company) {
+        params.append('company', filters.company);
+    }
+
+    if (filters.source) {
+        params.append('source', filters.source);
+    }
+
+    if (typeof filters.is_remote === 'boolean') {
+        params.append('is_remote', String(filters.is_remote));
+    }
+
+    if (filters.date_posted_after) {
+        params.append('date_posted_after', filters.date_posted_after);
+    }
+
+    if (filters.date_posted_before) {
+        params.append('date_posted_before', filters.date_posted_before);
+    }
+
+    return params;
+};
+
+export const buildReviewedJobsUiSearchParams = ({ page = 1, size = 15, filters = {}, sort = { by: 'date_posted', order: 'desc' } }: {
+    page?: number;
+    size?: number;
+    filters?: ReviewedJobsFilters;
+    sort?: ReviewedJobsSort;
+}): URLSearchParams => {
+    const params = new URLSearchParams();
+
+    params.set('page', String(page));
+    params.set('size', String(size));
+    params.set('sort_by', sort.by);
+    params.set('sort_order', sort.order);
+
+    if (filters.recommendation && filters.recommendation !== 'All') {
+        params.set('recommendation', filters.recommendation);
+    }
+
+    if (typeof filters.min_score === 'number') {
+        params.set('min_score', String(filters.min_score));
+    }
+
+    if (typeof filters.max_score === 'number') {
+        params.set('max_score', String(filters.max_score));
+    }
+
+    if (filters.company) {
+        params.set('company', filters.company);
+    }
+
+    if (filters.source) {
+        params.set('source', filters.source);
+    }
+
+    if (typeof filters.is_remote === 'boolean') {
+        params.set('is_remote', String(filters.is_remote));
+    }
+
+    if (filters.date_posted_after) {
+        params.set('date_posted_after', filters.date_posted_after);
+    }
+
+    if (filters.date_posted_before) {
+        params.set('date_posted_before', filters.date_posted_before);
+    }
+
+    return params;
+};
 
 export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort = { by: 'date_posted', order: 'desc' } }: {
     page?: number;
@@ -1385,23 +1489,7 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
         return String(value);
     };
 
-    const params = new URLSearchParams({
-        limit: String(size),
-        offset: String(Math.max(page - 1, 0) * size),
-    });
-
-    const sortByParam = sort.by;
-    params.append('sort_by', sortByParam);
-    params.append('sort_order', sort.order.toUpperCase());
-
-    if (filters.recommendation && filters.recommendation !== 'All') {
-        params.append('recommendation', filters.recommendation === 'Recommended' ? 'true' : 'false');
-    }
-
-    if (typeof filters.min_score === 'number') {
-        params.append('min_score', String(filters.min_score));
-    }
-
+    const params = buildReviewedJobsSearchParams({ page, size, filters, sort });
     const response = await fetch(`${buildFastApiUrl('jobs/reviews')}?${params.toString()}`);
     const rawData = await handleResponse(response);
 
