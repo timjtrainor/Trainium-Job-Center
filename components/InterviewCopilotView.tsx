@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { JobApplication, Interview, StrategicNarrative, StorytellingFormat, StarBody, ScopeBody, WinsBody, SpotlightBody, InterviewPayload, Company, JobProblemAnalysisResult } from '../types';
-import { CheckIcon, GripVerticalIcon, MicrophoneIcon, ClipboardDocumentCheckIcon, SparklesIcon, LoadingSpinner } from './IconComponents';
+import { CheckIcon, GripVerticalIcon, ClipboardDocumentCheckIcon, SparklesIcon, LoadingSpinner } from './IconComponents';
 import { Switch } from './Switch';
 import { HydratedDeckItem, buildHydratedDeck, ensureRoleOnDeck, removeRoleFromDeck, serializeDeck, updateDeckOrder, upsertDeckStory } from '../utils/interviewDeck';
 
@@ -285,6 +285,23 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
         return Array.from(roles);
     }, [storyDeck]);
 
+    const questionList = useMemo(
+        () => editableQuestions.split('\n').map(question => question.trim()).filter(Boolean),
+        [editableQuestions]
+    );
+
+    useEffect(() => {
+        setAskedQuestions(prev => {
+            const next = new Set<string>();
+            questionList.forEach(question => {
+                if (prev.has(question)) {
+                    next.add(question);
+                }
+            });
+            return next;
+        });
+    }, [questionList]);
+
     useEffect(() => {
         if (!availableRoles.includes(activeRole)) {
             setActiveRole(availableRoles[0] || 'default');
@@ -391,7 +408,7 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
         try {
             const payload: InterviewPayload = {
                 strategic_opening: editableOpening,
-                strategic_questions_to_ask: editableQuestions.split('\n').filter(q => q.trim() !== ''),
+                strategic_questions_to_ask: questionList,
                 story_deck: serializeDeck(storyDeck),
             };
             await onSaveInterview(payload, interview.interview_id);
@@ -740,7 +757,7 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
                                 />
                             ) : (
                                  <div className="space-y-2">
-                                    {editableQuestions.split('\n').filter(q => q.trim()).map((question, i) => (
+                                    {questionList.map((question, i) => (
                                          <div key={i} className="relative flex items-start">
                                             <div className="flex h-6 items-center">
                                                 <input
