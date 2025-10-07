@@ -54,6 +54,9 @@ const CoPilotSection = ({ title, children, className = '' }: { title: string, ch
     </div>
 );
 
+type CoverageState = { metrics: Set<string>; levers: Set<string>; blockers: Set<string>; };
+type CoverageCategory = keyof CoverageState;
+
 const ImpactStoryTrigger = ({
     item,
     jobAnalysis,
@@ -254,6 +257,11 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
     const [draggingStoryId, setDraggingStoryId] = useState<string | null>(null);
     const [newRoleName, setNewRoleName] = useState('');
     const [storyToAdd, setStoryToAdd] = useState('');
+    const [covered, setCovered] = useState<CoverageState>(() => ({
+        metrics: new Set<string>(),
+        levers: new Set<string>(),
+        blockers: new Set<string>(),
+    }));
 
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
@@ -325,6 +333,21 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
         const selectedIds = new Set(storyDeck.map(item => item.story_id));
         return (activeNarrative.impact_stories || []).filter(story => !selectedIds.has(story.story_id));
     }, [storyDeck, activeNarrative]);
+
+    const toggleCoverage = (category: CoverageCategory, value: string) => {
+        setCovered(prev => {
+            const nextSet = new Set(prev[category]);
+            if (nextSet.has(value)) {
+                nextSet.delete(value);
+            } else {
+                nextSet.add(value);
+            }
+            return {
+                ...prev,
+                [category]: nextSet,
+            };
+        });
+    };
 
     const handleAddRole = () => {
         const trimmed = newRoleName.trim();
@@ -471,6 +494,14 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
     const potentialBlockers = jobAnalysis?.potential_blockers || [];
     const roleTags = jobAnalysis?.tags || [];
 
+    useEffect(() => {
+        setCovered(prev => ({
+            metrics: new Set(keyMetrics.filter(metric => prev.metrics.has(metric))),
+            levers: new Set(roleLevers.filter(lever => prev.levers.has(lever))),
+            blockers: new Set(potentialBlockers.filter(blocker => prev.blockers.has(blocker))),
+        }));
+    }, [keyMetrics, roleLevers, potentialBlockers]);
+
     const handleQuickAdd = (text: string) => {
         setNotepadContent(prev => appendUnique(prev, text));
     };
@@ -530,7 +561,12 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
                                     </div>
                                     <div className="space-y-1">
                                         <div className="flex items-start justify-between gap-2">
-                                            <p className="font-bold text-slate-500 dark:text-slate-400">Key Success Metrics</p>
+                                            <div>
+                                                <p className="font-bold text-slate-500 dark:text-slate-400">Key Success Metrics</p>
+                                                {keyMetrics.length > 0 && (
+                                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">{covered.metrics.size}/{keyMetrics.length} covered</p>
+                                                )}
+                                            </div>
                                             {keyMetrics.length > 0 && (
                                                 <button
                                                     onClick={() => handleQuickAdd(`Key Success Metrics:\n${keyMetrics.map(metric => `• ${metric}`).join('\n')}`)}
@@ -542,10 +578,24 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
                                             )}
                                         </div>
                                         {keyMetrics.length > 0 ? (
-                                            <ul className="mt-1 list-disc pl-4 space-y-1 text-sm text-slate-700 dark:text-slate-200">
-                                                {keyMetrics.map((metric, index) => (
-                                                    <li key={index}>{metric}</li>
-                                                ))}
+                                            <ul className="mt-1 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+                                                {keyMetrics.map((metric, index) => {
+                                                    const isCovered = covered.metrics.has(metric);
+                                                    return (
+                                                        <li key={index}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => toggleCoverage('metrics', metric)}
+                                                                className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition ${isCovered ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-200' : 'hover:bg-slate-200 dark:hover:bg-slate-700/80'}`}
+                                                            >
+                                                                <span className={`flex h-4 w-4 items-center justify-center rounded border ${isCovered ? 'border-green-600 bg-green-600 text-white' : 'border-slate-400 text-transparent'}`}>
+                                                                    <CheckIcon className="h-3 w-3" />
+                                                                </span>
+                                                                <span className={isCovered ? 'line-through' : ''}>{metric}</span>
+                                                            </button>
+                                                        </li>
+                                                    );
+                                                })}
                                             </ul>
                                         ) : (
                                             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">N/A</p>
@@ -553,7 +603,12 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
                                     </div>
                                     <div className="space-y-1">
                                         <div className="flex items-start justify-between gap-2">
-                                            <p className="font-bold text-slate-500 dark:text-slate-400">Levers</p>
+                                            <div>
+                                                <p className="font-bold text-slate-500 dark:text-slate-400">Levers</p>
+                                                {roleLevers.length > 0 && (
+                                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">{covered.levers.size}/{roleLevers.length} covered</p>
+                                                )}
+                                            </div>
                                             {roleLevers.length > 0 && (
                                                 <button
                                                     onClick={() => handleQuickAdd(`Levers:\n${roleLevers.map(lever => `• ${lever}`).join('\n')}`)}
@@ -565,10 +620,24 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
                                             )}
                                         </div>
                                         {roleLevers.length > 0 ? (
-                                            <ul className="mt-1 list-disc pl-4 space-y-1 text-sm text-slate-700 dark:text-slate-200">
-                                                {roleLevers.map((lever, index) => (
-                                                    <li key={index}>{lever}</li>
-                                                ))}
+                                            <ul className="mt-1 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+                                                {roleLevers.map((lever, index) => {
+                                                    const isCovered = covered.levers.has(lever);
+                                                    return (
+                                                        <li key={index}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => toggleCoverage('levers', lever)}
+                                                                className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition ${isCovered ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-200' : 'hover:bg-slate-200 dark:hover:bg-slate-700/80'}`}
+                                                            >
+                                                                <span className={`flex h-4 w-4 items-center justify-center rounded border ${isCovered ? 'border-green-600 bg-green-600 text-white' : 'border-slate-400 text-transparent'}`}>
+                                                                    <CheckIcon className="h-3 w-3" />
+                                                                </span>
+                                                                <span className={isCovered ? 'line-through' : ''}>{lever}</span>
+                                                            </button>
+                                                        </li>
+                                                    );
+                                                })}
                                             </ul>
                                         ) : (
                                             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">N/A</p>
@@ -576,7 +645,12 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
                                     </div>
                                     <div className="space-y-1">
                                         <div className="flex items-start justify-between gap-2">
-                                            <p className="font-bold text-slate-500 dark:text-slate-400">Potential Blockers</p>
+                                            <div>
+                                                <p className="font-bold text-slate-500 dark:text-slate-400">Potential Blockers</p>
+                                                {potentialBlockers.length > 0 && (
+                                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">{covered.blockers.size}/{potentialBlockers.length} covered</p>
+                                                )}
+                                            </div>
                                             {potentialBlockers.length > 0 && (
                                                 <button
                                                     onClick={() => handleQuickAdd(`Potential Blockers:\n${potentialBlockers.map(blocker => `• ${blocker}`).join('\n')}`)}
@@ -588,10 +662,24 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
                                             )}
                                         </div>
                                         {potentialBlockers.length > 0 ? (
-                                            <ul className="mt-1 list-disc pl-4 space-y-1 text-sm text-slate-700 dark:text-slate-200">
-                                                {potentialBlockers.map((blocker, index) => (
-                                                    <li key={index}>{blocker}</li>
-                                                ))}
+                                            <ul className="mt-1 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+                                                {potentialBlockers.map((blocker, index) => {
+                                                    const isCovered = covered.blockers.has(blocker);
+                                                    return (
+                                                        <li key={index}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => toggleCoverage('blockers', blocker)}
+                                                                className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition ${isCovered ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-200' : 'hover:bg-slate-200 dark:hover:bg-slate-700/80'}`}
+                                                            >
+                                                                <span className={`flex h-4 w-4 items-center justify-center rounded border ${isCovered ? 'border-green-600 bg-green-600 text-white' : 'border-slate-400 text-transparent'}`}>
+                                                                    <CheckIcon className="h-3 w-3" />
+                                                                </span>
+                                                                <span className={isCovered ? 'line-through' : ''}>{blocker}</span>
+                                                            </button>
+                                                        </li>
+                                                    );
+                                                })}
                                             </ul>
                                         ) : (
                                             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">N/A</p>
