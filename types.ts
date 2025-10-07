@@ -438,6 +438,7 @@ export interface Interview {
     first_name: string;
     last_name: string;
   }[];
+  story_deck?: InterviewStoryDeckEntry[];
 }
 
 export interface Offer {
@@ -571,6 +572,16 @@ export interface ImpactStory {
   story_body: StarBody | ScopeBody | WinsBody | SpotlightBody | { [key: string]: string };
   target_questions: string[];
   speaker_notes?: { [key: string]: string };
+}
+
+export interface InterviewStoryDeckEntry {
+  story_id: string;
+  order_index: number;
+  custom_notes?: {
+    [role: string]: {
+      [field: string]: string;
+    };
+  } | null;
 }
 
 // New type for Interview Studio
