@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { JobApplication, Interview, StrategicNarrative, ImpactStory, StorytellingFormat, StarBody, ScopeBody, WinsBody, SpotlightBody, InterviewPayload, Company, JobProblemAnalysisResult } from '../types';
+import { JobApplication, Interview, StrategicNarrative, StorytellingFormat, StarBody, ScopeBody, WinsBody, SpotlightBody, InterviewPayload, Company, JobProblemAnalysisResult } from '../types';
 import { CheckIcon, GripVerticalIcon, MicrophoneIcon, ClipboardDocumentCheckIcon, SparklesIcon, LoadingSpinner } from './IconComponents';
 import { Switch } from './Switch';
+import { HydratedDeckItem, buildHydratedDeck, ensureRoleOnDeck, removeRoleFromDeck, serializeDeck, updateDeckOrder, upsertDeckStory } from '../utils/interviewDeck';
 
 interface InterviewCopilotViewProps {
     application: JobApplication;
@@ -54,17 +55,34 @@ const CoPilotSection = ({ title, children, className = '' }: { title: string, ch
 );
 
 const ImpactStoryTrigger = ({
-    story,
+    item,
     jobAnalysis,
     onAppendNotepad,
+    isEditMode,
+    activeRole,
+    onNoteChange,
+    onDragStart,
+    onDragEnter,
+    onDragEnd,
+    onRemove,
 }: {
-    story: ImpactStory;
+    item: HydratedDeckItem;
     jobAnalysis?: JobProblemAnalysisResult;
     onAppendNotepad: (text: string) => void;
+    isEditMode: boolean;
+    activeRole: string;
+    onNoteChange: (storyId: string, field: string, value: string) => void;
+    onDragStart?: (storyId: string) => void;
+    onDragEnter?: (storyId: string) => void;
+    onDragEnd?: () => void;
+    onRemove?: (storyId: string) => void;
 }) => {
-    const formatName = story.format || 'STAR';
+    const story = item.story;
+    const formatName = (story?.format || 'STAR') as StorytellingFormat;
     const badgeColor = STORY_FORMAT_COLORS[formatName];
-    const orderedFields = STORY_FORMAT_FIELDS[formatName];
+    const orderedFields = STORY_FORMAT_FIELDS[formatName] || [];
+    const defaultNotes = item.custom_notes.default || {};
+    const roleNotes = item.custom_notes[activeRole] || {};
 
     const cues = jobAnalysis
         ? [
@@ -83,24 +101,115 @@ const ImpactStoryTrigger = ({
           ].slice(0, 3)
         : [];
 
+    const readableLabel = (key: string) => key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+    if (isEditMode) {
+        const dragHandlers = {
+            draggable: true,
+            onDragStart: (event: React.DragEvent<HTMLDivElement>) => {
+                event.dataTransfer.effectAllowed = 'move';
+                onDragStart?.(item.story_id);
+            },
+            onDragOver: (event: React.DragEvent<HTMLDivElement>) => {
+                event.preventDefault();
+                onDragEnter?.(item.story_id);
+            },
+            onDrop: (event: React.DragEvent<HTMLDivElement>) => {
+                event.preventDefault();
+                onDragEnd?.();
+            },
+            onDragEnd: () => onDragEnd?.(),
+        };
+
+        return (
+            <div
+                className="p-3 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 space-y-3"
+                {...dragHandlers}
+            >
+                <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                        <span className="text-slate-400 cursor-grab" aria-hidden="true">
+                            <GripVerticalIcon className="w-4 h-4" />
+                        </span>
+                        <div>
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                                {story ? story.story_title : 'Story unavailable'}
+                            </p>
+                            <span className={`inline-flex text-xs font-mono px-1.5 py-0.5 rounded ${badgeColor}`}>
+                                {formatName}
+                            </span>
+                        </div>
+                    </div>
+                    {onRemove && (
+                        <button
+                            type="button"
+                            onClick={() => onRemove(item.story_id)}
+                            className="text-xs font-semibold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500 rounded"
+                        >
+                            Remove
+                        </button>
+                    )}
+                </div>
+                {story ? (
+                    <div className="space-y-2">
+                        {orderedFields.map(field => {
+                            const key = field as keyof (StarBody & ScopeBody & WinsBody & SpotlightBody);
+                            const fieldName = key as unknown as string;
+                            const placeholder = defaultNotes[fieldName] || '';
+                            const value = roleNotes[fieldName] || '';
+                            return (
+                                <div key={fieldName}>
+                                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                        {readableLabel(fieldName)}
+                                    </label>
+                                    <textarea
+                                        rows={2}
+                                        value={value}
+                                        placeholder={placeholder}
+                                        onChange={(e) => onNoteChange(item.story_id, fieldName, e.target.value)}
+                                        className="w-full mt-1 p-2 text-xs font-mono bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    {activeRole !== 'default' && placeholder && (
+                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">Default: {placeholder}</p>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <p className="text-xs text-amber-600">
+                        This story is no longer part of the strategic narrative. Add it back to the narrative or remove it from this deck.
+                    </p>
+                )}
+            </div>
+        );
+    }
+
+    const noteParagraphs = orderedFields
+        .map(field => {
+            const key = field as keyof (StarBody & ScopeBody & WinsBody & SpotlightBody);
+            const fieldName = key as unknown as string;
+            const value = roleNotes[fieldName] ?? defaultNotes[fieldName];
+            if (!value) {
+                return null;
+            }
+            return (
+                <p key={fieldName} className="mb-1">
+                    <strong>{readableLabel(fieldName)}:</strong> {value}
+                </p>
+            );
+        })
+        .filter(Boolean);
+
     return (
         <details className="p-2 rounded-md bg-slate-200 dark:bg-slate-700">
             <summary className="w-full text-left text-sm font-semibold text-slate-800 dark:text-slate-200 flex justify-between items-center cursor-pointer">
-                <span className="truncate pr-2">{story.story_title}</span>
+                <span className="truncate pr-2">{story ? story.story_title : 'Story unavailable'}</span>
                 <span className={`text-xs font-mono px-1.5 py-0.5 rounded flex-shrink-0 ${badgeColor}`}>{formatName}</span>
             </summary>
-             <div className="mt-2 pt-2 border-t border-slate-300 dark:border-slate-600 text-xs text-slate-600 dark:text-slate-300 whitespace-pre-wrap font-mono">
-                {story.speaker_notes && typeof story.speaker_notes === 'object' ? (
-                    orderedFields.map(key => {
-                        const value = (story.speaker_notes as any)[key];
-                        // Create a more readable label from the key
-                        const label = key.toString().replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                        return value ? (
-                            <p key={key as string} className="mb-1"><strong>{label}:</strong> {value}</p>
-                        ) : null
-                    })
-                ) : <p>No speaker notes.</p>}
-             </div>
+            <div className="mt-2 pt-2 border-t border-slate-300 dark:border-slate-600 text-xs text-slate-600 dark:text-slate-300 whitespace-pre-wrap font-mono">
+                {noteParagraphs.length > 0 ? noteParagraphs : <p className="italic">No speaker notes for this role yet.</p>}
+            </div>
             {cues.length > 0 && (
                 <div className="mt-3 rounded-md border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/70 p-2 text-xs text-slate-600 dark:text-slate-300">
                     <p className="font-semibold uppercase tracking-wide text-[10px] text-slate-500 dark:text-slate-400">Align this story to…</p>
@@ -131,8 +240,8 @@ const ImpactStoryTrigger = ({
                 </div>
             )}
         </details>
-    )
-}
+    );
+};
 
 export const InterviewCopilotView = ({ application, interview, company, activeNarrative, onBack, onSaveInterview, onGenerateInterviewPrep, onGenerateRecruiterScreenPrep }: InterviewCopilotViewProps) => {
     const [isEditMode, setIsEditMode] = useState(false);
@@ -140,7 +249,12 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
     const [editableQuestions, setEditableQuestions] = useState('');
     const [notepadContent, setNotepadContent] = useState('');
     const [askedQuestions, setAskedQuestions] = useState<Set<string>>(new Set());
-    
+    const [storyDeck, setStoryDeck] = useState<HydratedDeckItem[]>(() => buildHydratedDeck(interview, activeNarrative));
+    const [activeRole, setActiveRole] = useState('default');
+    const [draggingStoryId, setDraggingStoryId] = useState<string | null>(null);
+    const [newRoleName, setNewRoleName] = useState('');
+    const [storyToAdd, setStoryToAdd] = useState('');
+
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [isSavingNotes, setIsSavingNotes] = useState(false);
@@ -150,11 +264,126 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
     const jobAnalysis = useMemo(() => application.job_problem_analysis_result, [application]);
 
     useEffect(() => {
+        setStoryDeck(buildHydratedDeck(interview, activeNarrative));
+    }, [interview, activeNarrative]);
+
+    useEffect(() => {
         const opening = interview.strategic_opening || `"I'm a product leader who excels at ${activeNarrative.positioning_statement}. My understanding is the core challenge here is ${application.job_problem_analysis_result?.core_problem_analysis.core_problem}. That's a problem I'm familiar with from my time when I ${activeNarrative.impact_story_title}."`;
         setEditableOpening(opening);
         setEditableQuestions((interview.strategic_questions_to_ask || []).join('\n'));
         setNotepadContent(interview.notes || '');
     }, [interview, activeNarrative, application]);
+
+    const availableRoles = useMemo(() => {
+        const roles = new Set<string>();
+        storyDeck.forEach(item => {
+            Object.keys(item.custom_notes).forEach(role => roles.add(role));
+        });
+        if (roles.size === 0) {
+            roles.add('default');
+        }
+        return Array.from(roles);
+    }, [storyDeck]);
+
+    useEffect(() => {
+        if (!availableRoles.includes(activeRole)) {
+            setActiveRole(availableRoles[0] || 'default');
+        }
+    }, [availableRoles, activeRole]);
+
+    useEffect(() => {
+        if (!activeRole) {
+            return;
+        }
+        setStoryDeck(prev => {
+            if (prev.length === 0) {
+                return prev;
+            }
+            const needsRole = prev.some(item => !item.custom_notes[activeRole]);
+            return needsRole ? ensureRoleOnDeck(prev, activeRole) : prev;
+        });
+    }, [activeRole]);
+
+    const availableStories = useMemo(() => {
+        const selectedIds = new Set(storyDeck.map(item => item.story_id));
+        return (activeNarrative.impact_stories || []).filter(story => !selectedIds.has(story.story_id));
+    }, [storyDeck, activeNarrative]);
+
+    const handleAddRole = () => {
+        const trimmed = newRoleName.trim();
+        if (!trimmed) {
+            return;
+        }
+        const existingRole = availableRoles.find(role => role.toLowerCase() === trimmed.toLowerCase());
+        if (existingRole) {
+            setActiveRole(existingRole);
+            setNewRoleName('');
+            return;
+        }
+        setStoryDeck(prev => ensureRoleOnDeck(prev, trimmed));
+        setActiveRole(trimmed);
+        setNewRoleName('');
+    };
+
+    const handleRemoveRole = (role: string) => {
+        if (role === 'default') {
+            return;
+        }
+        setStoryDeck(prev => removeRoleFromDeck(prev, role));
+    };
+
+    const handleNoteChange = (storyId: string, field: string, value: string) => {
+        setStoryDeck(prev => prev.map(item => {
+            if (item.story_id !== storyId) {
+                return item;
+            }
+            const roleNotes = item.custom_notes[activeRole] || {};
+            return {
+                ...item,
+                custom_notes: {
+                    ...item.custom_notes,
+                    [activeRole]: {
+                        ...roleNotes,
+                        [field]: value,
+                    },
+                },
+            };
+        }));
+    };
+
+    const handleDragStart = (storyId: string) => {
+        setDraggingStoryId(storyId);
+    };
+
+    const handleDragEnter = (storyId: string) => {
+        if (!draggingStoryId || draggingStoryId === storyId) {
+            return;
+        }
+        setStoryDeck(prev => updateDeckOrder(prev, draggingStoryId, storyId));
+    };
+
+    const handleDragEnd = () => {
+        setDraggingStoryId(null);
+    };
+
+    const handleAddStory = () => {
+        if (!storyToAdd) {
+            return;
+        }
+        const story = (activeNarrative.impact_stories || []).find(s => s.story_id === storyToAdd);
+        if (!story) {
+            return;
+        }
+        setStoryDeck(prev => upsertDeckStory(prev, story));
+        setStoryToAdd('');
+    };
+
+    const handleRemoveStory = (storyId: string) => {
+        setStoryDeck(prev => prev
+            .filter(item => item.story_id !== storyId)
+            .map((item, index) => ({ ...item, order_index: index }))
+        );
+    };
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -162,7 +391,8 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
         try {
             const payload: InterviewPayload = {
                 strategic_opening: editableOpening,
-                strategic_questions_to_ask: editableQuestions.split('\n').filter(q => q.trim() !== '')
+                strategic_questions_to_ask: editableQuestions.split('\n').filter(q => q.trim() !== ''),
+                story_deck: serializeDeck(storyDeck),
             };
             await onSaveInterview(payload, interview.interview_id);
             setSaveSuccess(true);
@@ -407,17 +637,93 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
                             </ul>
                         </CoPilotSection>
                         <CoPilotSection title="Impact Story Triggers">
-                            {(activeNarrative.impact_stories || []).map(story => (
-                               <ImpactStoryTrigger
-                                   key={story.story_id}
-                                   story={story}
-                                   jobAnalysis={jobAnalysis}
-                                   onAppendNotepad={handleQuickAdd}
-                               />
-                            ))}
-                             {(!activeNarrative.impact_stories || activeNarrative.impact_stories.length === 0) && (
-                                <p className="text-xs text-slate-500 dark:text-slate-400 text-center">No impact stories defined.</p>
-                             )}
+                            <div className="space-y-2">
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Persona</span>
+                                        <select
+                                            value={activeRole}
+                                            onChange={(e) => setActiveRole(e.target.value)}
+                                            className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            {availableRoles.map(role => (
+                                                <option key={role} value={role}>{role}</option>
+                                            ))}
+                                        </select>
+                                        {isEditMode && activeRole !== 'default' && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveRole(activeRole)}
+                                                className="inline-flex items-center rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[10px] font-semibold text-red-600 dark:text-red-300 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500"
+                                            >
+                                                Remove Role
+                                            </button>
+                                        )}
+                                    </div>
+                                    {isEditMode && (
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <input
+                                                type="text"
+                                                value={newRoleName}
+                                                onChange={(e) => setNewRoleName(e.target.value)}
+                                                placeholder="Add interviewer persona"
+                                                className="w-48 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleAddRole}
+                                                disabled={!newRoleName.trim()}
+                                                className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:bg-indigo-300"
+                                            >
+                                                Add Role
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                                {isEditMode && availableStories.length > 0 && (
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <select
+                                            value={storyToAdd}
+                                            onChange={(e) => setStoryToAdd(e.target.value)}
+                                            className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            <option value="">Add narrative story…</option>
+                                            {availableStories.map(story => (
+                                                <option key={story.story_id} value={story.story_id}>{story.story_title}</option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            type="button"
+                                            onClick={handleAddStory}
+                                            disabled={!storyToAdd}
+                                            className="inline-flex items-center rounded-md bg-green-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-green-700 disabled:bg-green-300"
+                                        >
+                                            Add Story
+                                        </button>
+                                    </div>
+                                )}
+                                <div className="space-y-2">
+                                    {storyDeck.length > 0 ? (
+                                        storyDeck.map(item => (
+                                            <ImpactStoryTrigger
+                                                key={item.story_id}
+                                                item={item}
+                                                jobAnalysis={jobAnalysis}
+                                                onAppendNotepad={handleQuickAdd}
+                                                isEditMode={isEditMode}
+                                                activeRole={activeRole}
+                                                onNoteChange={handleNoteChange}
+                                                onDragStart={isEditMode ? handleDragStart : undefined}
+                                                onDragEnter={isEditMode ? handleDragEnter : undefined}
+                                                onDragEnd={isEditMode ? handleDragEnd : undefined}
+                                                onRemove={isEditMode ? handleRemoveStory : undefined}
+                                            />
+                                        ))
+                                    ) : (
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 text-center">No impact stories defined.</p>
+                                    )}
+                                </div>
+                            </div>
                         </CoPilotSection>
                         <CoPilotSection title="Hot Leads (30-60-90 Plan)">
                             <ul className="list-disc pl-4 text-sm space-y-1 text-slate-700 dark:text-slate-300">
