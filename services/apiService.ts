@@ -1354,54 +1354,155 @@ export const deleteUploadedDocument = async (documentId: string, contentType: Co
 // --- Reviewed Jobs ---
 
 export interface ReviewedJobsFilters {
-  recommendation?: 'All' | 'Recommended' | 'Not Recommended';
+  recommendation?: 'All' | ReviewedJobRecommendation;
   min_score?: number;
+  max_score?: number;
+  company?: string;
+  source?: string;
+  is_remote?: boolean | null;
+  date_posted_after?: string;
+  date_posted_before?: string;
 }
 
 export interface ReviewedJobsSort {
-  by: 'date_posted' | 'overall_alignment_score' | 'review_date';
+  by: 'date_posted' | 'overall_alignment_score' | 'review_date' | 'company' | 'title' | 'recommendation';
   order: 'asc' | 'desc';
 }
 
-export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort = { by: 'date_posted', order: 'desc' } }: {
-    page?: number;
-    size?: number;
-    filters?: ReviewedJobsFilters;
-    sort?: ReviewedJobsSort;
-}): Promise<PaginatedResponse<ReviewedJob>> => {
-    const formatSalaryComponent = (value: unknown): string | null => {
-        if (value === null || value === undefined) {
-            return null;
-        }
+type ReviewedJobsQueryArgs = {
+  page?: number;
+  size?: number;
+  filters?: ReviewedJobsFilters;
+  sort?: ReviewedJobsSort;
+};
 
-        const numericValue = Number(value);
-        if (Number.isFinite(numericValue)) {
-            return numericValue.toLocaleString(undefined, {
-                maximumFractionDigits: 2,
-                minimumFractionDigits: 0,
-            });
-        }
+const normalizeRecommendationFilter = (value?: ReviewedJobsFilters['recommendation']): string | null => {
+    if (!value || value === 'All') {
+        return null;
+    }
+    return value === 'Recommended' ? 'true' : 'false';
+};
 
-        return String(value);
-    };
+const formatSalaryComponent = (value: unknown): string | null => {
+    if (value === null || value === undefined) {
+        return null;
+    }
 
+    const numericValue = Number(value);
+    if (Number.isFinite(numericValue)) {
+        return numericValue.toLocaleString(undefined, {
+            maximumFractionDigits: 2,
+            minimumFractionDigits: 0,
+        });
+    }
+
+    return String(value);
+};
+
+export const buildReviewedJobsSearchParams = ({
+    page = 1,
+    size = 15,
+    filters = {},
+    sort = { by: 'date_posted', order: 'desc' },
+}: ReviewedJobsQueryArgs): URLSearchParams => {
     const params = new URLSearchParams({
         limit: String(size),
         offset: String(Math.max(page - 1, 0) * size),
+        sort_by: sort.by,
+        sort_order: sort.order.toUpperCase(),
     });
 
-    const sortByParam = sort.by;
-    params.append('sort_by', sortByParam);
-    params.append('sort_order', sort.order.toUpperCase());
-
-    if (filters.recommendation && filters.recommendation !== 'All') {
-        params.append('recommendation', filters.recommendation === 'Recommended' ? 'true' : 'false');
+    const recommendation = normalizeRecommendationFilter(filters.recommendation);
+    if (recommendation) {
+        params.set('recommendation', recommendation);
     }
 
     if (typeof filters.min_score === 'number') {
-        params.append('min_score', String(filters.min_score));
+        params.set('min_score', String(filters.min_score));
     }
 
+    if (typeof filters.max_score === 'number') {
+        params.set('max_score', String(filters.max_score));
+    }
+
+    if (filters.company) {
+        params.set('company', filters.company);
+    }
+
+    if (filters.source) {
+        params.set('source', filters.source);
+    }
+
+    if (typeof filters.is_remote === 'boolean') {
+        params.set('is_remote', String(filters.is_remote));
+    }
+
+    if (filters.date_posted_after) {
+        params.set('date_posted_after', filters.date_posted_after);
+    }
+
+    if (filters.date_posted_before) {
+        params.set('date_posted_before', filters.date_posted_before);
+    }
+
+    return params;
+};
+
+export const buildReviewedJobsUiSearchParams = ({
+    page = 1,
+    size = 15,
+    filters = {},
+    sort = { by: 'date_posted', order: 'desc' },
+}: ReviewedJobsQueryArgs): URLSearchParams => {
+    const params = new URLSearchParams();
+
+    params.set('page', String(page));
+    params.set('size', String(size));
+    params.set('sort_by', sort.by);
+    params.set('sort_order', sort.order);
+
+    if (filters.recommendation && filters.recommendation !== 'All') {
+        params.set('recommendation', filters.recommendation);
+    }
+
+    if (typeof filters.min_score === 'number') {
+        params.set('min_score', String(filters.min_score));
+    }
+
+    if (typeof filters.max_score === 'number') {
+        params.set('max_score', String(filters.max_score));
+    }
+
+    if (filters.company) {
+        params.set('company', filters.company);
+    }
+
+    if (filters.source) {
+        params.set('source', filters.source);
+    }
+
+    if (typeof filters.is_remote === 'boolean') {
+        params.set('is_remote', String(filters.is_remote));
+    }
+
+    if (filters.date_posted_after) {
+        params.set('date_posted_after', filters.date_posted_after);
+    }
+
+    if (filters.date_posted_before) {
+        params.set('date_posted_before', filters.date_posted_before);
+    }
+
+    return params;
+};
+
+export const getReviewedJobs = async ({
+    page = 1,
+    size = 15,
+    filters = {},
+    sort = { by: 'date_posted', order: 'desc' },
+}: ReviewedJobsQueryArgs): Promise<PaginatedResponse<ReviewedJob>> => {
+    const params = buildReviewedJobsSearchParams({ page, size, filters, sort });
     const response = await fetch(`${buildFastApiUrl('jobs/reviews')}?${params.toString()}`);
     const rawData = await handleResponse(response);
 
@@ -1414,9 +1515,8 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
         const recommendation: ReviewedJobRecommendation = finalRecommendation ? 'Recommended' : 'Not Recommended';
         const confidenceLookup: Record<string, number> = { high: 0.9, medium: 0.6, low: 0.3 };
 
-        const overallScore = typeof review.overall_alignment_score === 'number'
-            ? review.overall_alignment_score
-            : 0;
+        const overallScoreRaw = typeof review.overall_alignment_score === 'number' ? review.overall_alignment_score : null;
+        const overallScore = overallScoreRaw !== null ? overallScoreRaw * 10 : 0;
 
         return {
             job_id: job.job_id ?? '',
@@ -1450,14 +1550,6 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
 
     const pageSize = rawData.page_size ?? size;
     const total = rawData.total_count ?? 0;
-
-    if (sort.by === 'overall_alignment_score') {
-        items.sort((a: ReviewedJob, b: ReviewedJob) => {
-            return sort.order === 'asc'
-                ? a.overall_alignment_score - b.overall_alignment_score
-                : b.overall_alignment_score - a.overall_alignment_score;
-        });
-    }
 
     return {
         items,

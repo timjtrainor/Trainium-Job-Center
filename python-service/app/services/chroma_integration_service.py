@@ -2,10 +2,11 @@
 
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+import hashlib
 from loguru import logger
 
 from .chroma_manager import get_chroma_manager, CollectionType
-from ..schemas.chroma import ChromaUploadRequest, ChromaUploadResponse
+from ..schemas.chroma import ChromaUploadResponse
 
 
 class ChromaIntegrationService:
@@ -267,6 +268,262 @@ class ChromaIntegrationService:
             document_text=content,
             metadata=metadata,
             tags=["resume", profile_id, section.lower()]
+        )
+
+    @staticmethod
+    def derive_experience_key(
+        resume_id: str,
+        job_title: str,
+        company_name: str,
+        date_range: Optional[str] = None
+    ) -> str:
+        """Derive a deterministic key for work experience when explicit IDs are missing."""
+
+        normalized = "||".join(
+            part.strip().lower()
+            for part in [resume_id or "", job_title or "", company_name or "", date_range or ""]
+        )
+        return hashlib.sha1(normalized.encode("utf-8")).hexdigest()
+
+    async def add_resume_achievement(
+        self,
+        *,
+        profile_id: str,
+        resume_id: str,
+        achievement_id: str,
+        content: str,
+        job_title: str,
+        company_name: str,
+        work_experience_id: Optional[str] = None,
+        date_range: Optional[str] = None,
+        always_include: bool = False,
+        order_index: Optional[int] = None,
+        themes: Optional[List[str]] = None,
+        impact_scope: str = "",
+        additional_metadata: Optional[Dict[str, Any]] = None,
+    ) -> ChromaUploadResponse:
+        """Upload a resume achievement bullet with stable work experience metadata."""
+
+        normalized_experience_id = work_experience_id or self.derive_experience_key(
+            resume_id=resume_id,
+            job_title=job_title,
+            company_name=company_name,
+            date_range=date_range or "",
+        )
+
+        metadata = {
+            "profile_id": profile_id,
+            "resume_id": resume_id,
+            "achievement_id": achievement_id,
+            "work_experience_id": normalized_experience_id,
+            "job_title": job_title,
+            "company_name": company_name,
+            "date_range": date_range or "",
+            "themes": themes or [],
+            "always_include": always_include,
+            "order_index": order_index if order_index is not None else -1,
+            "impact_scope": impact_scope,
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+
+        if additional_metadata:
+            metadata.update(additional_metadata)
+
+        safe_job_title = (job_title or "role").lower().replace(" ", "_")
+        safe_company = (company_name or "company").lower().replace(" ", "_")
+        experience_tag = normalized_experience_id or "experience"
+
+        return await self.manager.upload_document(
+            collection_name="resume_achievements",
+            title=f"{job_title} @ {company_name} achievement",
+            document_text=content,
+            metadata=metadata,
+            tags=["resume_achievement", resume_id, safe_job_title, safe_company, experience_tag]
+        )
+
+    async def query_resume_achievements(
+        self,
+        query: str,
+        *,
+        profile_id: Optional[str] = None,
+        resume_id: Optional[str] = None,
+        job_title: Optional[str] = None,
+        work_experience_id: Optional[str] = None,
+        n_results: int = 10,
+    ) -> Dict[str, Any]:
+        """Semantic search over resume achievements with optional metadata filters."""
+
+        search_text = query.strip() or "resume achievement"
+        where: Dict[str, Any] = {}
+
+        if profile_id:
+            where["profile_id"] = profile_id
+        if resume_id:
+            where["resume_id"] = resume_id
+        if job_title:
+            where["job_title"] = job_title
+        if work_experience_id:
+            where["work_experience_id"] = work_experience_id
+
+        return await self.manager.search_collection(
+            collection_name="resume_achievements",
+            query=search_text,
+            n_results=n_results,
+            where=where or None,
+        )
+
+    async def add_user_expertise_document(
+        self,
+        *,
+        profile_id: str,
+        resume_id: str,
+        expertise_area: str,
+        content: str,
+        skills: Optional[List[str]] = None,
+        seniority: str = "",
+        years_experience: Optional[str] = None,
+        source: str = "",
+        updated_at: Optional[datetime] = None,
+        additional_metadata: Optional[Dict[str, Any]] = None,
+    ) -> ChromaUploadResponse:
+        """Upload a user expertise slice for personalization-focused retrieval."""
+
+        timestamp = (updated_at or datetime.utcnow()).isoformat()
+
+        metadata = {
+            "profile_id": profile_id,
+            "resume_id": resume_id,
+            "expertise_area": expertise_area,
+            "skills": skills or [],
+            "seniority": seniority,
+            "years_experience": years_experience or "",
+            "source": source,
+            "updated_at": timestamp,
+        }
+
+        if additional_metadata:
+            metadata.update(additional_metadata)
+
+        tag_area = expertise_area.lower().replace(" ", "_") if expertise_area else "expertise"
+
+        return await self.manager.upload_document(
+            collection_name="user_expertise",
+            title=f"{expertise_area} expertise snapshot",
+            document_text=content,
+            metadata=metadata,
+            tags=["user_expertise", resume_id, tag_area]
+        )
+
+    async def query_user_expertise(
+        self,
+        query: str,
+        *,
+        profile_id: Optional[str] = None,
+        resume_id: Optional[str] = None,
+        expertise_area: Optional[str] = None,
+        n_results: int = 5,
+    ) -> Dict[str, Any]:
+        """Search expertise summaries for targeted skill retrieval."""
+
+        search_text = query.strip() or "user expertise"
+        where: Dict[str, Any] = {}
+
+        if profile_id:
+            where["profile_id"] = profile_id
+        if resume_id:
+            where["resume_id"] = resume_id
+        if expertise_area:
+            where["expertise_area"] = expertise_area
+
+        return await self.manager.search_collection(
+            collection_name="user_expertise",
+            query=search_text,
+            n_results=n_results,
+            where=where or None,
+        )
+
+    async def add_company_voice_pattern(
+        self,
+        *,
+        profile_id: str,
+        resume_id: str,
+        company_name: str,
+        job_title: str,
+        content: str,
+        industry: str = "",
+        tone_hint: str = "",
+        keywords: Optional[List[str]] = None,
+        accomplishment_count: int = 0,
+        updated_at: Optional[datetime] = None,
+        additional_metadata: Optional[Dict[str, Any]] = None,
+        work_experience_id: Optional[str] = None,
+    ) -> ChromaUploadResponse:
+        """Upload tone exemplars derived from resume experiences."""
+
+        timestamp = (updated_at or datetime.utcnow()).isoformat()
+        normalized_experience_id = work_experience_id or self.derive_experience_key(
+            resume_id=resume_id,
+            job_title=job_title,
+            company_name=company_name,
+            date_range=(additional_metadata or {}).get("date_range") if additional_metadata else None,
+        )
+
+        metadata = {
+            "profile_id": profile_id,
+            "resume_id": resume_id,
+            "work_experience_id": normalized_experience_id,
+            "company_name": company_name,
+            "job_title": job_title,
+            "industry": industry,
+            "tone_hint": tone_hint,
+            "keywords": keywords or [],
+            "accomplishment_count": accomplishment_count,
+            "updated_at": timestamp,
+        }
+
+        if additional_metadata:
+            metadata.update(additional_metadata)
+
+        safe_company = (company_name or "company").lower().replace(" ", "_")
+        experience_tag = normalized_experience_id or "experience"
+
+        return await self.manager.upload_document(
+            collection_name="company_voice_patterns",
+            title=f"{company_name} voice pattern",
+            document_text=content,
+            metadata=metadata,
+            tags=["company_voice", resume_id, safe_company, experience_tag]
+        )
+
+    async def query_company_voice_patterns(
+        self,
+        query: str,
+        *,
+        profile_id: Optional[str] = None,
+        resume_id: Optional[str] = None,
+        company_name: Optional[str] = None,
+        work_experience_id: Optional[str] = None,
+        n_results: int = 5,
+    ) -> Dict[str, Any]:
+        """Search voice exemplars tied to resume experiences for a company."""
+
+        search_text = query.strip() or "company voice"
+        where: Dict[str, Any] = {}
+
+        if profile_id:
+            where["profile_id"] = profile_id
+        if resume_id:
+            where["resume_id"] = resume_id
+        if company_name:
+            where["company_name"] = company_name
+        if work_experience_id:
+            where["work_experience_id"] = work_experience_id
+
+        return await self.manager.search_collection(
+            collection_name="company_voice_patterns",
+            query=search_text,
+            n_results=n_results,
+            where=where or None,
         )
 
     async def bulk_upload_job_postings(

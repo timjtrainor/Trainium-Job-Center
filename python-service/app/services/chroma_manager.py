@@ -24,6 +24,9 @@ class CollectionType(Enum):
     GENERIC_DOCUMENTS = "documents"
     CAREER_RESEARCH = "career_research"
     JOB_SEARCH_RESEARCH = "job_search_research"
+    RESUME_ACHIEVEMENTS = "resume_achievements"
+    USER_EXPERTISE = "user_expertise"
+    COMPANY_VOICE_PATTERNS = "company_voice_patterns"
 
 
 class ChromaCollectionConfig:
@@ -148,6 +151,68 @@ class ChromaManager:
             }
         ))
 
+        # Resume achievement bullets tuned for ATS-optimized chunk sizes
+        self.register_collection_config(ChromaCollectionConfig(
+            name="resume_achievements",
+            collection_type=CollectionType.RESUME_ACHIEVEMENTS,
+            description="Individual resume achievement bullets with role and impact metadata",
+            chunk_size=120,
+            chunk_overlap=20,
+            metadata_schema={
+                "profile_id": "str",
+                "resume_id": "str",
+                "achievement_id": "str",
+                "work_experience_id": "str",
+                "job_title": "str",
+                "company_name": "str",
+                "date_range": "str",
+                "themes": "list",
+                "always_include": "bool",
+                "order_index": "int",
+                "impact_scope": "str",
+                "updated_at": "str"
+            }
+        ))
+
+        # Aggregated skill and summary expertise slices for personalization
+        self.register_collection_config(ChromaCollectionConfig(
+            name="user_expertise",
+            collection_type=CollectionType.USER_EXPERTISE,
+            description="Summaries of user expertise areas, skills, and narrative highlights",
+            chunk_size=180,
+            chunk_overlap=30,
+            metadata_schema={
+                "profile_id": "str",
+                "resume_id": "str",
+                "expertise_area": "str",
+                "seniority": "str",
+                "skills": "list",
+                "years_experience": "str",
+                "source": "str",
+                "updated_at": "str"
+            }
+        ))
+
+        # Company voice and tone exemplars extracted from resume experience
+        self.register_collection_config(ChromaCollectionConfig(
+            name="company_voice_patterns",
+            collection_type=CollectionType.COMPANY_VOICE_PATTERNS,
+            description="Voice and tone exemplars derived from resume experience with specific companies",
+            chunk_size=220,
+            chunk_overlap=35,
+            metadata_schema={
+                "profile_id": "str",
+                "resume_id": "str",
+                "work_experience_id": "str",
+                "company_name": "str",
+                "job_title": "str",
+                "industry": "str",
+                "tone_hint": "str",
+                "keywords": "list",
+                "accomplishment_count": "int",
+                "updated_at": "str"
+            }
+        ))
 
         # Generic documents collection for future use
         self.register_collection_config(ChromaCollectionConfig(
