@@ -37,13 +37,38 @@ const cloneDeckNotes = (notes?: InterviewStoryDeckEntry['custom_notes']): DeckNo
     return clone;
 };
 
-const ensureDefaultNotes = (notes: DeckNotes, story: ImpactStory | null): DeckNotes => {
-    const nextNotes: DeckNotes = { ...notes };
-    if (!nextNotes.default) {
-        nextNotes.default = story ? cloneSpeakerNotes(story.speaker_notes) : {};
+const ensureDefaultNotes = (notes: InterviewStoryDeckEntry['custom_notes'], story: ImpactStory | null): DeckNotes => {
+    const base = cloneDeckNotes(notes);
+    if (!base.default) {
+        base.default = story ? cloneSpeakerNotes(story.speaker_notes) : {};
+    } else {
+        base.default = cloneSpeakerNotes(base.default);
     }
-    return nextNotes;
+    return base;
 };
+
+const sanitizeDeckEntries = (entries: InterviewStoryDeckEntry[] | null | undefined): InterviewStoryDeckEntry[] => {
+    if (!Array.isArray(entries)) {
+        return [];
+    }
+    const seen = new Set<string>();
+    return entries.filter(entry => {
+        if (!entry || typeof entry !== 'object' || !entry.story_id) {
+            return false;
+        }
+        if (seen.has(entry.story_id)) {
+            return false;
+        }
+        seen.add(entry.story_id);
+        return true;
+    });
+};
+
+const reindexDeck = (items: HydratedDeckItem[]): HydratedDeckItem[] =>
+    items
+        .slice()
+        .sort((a, b) => a.order_index - b.order_index)
+        .map((item, index) => ({ ...item, order_index: index }));
 
 export const buildHydratedDeck = (
     interview: Interview,
@@ -52,17 +77,11 @@ export const buildHydratedDeck = (
     const narrativeStories = narrative?.impact_stories ?? [];
     const storiesById = new Map<string, ImpactStory>(narrativeStories.map(story => [story.story_id, story]));
 
-    const sourceDeck: InterviewStoryDeckEntry[] = Array.isArray(interview.story_deck) && interview.story_deck.length > 0
-        ? interview.story_deck
-        : narrativeStories.map((story, index) => ({
-            story_id: story.story_id,
-            order_index: index,
-            custom_notes: { default: cloneSpeakerNotes(story.speaker_notes) },
-        }));
+    const sanitizedDeck = sanitizeDeckEntries(interview.story_deck);
 
-    const hydrated = sourceDeck.map((entry, index) => {
+    const hydrated: HydratedDeckItem[] = sanitizedDeck.map((entry, index) => {
         const story = storiesById.get(entry.story_id) ?? null;
-        const baseNotes = ensureDefaultNotes(cloneDeckNotes(entry.custom_notes), story);
+        const baseNotes = ensureDefaultNotes(entry.custom_notes, story);
         return {
             story_id: entry.story_id,
             order_index: Number.isInteger(entry.order_index) ? (entry.order_index as number) : index,
@@ -71,9 +90,19 @@ export const buildHydratedDeck = (
         };
     });
 
-    return hydrated
-        .sort((a, b) => a.order_index - b.order_index)
-        .map((item, index) => ({ ...item, order_index: index }));
+    narrativeStories.forEach((story, index) => {
+        const hasStory = hydrated.some(item => item.story_id === story.story_id);
+        if (!hasStory) {
+            hydrated.push({
+                story_id: story.story_id,
+                order_index: hydrated.length + index,
+                story,
+                custom_notes: ensureDefaultNotes({ default: cloneSpeakerNotes(story.speaker_notes) }, story),
+            });
+        }
+    });
+
+    return reindexDeck(hydrated);
 };
 
 const pruneNotes = (notes: DeckNotes): InterviewStoryDeckEntry['custom_notes'] => {
@@ -96,7 +125,7 @@ const pruneNotes = (notes: DeckNotes): InterviewStoryDeckEntry['custom_notes'] =
 };
 
 export const serializeDeck = (deck: HydratedDeckItem[]): InterviewStoryDeckEntry[] =>
-    deck.map((item, index) => ({
+    reindexDeck(deck).map((item, index) => ({
         story_id: item.story_id,
         order_index: index,
         custom_notes: pruneNotes(item.custom_notes),
@@ -110,11 +139,12 @@ export const ensureRoleOnDeck = (
     if (item.custom_notes[role]) {
         return item;
     }
-    const sourceNotes = item.custom_notes[sourceRole] || {};
+    const baseNotes = ensureDefaultNotes(item.custom_notes, item.story);
+    const sourceNotes = baseNotes[sourceRole] || baseNotes.default || {};
     return {
         ...item,
         custom_notes: {
-            ...item.custom_notes,
+            ...baseNotes,
             [role]: { ...sourceNotes },
         },
     };
@@ -136,16 +166,23 @@ export const updateDeckOrder = (deck: HydratedDeckItem[], storyId: string, targe
     if (storyId === targetId) {
         return deck;
     }
-    const current = [...deck].sort((a, b) => a.order_index - b.order_index);
+    const current = reindexDeck(deck);
     const fromIndex = current.findIndex(item => item.story_id === storyId);
-    const toIndex = current.findIndex(item => item.story_id === targetId);
-    if (fromIndex === -1 || toIndex === -1) {
+    if (fromIndex === -1) {
         return deck;
     }
+    const toIndex = current.findIndex(item => item.story_id === targetId);
     const updated = [...current];
     const [moved] = updated.splice(fromIndex, 1);
-    updated.splice(toIndex, 0, moved);
-    return updated.map((item, index) => ({ ...item, order_index: index }));
+    if (!moved) {
+        return deck;
+    }
+    if (toIndex === -1) {
+        updated.push(moved);
+    } else {
+        updated.splice(toIndex, 0, moved);
+    }
+    return reindexDeck(updated);
 };
 
 export const upsertDeckStory = (
@@ -157,12 +194,12 @@ export const upsertDeckStory = (
         return deck;
     }
     const insertAt = typeof position === 'number' ? Math.max(0, Math.min(deck.length, position)) : deck.length;
-    const clone = [...deck];
+    const clone = [...reindexDeck(deck)];
     clone.splice(insertAt, 0, {
         story_id: story.story_id,
         order_index: insertAt,
         story,
-        custom_notes: { default: cloneSpeakerNotes(story.speaker_notes) },
+        custom_notes: ensureDefaultNotes({ default: cloneSpeakerNotes(story.speaker_notes) }, story),
     });
-    return clone.map((item, index) => ({ ...item, order_index: index }));
+    return reindexDeck(clone);
 };
