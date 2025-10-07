@@ -252,17 +252,13 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
     const [editableQuestions, setEditableQuestions] = useState('');
     const [notepadContent, setNotepadContent] = useState('');
     const [askedQuestions, setAskedQuestions] = useState<Set<string>>(new Set());
-    const [storyDeck, setStoryDeck] = useState<HydratedDeckItem[]>(() => buildHydratedDeck(interview, activeNarrative));
-    const [activeRole, setActiveRole] = useState('default');
-    const [draggingStoryId, setDraggingStoryId] = useState<string | null>(null);
-    const [newRoleName, setNewRoleName] = useState('');
-    const [storyToAdd, setStoryToAdd] = useState('');
+    type CoverageState = { metrics: Set<string>; levers: Set<string>; blockers: Set<string>; };
     const [covered, setCovered] = useState<CoverageState>(() => ({
         metrics: new Set<string>(),
         levers: new Set<string>(),
         blockers: new Set<string>(),
     }));
-
+    
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [isSavingNotes, setIsSavingNotes] = useState(false);
@@ -282,156 +278,13 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
         setNotepadContent(interview.notes || '');
     }, [interview, activeNarrative, application]);
 
-    const availableRoles = useMemo(() => {
-        const roles = new Set<string>();
-        storyDeck.forEach(item => {
-            Object.keys(item.custom_notes).forEach(role => roles.add(role));
-        });
-        if (roles.size === 0) {
-            roles.add('default');
-        }
-        return Array.from(roles);
-    }, [storyDeck]);
-
-    const questionList = useMemo(
-        () => editableQuestions.split('\n').map(question => question.trim()).filter(Boolean),
-        [editableQuestions]
-    );
-
     useEffect(() => {
-        setAskedQuestions(prev => {
-            const next = new Set<string>();
-            questionList.forEach(question => {
-                if (prev.has(question)) {
-                    next.add(question);
-                }
-            });
-            return next;
-        });
-    }, [questionList]);
-
-    useEffect(() => {
-        if (!availableRoles.includes(activeRole)) {
-            setActiveRole(availableRoles[0] || 'default');
-        }
-    }, [availableRoles, activeRole]);
-
-    useEffect(() => {
-        if (!activeRole) {
-            return;
-        }
-        setStoryDeck(prev => {
-            if (prev.length === 0) {
-                return prev;
-            }
-            const needsRole = prev.some(item => !item.custom_notes[activeRole]);
-            return needsRole ? ensureRoleOnDeck(prev, activeRole) : prev;
-        });
-    }, [activeRole]);
-
-    const availableStories = useMemo(() => {
-        const selectedIds = new Set(storyDeck.map(item => item.story_id));
-        return (activeNarrative.impact_stories || []).filter(story => !selectedIds.has(story.story_id));
-    }, [storyDeck, activeNarrative]);
-
-    const toggleCoverage = (category: CoverageCategory, value: string) => {
-        setCovered(prev => {
-            const nextSet = new Set(prev[category]);
-            if (nextSet.has(value)) {
-                nextSet.delete(value);
-            } else {
-                nextSet.add(value);
-            }
-            return {
-                ...prev,
-                [category]: nextSet,
-            };
-        });
-    };
-
-    const resetCoverage = () => {
         setCovered({
             metrics: new Set<string>(),
             levers: new Set<string>(),
             blockers: new Set<string>(),
         });
-    };
-
-    const handleAddRole = () => {
-        const trimmed = newRoleName.trim();
-        if (!trimmed) {
-            return;
-        }
-        const existingRole = availableRoles.find(role => role.toLowerCase() === trimmed.toLowerCase());
-        if (existingRole) {
-            setActiveRole(existingRole);
-            setNewRoleName('');
-            return;
-        }
-        setStoryDeck(prev => ensureRoleOnDeck(prev, trimmed));
-        setActiveRole(trimmed);
-        setNewRoleName('');
-    };
-
-    const handleRemoveRole = (role: string) => {
-        if (role === 'default') {
-            return;
-        }
-        setStoryDeck(prev => removeRoleFromDeck(prev, role));
-    };
-
-    const handleNoteChange = (storyId: string, field: string, value: string) => {
-        setStoryDeck(prev => prev.map(item => {
-            if (item.story_id !== storyId) {
-                return item;
-            }
-            const roleNotes = item.custom_notes[activeRole] || {};
-            return {
-                ...item,
-                custom_notes: {
-                    ...item.custom_notes,
-                    [activeRole]: {
-                        ...roleNotes,
-                        [field]: value,
-                    },
-                },
-            };
-        }));
-    };
-
-    const handleDragStart = (storyId: string) => {
-        setDraggingStoryId(storyId);
-    };
-
-    const handleDragEnter = (storyId: string) => {
-        if (!draggingStoryId || draggingStoryId === storyId) {
-            return;
-        }
-        setStoryDeck(prev => updateDeckOrder(prev, draggingStoryId, storyId));
-    };
-
-    const handleDragEnd = () => {
-        setDraggingStoryId(null);
-    };
-
-    const handleAddStory = () => {
-        if (!storyToAdd) {
-            return;
-        }
-        const story = (activeNarrative.impact_stories || []).find(s => s.story_id === storyToAdd);
-        if (!story) {
-            return;
-        }
-        setStoryDeck(prev => upsertDeckStory(prev, story));
-        setStoryToAdd('');
-    };
-
-    const handleRemoveStory = (storyId: string) => {
-        setStoryDeck(prev => prev
-            .filter(item => item.story_id !== storyId)
-            .map((item, index) => ({ ...item, order_index: index }))
-        );
-    };
+    }, [interview.interview_id, jobAnalysis]);
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -502,25 +355,34 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
     const potentialBlockers = jobAnalysis?.potential_blockers || [];
     const roleTags = jobAnalysis?.tags || [];
 
-    useEffect(() => {
+    const totalCoverageItems = keyMetrics.length + roleLevers.length + potentialBlockers.length;
+    const coveredCount = covered.metrics.size + covered.levers.size + covered.blockers.size;
+    const coveragePercent = totalCoverageItems === 0 ? 0 : Math.round((coveredCount / totalCoverageItems) * 100);
+
+    const toggleCoverage = (category: keyof CoverageState, item: string) => {
+        setCovered(prev => {
+            const next: CoverageState = {
+                metrics: new Set(prev.metrics),
+                levers: new Set(prev.levers),
+                blockers: new Set(prev.blockers),
+            };
+            const targetSet = next[category];
+            if (targetSet.has(item)) {
+                targetSet.delete(item);
+            } else {
+                targetSet.add(item);
+            }
+            return next;
+        });
+    };
+
+    const resetCoverage = () => {
         setCovered({
             metrics: new Set<string>(),
             levers: new Set<string>(),
             blockers: new Set<string>(),
         });
-    }, [interview.interview_id, jobAnalysis]);
-
-    useEffect(() => {
-        setCovered(prev => ({
-            metrics: new Set(keyMetrics.filter(metric => prev.metrics.has(metric))),
-            levers: new Set(roleLevers.filter(lever => prev.levers.has(lever))),
-            blockers: new Set(potentialBlockers.filter(blocker => prev.blockers.has(blocker))),
-        }));
-    }, [keyMetrics, roleLevers, potentialBlockers]);
-
-    const totalCoverageItems = keyMetrics.length + roleLevers.length + potentialBlockers.length;
-    const coveredCount = covered.metrics.size + covered.levers.size + covered.blockers.size;
-    const coveragePercent = totalCoverageItems === 0 ? 0 : Math.round((coveredCount / totalCoverageItems) * 100);
+    };
 
     const handleQuickAdd = (text: string) => {
         setNotepadContent(prev => appendUnique(prev, text));
