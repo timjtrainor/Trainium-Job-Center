@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { JobApplication, Company, Prompt, InterviewCoachingQuestion, StrategicNarrative, StrategicNarrativePayload, Interview, Contact, ImpactStory, StorytellingFormat, StarBody, ScopeBody, WinsBody, SpotlightBody } from '../types';
+import { JobApplication, Company, Prompt, InterviewCoachingQuestion, StrategicNarrative, StrategicNarrativePayload, Interview, Contact, ImpactStory, StorytellingFormat, StarBody, ScopeBody, WinsBody, SpotlightBody, InterviewStoryDeckEntry } from '../types';
 import { LoadingSpinner, MicrophoneIcon, StrategyIcon, SparklesIcon, LightBulbIcon, GripVerticalIcon, CheckIcon } from './IconComponents';
 import * as geminiService from '../services/geminiService';
+import { HydratedDeckItem, buildHydratedDeck, ensureRoleOnDeck, removeRoleFromDeck, serializeDeck, updateDeckOrder, upsertDeckStory } from '../utils/interviewDeck';
 
 interface InterviewStudioViewProps {
     applications: JobApplication[];
@@ -15,6 +16,7 @@ interface InterviewStudioViewProps {
     onGetReframeSuggestion: (question: string, coreStories: ImpactStory[]) => Promise<string>;
     onDeconstructQuestion: (question: string) => Promise<{ scope: string[], metrics: string[], constraints: string[] }>;
     onSaveInterviewOpening: (interviewId: string, opening: string) => Promise<void>;
+    onSaveInterviewDeck: (interviewId: string, deck: InterviewStoryDeckEntry[]) => Promise<void>;
     debugCallbacks?: { before: (p: string) => Promise<void>; after: (r: string) => Promise<void>; };
 }
 
@@ -30,101 +32,340 @@ const STORY_FORMATS: {
     SPOTLIGHT: { fields: [{ id: 'situation', label: 'Situation' }, { id: 'positive_moment_or_goal', label: 'Positive Moment / Goal' }, { id: 'observation_opportunity', label: 'Observation/Opportunity' }, { id: 'task_action', label: 'Task/Action' }, { id: 'learnings_leverage', label: 'Learnings/Leverage' }, { id: 'impact_results', label: 'Impact/Results' }, { id: 'growth_grit', label: 'Growth/Grit' }, { id: 'highlights_key_trait', label: 'Highlights (Key Trait)' }, { id: 'takeaway_tie_in', label: 'Takeaway/Tie-in' }] },
 };
 
-const EditableCopilotSidebar = ({ interview, activeNarrative, onSaveOpening, onSaveNarrative }: {
+const EditableCopilotSidebar = ({ interview, activeNarrative, onSaveOpening, onSaveDeck }: {
   interview: Interview;
   activeNarrative: StrategicNarrative;
   onSaveOpening: (interviewId: string, opening: string) => Promise<void>;
-  onSaveNarrative: (payload: StrategicNarrativePayload, narrativeId: string) => Promise<void>;
+  onSaveDeck: (interviewId: string, deck: InterviewStoryDeckEntry[]) => Promise<void>;
 }) => {
   const [opening, setOpening] = useState(interview.strategic_opening || '');
-  const [stories, setStories] = useState<ImpactStory[]>(JSON.parse(JSON.stringify(activeNarrative.impact_stories || [])));
+  const [deck, setDeck] = useState<HydratedDeckItem[]>(() => buildHydratedDeck(interview, activeNarrative));
   const [isSavingOpening, setIsSavingOpening] = useState(false);
-  const [isSavingStories, setIsSavingStories] = useState(false);
+  const [isSavingDeck, setIsSavingDeck] = useState(false);
   const [openingSuccess, setOpeningSuccess] = useState(false);
-  const [storiesSuccess, setStoriesSuccess] = useState(false);
+  const [deckSuccess, setDeckSuccess] = useState(false);
+  const [activeRole, setActiveRole] = useState('default');
+  const [newRoleName, setNewRoleName] = useState('');
+  const [storyToAdd, setStoryToAdd] = useState('');
+  const [draggingStoryId, setDraggingStoryId] = useState<string | null>(null);
 
-  const handleSpeakerNotesChange = (storyId: string, part: string, value: string) => {
-    setStories(prevStories => prevStories.map(story => {
-      if (story.story_id === storyId) {
-        const newNotes = { ...(story.speaker_notes || {}), [part]: value };
-        return { ...story, speaker_notes: newNotes };
+  useEffect(() => {
+    setOpening(interview.strategic_opening || '');
+  }, [interview]);
+
+  useEffect(() => {
+    setDeck(buildHydratedDeck(interview, activeNarrative));
+  }, [interview, activeNarrative]);
+
+  const availableRoles = useMemo(() => {
+    const roles = new Set<string>();
+    deck.forEach(item => {
+      Object.keys(item.custom_notes).forEach(role => roles.add(role));
+    });
+    if (roles.size === 0) {
+      roles.add('default');
+    }
+    return Array.from(roles);
+  }, [deck]);
+
+  useEffect(() => {
+    if (!availableRoles.includes(activeRole)) {
+      setActiveRole(availableRoles[0] || 'default');
+    }
+  }, [availableRoles, activeRole]);
+
+  useEffect(() => {
+    if (!activeRole) {
+      return;
+    }
+    setDeck(prev => {
+      if (prev.length === 0) {
+        return prev;
       }
-      return story;
-    }));
-  };
+      const needsRole = prev.some(item => !item.custom_notes[activeRole]);
+      return needsRole ? ensureRoleOnDeck(prev, activeRole) : prev;
+    });
+  }, [activeRole]);
+
+  const availableStories = useMemo(() => {
+    const selectedIds = new Set(deck.map(item => item.story_id));
+    return (activeNarrative.impact_stories || []).filter(story => !selectedIds.has(story.story_id));
+  }, [deck, activeNarrative]);
 
   const handleSaveOpening = async () => {
     setIsSavingOpening(true);
     setOpeningSuccess(false);
     try {
-        await onSaveOpening(interview.interview_id, opening);
-        setOpeningSuccess(true);
-        setTimeout(() => setOpeningSuccess(false), 2000);
-    } catch(e) { console.error(e); }
-    finally { setIsSavingOpening(false); }
+      await onSaveOpening(interview.interview_id, opening);
+      setOpeningSuccess(true);
+      setTimeout(() => setOpeningSuccess(false), 2000);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSavingOpening(false);
+    }
   };
-  
-  const handleSaveStories = async () => {
-    setIsSavingStories(true);
-    setStoriesSuccess(false);
+
+  const handleSaveDeck = async () => {
+    setIsSavingDeck(true);
+    setDeckSuccess(false);
     try {
-        await onSaveNarrative({ impact_stories: stories }, activeNarrative.narrative_id);
-        setStoriesSuccess(true);
-        setTimeout(() => setStoriesSuccess(false), 2000);
-    } catch(e) { console.error(e); }
-    finally { setIsSavingStories(false); }
+      await onSaveDeck(interview.interview_id, serializeDeck(deck));
+      setDeckSuccess(true);
+      setTimeout(() => setDeckSuccess(false), 2000);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSavingDeck(false);
+    }
+  };
+
+  const handleAddRole = () => {
+    const trimmed = newRoleName.trim();
+    if (!trimmed) {
+      return;
+    }
+    const existingRole = availableRoles.find(role => role.toLowerCase() === trimmed.toLowerCase());
+    if (existingRole) {
+      setActiveRole(existingRole);
+      setNewRoleName('');
+      return;
+    }
+    setDeck(prev => ensureRoleOnDeck(prev, trimmed));
+    setActiveRole(trimmed);
+    setNewRoleName('');
+  };
+
+  const handleRemoveRole = (role: string) => {
+    if (role === 'default') {
+      return;
+    }
+    setDeck(prev => removeRoleFromDeck(prev, role));
+  };
+
+  const handleNoteChange = (storyId: string, field: string, value: string) => {
+    setDeck(prev => prev.map(item => {
+      if (item.story_id !== storyId) {
+        return item;
+      }
+      const roleNotes = item.custom_notes[activeRole] || {};
+      return {
+        ...item,
+        custom_notes: {
+          ...item.custom_notes,
+          [activeRole]: {
+            ...roleNotes,
+            [field]: value,
+          },
+        },
+      };
+    }));
+  };
+
+  const handleDragStart = (storyId: string) => {
+    setDraggingStoryId(storyId);
+  };
+
+  const handleDragEnter = (storyId: string) => {
+    if (!draggingStoryId || draggingStoryId === storyId) {
+      return;
+    }
+    setDeck(prev => updateDeckOrder(prev, draggingStoryId, storyId));
+  };
+
+  const handleDragEnd = () => {
+    setDraggingStoryId(null);
+  };
+
+  const handleAddStory = () => {
+    if (!storyToAdd) {
+      return;
+    }
+    const story = (activeNarrative.impact_stories || []).find(s => s.story_id === storyToAdd);
+    if (!story) {
+      return;
+    }
+    setDeck(prev => upsertDeckStory(prev, story));
+    setStoryToAdd('');
+  };
+
+  const handleRemoveStory = (storyId: string) => {
+    setDeck(prev => prev
+      .filter(item => item.story_id !== storyId)
+      .map((item, index) => ({ ...item, order_index: index }))
+    );
+  };
+
+  const renderDeckItem = (item: HydratedDeckItem) => {
+    const story = item.story;
+    const formatName = (story?.format || 'STAR') as StorytellingFormat;
+    const formatInfo = STORY_FORMATS[formatName];
+    const defaultNotes = item.custom_notes.default || {};
+    const roleNotes = item.custom_notes[activeRole] || {};
+
+    const dragHandlers = {
+      draggable: true,
+      onDragStart: (event: React.DragEvent<HTMLDivElement>) => {
+        event.dataTransfer.effectAllowed = 'move';
+        handleDragStart(item.story_id);
+      },
+      onDragOver: (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        handleDragEnter(item.story_id);
+      },
+      onDrop: (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        handleDragEnd();
+      },
+      onDragEnd: () => handleDragEnd(),
+    };
+
+    return (
+      <div key={item.story_id} className="p-3 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 space-y-3" {...dragHandlers}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400 cursor-grab" aria-hidden="true">
+              <GripVerticalIcon className="w-4 h-4" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{story ? story.story_title : 'Story unavailable'}</p>
+              <span className="inline-flex text-xs font-mono px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200">{formatName}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleRemoveStory(item.story_id)}
+            className="text-xs font-semibold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500 rounded"
+          >
+            Remove
+          </button>
+        </div>
+        {story ? (
+          <div className="space-y-2">
+            {(formatInfo?.fields || []).map(field => {
+              const fieldName = field.id as string;
+              const placeholder = defaultNotes[fieldName] || '';
+              const value = roleNotes[fieldName] || '';
+              return (
+                <div key={fieldName}>
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400">{field.label}</label>
+                  <textarea
+                    rows={2}
+                    value={value}
+                    placeholder={placeholder}
+                    onChange={(e) => handleNoteChange(item.story_id, fieldName, e.target.value)}
+                    className="w-full mt-1 p-1 text-xs font-mono bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  {activeRole !== 'default' && placeholder && (
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">Default: {placeholder}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-xs text-amber-600">This story is no longer part of the strategic narrative. Add it back or remove it from the deck.</p>
+        )}
+      </div>
+    );
   };
 
   return (
     <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700 h-full flex flex-col">
-        <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-4">Co-pilot Editor</h3>
-        <div className="flex-grow overflow-y-auto space-y-4 pr-2">
-            <div>
-                <div className="flex justify-between items-center">
-                    <label className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Strategic Opening</label>
-                    <button onClick={handleSaveOpening} disabled={isSavingOpening} className="inline-flex items-center justify-center w-24 text-xs font-semibold rounded-md shadow-sm transition-colors bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-2 py-1">
-                        {isSavingOpening ? <LoadingSpinner/> : openingSuccess ? <CheckIcon className="h-4 w-4"/> : 'Save'}
-                    </button>
-                </div>
-                <textarea
-                    value={opening}
-                    onChange={(e) => setOpening(e.target.value)}
-                    rows={4}
-                    className="w-full mt-1 p-2 text-sm text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md"
-                />
-            </div>
-            <div>
-                <div className="flex justify-between items-center">
-                    <label className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Impact Story Notes</label>
-                     <button onClick={handleSaveStories} disabled={isSavingStories} className="inline-flex items-center justify-center w-24 text-xs font-semibold rounded-md shadow-sm transition-colors bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-2 py-1">
-                        {isSavingStories ? <LoadingSpinner/> : storiesSuccess ? <CheckIcon className="h-4 w-4"/> : 'Save Notes'}
-                    </button>
-                </div>
-                <div className="space-y-3 mt-1">
-                    {stories.map(story => {
-                        const formatInfo = STORY_FORMATS[story.format];
-                        return (
-                             <details key={story.story_id} className="p-2 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700" open>
-                                <summary className="text-sm font-semibold cursor-pointer">{story.story_title}</summary>
-                                <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 space-y-2">
-                                    {(formatInfo?.fields || []).map(field => (
-                                        <div key={field.id as string}>
-                                            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">{field.label}</label>
-                                            <textarea
-                                                rows={2}
-                                                value={story.speaker_notes?.[field.id as string] || ''}
-                                                onChange={(e) => handleSpeakerNotesChange(story.story_id, field.id as string, e.target.value)}
-                                                className="w-full mt-1 p-1 text-xs font-mono bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md"
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            </details>
-                        )
-                    })}
-                </div>
-            </div>
+      <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-4">Co-pilot Editor</h3>
+      <div className="flex-grow overflow-y-auto space-y-4 pr-2">
+        <div>
+          <div className="flex justify-between items-center">
+            <label className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Strategic Opening</label>
+            <button onClick={handleSaveOpening} disabled={isSavingOpening} className="inline-flex items-center justify-center w-24 text-xs font-semibold rounded-md shadow-sm transition-colors bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-2 py-1">
+              {isSavingOpening ? <LoadingSpinner/> : openingSuccess ? <CheckIcon className="h-4 w-4"/> : 'Save'}
+            </button>
+          </div>
+          <textarea
+            value={opening}
+            onChange={(e) => setOpening(e.target.value)}
+            rows={4}
+            className="w-full mt-1 p-2 text-sm text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md"
+          />
         </div>
+        <div>
+          <div className="flex justify-between items-center">
+            <label className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Impact Story Deck</label>
+            <button onClick={handleSaveDeck} disabled={isSavingDeck} className="inline-flex items-center justify-center w-24 text-xs font-semibold rounded-md shadow-sm transition-colors bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-2 py-1">
+              {isSavingDeck ? <LoadingSpinner/> : deckSuccess ? <CheckIcon className="h-4 w-4"/> : 'Save Deck'}
+            </button>
+          </div>
+          <div className="mt-2 space-y-2">
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Persona</span>
+                <select
+                  value={activeRole}
+                  onChange={(e) => setActiveRole(e.target.value)}
+                  className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {availableRoles.map(role => (
+                    <option key={role} value={role}>{role}</option>
+                  ))}
+                </select>
+                {activeRole !== 'default' && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveRole(activeRole)}
+                    className="inline-flex items-center rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[10px] font-semibold text-red-600 dark:text-red-300 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500"
+                  >
+                    Remove Role
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  value={newRoleName}
+                  onChange={(e) => setNewRoleName(e.target.value)}
+                  placeholder="Add interviewer persona"
+                  className="w-48 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddRole}
+                  disabled={!newRoleName.trim()}
+                  className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:bg-indigo-300"
+                >
+                  Add Role
+                </button>
+              </div>
+              {availableStories.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={storyToAdd}
+                    onChange={(e) => setStoryToAdd(e.target.value)}
+                    className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Add narrative story…</option>
+                    {availableStories.map(story => (
+                      <option key={story.story_id} value={story.story_id}>{story.story_title}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleAddStory}
+                    disabled={!storyToAdd}
+                    className="inline-flex items-center rounded-md bg-green-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-green-700 disabled:bg-green-300"
+                  >
+                    Add Story
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="space-y-3 mt-1">
+              {deck.length > 0 ? deck.map(renderDeckItem) : (
+                <p className="text-xs text-slate-500 dark:text-slate-400 text-center">No impact stories available.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -209,7 +450,7 @@ type PracticePhase =
     | 'analyzing_answer'
     | 'answer_feedback'; // Displaying feedback on their final answer
 
-export const InterviewStudioView = ({ applications, companies, contacts, activeNarrative, onSaveNarrative, prompts, initialApp, onClearInitialApp, onGetReframeSuggestion, onDeconstructQuestion, onSaveInterviewOpening, debugCallbacks }: InterviewStudioViewProps): React.ReactNode => {
+export const InterviewStudioView = ({ applications, companies, contacts, activeNarrative, onSaveNarrative, prompts, initialApp, onClearInitialApp, onGetReframeSuggestion, onDeconstructQuestion, onSaveInterviewOpening, onSaveInterviewDeck, debugCallbacks }: InterviewStudioViewProps): React.ReactNode => {
     const [selectedApp, setSelectedApp] = useState<JobApplication | null>(null);
     const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
     const [questions, setQuestions] = useState<InterviewCoachingQuestion[]>([]);
@@ -528,13 +769,13 @@ export const InterviewStudioView = ({ applications, companies, contacts, activeN
                         {error && <div className="bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300 p-4 rounded-lg my-6" role="alert">{error}</div>}
                         {renderPracticeSession()}
                     </div>
-                    {selectedInterview && activeNarrative && onSaveNarrative && onSaveInterviewOpening && (
+                    {selectedInterview && activeNarrative && onSaveInterviewDeck && onSaveInterviewOpening && (
                         <div className="w-full max-w-sm flex-shrink-0">
                              <EditableCopilotSidebar
                                 interview={selectedInterview}
                                 activeNarrative={activeNarrative}
                                 onSaveOpening={onSaveInterviewOpening}
-                                onSaveNarrative={onSaveNarrative}
+                                onSaveDeck={onSaveInterviewDeck}
                             />
                         </div>
                     )}

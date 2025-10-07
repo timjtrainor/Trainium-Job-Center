@@ -449,6 +449,20 @@ COMMENT ON COLUMN public.interviews.post_interview_debrief IS 'Stores the user''
 COMMENT ON COLUMN public.interviews.strategic_opening IS 'Stores the user-customized strategic opening for a specific interview, to be displayed in the Co-pilot view.';
 COMMENT ON COLUMN public.interviews.strategic_questions_to_ask IS 'Stores the AI-generated strategic questions for the user to ask during an interview (for the Co-pilot view).';
 
+-- interview_story_decks table
+CREATE TABLE public.interview_story_decks (
+    interview_id uuid NOT NULL,
+    story_id uuid NOT NULL,
+    order_index int4 NOT NULL,
+    custom_notes jsonb,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT interview_story_decks_pkey PRIMARY KEY (interview_id, story_id),
+    CONSTRAINT interview_story_decks_interview_id_fkey FOREIGN KEY (interview_id) REFERENCES public.interviews(interview_id) ON DELETE CASCADE
+);
+CREATE INDEX idx_interview_story_decks_interview_order ON public.interview_story_decks USING btree (interview_id, order_index);
+COMMENT ON COLUMN public.interview_story_decks.custom_notes IS 'Optional JSON structure holding per-role speaker note tweaks for a specific interview story deck entry.';
+
 -- messages table
 CREATE TABLE public.messages (
     message_id uuid DEFAULT uuid_generate_v4() NOT NULL,
@@ -640,6 +654,67 @@ BEGIN
 END;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.get_interviews_with_deck(p_job_application_id uuid)
+RETURNS TABLE (
+    interview_id uuid,
+    job_application_id uuid,
+    interview_date timestamptz,
+    interview_type text,
+    notes text,
+    created_at timestamptz,
+    ai_prep_data jsonb,
+    strategic_plan jsonb,
+    post_interview_debrief jsonb,
+    strategic_opening text,
+    strategic_questions_to_ask jsonb,
+    story_deck jsonb,
+    interview_contacts jsonb
+)
+LANGUAGE sql
+STABLE
+AS $function$
+    SELECT
+        i.interview_id,
+        i.job_application_id,
+        i.interview_date,
+        i.interview_type,
+        i.notes,
+        i.created_at,
+        i.ai_prep_data,
+        i.strategic_plan,
+        i.post_interview_debrief,
+        i.strategic_opening,
+        i.strategic_questions_to_ask,
+        COALESCE(
+            (
+                SELECT jsonb_agg(jsonb_build_object(
+                    'story_id', d.story_id,
+                    'order_index', d.order_index,
+                    'custom_notes', d.custom_notes
+                ) ORDER BY d.order_index)
+                FROM public.interview_story_decks d
+                WHERE d.interview_id = i.interview_id
+            ),
+            '[]'::jsonb
+        ) AS story_deck,
+        COALESCE(
+            (
+                SELECT jsonb_agg(jsonb_build_object(
+                    'contact_id', c.contact_id,
+                    'first_name', c.first_name,
+                    'last_name', c.last_name
+                ) ORDER BY c.first_name, c.last_name)
+                FROM public.interview_contacts ic
+                JOIN public.contacts c ON c.contact_id = ic.contact_id
+                WHERE ic.interview_id = i.interview_id
+            ),
+            '[]'::jsonb
+        ) AS interview_contacts
+    FROM public.interviews i
+    WHERE i.job_application_id = p_job_application_id
+    ORDER BY i.interview_date NULLS LAST, i.created_at DESC;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.update_timestamp()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -693,5 +768,6 @@ CREATE TRIGGER set_timestamp_resume_skill_sections BEFORE UPDATE ON public.resum
 CREATE TRIGGER set_timestamp_resume_work_experience BEFORE UPDATE ON public.resume_work_experience FOR EACH ROW EXECUTE FUNCTION update_timestamp();
 CREATE TRIGGER set_timestamp_resume_accomplishments BEFORE UPDATE ON public.resume_accomplishments FOR EACH ROW EXECUTE FUNCTION update_timestamp();
 CREATE TRIGGER set_timestamp_post_engagements BEFORE UPDATE ON public.post_engagements FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+CREATE TRIGGER set_timestamp_interview_story_decks BEFORE UPDATE ON public.interview_story_decks FOR EACH ROW EXECUTE FUNCTION update_timestamp();
 
 COMMIT;

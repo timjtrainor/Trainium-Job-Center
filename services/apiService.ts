@@ -1,7 +1,7 @@
 import { 
     JobApplication, Company, BaseResume, Status, CompanyPayload, JobApplicationPayload, 
-    BaseResumePayload, Contact, ContactPayload, Message, MessagePayload, Interview, 
-    InterviewPayload, LinkedInPost, LinkedInPostPayload, UserProfile, 
+    BaseResumePayload, Contact, ContactPayload, Message, MessagePayload, Interview,
+    InterviewPayload, InterviewStoryDeckEntry, LinkedInPost, LinkedInPostPayload, UserProfile,
     UserProfilePayload, LinkedInEngagement, PostResponse, PostResponsePayload, 
     LinkedInEngagementPayload, StandardJobRole, StandardJobRolePayload, Resume, ResumeHeader, DateInfo, Education, Certification,
     StrategicNarrative, StrategicNarrativePayload, Offer, OfferPayload,
@@ -49,6 +49,57 @@ const safeParseJson = (data: any, fieldName: string, recordId: string): any => {
         }
     }
     return data; // Return as is if it's not a string or object
+};
+
+const normalizeCustomNotes = (notes: any): InterviewStoryDeckEntry['custom_notes'] => {
+    if (!notes || typeof notes !== 'object' || Array.isArray(notes)) {
+        return undefined;
+    }
+
+    const normalized: NonNullable<InterviewStoryDeckEntry['custom_notes']> = {};
+    Object.entries(notes as Record<string, any>).forEach(([role, value]) => {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            const fieldNotes: Record<string, string> = {};
+            Object.entries(value as Record<string, any>).forEach(([field, fieldValue]) => {
+                if (fieldValue !== undefined && fieldValue !== null) {
+                    fieldNotes[field] = String(fieldValue);
+                }
+            });
+            normalized[role] = fieldNotes;
+        }
+    });
+
+    return Object.keys(normalized).length > 0 ? normalized : undefined;
+};
+
+const normalizeDeckEntries = (deck: any): InterviewStoryDeckEntry[] => {
+    if (!Array.isArray(deck)) {
+        return [];
+    }
+
+    return deck
+        .map((entry: any, index: number) => {
+            if (!entry || typeof entry !== 'object') {
+                return null;
+            }
+            const storyId = entry.story_id || entry.story?.story_id;
+            if (!storyId) {
+                return null;
+            }
+            const customNotes = normalizeCustomNotes(entry.custom_notes);
+            const orderIndex = Number.isInteger(entry.order_index) ? entry.order_index : index;
+            const normalizedEntry: InterviewStoryDeckEntry = {
+                story_id: storyId,
+                order_index: orderIndex,
+            };
+            if (customNotes) {
+                normalizedEntry.custom_notes = customNotes;
+            }
+            return normalizedEntry;
+        })
+        .filter((entry): entry is InterviewStoryDeckEntry => Boolean(entry))
+        .sort((a, b) => a.order_index - b.order_index)
+        .map((entry, index) => ({ ...entry, order_index: index }));
 };
 
 const FASTAPI_BASE = FASTAPI_BASE_URL.replace(/\/+$/u, '') || '/api';
@@ -167,9 +218,17 @@ const _parseApplication = (app: any): JobApplication => {
 
     if (parsedApp.interviews && Array.isArray(parsedApp.interviews)) {
         const mappedInterviews = parsedApp.interviews.map((interview: any) => {
+            const {
+                interview_contacts: rawContacts,
+                story_deck: rawDeck,
+                interview_story_decks: legacyDeck,
+                strategic_questions_to_ask: rawQuestions,
+                ...restInterview
+            } = interview;
+
             let mappedInterviewContacts = [];
-            if (interview.interview_contacts && Array.isArray(interview.interview_contacts)) {
-                mappedInterviewContacts = interview.interview_contacts
+            if (rawContacts && Array.isArray(rawContacts)) {
+                mappedInterviewContacts = rawContacts
                     .map((ic: any) => {
                         if (ic.contacts) {
                             return {
@@ -183,17 +242,21 @@ const _parseApplication = (app: any): JobApplication => {
                     .filter(Boolean);
             }
 
-            const sanitizedInterviewDate = interview.interview_date
-                ? new Date(interview.interview_date).toISOString().split('T')[0]
+            const sanitizedInterviewDate = restInterview.interview_date
+                ? new Date(restInterview.interview_date).toISOString().split('T')[0]
                 : undefined;
 
             return {
-                ...interview,
+                ...restInterview,
                 interview_date: sanitizedInterviewDate,
                 interview_contacts: mappedInterviewContacts,
-                ai_prep_data: safeParseJson(interview.ai_prep_data, 'ai_prep_data', interview.interview_id),
-                strategic_plan: safeParseJson(interview.strategic_plan, 'strategic_plan', interview.interview_id),
-                post_interview_debrief: safeParseJson(interview.post_interview_debrief, 'post_interview_debrief', interview.interview_id),
+                ai_prep_data: safeParseJson(restInterview.ai_prep_data, 'ai_prep_data', interview.interview_id),
+                strategic_plan: safeParseJson(restInterview.strategic_plan, 'strategic_plan', interview.interview_id),
+                post_interview_debrief: safeParseJson(restInterview.post_interview_debrief, 'post_interview_debrief', interview.interview_id),
+                strategic_questions_to_ask: Array.isArray(rawQuestions)
+                    ? rawQuestions
+                    : safeParseJson(rawQuestions, 'strategic_questions_to_ask', interview.interview_id),
+                story_deck: normalizeDeckEntries(rawDeck ?? legacyDeck),
             };
         });
         return { ...parsedApp, interviews: mappedInterviews };
@@ -206,7 +269,7 @@ export const getApplications = async (since?: string): Promise<JobApplication[]>
         `&select=*,` +
         `status:statuses(*),` +
         `messages(*),` +
-        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
+        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,story_deck:interview_story_decks(order_index,story_id,custom_notes),interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
         `offers(*)` +
         `&order=date_applied.desc,created_at.desc`;
     if (since) {
@@ -223,7 +286,7 @@ export const getSingleApplication = async (appId: string): Promise<JobApplicatio
         `&select=*,` +
         `status:statuses(*),` +
         `messages(*),` +
-        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
+        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,story_deck:interview_story_decks(order_index,story_id,custom_notes),interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
         `offers(*)` +
         `&limit=1`;
     const response = await fetch(url);
@@ -781,36 +844,54 @@ export const createMessage = async (messageData: MessagePayload): Promise<Messag
 // --- Interviews ---
 
 export const getInterviews = async (appId: string): Promise<Interview[]> => {
-    const response = await fetch(
-        `${API_BASE_URL}/interviews?job_application_id=eq.${appId}` +
-        `&select=*,ai_prep_data,strategic_plan,strategic_opening,strategic_questions_to_ask,post_interview_debrief,interview_contacts(*,contacts(contact_id,first_name,last_name))`
-    );
+    const response = await fetch(`${API_BASE_URL}/rpc/get_interviews_with_deck`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ p_job_application_id: appId }),
+    });
     const interviews = await handleResponse(response);
+    if (!Array.isArray(interviews)) {
+        return [];
+    }
+
     return interviews.map((interview: any) => {
-        let mappedInterviewContacts = [];
-        if (interview.interview_contacts && Array.isArray(interview.interview_contacts)) {
-            mappedInterviewContacts = interview.interview_contacts
-                .map((ic: any) => {
-                    if (ic.contacts) {
-                        return {
-                            contact_id: ic.contacts.contact_id,
-                            first_name: ic.contacts.first_name,
-                            last_name: ic.contacts.last_name,
-                        };
-                    }
+        const contactsSource = Array.isArray(interview.interview_contacts) ? interview.interview_contacts : [];
+        const mappedInterviewContacts = contactsSource
+            .map((contact: any) => {
+                if (!contact) {
                     return null;
-                })
-                .filter(Boolean);
-        }
+                }
+                return {
+                    contact_id: contact.contact_id,
+                    first_name: contact.first_name,
+                    last_name: contact.last_name,
+                };
+            })
+            .filter(Boolean);
+
         const sanitizedInterviewDate = interview.interview_date
             ? new Date(interview.interview_date).toISOString().split('T')[0]
             : undefined;
-        return { ...interview, interview_date: sanitizedInterviewDate, interview_contacts: mappedInterviewContacts };
+
+        const parsedQuestions = Array.isArray(interview.strategic_questions_to_ask)
+            ? interview.strategic_questions_to_ask
+            : safeParseJson(interview.strategic_questions_to_ask, 'strategic_questions_to_ask', interview.interview_id);
+
+        return {
+            ...interview,
+            interview_date: sanitizedInterviewDate,
+            interview_contacts: mappedInterviewContacts,
+            ai_prep_data: safeParseJson(interview.ai_prep_data, 'ai_prep_data', interview.interview_id),
+            strategic_plan: safeParseJson(interview.strategic_plan, 'strategic_plan', interview.interview_id),
+            post_interview_debrief: safeParseJson(interview.post_interview_debrief, 'post_interview_debrief', interview.interview_id),
+            strategic_questions_to_ask: Array.isArray(parsedQuestions) ? parsedQuestions : [],
+            story_deck: normalizeDeckEntries(interview.story_deck),
+        };
     });
 };
 
 export const saveInterview = async (interviewData: InterviewPayload, interviewId?: string): Promise<Interview> => {
-    const { contact_ids, ...rest } = interviewData;
+    const { contact_ids, story_deck, ...rest } = interviewData;
 
     let savedInterview: Interview;
     if (interviewId) {
@@ -845,6 +926,28 @@ export const saveInterview = async (interviewData: InterviewPayload, interviewId
                 method: 'POST',
                 headers,
                 body: JSON.stringify(contactLinks),
+            }));
+        }
+    }
+
+    if (savedInterview && story_deck) {
+        await handleResponse(await fetch(`${API_BASE_URL}/interview_story_decks?interview_id=eq.${savedInterview.interview_id}`, {
+            method: 'DELETE',
+            headers,
+        }));
+
+        if (story_deck.length > 0) {
+            const deckPayload = story_deck.map((entry, index) => ({
+                interview_id: savedInterview.interview_id,
+                story_id: entry.story_id,
+                order_index: Number.isInteger(entry.order_index) ? entry.order_index : index,
+                custom_notes: entry.custom_notes && Object.keys(entry.custom_notes).length > 0 ? entry.custom_notes : null,
+            })).map((entry, index) => ({ ...entry, order_index: index }));
+
+            await handleResponse(await fetch(`${API_BASE_URL}/interview_story_decks`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(deckPayload),
             }));
         }
     }
