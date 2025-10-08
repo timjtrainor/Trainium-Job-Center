@@ -422,12 +422,29 @@ export interface PostInterviewDebrief {
     coaching_recommendations: string[];
 }
 
+export interface InterviewPrepOutline {
+  role_intelligence?: {
+    core_problem?: string;
+    suggested_positioning?: string;
+    key_success_metrics?: string[];
+    role_levers?: string[];
+    potential_blockers?: string[];
+  };
+  jd_insights?: {
+    business_context?: string;
+    strategic_importance?: string;
+    tags?: string[];
+  };
+}
+
 export interface Interview {
   interview_id: string; // uuid
   job_application_id: string;
   interview_date?: string;
   interview_type: string; // e.g., "Phone Screen", "Technical", "Hiring Manager"
   notes?: string;
+  prep_outline?: InterviewPrepOutline | null;
+  live_notes?: string | null;
   ai_prep_data?: InterviewPrep | null;
   strategic_plan?: ConsultativeClosePlan | null;
   strategic_opening?: string | null;

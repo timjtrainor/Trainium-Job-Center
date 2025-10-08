@@ -27,10 +27,10 @@ export const PostInterviewDebriefStudio = (props: PostInterviewDebriefStudioProp
     useEffect(() => {
         // Pre-fill the "new_intelligence" field from the copilot notes for this interview.
         // The user can then organize these thoughts into wins/fumbles.
-        if (interview.notes) {
+        if (interview.live_notes) {
             setNotes(prev => ({
                 ...prev,
-                new_intelligence: interview.notes || ''
+                new_intelligence: interview.live_notes || ''
             }));
         }
     }, [interview]);
@@ -54,8 +54,8 @@ export const PostInterviewDebriefStudio = (props: PostInterviewDebriefStudioProp
                 summary += `  - Wins: ${debrief.performance_analysis.wins.join(', ')}\n`;
                 summary += `  - Fumbles: ${debrief.performance_analysis.areas_for_improvement.join(', ')}\n`;
             }
-            if (i.notes) {
-                summary += `  - Raw Notes/Intelligence: ${i.notes.substring(0, 150)}...\n`;
+            if (i.live_notes) {
+                summary += `  - Raw Notes/Intelligence: ${i.live_notes.substring(0, 150)}...\n`;
             }
             return summary;
         }).join('\n');

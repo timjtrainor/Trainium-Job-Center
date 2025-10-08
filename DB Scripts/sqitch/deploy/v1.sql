@@ -436,6 +436,8 @@ CREATE TABLE public.interviews (
     notes text,
     created_at timestamptz DEFAULT now(),
     ai_prep_data jsonb,
+    prep_outline jsonb,
+    live_notes text,
     strategic_plan jsonb,
     post_interview_debrief jsonb,
     strategic_opening text,
@@ -448,6 +450,8 @@ COMMENT ON COLUMN public.interviews.strategic_plan IS 'Stores the AI-generated c
 COMMENT ON COLUMN public.interviews.post_interview_debrief IS 'Stores the user''s post-interview notes (wins, fumbles, new intelligence) and the AI-generated strategic follow-up.';
 COMMENT ON COLUMN public.interviews.strategic_opening IS 'Stores the user-customized strategic opening for a specific interview, to be displayed in the Co-pilot view.';
 COMMENT ON COLUMN public.interviews.strategic_questions_to_ask IS 'Stores the AI-generated strategic questions for the user to ask during an interview (for the Co-pilot view).';
+COMMENT ON COLUMN public.interviews.prep_outline IS 'Structured prep workspace data capturing role intelligence, JD insights, and other research notes prior to the interview.';
+COMMENT ON COLUMN public.interviews.live_notes IS 'Free-form notes captured during the live interview experience without overwriting the prep workspace.';
 
 -- interview_story_decks table
 CREATE TABLE public.interview_story_decks (
@@ -625,22 +629,24 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.save_interview_with_contacts(p_interview_id uuid, p_job_application_id uuid, p_interview_date timestamptz, p_interview_type text, p_notes text, p_ai_prep_data jsonb, p_contact_ids uuid[])
+CREATE OR REPLACE FUNCTION public.save_interview_with_contacts(p_interview_id uuid, p_job_application_id uuid, p_interview_date timestamptz, p_interview_type text, p_notes text, p_ai_prep_data jsonb, p_prep_outline jsonb, p_live_notes text, p_contact_ids uuid[])
 RETURNS interviews
 LANGUAGE plpgsql
 AS $function$
 DECLARE
     saved_interview interviews;
 BEGIN
-    INSERT INTO interviews (interview_id, job_application_id, interview_date, interview_type, notes, ai_prep_data)
-    VALUES (COALESCE(p_interview_id, gen_random_uuid()), p_job_application_id, p_interview_date, p_interview_type, p_notes, p_ai_prep_data)
+    INSERT INTO interviews (interview_id, job_application_id, interview_date, interview_type, notes, ai_prep_data, prep_outline, live_notes)
+    VALUES (COALESCE(p_interview_id, gen_random_uuid()), p_job_application_id, p_interview_date, p_interview_type, p_notes, p_ai_prep_data, p_prep_outline, p_live_notes)
     ON CONFLICT (interview_id)
     DO UPDATE SET
         job_application_id = EXCLUDED.job_application_id,
         interview_date = EXCLUDED.interview_date,
         interview_type = EXCLUDED.interview_type,
         notes = EXCLUDED.notes,
-        ai_prep_data = EXCLUDED.ai_prep_data
+        ai_prep_data = EXCLUDED.ai_prep_data,
+        prep_outline = EXCLUDED.prep_outline,
+        live_notes = EXCLUDED.live_notes
     RETURNING * INTO saved_interview;
 
     DELETE FROM interview_contacts WHERE interview_id = saved_interview.interview_id;
@@ -663,6 +669,8 @@ RETURNS TABLE (
     notes text,
     created_at timestamptz,
     ai_prep_data jsonb,
+    prep_outline jsonb,
+    live_notes text,
     strategic_plan jsonb,
     post_interview_debrief jsonb,
     strategic_opening text,
@@ -681,6 +689,8 @@ AS $function$
         i.notes,
         i.created_at,
         i.ai_prep_data,
+        i.prep_outline,
+        i.live_notes,
         i.strategic_plan,
         i.post_interview_debrief,
         i.strategic_opening,
@@ -725,22 +735,24 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.upsert_interview_with_contacts(p_job_application_id uuid, p_interview_type text, p_interview_id uuid DEFAULT NULL::uuid, p_interview_date timestamptz DEFAULT NULL::timestamptz, p_notes text DEFAULT NULL::text, p_ai_prep_data jsonb DEFAULT NULL::jsonb, p_contact_ids uuid[] DEFAULT '{}'::uuid[])
+CREATE OR REPLACE FUNCTION public.upsert_interview_with_contacts(p_job_application_id uuid, p_interview_type text, p_interview_id uuid DEFAULT NULL::uuid, p_interview_date timestamptz DEFAULT NULL::timestamptz, p_notes text DEFAULT NULL::text, p_ai_prep_data jsonb DEFAULT NULL::jsonb, p_prep_outline jsonb DEFAULT NULL::jsonb, p_live_notes text DEFAULT NULL::text, p_contact_ids uuid[] DEFAULT '{}'::uuid[])
 RETURNS SETOF interviews
 LANGUAGE plpgsql
 AS $function$
 DECLARE
     v_interview_id uuid;
 BEGIN
-    INSERT INTO interviews (interview_id, job_application_id, interview_date, interview_type, notes, ai_prep_data)
-    VALUES (COALESCE(p_interview_id, uuid_generate_v4()), p_job_application_id, p_interview_date, p_interview_type, p_notes, p_ai_prep_data)
+    INSERT INTO interviews (interview_id, job_application_id, interview_date, interview_type, notes, ai_prep_data, prep_outline, live_notes)
+    VALUES (COALESCE(p_interview_id, uuid_generate_v4()), p_job_application_id, p_interview_date, p_interview_type, p_notes, p_ai_prep_data, p_prep_outline, p_live_notes)
     ON CONFLICT (interview_id)
     DO UPDATE SET
         job_application_id = EXCLUDED.job_application_id,
         interview_date = EXCLUDED.interview_date,
         interview_type = EXCLUDED.interview_type,
         notes = EXCLUDED.notes,
-        ai_prep_data = EXCLUDED.ai_prep_data
+        ai_prep_data = EXCLUDED.ai_prep_data,
+        prep_outline = EXCLUDED.prep_outline,
+        live_notes = EXCLUDED.live_notes
     RETURNING interviews.interview_id INTO v_interview_id;
 
     IF p_contact_ids IS NOT NULL THEN

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { JobApplication, Interview, StrategicNarrative, StorytellingFormat, StarBody, ScopeBody, WinsBody, SpotlightBody, InterviewPayload, Company, JobProblemAnalysisResult } from '../types';
+import { JobApplication, Interview, StrategicNarrative, StorytellingFormat, StarBody, ScopeBody, WinsBody, SpotlightBody, InterviewPayload, Company, JobProblemAnalysisResult, InterviewPrepOutline, ImpactStory } from '../types';
 import { CheckIcon, GripVerticalIcon, ClipboardDocumentCheckIcon, SparklesIcon, LoadingSpinner } from './IconComponents';
 import { Switch } from './Switch';
 import { HydratedDeckItem, buildHydratedDeck, ensureRoleOnDeck, removeRoleFromDeck, serializeDeck, updateDeckOrder, upsertDeckStory } from '../utils/interviewDeck';
@@ -43,6 +43,51 @@ const appendUnique = (existing: string, addition: string) => {
     }
 
     return `${existing.trimEnd()}\n\n${trimmedAddition}`;
+};
+
+const sanitizeListInput = (value: string): string[] =>
+    value
+        .split('\n')
+        .map(item => item.trim())
+        .filter(Boolean);
+
+const buildPrepOutline = (
+    analysis?: JobProblemAnalysisResult | null,
+    stored?: InterviewPrepOutline | null
+): InterviewPrepOutline => {
+    const defaults: InterviewPrepOutline = {
+        role_intelligence: {
+            core_problem: analysis?.core_problem_analysis?.core_problem?.trim() || '',
+            suggested_positioning: analysis?.suggested_positioning?.trim() || '',
+            key_success_metrics: (analysis?.key_success_metrics || []).slice(),
+            role_levers: (analysis?.role_levers || []).slice(),
+            potential_blockers: (analysis?.potential_blockers || []).slice(),
+        },
+        jd_insights: {
+            business_context: analysis?.core_problem_analysis?.business_context?.trim() || '',
+            strategic_importance: analysis?.core_problem_analysis?.strategic_importance?.trim() || '',
+            tags: (analysis?.tags || []).slice(),
+        },
+    };
+
+    if (!stored) {
+        return defaults;
+    }
+
+    return {
+        role_intelligence: {
+            core_problem: stored.role_intelligence?.core_problem ?? defaults.role_intelligence?.core_problem ?? '',
+            suggested_positioning: stored.role_intelligence?.suggested_positioning ?? defaults.role_intelligence?.suggested_positioning ?? '',
+            key_success_metrics: stored.role_intelligence?.key_success_metrics ?? defaults.role_intelligence?.key_success_metrics ?? [],
+            role_levers: stored.role_intelligence?.role_levers ?? defaults.role_intelligence?.role_levers ?? [],
+            potential_blockers: stored.role_intelligence?.potential_blockers ?? defaults.role_intelligence?.potential_blockers ?? [],
+        },
+        jd_insights: {
+            business_context: stored.jd_insights?.business_context ?? defaults.jd_insights?.business_context ?? '',
+            strategic_importance: stored.jd_insights?.strategic_importance ?? defaults.jd_insights?.strategic_importance ?? '',
+            tags: stored.jd_insights?.tags ?? defaults.jd_insights?.tags ?? [],
+        },
+    };
 };
 
 const CoPilotSection = ({ title, children, className = '' }: { title: string, children: React.ReactNode, className?: string }) => (
@@ -263,11 +308,608 @@ const ImpactStoryTrigger = ({
     );
 };
 
+interface PrepWorkspaceProps {
+    interview: Interview;
+    jobAnalysis?: JobProblemAnalysisResult | null;
+    activeRole: string;
+    availableRoles: string[];
+    onRoleChange: (role: string) => void;
+    onAddRole: () => void;
+    onRemoveRole: (role: string) => void;
+    newRoleName: string;
+    onNewRoleNameChange: (value: string) => void;
+    availableStories: ImpactStory[];
+    storyToAdd: string;
+    onStoryToAddChange: (value: string) => void;
+    onAddStory: () => void;
+    storyDeck: HydratedDeckItem[];
+    onNoteChange: (storyId: string, field: string, value: string) => void;
+    onDragStart: (storyId: string) => void;
+    onDragEnter: (storyId: string) => void;
+    onDragEnd: () => void;
+    onRemoveStory: (storyId: string) => void;
+    editableOpening: string;
+    onChangeOpening: (value: string) => void;
+    editableQuestions: string;
+    onChangeQuestions: (value: string) => void;
+    prepOutline: InterviewPrepOutline;
+    onUpdateRoleIntelligence: (
+        field: keyof NonNullable<InterviewPrepOutline['role_intelligence']>,
+        value: string,
+        isList?: boolean,
+    ) => void;
+    onUpdateJdInsights: (
+        field: keyof NonNullable<InterviewPrepOutline['jd_insights']>,
+        value: string,
+        isList?: boolean,
+    ) => void;
+}
+
+const PrepWorkspace = ({
+    interview,
+    jobAnalysis,
+    activeRole,
+    availableRoles,
+    onRoleChange,
+    onAddRole,
+    onRemoveRole,
+    newRoleName,
+    onNewRoleNameChange,
+    availableStories,
+    storyToAdd,
+    onStoryToAddChange,
+    onAddStory,
+    storyDeck,
+    onNoteChange,
+    onDragStart,
+    onDragEnter,
+    onDragEnd,
+    onRemoveStory,
+    editableOpening,
+    onChangeOpening,
+    editableQuestions,
+    onChangeQuestions,
+    prepOutline,
+    onUpdateRoleIntelligence,
+    onUpdateJdInsights,
+}: PrepWorkspaceProps) => {
+    const roleIntelligence = prepOutline.role_intelligence || {};
+    const jdInsights = prepOutline.jd_insights || {};
+
+    const keyMetricsValue = (roleIntelligence.key_success_metrics || []).join('\n');
+    const leversValue = (roleIntelligence.role_levers || []).join('\n');
+    const blockersValue = (roleIntelligence.potential_blockers || []).join('\n');
+    const tagsValue = (jdInsights.tags || []).join('\n');
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 h-full">
+            <div className="md:col-span-2 overflow-y-auto space-y-3 pr-0 md:pr-2">
+                <CoPilotSection title="Strategic Opening Draft">
+                    <textarea
+                        value={editableOpening}
+                        onChange={(e) => onChangeOpening(e.target.value)}
+                        rows={5}
+                        className="w-full mt-1 p-2 text-sm text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md"
+                    />
+                </CoPilotSection>
+                <CoPilotSection title="Impact Story Drafting">
+                    <div className="space-y-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Persona</span>
+                                <select
+                                    value={activeRole}
+                                    onChange={(e) => onRoleChange(e.target.value)}
+                                    className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    {availableRoles.map(role => (
+                                        <option key={role} value={role}>{role}</option>
+                                    ))}
+                                </select>
+                                {activeRole !== 'default' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onRemoveRole(activeRole)}
+                                        className="inline-flex items-center rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[10px] font-semibold text-red-600 dark:text-red-300 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500"
+                                    >
+                                        Remove Role
+                                    </button>
+                                )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <input
+                                    type="text"
+                                    value={newRoleName}
+                                    onChange={(e) => onNewRoleNameChange(e.target.value)}
+                                    placeholder="Add interviewer persona"
+                                    className="w-48 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={onAddRole}
+                                    disabled={!newRoleName.trim()}
+                                    className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:bg-indigo-300"
+                                >
+                                    Add Role
+                                </button>
+                            </div>
+                        </div>
+                        {availableStories.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <select
+                                    value={storyToAdd}
+                                    onChange={(e) => onStoryToAddChange(e.target.value)}
+                                    className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    <option value="">Add narrative story…</option>
+                                    {availableStories.map(story => (
+                                        <option key={story.story_id} value={story.story_id}>{story.story_title}</option>
+                                    ))}
+                                </select>
+                                <button
+                                    type="button"
+                                    onClick={onAddStory}
+                                    disabled={!storyToAdd}
+                                    className="inline-flex items-center rounded-md bg-green-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-green-700 disabled:bg-green-300"
+                                >
+                                    Add Story
+                                </button>
+                            </div>
+                        )}
+                        <div className="space-y-2">
+                            {storyDeck.length > 0 ? (
+                                storyDeck.map(item => (
+                                    <ImpactStoryTrigger
+                                        key={item.story_id}
+                                        item={item}
+                                        jobAnalysis={jobAnalysis}
+                                        onAppendNotepad={() => undefined}
+                                        isEditMode
+                                        activeRole={activeRole}
+                                        onNoteChange={onNoteChange}
+                                        onDragStart={onDragStart}
+                                        onDragEnter={onDragEnter}
+                                        onDragEnd={onDragEnd}
+                                        onRemove={onRemoveStory}
+                                    />
+                                ))
+                            ) : (
+                                <p className="text-xs text-slate-500 dark:text-slate-400 text-center">No impact stories defined.</p>
+                            )}
+                        </div>
+                    </div>
+                </CoPilotSection>
+                <CoPilotSection title="Consultative Close Highlights">
+                    <ul className="list-disc pl-4 text-sm space-y-1 text-slate-700 dark:text-slate-300">
+                        {(interview.strategic_plan?.key_talking_points || []).map((point, i) => (
+                            <li key={i}>{point}</li>
+                        ))}
+                    </ul>
+                </CoPilotSection>
+                <CoPilotSection title="Question Drafting">
+                    <textarea
+                        value={editableQuestions}
+                        onChange={(e) => onChangeQuestions(e.target.value)}
+                        rows={8}
+                        className="w-full mt-1 p-2 text-sm text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md"
+                    />
+                </CoPilotSection>
+            </div>
+            <aside className="md:col-span-1 overflow-y-auto space-y-3 pl-0 md:pl-2">
+                <CoPilotSection title="Role Intelligence Research">
+                    <div className="space-y-3 text-xs text-slate-600 dark:text-slate-300">
+                        <div>
+                            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Core Problem</label>
+                            <textarea
+                                value={roleIntelligence.core_problem || ''}
+                                onChange={(e) => onUpdateRoleIntelligence('core_problem', e.target.value)}
+                                rows={3}
+                                className="w-full mt-1 p-2 text-xs font-mono bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Suggested Positioning</label>
+                            <textarea
+                                value={roleIntelligence.suggested_positioning || ''}
+                                onChange={(e) => onUpdateRoleIntelligence('suggested_positioning', e.target.value)}
+                                rows={3}
+                                className="w-full mt-1 p-2 text-xs font-mono bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Key Success Metrics</label>
+                            <textarea
+                                value={keyMetricsValue}
+                                onChange={(e) => onUpdateRoleIntelligence('key_success_metrics', e.target.value, true)}
+                                rows={4}
+                                className="w-full mt-1 p-2 text-xs font-mono bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md"
+                                placeholder="One metric per line"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Role Levers</label>
+                            <textarea
+                                value={leversValue}
+                                onChange={(e) => onUpdateRoleIntelligence('role_levers', e.target.value, true)}
+                                rows={4}
+                                className="w-full mt-1 p-2 text-xs font-mono bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md"
+                                placeholder="One lever per line"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Potential Blockers</label>
+                            <textarea
+                                value={blockersValue}
+                                onChange={(e) => onUpdateRoleIntelligence('potential_blockers', e.target.value, true)}
+                                rows={4}
+                                className="w-full mt-1 p-2 text-xs font-mono bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md"
+                                placeholder="One blocker per line"
+                            />
+                        </div>
+                    </div>
+                </CoPilotSection>
+                <CoPilotSection title="JD Insights">
+                    <div className="space-y-3 text-xs text-slate-600 dark:text-slate-300">
+                        <div>
+                            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Business Context</label>
+                            <textarea
+                                value={jdInsights.business_context || ''}
+                                onChange={(e) => onUpdateJdInsights('business_context', e.target.value)}
+                                rows={3}
+                                className="w-full mt-1 p-2 text-xs font-mono bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Strategic Importance</label>
+                            <textarea
+                                value={jdInsights.strategic_importance || ''}
+                                onChange={(e) => onUpdateJdInsights('strategic_importance', e.target.value)}
+                                rows={3}
+                                className="w-full mt-1 p-2 text-xs font-mono bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Focus Tags</label>
+                            <textarea
+                                value={tagsValue}
+                                onChange={(e) => onUpdateJdInsights('tags', e.target.value, true)}
+                                rows={3}
+                                className="w-full mt-1 p-2 text-xs font-mono bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md"
+                                placeholder="One tag per line"
+                            />
+                        </div>
+                    </div>
+                </CoPilotSection>
+            </aside>
+        </div>
+    );
+};
+
+interface LiveRundownProps {
+    interview: Interview;
+    editableOpening: string;
+    prepOutline: InterviewPrepOutline;
+    questionList: string[];
+    askedQuestions: Set<string>;
+    onToggleQuestion: (question: string) => void;
+    storyDeck: HydratedDeckItem[];
+    activeRole: string;
+    availableRoles: string[];
+    onRoleChange: (role: string) => void;
+    jobAnalysis?: JobProblemAnalysisResult | null;
+    onQuickAdd: (text: string) => void;
+    keyMetrics: string[];
+    roleLevers: string[];
+    potentialBlockers: string[];
+    covered: CoverageState;
+    toggleCoverage: (category: CoverageCategory, value: string) => void;
+    resetCoverage: () => void;
+    interviewer?: { first_name: string; last_name: string } | undefined;
+    coveragePercent: number;
+    roleTags: string[];
+}
+
+const LiveRundown = ({
+    interview,
+    editableOpening,
+    prepOutline,
+    questionList,
+    askedQuestions,
+    onToggleQuestion,
+    storyDeck,
+    activeRole,
+    availableRoles,
+    onRoleChange,
+    jobAnalysis,
+    onQuickAdd,
+    keyMetrics,
+    roleLevers,
+    potentialBlockers,
+    covered,
+    toggleCoverage,
+    resetCoverage,
+    interviewer,
+    coveragePercent,
+    roleTags,
+}: LiveRundownProps) => {
+    const roleIntelligence = prepOutline.role_intelligence || {};
+    const jdInsights = prepOutline.jd_insights || {};
+
+    const cheatSheetItems = [
+        roleIntelligence.core_problem
+            ? { label: 'Core Problem', value: roleIntelligence.core_problem }
+            : null,
+        jdInsights.business_context
+            ? { label: 'Business Context', value: jdInsights.business_context }
+            : null,
+        jdInsights.strategic_importance
+            ? { label: 'Strategic Importance', value: jdInsights.strategic_importance }
+            : null,
+        roleIntelligence.suggested_positioning
+            ? { label: 'Suggested Positioning', value: roleIntelligence.suggested_positioning }
+            : null,
+    ].filter(Boolean) as { label: string; value: string }[];
+
+    const clarifyingLines = [
+        'To make sure I tailor my answers, could we clarify:',
+        roleIntelligence.core_problem
+            ? `• Are we aligned that the core challenge is "${roleIntelligence.core_problem}"?`
+            : null,
+        (roleIntelligence.key_success_metrics || []).length
+            ? `• Which success metrics matter most right now? (${roleIntelligence.key_success_metrics!.join(', ')})`
+            : null,
+        (roleIntelligence.role_levers || []).length
+            ? `• Where do you need the most leverage today? (${roleIntelligence.role_levers!.join(', ')})`
+            : null,
+        (roleIntelligence.potential_blockers || []).length
+            ? `• What blockers are slowing progress? (${roleIntelligence.potential_blockers!.join(', ')})`
+            : null,
+    ].filter(Boolean) as string[];
+
+    const clarifyingPrompt = clarifyingLines.join('\n');
+
+    const metricsList = keyMetrics.map((metric, index) => {
+        const id = `metric-${index}`;
+        const isCovered = covered.metrics.has(metric);
+        return (
+            <li key={id}>
+                <button
+                    type="button"
+                    onClick={() => toggleCoverage('metrics', metric)}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm transition ${isCovered ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-200' : 'hover:bg-slate-200 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200'}`}
+                >
+                    <span className={`flex h-4 w-4 items-center justify-center rounded border ${isCovered ? 'border-green-600 bg-green-600 text-white' : 'border-slate-400 text-transparent'}`}>
+                        <CheckIcon className="h-3 w-3" />
+                    </span>
+                    <span className={isCovered ? 'line-through' : ''}>{metric}</span>
+                </button>
+            </li>
+        );
+    });
+
+    const leversList = roleLevers.map((lever, index) => {
+        const isCovered = covered.levers.has(lever);
+        return (
+            <li key={`lever-${index}`}>
+                <button
+                    type="button"
+                    onClick={() => toggleCoverage('levers', lever)}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm transition ${isCovered ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-200' : 'hover:bg-slate-200 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200'}`}
+                >
+                    <span className={`flex h-4 w-4 items-center justify-center rounded border ${isCovered ? 'border-green-600 bg-green-600 text-white' : 'border-slate-400 text-transparent'}`}>
+                        <CheckIcon className="h-3 w-3" />
+                    </span>
+                    <span className={isCovered ? 'line-through' : ''}>{lever}</span>
+                </button>
+            </li>
+        );
+    });
+
+    const blockersList = potentialBlockers.map((blocker, index) => {
+        const isCovered = covered.blockers.has(blocker);
+        return (
+            <li key={`blocker-${index}`}>
+                <button
+                    type="button"
+                    onClick={() => toggleCoverage('blockers', blocker)}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm transition ${isCovered ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-200' : 'hover:bg-slate-200 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200'}`}
+                >
+                    <span className={`flex h-4 w-4 items-center justify-center rounded border ${isCovered ? 'border-green-600 bg-green-600 text-white' : 'border-slate-400 text-transparent'}`}>
+                        <CheckIcon className="h-3 w-3" />
+                    </span>
+                    <span className={isCovered ? 'line-through' : ''}>{blocker}</span>
+                </button>
+            </li>
+        );
+    });
+
+    return (
+        <div className="md:col-span-2 overflow-y-auto space-y-3 pr-0 md:pr-2">
+            <CoPilotSection title="Job Cheat Sheet">
+                <div className="space-y-2 text-sm text-slate-700 dark:text-slate-200">
+                    {cheatSheetItems.length > 0 ? (
+                        cheatSheetItems.map(item => (
+                            <div key={item.label}>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{item.label}</p>
+                                <p className="mt-1 whitespace-pre-wrap">{item.value}</p>
+                            </div>
+                        ))
+                    ) : (
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Add research in prep mode to populate this cheat sheet.</p>
+                    )}
+                    {roleTags.length > 0 && (
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Focus Tags</p>
+                            <p className="mt-1 text-sm">{roleTags.join(', ')}</p>
+                        </div>
+                    )}
+                </div>
+            </CoPilotSection>
+            <CoPilotSection title="Clarifying Prompt Launcher">
+                <div className="space-y-2">
+                    <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-2 text-xs font-mono text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
+                        {clarifyingPrompt || 'Draft clarifying prompts in prep mode to launch them quickly during the interview.'}
+                    </div>
+                    {clarifyingPrompt && (
+                        <button
+                            type="button"
+                            onClick={() => onQuickAdd(clarifyingPrompt)}
+                            className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"
+                        >
+                            <SparklesIcon className="h-4 w-4" /> Send to Notes
+                        </button>
+                    )}
+                </div>
+            </CoPilotSection>
+            <CoPilotSection title="Top of Mind">
+                <div className="text-xs space-y-1 text-slate-600 dark:text-slate-300">
+                    <p><strong>Interviewing with:</strong> {interviewer ? `${interviewer.first_name} ${interviewer.last_name}` : 'TBD'}</p>
+                    <p><strong>Format:</strong> {interview.interview_type}</p>
+                </div>
+            </CoPilotSection>
+            <CoPilotSection title="Strategic Opening">
+                <p className="text-sm italic text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{editableOpening}</p>
+            </CoPilotSection>
+            <CoPilotSection title="Question Arsenal">
+                <div className="space-y-2">
+                    {questionList.length > 0 ? (
+                        questionList.map((question, index) => {
+                            const id = `live-question-${index}`;
+                            return (
+                                <div key={id} className="relative flex items-start">
+                                    <div className="flex h-6 items-center">
+                                        <input
+                                            id={id}
+                                            type="checkbox"
+                                            checked={askedQuestions.has(question)}
+                                            onChange={() => onToggleQuestion(question)}
+                                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                    <div className="ml-3 text-sm leading-6">
+                                        <label htmlFor={id} className={`text-slate-700 dark:text-slate-300 ${askedQuestions.has(question) ? 'line-through text-slate-400 dark:text-slate-500' : ''}`}>
+                                            {question}
+                                        </label>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Add strategic questions in prep mode.</p>
+                    )}
+                </div>
+            </CoPilotSection>
+            <CoPilotSection title="Impact Story Triggers">
+                <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Persona</span>
+                        <select
+                            value={activeRole}
+                            onChange={(e) => onRoleChange(e.target.value)}
+                            className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                            {availableRoles.map(role => (
+                                <option key={role} value={role}>{role}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="space-y-2">
+                        {storyDeck.length > 0 ? (
+                            storyDeck.map(item => (
+                                <ImpactStoryTrigger
+                                    key={item.story_id}
+                                    item={item}
+                                    jobAnalysis={jobAnalysis}
+                                    onAppendNotepad={onQuickAdd}
+                                    isEditMode={false}
+                                    activeRole={activeRole}
+                                    onNoteChange={() => undefined}
+                                />
+                            ))
+                        ) : (
+                            <p className="text-xs text-slate-500 dark:text-slate-400 text-center">No impact stories defined.</p>
+                        )}
+                    </div>
+                </div>
+            </CoPilotSection>
+            <CoPilotSection title="Live Checklist">
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                        <span>Coverage</span>
+                        <span>{coveragePercent}% complete</span>
+                    </div>
+                    <div className="space-y-4">
+                        <div>
+                            <div className="flex items-center justify-between">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Key Success Metrics</p>
+                                {keyMetrics.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onQuickAdd(`Key Success Metrics:\n${keyMetrics.map(metric => `• ${metric}`).join('\n')}`)}
+                                        className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+                                    >
+                                        <ClipboardDocumentCheckIcon className="h-4 w-4" /> Copy
+                                    </button>
+                                )}
+                            </div>
+                            <ul className="mt-2 space-y-1">{metricsList}</ul>
+                        </div>
+                        <div>
+                            <div className="flex items-center justify-between">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Levers</p>
+                                {roleLevers.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onQuickAdd(`Levers:\n${roleLevers.map(lever => `• ${lever}`).join('\n')}`)}
+                                        className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+                                    >
+                                        <ClipboardDocumentCheckIcon className="h-4 w-4" /> Copy
+                                    </button>
+                                )}
+                            </div>
+                            <ul className="mt-2 space-y-1">{leversList}</ul>
+                        </div>
+                        <div>
+                            <div className="flex items-center justify-between">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Potential Blockers</p>
+                                {potentialBlockers.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onQuickAdd(`Potential Blockers:\n${potentialBlockers.map(blocker => `• ${blocker}`).join('\n')}`)}
+                                        className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+                                    >
+                                        <ClipboardDocumentCheckIcon className="h-4 w-4" /> Copy
+                                    </button>
+                                )}
+                            </div>
+                            <ul className="mt-2 space-y-1">{blockersList}</ul>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={resetCoverage}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+                        >
+                            Reset Checklist
+                        </button>
+                    </div>
+                </div>
+            </CoPilotSection>
+            <CoPilotSection title="Hot Leads (30-60-90 Plan)">
+                <ul className="list-disc pl-4 text-sm space-y-1 text-slate-700 dark:text-slate-300">
+                    {(interview.strategic_plan?.key_talking_points || []).map((point, i) => (
+                        <li key={i}>{point}</li>
+                    ))}
+                </ul>
+            </CoPilotSection>
+        </div>
+    );
+};
+
 export const InterviewCopilotView = ({ application, interview, company, activeNarrative, onBack, onSaveInterview, onGenerateInterviewPrep, onGenerateRecruiterScreenPrep }: InterviewCopilotViewProps) => {
     const [isEditMode, setIsEditMode] = useState(false);
     const [editableOpening, setEditableOpening] = useState('');
     const [editableQuestions, setEditableQuestions] = useState('');
-    const [notepadContent, setNotepadContent] = useState('');
+    const [liveNotes, setLiveNotes] = useState('');
     const [askedQuestions, setAskedQuestions] = useState<Set<string>>(new Set());
     const [storyDeck, setStoryDeck] = useState<HydratedDeckItem[]>(() => buildHydratedDeck(interview, activeNarrative));
     const [activeRole, setActiveRole] = useState('default');
@@ -275,6 +917,9 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
     const [newRoleName, setNewRoleName] = useState('');
     const [storyToAdd, setStoryToAdd] = useState('');
     const [covered, setCovered] = useState<CoverageState>(createEmptyCoverageState);
+    const [prepOutline, setPrepOutline] = useState<InterviewPrepOutline>(() =>
+        buildPrepOutline(application.job_problem_analysis_result, interview.prep_outline)
+    );
 
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
@@ -292,7 +937,8 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
         const opening = interview.strategic_opening || `"I'm a product leader who excels at ${activeNarrative.positioning_statement}. My understanding is the core challenge here is ${application.job_problem_analysis_result?.core_problem_analysis.core_problem}. That's a problem I'm familiar with from my time when I ${activeNarrative.impact_story_title}."`;
         setEditableOpening(opening);
         setEditableQuestions((interview.strategic_questions_to_ask || []).join('\n'));
-        setNotepadContent(interview.notes || '');
+        setLiveNotes(interview.live_notes || '');
+        setPrepOutline(buildPrepOutline(application.job_problem_analysis_result, interview.prep_outline));
     }, [interview, activeNarrative, application]);
 
     const availableRoles = useMemo(() => {
@@ -442,6 +1088,36 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
         );
     };
 
+    const updateRoleIntelligence = (
+        field: keyof NonNullable<InterviewPrepOutline['role_intelligence']>,
+        value: string,
+        isList: boolean = false,
+    ) => {
+        setPrepOutline(prev => {
+            const current = { ...(prev.role_intelligence || {}) } as Record<string, unknown>;
+            current[field as string] = isList ? sanitizeListInput(value) : value;
+            return {
+                ...prev,
+                role_intelligence: current as InterviewPrepOutline['role_intelligence'],
+            };
+        });
+    };
+
+    const updateJdInsights = (
+        field: keyof NonNullable<InterviewPrepOutline['jd_insights']>,
+        value: string,
+        isList: boolean = false,
+    ) => {
+        setPrepOutline(prev => {
+            const current = { ...(prev.jd_insights || {}) } as Record<string, unknown>;
+            current[field as string] = isList ? sanitizeListInput(value) : value;
+            return {
+                ...prev,
+                jd_insights: current as InterviewPrepOutline['jd_insights'],
+            };
+        });
+    };
+
     const handleSave = async () => {
         setIsSaving(true);
         setSaveSuccess(false);
@@ -450,6 +1126,7 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
                 strategic_opening: editableOpening,
                 strategic_questions_to_ask: questionList,
                 story_deck: serializeDeck(storyDeck),
+                prep_outline: prepOutline,
             };
             await onSaveInterview(payload, interview.interview_id);
             setSaveSuccess(true);
@@ -465,7 +1142,7 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
         setIsSavingNotes(true);
         setNotesSuccess(false);
         try {
-            await onSaveInterview({ notes: notepadContent }, interview.interview_id);
+            await onSaveInterview({ live_notes: liveNotes }, interview.interview_id);
             setNotesSuccess(true);
             setTimeout(() => setNotesSuccess(false), 2000);
         } catch (e) {
@@ -523,7 +1200,7 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
     const coveragePercent = totalCoverageItems === 0 ? 0 : Math.round((coveredCount / totalCoverageItems) * 100);
 
     const handleQuickAdd = (text: string) => {
-        setNotepadContent(prev => appendUnique(prev, text));
+        setLiveNotes(prev => appendUnique(prev, text));
     };
 
     return (
@@ -535,10 +1212,10 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
                         <p className="text-xs text-slate-500 dark:text-slate-400">{application.job_title} at {company.company_name}</p>
                     </div>
                     <div className="flex items-center gap-4">
-                         <div className="flex items-center space-x-2">
-                             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">View Mode</span>
+                        <div className="flex items-center space-x-2">
+                             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Live Mode</span>
                             <Switch enabled={isEditMode} onChange={setIsEditMode} />
-                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Edit Mode</span>
+                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Prep Mode</span>
                         </div>
                         {isEditMode ? (
                             <button onClick={handleSave} disabled={isSaving} className={`px-3 py-1.5 text-xs font-semibold rounded-md shadow-sm transition-colors ${saveSuccess ? 'bg-green-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-400'}`}>
@@ -556,456 +1233,91 @@ export const InterviewCopilotView = ({ application, interview, company, activeNa
                     </div>
                 </header>
 
-                <main className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-3 gap-3 p-3">
-                    {/* Left Column: Co-pilot Content */}
-                    <div className="md:col-span-2 overflow-y-auto space-y-3 pr-2">
-                        {jobAnalysis && (
-                            <CoPilotSection title="Role Intelligence">
-                                <div className="space-y-3 text-xs text-slate-600 dark:text-slate-300">
-                                    <div className="space-y-1">
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div>
-                                                <p className="font-bold text-slate-500 dark:text-slate-400">Core Problem</p>
-                                                <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{coreProblem || 'N/A'}</p>
-                                            </div>
-                                            {coreProblem && (
-                                                <button
-                                                    onClick={() => handleQuickAdd(`Core Problem: ${coreProblem}`)}
-                                                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
-                                                >
-                                                    <ClipboardDocumentCheckIcon className="h-4 w-4" />
-                                                    Copy to Notepad
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div>
-                                                <p className="font-bold text-slate-500 dark:text-slate-400">Key Success Metrics</p>
-                                                {keyMetrics.length > 0 && (
-                                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">{covered.metrics.size}/{keyMetrics.length} covered</p>
-                                                )}
-                                            </div>
-                                            {keyMetrics.length > 0 && (
-                                                <button
-                                                    onClick={() => handleQuickAdd(`Key Success Metrics:\n${keyMetrics.map(metric => `• ${metric}`).join('\n')}`)}
-                                                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
-                                                >
-                                                    <ClipboardDocumentCheckIcon className="h-4 w-4" />
-                                                    Copy to Notepad
-                                                </button>
-                                            )}
-                                        </div>
-                                        {keyMetrics.length > 0 ? (
-                                            <ul className="mt-1 space-y-1 text-sm text-slate-700 dark:text-slate-200">
-                                                {keyMetrics.map((metric, index) => {
-                                                    const isCovered = covered.metrics.has(metric);
-                                                    return (
-                                                        <li key={index}>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => toggleCoverage('metrics', metric)}
-                                                                className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition ${isCovered ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-200' : 'hover:bg-slate-200 dark:hover:bg-slate-700/80'}`}
-                                                            >
-                                                                <span className={`flex h-4 w-4 items-center justify-center rounded border ${isCovered ? 'border-green-600 bg-green-600 text-white' : 'border-slate-400 text-transparent'}`}>
-                                                                    <CheckIcon className="h-3 w-3" />
-                                                                </span>
-                                                                <span className={isCovered ? 'line-through' : ''}>{metric}</span>
-                                                            </button>
-                                                        </li>
-                                                    );
-                                                })}
-                                            </ul>
-                                        ) : (
-                                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">N/A</p>
-                                        )}
-                                    </div>
-                                    <div className="space-y-1">
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div>
-                                                <p className="font-bold text-slate-500 dark:text-slate-400">Levers</p>
-                                                {roleLevers.length > 0 && (
-                                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">{covered.levers.size}/{roleLevers.length} covered</p>
-                                                )}
-                                            </div>
-                                            {roleLevers.length > 0 && (
-                                                <button
-                                                    onClick={() => handleQuickAdd(`Levers:\n${roleLevers.map(lever => `• ${lever}`).join('\n')}`)}
-                                                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
-                                                >
-                                                    <ClipboardDocumentCheckIcon className="h-4 w-4" />
-                                                    Copy to Notepad
-                                                </button>
-                                            )}
-                                        </div>
-                                        {roleLevers.length > 0 ? (
-                                            <ul className="mt-1 space-y-1 text-sm text-slate-700 dark:text-slate-200">
-                                                {roleLevers.map((lever, index) => {
-                                                    const isCovered = covered.levers.has(lever);
-                                                    return (
-                                                        <li key={index}>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => toggleCoverage('levers', lever)}
-                                                                className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition ${isCovered ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-200' : 'hover:bg-slate-200 dark:hover:bg-slate-700/80'}`}
-                                                            >
-                                                                <span className={`flex h-4 w-4 items-center justify-center rounded border ${isCovered ? 'border-green-600 bg-green-600 text-white' : 'border-slate-400 text-transparent'}`}>
-                                                                    <CheckIcon className="h-3 w-3" />
-                                                                </span>
-                                                                <span className={isCovered ? 'line-through' : ''}>{lever}</span>
-                                                            </button>
-                                                        </li>
-                                                    );
-                                                })}
-                                            </ul>
-                                        ) : (
-                                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">N/A</p>
-                                        )}
-                                    </div>
-                                    <div className="space-y-1">
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div>
-                                                <p className="font-bold text-slate-500 dark:text-slate-400">Potential Blockers</p>
-                                                {potentialBlockers.length > 0 && (
-                                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">{covered.blockers.size}/{potentialBlockers.length} covered</p>
-                                                )}
-                                            </div>
-                                            {potentialBlockers.length > 0 && (
-                                                <button
-                                                    onClick={() => handleQuickAdd(`Potential Blockers:\n${potentialBlockers.map(blocker => `• ${blocker}`).join('\n')}`)}
-                                                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
-                                                >
-                                                    <ClipboardDocumentCheckIcon className="h-4 w-4" />
-                                                    Copy to Notepad
-                                                </button>
-                                            )}
-                                        </div>
-                                        {potentialBlockers.length > 0 ? (
-                                            <ul className="mt-1 space-y-1 text-sm text-slate-700 dark:text-slate-200">
-                                                {potentialBlockers.map((blocker, index) => {
-                                                    const isCovered = covered.blockers.has(blocker);
-                                                    return (
-                                                        <li key={index}>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => toggleCoverage('blockers', blocker)}
-                                                                className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition ${isCovered ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-200' : 'hover:bg-slate-200 dark:hover:bg-slate-700/80'}`}
-                                                            >
-                                                                <span className={`flex h-4 w-4 items-center justify-center rounded border ${isCovered ? 'border-green-600 bg-green-600 text-white' : 'border-slate-400 text-transparent'}`}>
-                                                                    <CheckIcon className="h-3 w-3" />
-                                                                </span>
-                                                                <span className={isCovered ? 'line-through' : ''}>{blocker}</span>
-                                                            </button>
-                                                        </li>
-                                                    );
-                                                })}
-                                            </ul>
-                                        ) : (
-                                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">N/A</p>
-                                        )}
-                                    </div>
-                                    <div className="space-y-1">
-                                        <div className="flex items-start justify-between gap-2">
-                                            <p className="font-bold text-slate-500 dark:text-slate-400">Tags</p>
-                                            {roleTags.length > 0 && (
-                                                <button
-                                                    onClick={() => handleQuickAdd(`Tags: ${roleTags.map(tag => `#${tag}`).join(' ')}`)}
-                                                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
-                                                >
-                                                    <ClipboardDocumentCheckIcon className="h-4 w-4" />
-                                                    Copy to Notepad
-                                                </button>
-                                            )}
-                                        </div>
-                                        {roleTags.length > 0 ? (
-                                            <div className="mt-1 flex flex-wrap gap-1">
-                                                {roleTags.map((tag, index) => (
-                                                    <span key={index} className="inline-flex items-center rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200">#{tag}</span>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">N/A</p>
-                                        )}
-                                    </div>
-                                </div>
-                            </CoPilotSection>
-                        )}
-                        {jobAnalysis && totalCoverageItems > 0 && (
-                            <CoPilotSection title="Interview Coverage Tracker">
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                        <span aria-live="polite">Covered {coveredCount} of {totalCoverageItems} ({coveragePercent}%)</span>
-                                        <button
-                                            type="button"
-                                            onClick={resetCoverage}
-                                            className="text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 rounded"
-                                        >
-                                            Reset
-                                        </button>
-                                    </div>
-                                    <div className="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden" role="progressbar" aria-valuenow={coveragePercent} aria-valuemin={0} aria-valuemax={100} aria-label="Coverage progress">
-                                        <div className="h-full bg-indigo-500 transition-all duration-300" style={{ width: `${coveragePercent}%` }} />
-                                    </div>
-                                    <div className="space-y-3">
-                                        {keyMetrics.length > 0 && (
-                                            <fieldset>
-                                                <legend className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Key Success Metrics</legend>
-                                                <div className="mt-2 space-y-2">
-                                                    {keyMetrics.map((metric, index) => {
-                                                        const id = `metric-${index}`;
-                                                        const isChecked = covered.metrics.has(metric);
-                                                        return (
-                                                            <div key={`${metric}-${index}`} className="flex items-start gap-2">
-                                                                <input
-                                                                    id={id}
-                                                                    type="checkbox"
-                                                                    checked={isChecked}
-                                                                    onChange={() => toggleCoverage('metrics', metric)}
-                                                                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                                />
-                                                                <label htmlFor={id} className={`text-sm leading-tight text-slate-700 dark:text-slate-200 ${isChecked ? 'line-through text-slate-400 dark:text-slate-500' : ''}`}>
-                                                                    {metric}
-                                                                </label>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </fieldset>
-                                        )}
-                                        {roleLevers.length > 0 && (
-                                            <fieldset>
-                                                <legend className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Levers</legend>
-                                                <div className="mt-2 space-y-2">
-                                                    {roleLevers.map((lever, index) => {
-                                                        const id = `lever-${index}`;
-                                                        const isChecked = covered.levers.has(lever);
-                                                        return (
-                                                            <div key={`${lever}-${index}`} className="flex items-start gap-2">
-                                                                <input
-                                                                    id={id}
-                                                                    type="checkbox"
-                                                                    checked={isChecked}
-                                                                    onChange={() => toggleCoverage('levers', lever)}
-                                                                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                                />
-                                                                <label htmlFor={id} className={`text-sm leading-tight text-slate-700 dark:text-slate-200 ${isChecked ? 'line-through text-slate-400 dark:text-slate-500' : ''}`}>
-                                                                    {lever}
-                                                                </label>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </fieldset>
-                                        )}
-                                        {potentialBlockers.length > 0 && (
-                                            <fieldset>
-                                                <legend className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Potential Blockers</legend>
-                                                <div className="mt-2 space-y-2">
-                                                    {potentialBlockers.map((blocker, index) => {
-                                                        const id = `blocker-${index}`;
-                                                        const isChecked = covered.blockers.has(blocker);
-                                                        return (
-                                                            <div key={`${blocker}-${index}`} className="flex items-start gap-2">
-                                                                <input
-                                                                    id={id}
-                                                                    type="checkbox"
-                                                                    checked={isChecked}
-                                                                    onChange={() => toggleCoverage('blockers', blocker)}
-                                                                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                                />
-                                                                <label htmlFor={id} className={`text-sm leading-tight text-slate-700 dark:text-slate-200 ${isChecked ? 'line-through text-slate-400 dark:text-slate-500' : ''}`}>
-                                                                    {blocker}
-                                                                </label>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </fieldset>
-                                        )}
-                                    </div>
-                                </div>
-                            </CoPilotSection>
-                        )}
-                        <CoPilotSection title="Top of Mind">
-                            <div className="text-xs space-y-1">
-                                <p><strong className="text-slate-600 dark:text-slate-300">Interviewing with:</strong> {interviewer ? `${interviewer.first_name} ${interviewer.last_name}` : 'N/A'}</p>
-                                <p><strong className="text-slate-600 dark:text-slate-300">Role:</strong> {interview.interview_type}</p>
-                            </div>
-                        </CoPilotSection>
-                        <CoPilotSection title="Strategic Opening">
-                            {isEditMode ? (
-                                <textarea
-                                    value={editableOpening}
-                                    onChange={(e) => setEditableOpening(e.target.value)}
-                                    rows={5}
-                                    className="w-full mt-1 p-2 text-sm text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md"
-                                />
-                            ) : (
-                                <p className="text-sm italic text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{editableOpening}</p>
-                            )}
-                        </CoPilotSection>
-                        <CoPilotSection title="Clarification Safety Net">
-                            <p className="text-xs text-slate-500 dark:text-slate-400">If stuck, ask about:</p>
-                            <p className="text-sm font-mono text-indigo-600 dark:text-indigo-400">Scope | Success Metrics | Constraints</p>
-                        </CoPilotSection>
-                        <CoPilotSection title="STAR Method Quick Reference">
-                            <ul className="text-xs space-y-1 text-slate-600 dark:text-slate-400">
-                                <li><strong className="text-slate-700 dark:text-slate-300">S (Situation):</strong> Set the scene. (1-2 sentences)</li>
-                                <li><strong className="text-slate-700 dark:text-slate-300">T (Task):</strong> Describe your goal. (1 sentence)</li>
-                                <li><strong className="text-slate-700 dark:text-slate-300">A (Action):</strong> What specific steps did YOU take? (2-3 sentences)</li>
-                                <li><strong className="text-slate-700 dark:text-slate-300">R (Result):</strong> What was the quantifiable outcome? (1-2 sentences)</li>
-                            </ul>
-                        </CoPilotSection>
-                        <CoPilotSection title="Impact Story Triggers">
-                            <div className="space-y-2">
-                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Persona</span>
-                                        <select
-                                            value={activeRole}
-                                            onChange={(e) => setActiveRole(e.target.value)}
-                                            className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        >
-                                            {availableRoles.map(role => (
-                                                <option key={role} value={role}>{role}</option>
-                                            ))}
-                                        </select>
-                                        {isEditMode && activeRole !== 'default' && (
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRemoveRole(activeRole)}
-                                                className="inline-flex items-center rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-[10px] font-semibold text-red-600 dark:text-red-300 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500"
-                                            >
-                                                Remove Role
-                                            </button>
-                                        )}
-                                    </div>
-                                    {isEditMode && (
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <input
-                                                type="text"
-                                                value={newRoleName}
-                                                onChange={(e) => setNewRoleName(e.target.value)}
-                                                placeholder="Add interviewer persona"
-                                                className="w-48 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={handleAddRole}
-                                                disabled={!newRoleName.trim()}
-                                                className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:bg-indigo-300"
-                                            >
-                                                Add Role
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                {isEditMode && availableStories.length > 0 && (
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <select
-                                            value={storyToAdd}
-                                            onChange={(e) => setStoryToAdd(e.target.value)}
-                                            className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        >
-                                            <option value="">Add narrative story…</option>
-                                            {availableStories.map(story => (
-                                                <option key={story.story_id} value={story.story_id}>{story.story_title}</option>
-                                            ))}
-                                        </select>
-                                        <button
-                                            type="button"
-                                            onClick={handleAddStory}
-                                            disabled={!storyToAdd}
-                                            className="inline-flex items-center rounded-md bg-green-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-green-700 disabled:bg-green-300"
-                                        >
-                                            Add Story
-                                        </button>
-                                    </div>
-                                )}
-                                <div className="space-y-2">
-                                    {storyDeck.length > 0 ? (
-                                        storyDeck.map(item => (
-                                            <ImpactStoryTrigger
-                                                key={item.story_id}
-                                                item={item}
-                                                jobAnalysis={jobAnalysis}
-                                                onAppendNotepad={handleQuickAdd}
-                                                isEditMode={isEditMode}
-                                                activeRole={activeRole}
-                                                onNoteChange={handleNoteChange}
-                                                onDragStart={isEditMode ? handleDragStart : undefined}
-                                                onDragEnter={isEditMode ? handleDragEnter : undefined}
-                                                onDragEnd={isEditMode ? handleDragEnd : undefined}
-                                                onRemove={isEditMode ? handleRemoveStory : undefined}
-                                            />
-                                        ))
-                                    ) : (
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 text-center">No impact stories defined.</p>
-                                    )}
-                                </div>
-                            </div>
-                        </CoPilotSection>
-                        <CoPilotSection title="Hot Leads (30-60-90 Plan)">
-                            <ul className="list-disc pl-4 text-sm space-y-1 text-slate-700 dark:text-slate-300">
-                                {(interview.strategic_plan?.key_talking_points || []).map((point, i) => <li key={i}>{point}</li>)}
-                            </ul>
-                        </CoPilotSection>
-                         <CoPilotSection title="Question Arsenal">
-                            {isEditMode ? (
-                                <textarea
-                                    value={editableQuestions}
-                                    onChange={(e) => setEditableQuestions(e.target.value)}
-                                    rows={8}
-                                    className="w-full mt-1 p-2 text-sm text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md"
-                                />
-                            ) : (
-                                 <div className="space-y-2">
-                                    {questionList.map((question, i) => (
-                                         <div key={i} className="relative flex items-start">
-                                            <div className="flex h-6 items-center">
-                                                <input
-                                                id={`q-${i}`}
-                                                type="checkbox"
-                                                checked={askedQuestions.has(question)}
-                                                onChange={() => handleQuestionToggle(question)}
-                                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                />
-                                            </div>
-                                            <div className="ml-3 text-sm leading-6">
-                                                <label htmlFor={`q-${i}`} className={`text-slate-700 dark:text-slate-300 ${askedQuestions.has(question) ? 'line-through text-slate-400 dark:text-slate-500' : ''}`}>
-                                                    {question}
-                                                </label>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </CoPilotSection>
-                    </div>
-
-                    {/* Right Column: Notepad */}
-                     <div className="md:col-span-1 overflow-y-auto h-full flex flex-col">
-                        <CoPilotSection title="Notepad for Debrief" className="flex-grow flex flex-col">
-                            <div className="flex justify-end mb-2">
-                                <button
-                                    onClick={handleSaveNotes}
-                                    disabled={isSavingNotes}
-                                    className={`inline-flex items-center justify-center w-24 px-2 py-1 text-xs font-semibold rounded-md shadow-sm transition-colors ${
-                                        notesSuccess ? 'bg-green-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-400'
-                                    }`}
-                                >
-                                    {isSavingNotes ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"/> : notesSuccess ? <CheckIcon className="h-4 w-4" /> : 'Save Notes'}
-                                </button>
-                            </div>
-                            <textarea
-                                value={notepadContent}
-                                onChange={(e) => setNotepadContent(e.target.value)}
-                                className="w-full flex-grow p-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md"
-                                placeholder="Jot down notes, new intelligence, wins, and fumbles here..."
+                <main className="flex-1 overflow-hidden p-3">
+                    {isEditMode ? (
+                        <PrepWorkspace
+                            interview={interview}
+                            jobAnalysis={jobAnalysis}
+                            activeRole={activeRole}
+                            availableRoles={availableRoles}
+                            onRoleChange={setActiveRole}
+                            onAddRole={handleAddRole}
+                            onRemoveRole={handleRemoveRole}
+                            newRoleName={newRoleName}
+                            onNewRoleNameChange={setNewRoleName}
+                            availableStories={availableStories}
+                            storyToAdd={storyToAdd}
+                            onStoryToAddChange={setStoryToAdd}
+                            onAddStory={handleAddStory}
+                            storyDeck={storyDeck}
+                            onNoteChange={handleNoteChange}
+                            onDragStart={handleDragStart}
+                            onDragEnter={handleDragEnter}
+                            onDragEnd={handleDragEnd}
+                            onRemoveStory={handleRemoveStory}
+                            editableOpening={editableOpening}
+                            onChangeOpening={setEditableOpening}
+                            editableQuestions={editableQuestions}
+                            onChangeQuestions={setEditableQuestions}
+                            prepOutline={prepOutline}
+                            onUpdateRoleIntelligence={updateRoleIntelligence}
+                            onUpdateJdInsights={updateJdInsights}
+                        />
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 h-full">
+                            <LiveRundown
+                                interview={interview}
+                                editableOpening={editableOpening}
+                                prepOutline={prepOutline}
+                                questionList={questionList}
+                                askedQuestions={askedQuestions}
+                                onToggleQuestion={handleQuestionToggle}
+                                storyDeck={storyDeck}
+                                activeRole={activeRole}
+                                availableRoles={availableRoles}
+                                onRoleChange={setActiveRole}
+                                jobAnalysis={jobAnalysis}
+                                onQuickAdd={handleQuickAdd}
+                                keyMetrics={keyMetrics}
+                                roleLevers={roleLevers}
+                                potentialBlockers={potentialBlockers}
+                                covered={covered}
+                                toggleCoverage={toggleCoverage}
+                                resetCoverage={resetCoverage}
+                                interviewer={interviewer}
+                                coveragePercent={coveragePercent}
+                                roleTags={roleTags}
                             />
-                        </CoPilotSection>
-                    </div>
+                            <aside className="md:col-span-1 overflow-y-auto h-full flex flex-col">
+                                <CoPilotSection title="Live Notes" className="flex-grow flex flex-col">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">Captured during the conversation</p>
+                                        <button
+                                            onClick={handleSaveNotes}
+                                            disabled={isSavingNotes}
+                                            className={`inline-flex items-center justify-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${
+                                                notesSuccess ? 'bg-green-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-400'
+                                            }`}
+                                        >
+                                            {isSavingNotes ? (
+                                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                            ) : notesSuccess ? (
+                                                <CheckIcon className="h-4 w-4" />
+                                            ) : (
+                                                'Save Notes'
+                                            )}
+                                        </button>
+                                    </div>
+                                    <textarea
+                                        value={liveNotes}
+                                        onChange={(e) => setLiveNotes(e.target.value)}
+                                        className="w-full flex-grow p-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md"
+                                        placeholder="Capture wins, fumbles, and new intelligence in real time…"
+                                    />
+                                </CoPilotSection>
+                            </aside>
+                        </div>
+                    )}
                 </main>
             </div>
         </div>
