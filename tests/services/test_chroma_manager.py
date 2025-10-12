@@ -1,15 +1,19 @@
 """Tests for the ChromaDB manager functionality."""
 
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
-import asyncio
+from unittest.mock import MagicMock, patch
 
-from python_service.app.services.chroma_manager import ChromaManager, ChromaCollectionConfig, CollectionType, get_chroma_manager
+from python_service.app.services.chroma_manager import (
+    ChromaCollectionConfig,
+    ChromaManager,
+    CollectionType,
+    get_chroma_manager,
+)
 
 
 class MockCollection:
     """Mock ChromaDB collection."""
-    
+
     def __init__(self, name: str, count: int = 0):
         self.name = name
         self._count = count
@@ -18,20 +22,88 @@ class MockCollection:
             "embed_model": "mock:model",
             "created_at": "2024-01-01T00:00:00Z"
         }
-    
+        self.records = {}
+
     def count(self):
-        return self._count
-    
+        return len(self.records)
+
     def add(self, ids, documents, metadatas):
-        self._count += len(documents)
-    
+        for idx, record_id in enumerate(ids):
+            self.records[record_id] = {
+                "document": documents[idx],
+                "metadata": metadatas[idx]
+            }
+        self._count = len(self.records)
+
+    def get(self, ids=None, where=None, include=None):
+        include = include or []
+
+        matched_ids = []
+        matched_records = []
+
+        for record_id, record in self.records.items():
+            if ids and record_id not in ids:
+                continue
+
+            metadata = record["metadata"]
+            if where:
+                is_match = all(metadata.get(key) == value for key, value in where.items())
+                if not is_match:
+                    continue
+
+            matched_ids.append(record_id)
+            matched_records.append(record)
+
+        result = {"ids": matched_ids}
+
+        if not include or "metadatas" in include:
+            result["metadatas"] = [record["metadata"] for record in matched_records]
+        if not include or "documents" in include:
+            result["documents"] = [record["document"] for record in matched_records]
+
+        return result
+
+    def update(self, ids, metadatas):
+        for record_id, metadata in zip(ids, metadatas):
+            if record_id in self.records:
+                self.records[record_id]["metadata"] = metadata
+
     def query(self, query_texts, n_results=5, where=None, include=None):
-        # Return mock search results
-        return {
-            "documents": [["Mock document content for: " + query_texts[0]]],
-            "metadatas": [[{"title": "Mock Document", "type": "test"}]],
-            "distances": [[0.1]]
+        include = include or []
+
+        matched = {}
+        for record in self.records.values():
+            metadata = record["metadata"]
+            if where:
+                is_match = all(metadata.get(key) == value for key, value in where.items())
+                if not is_match:
+                    continue
+
+            doc_id = metadata.get("doc_id")
+            if not doc_id:
+                continue
+
+            current = matched.get(doc_id)
+            if not current or metadata.get("version", 0) > current["metadata"].get("version", 0):
+                matched[doc_id] = record
+
+        selected = list(matched.values())[:n_results]
+        documents = [[record["document"] for record in selected]]
+
+        if not documents[0]:
+            documents = [[]]
+
+        result = {
+            "documents": documents,
+            "distances": [[0.0 for _ in documents[0]]] if documents and documents[0] else [[]]
         }
+
+        if "metadatas" in include:
+            result["metadatas"] = [[record["metadata"] for record in selected]]
+        else:
+            result["metadatas"] = [[]]
+
+        return result
 
 
 class MockClient:
@@ -96,6 +168,8 @@ class TestChromaManager:
         assert "job_postings" in collection_names
         assert "company_profiles" in collection_names
         assert "career_brand" in collection_names
+        assert "proof_points" in collection_names
+        assert "resumes" in collection_names
         assert "documents" in collection_names
     
     @patch('app.services.chroma_manager.get_chroma_client')
@@ -258,9 +332,182 @@ class TestChromaManager:
         """Test that get_chroma_manager returns a singleton."""
         manager1 = get_chroma_manager()
         manager2 = get_chroma_manager()
-        
+
         assert manager1 is manager2  # Same instance
-    
+
+    @patch('app.services.chroma_manager.get_chroma_client')
+    @patch('app.services.chroma_manager.get_embedding_function')
+    @pytest.mark.asyncio
+    async def test_career_brand_versioning_sets_single_latest(
+        self,
+        mock_get_embedding,
+        mock_get_client,
+        mock_chroma_client,
+        mock_embedding_function
+    ):
+        """Ensure only the latest career brand narrative retains the is_latest flag."""
+
+        mock_get_client.return_value = mock_chroma_client
+        mock_get_embedding.return_value = mock_embedding_function
+
+        manager = ChromaManager()
+
+        profile_id = "profile-123"
+        section = "north_star_vision"
+
+        result_v1 = await manager.upload_career_brand_document(
+            section=section,
+            content="First vision",
+            title="North Star",
+            narrative_id=profile_id
+        )
+        assert result_v1.success
+
+        result_v2 = await manager.upload_career_brand_document(
+            section=section,
+            content="Updated vision",
+            title="North Star",
+            narrative_id=profile_id
+        )
+        assert result_v2.success
+
+        collection = mock_chroma_client.get_collection("career_brand")
+        stored = collection.get(
+            where={"profile_id": profile_id, "section": section},
+            include=["metadatas"]
+        )
+
+        latest_flags = {}
+        versions = {}
+        for metadata in stored.get("metadatas", []):
+            doc_id = metadata.get("doc_id")
+            if not doc_id or doc_id in latest_flags:
+                continue
+            latest_flags[doc_id] = metadata.get("is_latest")
+            versions[doc_id] = metadata.get("version")
+
+        assert set(latest_flags.keys()) == {result_v1.document_id, result_v2.document_id}
+        assert latest_flags[result_v1.document_id] is False
+        assert latest_flags[result_v2.document_id] is True
+        assert versions[result_v2.document_id] == 2
+
+    @patch('app.services.chroma_manager.get_chroma_client')
+    @patch('app.services.chroma_manager.get_embedding_function')
+    @pytest.mark.asyncio
+    async def test_proof_point_versioning_enforces_single_latest(
+        self,
+        mock_get_embedding,
+        mock_get_client,
+        mock_chroma_client,
+        mock_embedding_function
+    ):
+        """Ensure proof point uploads toggle is_latest across versions."""
+
+        mock_get_client.return_value = mock_chroma_client
+        mock_get_embedding.return_value = mock_embedding_function
+
+        manager = ChromaManager()
+
+        result_v1 = await manager.upload_proof_point_document(
+            profile_id="profile-456",
+            role_title="Product Manager",
+            company="OpenAI",
+            content="Delivered first version",
+            title="Launch",
+            status="published",
+            impact_tags=["launch"]
+        )
+        assert result_v1.success
+
+        result_v2 = await manager.upload_proof_point_document(
+            profile_id="profile-456",
+            role_title="Product Manager",
+            company="OpenAI",
+            content="Improved performance",
+            title="Launch",
+            status="published",
+            impact_tags=["performance"]
+        )
+        assert result_v2.success
+
+        collection = mock_chroma_client.get_collection("proof_points")
+        stored = collection.get(
+            where={
+                "profile_id": "profile-456",
+                "role_title": "Product Manager",
+                "company": "OpenAI"
+            },
+            include=["metadatas"]
+        )
+
+        latest_flags = {}
+        for metadata in stored.get("metadatas", []):
+            doc_id = metadata.get("doc_id")
+            if not doc_id or doc_id in latest_flags:
+                continue
+            latest_flags[doc_id] = metadata.get("is_latest")
+
+        assert set(latest_flags.keys()) == {result_v1.document_id, result_v2.document_id}
+        assert latest_flags[result_v1.document_id] is False
+        assert latest_flags[result_v2.document_id] is True
+
+    @patch('app.services.chroma_manager.get_chroma_client')
+    @patch('app.services.chroma_manager.get_embedding_function')
+    @pytest.mark.asyncio
+    async def test_resume_versioning_enforces_single_latest(
+        self,
+        mock_get_embedding,
+        mock_get_client,
+        mock_chroma_client,
+        mock_embedding_function
+    ):
+        """Ensure resume uploads retain a single latest document per job target."""
+
+        mock_get_client.return_value = mock_chroma_client
+        mock_get_embedding.return_value = mock_embedding_function
+
+        manager = ChromaManager()
+
+        result_v1 = await manager.upload_resume_document(
+            profile_id="profile-789",
+            job_target="AI PM",
+            content="Resume v1",
+            title="AI PM Resume",
+            status="draft",
+            selected_proof_points=["proof-1"]
+        )
+        assert result_v1.success
+
+        result_v2 = await manager.upload_resume_document(
+            profile_id="profile-789",
+            job_target="AI PM",
+            content="Resume v2",
+            title="AI PM Resume",
+            status="ready",
+            selected_proof_points=["proof-1", "proof-2"]
+        )
+        assert result_v2.success
+
+        collection = mock_chroma_client.get_collection("resumes")
+        stored = collection.get(
+            where={"profile_id": "profile-789", "job_target": "AI PM"},
+            include=["metadatas"]
+        )
+
+        latest_flags = {}
+        selected_points = {}
+        for metadata in stored.get("metadatas", []):
+            doc_id = metadata.get("doc_id")
+            if not doc_id or doc_id in latest_flags:
+                continue
+            latest_flags[doc_id] = metadata.get("is_latest")
+            selected_points[doc_id] = metadata.get("selected_proof_points")
+
+        assert set(latest_flags.keys()) == {result_v1.document_id, result_v2.document_id}
+        assert latest_flags[result_v1.document_id] is False
+        assert latest_flags[result_v2.document_id] is True
+        assert selected_points[result_v2.document_id] == ["proof-1", "proof-2"]
+
     @patch('app.services.chroma_manager.get_chroma_client')
     @patch('app.services.chroma_manager.get_embedding_function')
     @pytest.mark.asyncio
