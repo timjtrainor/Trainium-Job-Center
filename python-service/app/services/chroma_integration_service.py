@@ -234,39 +234,266 @@ class ChromaIntegrationService:
         profile_id: str,
         section: str = "resume",
         uploaded_at: Optional[datetime] = None,
-        additional_metadata: Dict[str, Any] = None
+        additional_metadata: Optional[Dict[str, Any]] = None,
+        *,
+        job_target: Optional[str] = None,
+        status: Optional[str] = None,
+        selected_proof_points: Optional[List[str]] = None,
+        status_transitions: Optional[List[Dict[str, Any]]] = None,
+        approved_by: Optional[str] = None,
+        approved_at: Optional[datetime] = None,
+        approval_notes: Optional[str] = None,
+        version: Optional[int] = None,
+        is_latest: Optional[bool] = None
     ) -> ChromaUploadResponse:
-        """Add a resume document to the resumes collection.
-        
-        Standard Metadata Fields:
-        - profile_id: str (required) - User profile identifier
-        - section: str (default: "resume") - Document section/category
-        - uploaded_at: str (auto) - Upload timestamp in ISO format
-        - title: str (required) - Resume title
-        
-        Supports multiple versions but queries default to latest (ORDER BY uploaded_at DESC LIMIT 1).
+        """Add or update a resume document with enriched metadata.
+
+        Supports version rollover by delegating to ``ChromaManager.upload_resume_document``.
         """
 
-        # Auto-add uploaded_at if not provided
-        if uploaded_at is None:
-            uploaded_at = datetime.utcnow()
+        metadata = self._prepare_resume_rollover_metadata(
+            profile_id=profile_id,
+            section=section,
+            uploaded_at=uploaded_at,
+            additional_metadata=additional_metadata,
+            job_target=job_target,
+            status=status,
+            selected_proof_points=selected_proof_points,
+            status_transitions=status_transitions,
+            approved_by=approved_by,
+            approved_at=approved_at,
+            approval_notes=approval_notes,
+            version=version,
+            is_latest=is_latest,
+            title=title
+        )
 
-        metadata = {
-            "profile_id": profile_id,
-            "section": section,
-            "uploaded_at": uploaded_at.isoformat(),
-            "title": title
-        }
+        resolved_job_target = metadata.get("job_target")
 
-        if additional_metadata:
-            metadata.update(additional_metadata)
+        if resolved_job_target:
+            sanitized_metadata = dict(metadata)
+            sanitized_metadata.pop("job_target", None)
+            resolved_status = sanitized_metadata.get("status", "draft")
+            resolved_selected_points = sanitized_metadata.get("selected_proof_points")
+
+            return await self.manager.upload_resume_document(
+                profile_id=profile_id,
+                job_target=resolved_job_target,
+                content=content,
+                title=title,
+                status=resolved_status,
+                selected_proof_points=resolved_selected_points,
+                additional_metadata=sanitized_metadata
+            )
+
+        fallback_tags = ["resume", profile_id]
+        section_tag = metadata.get("section")
+        if section_tag:
+            fallback_tags.append(section_tag)
 
         return await self.manager.upload_document(
             collection_name="resumes",
             title=title,
             document_text=content,
             metadata=metadata,
-            tags=["resume", profile_id, section.lower()]
+            tags=fallback_tags
+        )
+
+    def _prepare_resume_rollover_metadata(
+        self,
+        *,
+        profile_id: str,
+        section: str,
+        uploaded_at: Optional[datetime],
+        additional_metadata: Optional[Dict[str, Any]],
+        job_target: Optional[str],
+        status: Optional[str],
+        selected_proof_points: Optional[List[str]],
+        status_transitions: Optional[List[Dict[str, Any]]],
+        approved_by: Optional[str],
+        approved_at: Optional[datetime],
+        approval_notes: Optional[str],
+        version: Optional[int],
+        is_latest: Optional[bool],
+        title: str
+    ) -> Dict[str, Any]:
+        """Normalize resume metadata before delegating to the manager."""
+
+        metadata: Dict[str, Any] = {
+            "profile_id": profile_id,
+            "section": section,
+            "title": title
+        }
+
+        if additional_metadata:
+            metadata.update(dict(additional_metadata))
+
+        resolved_job_target = job_target or metadata.get("job_target")
+        if resolved_job_target:
+            metadata["job_target"] = resolved_job_target
+
+        timestamp = self._normalize_datetime(uploaded_at) or metadata.get("uploaded_at")
+        if not timestamp:
+            timestamp = datetime.utcnow().isoformat()
+        metadata["uploaded_at"] = timestamp
+
+        resolved_status = status or metadata.get("status") or "draft"
+        metadata["status"] = resolved_status
+
+        if selected_proof_points is not None:
+            metadata["selected_proof_points"] = list(selected_proof_points)
+        else:
+            metadata.setdefault("selected_proof_points", [])
+
+        if status_transitions is not None:
+            metadata["status_transitions"] = list(status_transitions)
+        else:
+            metadata.setdefault("status_transitions", [])
+
+        if approved_by is not None:
+            metadata["approved_by"] = approved_by
+        if approved_at is not None:
+            metadata["approved_at"] = self._normalize_datetime(approved_at)
+        elif "approved_at" in metadata and metadata["approved_at"] is not None:
+            metadata["approved_at"] = self._normalize_datetime(metadata["approved_at"])
+        if approval_notes is not None:
+            metadata["approval_notes"] = approval_notes
+
+        if version is not None:
+            metadata["version"] = version
+        if is_latest is not None:
+            metadata["is_latest"] = is_latest
+
+        return metadata
+
+    def _normalize_datetime(self, value: Optional[Any]) -> Optional[str]:
+        """Convert datetime-like values to ISO strings."""
+
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        if isinstance(value, datetime):
+            return value.isoformat()
+        raise TypeError(f"Unsupported datetime value type: {type(value)}")
+
+    def _prepare_proof_point_rollover_metadata(
+        self,
+        *,
+        job_metadata: Optional[Dict[str, Any]],
+        status: str,
+        uploaded_at: Optional[datetime],
+        status_transitions: Optional[List[Dict[str, Any]]],
+        impact_tags: Optional[List[str]],
+        additional_metadata: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Normalize proof point metadata before delegating to the manager."""
+
+        metadata: Dict[str, Any] = {}
+        if additional_metadata:
+            metadata.update(dict(additional_metadata))
+
+        if job_metadata:
+            for key, value in job_metadata.items():
+                if value is not None:
+                    metadata[f"job_{key}"] = value
+
+        timestamp = self._normalize_datetime(uploaded_at) or metadata.get("uploaded_at")
+        if not timestamp:
+            timestamp = datetime.utcnow().isoformat()
+        metadata["uploaded_at"] = timestamp
+
+        metadata["status"] = status
+
+        if status_transitions is not None:
+            metadata["status_transitions"] = list(status_transitions)
+        else:
+            metadata.setdefault("status_transitions", [])
+
+        if impact_tags is not None:
+            metadata.setdefault("impact_tags", list(impact_tags))
+
+        return metadata
+
+    async def create_proof_point_for_job(
+        self,
+        profile_id: str,
+        role_title: str,
+        company: str,
+        content: str,
+        title: str,
+        *,
+        job_metadata: Optional[Dict[str, Any]] = None,
+        status: str = "draft",
+        impact_tags: Optional[List[str]] = None,
+        uploaded_at: Optional[datetime] = None,
+        status_transitions: Optional[List[Dict[str, Any]]] = None,
+        additional_metadata: Optional[Dict[str, Any]] = None
+    ) -> ChromaUploadResponse:
+        """Create a proof point tied to a specific job context."""
+
+        metadata = self._prepare_proof_point_rollover_metadata(
+            job_metadata=job_metadata,
+            status=status,
+            uploaded_at=uploaded_at,
+            status_transitions=status_transitions,
+            impact_tags=impact_tags,
+            additional_metadata=additional_metadata
+        )
+
+        return await self.manager.upload_proof_point_document(
+            profile_id=profile_id,
+            role_title=role_title,
+            company=company,
+            content=content,
+            title=title,
+            status=status,
+            impact_tags=impact_tags,
+            additional_metadata=metadata
+        )
+
+    async def update_proof_point_for_job(
+        self,
+        profile_id: str,
+        role_title: str,
+        company: str,
+        content: str,
+        title: str,
+        *,
+        job_metadata: Optional[Dict[str, Any]] = None,
+        status: str = "draft",
+        impact_tags: Optional[List[str]] = None,
+        uploaded_at: Optional[datetime] = None,
+        status_transitions: Optional[List[Dict[str, Any]]] = None,
+        additional_metadata: Optional[Dict[str, Any]] = None,
+        version: Optional[int] = None,
+        is_latest: Optional[bool] = None
+    ) -> ChromaUploadResponse:
+        """Update an existing proof point with new metadata and rollover handling."""
+
+        metadata = self._prepare_proof_point_rollover_metadata(
+            job_metadata=job_metadata,
+            status=status,
+            uploaded_at=uploaded_at,
+            status_transitions=status_transitions,
+            impact_tags=impact_tags,
+            additional_metadata=additional_metadata
+        )
+
+        if version is not None:
+            metadata["version"] = version
+        if is_latest is not None:
+            metadata["is_latest"] = is_latest
+
+        return await self.manager.upload_proof_point_document(
+            profile_id=profile_id,
+            role_title=role_title,
+            company=company,
+            content=content,
+            title=title,
+            status=status,
+            impact_tags=impact_tags,
+            additional_metadata=metadata
         )
 
     async def bulk_upload_job_postings(
