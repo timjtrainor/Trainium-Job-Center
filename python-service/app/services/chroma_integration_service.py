@@ -268,18 +268,35 @@ class ChromaIntegrationService:
             title=title
         )
 
-        resolved_job_target = metadata.pop("job_target")
-        resolved_status = metadata.get("status", "draft")
-        resolved_selected_points = metadata.get("selected_proof_points")
+        resolved_job_target = metadata.get("job_target")
 
-        return await self.manager.upload_resume_document(
-            profile_id=profile_id,
-            job_target=resolved_job_target,
-            content=content,
+        if resolved_job_target:
+            sanitized_metadata = dict(metadata)
+            sanitized_metadata.pop("job_target", None)
+            resolved_status = sanitized_metadata.get("status", "draft")
+            resolved_selected_points = sanitized_metadata.get("selected_proof_points")
+
+            return await self.manager.upload_resume_document(
+                profile_id=profile_id,
+                job_target=resolved_job_target,
+                content=content,
+                title=title,
+                status=resolved_status,
+                selected_proof_points=resolved_selected_points,
+                additional_metadata=sanitized_metadata
+            )
+
+        fallback_tags = ["resume", profile_id]
+        section_tag = metadata.get("section")
+        if section_tag:
+            fallback_tags.append(section_tag)
+
+        return await self.manager.upload_document(
+            collection_name="resumes",
             title=title,
-            status=resolved_status,
-            selected_proof_points=resolved_selected_points,
-            additional_metadata=metadata
+            document_text=content,
+            metadata=metadata,
+            tags=fallback_tags
         )
 
     def _prepare_resume_rollover_metadata(
@@ -312,9 +329,8 @@ class ChromaIntegrationService:
             metadata.update(dict(additional_metadata))
 
         resolved_job_target = job_target or metadata.get("job_target")
-        if not resolved_job_target:
-            raise ValueError("job_target metadata is required for resume uploads")
-        metadata["job_target"] = resolved_job_target
+        if resolved_job_target:
+            metadata["job_target"] = resolved_job_target
 
         timestamp = self._normalize_datetime(uploaded_at) or metadata.get("uploaded_at")
         if not timestamp:

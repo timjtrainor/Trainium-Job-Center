@@ -196,6 +196,34 @@ class TestChromaIntegrationServiceEnhancements:
         assert metadata['section'] == "technical_resume"
 
     @pytest.mark.anyio("asyncio")
+    async def test_add_resume_document_without_job_target_uses_generic_upload(self, service, mock_manager):
+        """Ensure legacy resume uploads without job target still succeed."""
+
+        result = await service.add_resume_document(
+            title="Legacy Resume",
+            content="Legacy resume content",
+            profile_id="legacy-profile"
+        )
+
+        mock_manager.upload_resume_document.assert_not_called()
+        mock_manager.upload_document.assert_called_once()
+
+        collection_call = mock_manager.upload_document.call_args
+        kwargs = collection_call.kwargs
+
+        assert kwargs['collection_name'] == "resumes"
+        assert kwargs['title'] == "Legacy Resume"
+        assert kwargs['document_text'] == "Legacy resume content"
+
+        metadata = kwargs['metadata']
+        assert metadata['profile_id'] == "legacy-profile"
+        assert metadata['section'] == "resume"
+        assert metadata['status'] == "draft"
+        assert 'uploaded_at' in metadata
+
+        assert result.success is True
+
+    @pytest.mark.anyio("asyncio")
     async def test_create_proof_point_for_job(self, service, mock_manager):
         """Ensure proof point creation forwards job metadata and transitions."""
         job_metadata = {"id": "job-123", "title": "Staff Engineer", "location": "Remote"}
