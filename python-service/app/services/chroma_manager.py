@@ -18,6 +18,8 @@ class CollectionType(Enum):
     JOB_POSTINGS = "job_postings"
     COMPANY_PROFILES = "company_profiles"
     CAREER_BRAND = "career_brand"
+    PROOF_POINTS = "proof_points"
+    RESUMES = "resumes"
     INTERVIEW_FEEDBACK = "interview_feedback"
     MARKET_INSIGHTS = "market_insights"
     TECHNICAL_SKILLS = "technical_skills"
@@ -102,15 +104,70 @@ class ChromaManager:
             chunk_size=300,
             chunk_overlap=50,
             metadata_schema={
+                "profile_id": "str",
                 "section": "str",
                 "tags": "str",
                 "title": "str",
                 "type": "str",
-                "latest_version": "bool",      # Version control flag
+                "status": "str",
+                "is_latest": "bool",          # Version control flag
+                "latest_version": "bool",      # Backwards compatibility flag
                 "version": "int",              # Version number
                 "timestamp": "str",            # ISO timestamp
-                "narrative_id": "str",         # Which narrative owns this
-                "uploaded_at": "str"           # Upload timestamp
+                "uploaded_at": "str",          # Upload timestamp
+                "updated_at": "str",
+                "created_at": "str",
+                "narrative_id": "str"          # Legacy identifier
+            }
+        ))
+
+        # Proof points collection for role-specific accomplishments
+        self.register_collection_config(ChromaCollectionConfig(
+            name="proof_points",
+            collection_type=CollectionType.PROOF_POINTS,
+            description="Role-aligned proof points with version control",
+            chunk_size=300,
+            chunk_overlap=50,
+            metadata_schema={
+                "profile_id": "str",
+                "role_title": "str",
+                "company": "str",
+                "title": "str",
+                "status": "str",
+                "impact_tags": "list",
+                "type": "str",
+                "is_latest": "bool",
+                "latest_version": "bool",
+                "version": "int",
+                "timestamp": "str",
+                "uploaded_at": "str",
+                "updated_at": "str",
+                "created_at": "str"
+            }
+        ))
+
+        # Resumes collection with enriched metadata
+        self.register_collection_config(ChromaCollectionConfig(
+            name="resumes",
+            collection_type=CollectionType.RESUMES,
+            description="Versioned resumes linked to proof points and job targets",
+            chunk_size=500,
+            chunk_overlap=100,
+            metadata_schema={
+                "profile_id": "str",
+                "job_target": "str",
+                "section": "str",
+                "title": "str",
+                "status": "str",
+                "selected_proof_points": "list",
+                "type": "str",
+                "is_latest": "bool",
+                "latest_version": "bool",
+                "version": "int",
+                "timestamp": "str",
+                "uploaded_at": "str",
+                "updated_at": "str",
+                "created_at": "str"
             }
         ))
 
@@ -211,6 +268,96 @@ class ChromaManager:
     def _sha1_hash(self, text: str) -> str:
         """Generate SHA1 hash of text."""
         return hashlib.sha1(text.encode("utf-8")).hexdigest()
+
+    async def _prepare_versioning(
+        self,
+        collection_name: str,
+        unique_filters: Dict[str, Any]
+    ) -> int:
+        """Ensure only a single document is marked as latest and return the next version."""
+
+        if not unique_filters:
+            raise ValueError("unique_filters must contain at least one key")
+
+        # Ensure collection exists before accessing it directly
+        if not await self.ensure_collection_exists(collection_name):
+            raise RuntimeError(f"Failed to ensure collection '{collection_name}' exists")
+
+        client = self._get_client()
+        collection = client.get_collection(collection_name)
+
+        results = collection.get(where=unique_filters, include=["metadatas", "ids"])
+
+        doc_chunks: Dict[str, Dict[str, Any]] = {}
+        max_version = 0
+
+        for chunk_id, metadata in zip(results.get("ids", []), results.get("metadatas", [])):
+            if metadata is None:
+                continue
+
+            doc_id = metadata.get("doc_id")
+            if not doc_id:
+                continue
+
+            entry = doc_chunks.setdefault(doc_id, {"ids": [], "metadatas": []})
+            entry["ids"].append(chunk_id)
+            entry["metadatas"].append(metadata)
+            max_version = max(max_version, metadata.get("version", 0))
+
+        for entry in doc_chunks.values():
+            updated_metadatas = []
+            for metadata in entry["metadatas"]:
+                updated_metadata = dict(metadata)
+                updated_metadata["is_latest"] = False
+                updated_metadata["latest_version"] = False
+                updated_metadatas.append(updated_metadata)
+
+            if updated_metadatas:
+                collection.update(ids=entry["ids"], metadatas=updated_metadatas)
+
+        return max_version + 1
+
+    async def _upload_versioned_document(
+        self,
+        collection_name: str,
+        title: str,
+        document_text: str,
+        base_metadata: Dict[str, Any],
+        unique_keys: List[str],
+        tags: Optional[List[str]] = None
+    ) -> ChromaUploadResponse:
+        """Upload a document ensuring unique latest version per key set."""
+
+        if not unique_keys:
+            raise ValueError("unique_keys must not be empty")
+
+        unique_filters = {key: base_metadata.get(key) for key in unique_keys if base_metadata.get(key) is not None}
+
+        if len(unique_filters) != len(unique_keys):
+            missing = [key for key in unique_keys if key not in unique_filters]
+            raise ValueError(f"Missing metadata required for versioning: {', '.join(missing)}")
+
+        next_version = await self._prepare_versioning(collection_name, unique_filters)
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+        metadata = dict(base_metadata)
+        metadata.update({
+            "version": next_version,
+            "is_latest": True,
+            "latest_version": True,
+            "timestamp": timestamp,
+            "updated_at": timestamp,
+        })
+        metadata.setdefault("uploaded_at", timestamp)
+        metadata.setdefault("created_at", timestamp)
+
+        return await self.upload_document(
+            collection_name=collection_name,
+            title=title,
+            document_text=document_text,
+            metadata=metadata,
+            tags=tags
+        )
     
     async def ensure_collection_exists(self, collection_name: str) -> bool:
         """Ensure a collection exists, creating it if necessary."""
@@ -505,41 +652,29 @@ class ChromaManager:
         Previous versions are marked as not latest, but preserved for audit trail.
         """
         try:
-            # Find existing latest document for this section/narrative combo
-            existing_latest = await self.find_latest_by_section_and_narrative(section, narrative_id)
-
-            # Mark existing document as not latest (if it exists)
-            if existing_latest:
-                self.mark_version_not_latest(existing_latest["document_id"])
-
-            # Determine version number for new document
-            next_version = 1
-            if existing_latest and existing_latest.get("version"):
-                next_version = existing_latest["version"] + 1
-
-            # Create metadata with versioning
             metadata = {
                 "section": section,
-                "latest_version": True,  # This is now the latest
-                "version": next_version,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "profile_id": narrative_id,
                 "narrative_id": narrative_id,
-                "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                "title": title,
+                "status": "active",
                 "type": "career_brand_document"
             }
 
-            # Upload the new document as latest version
-            result = await self.upload_document(
+            result = await self._upload_versioned_document(
                 collection_name="career_brand",
                 title=title,
                 document_text=content,
-                metadata=metadata,
-                tags=["career_brand", section, f"v{next_version}", "latest"]
+                base_metadata=metadata,
+                unique_keys=["profile_id", "section"],
+                tags=["career_brand", section, f"profile:{narrative_id}"]
             )
 
             if result.success:
+                latest_doc = await self.find_latest_by_section_and_narrative(section, narrative_id)
+                version_number = latest_doc.get("version", 1) if latest_doc else 1
                 logger.info(
-                    f"Successfully uploaded career brand document: {section} v{next_version} "
+                    f"Successfully uploaded career brand document: {section} v{version_number} "
                     f"for narrative {narrative_id}"
                 )
             else:
@@ -559,6 +694,114 @@ class ChromaManager:
                 error_type="VERSIONING_ERROR"
             )
 
+    async def upload_proof_point_document(
+        self,
+        profile_id: str,
+        role_title: str,
+        company: str,
+        content: str,
+        title: str,
+        status: str = "draft",
+        impact_tags: Optional[List[str]] = None,
+        additional_metadata: Optional[Dict[str, Any]] = None
+    ) -> ChromaUploadResponse:
+        """Upload a proof point document ensuring unique latest per role and company."""
+
+        try:
+            metadata = {
+                "profile_id": profile_id,
+                "role_title": role_title,
+                "company": company,
+                "title": title,
+                "status": status,
+                "impact_tags": impact_tags or [],
+                "type": "proof_point_document"
+            }
+
+            if additional_metadata:
+                metadata.update(additional_metadata)
+
+            tags = [
+                "proof_point",
+                profile_id,
+                role_title,
+                company
+            ]
+
+            return await self._upload_versioned_document(
+                collection_name="proof_points",
+                title=title,
+                document_text=content,
+                base_metadata=metadata,
+                unique_keys=["profile_id", "role_title", "company"],
+                tags=tags
+            )
+
+        except Exception as e:
+            error_msg = f"Failed to upload proof point document: {str(e)}"
+            logger.error(error_msg)
+            return ChromaUploadResponse(
+                success=False,
+                message=error_msg,
+                collection_name="proof_points",
+                document_id="",
+                chunks_created=0,
+                error_type="VERSIONING_ERROR"
+            )
+
+    async def upload_resume_document(
+        self,
+        profile_id: str,
+        job_target: str,
+        content: str,
+        title: str,
+        status: str = "draft",
+        selected_proof_points: Optional[List[str]] = None,
+        additional_metadata: Optional[Dict[str, Any]] = None
+    ) -> ChromaUploadResponse:
+        """Upload a resume with versioning tied to profile and job target."""
+
+        try:
+            metadata = {
+                "profile_id": profile_id,
+                "job_target": job_target,
+                "section": "resume",
+                "title": title,
+                "status": status,
+                "selected_proof_points": selected_proof_points or [],
+                "type": "resume_document"
+            }
+
+            if additional_metadata:
+                metadata.update(additional_metadata)
+
+            tags = [
+                "resume",
+                profile_id,
+                job_target
+            ]
+
+            return await self._upload_versioned_document(
+                collection_name="resumes",
+                title=title,
+                document_text=content,
+                base_metadata=metadata,
+                unique_keys=["profile_id", "job_target"],
+                tags=tags
+            )
+
+        except Exception as e:
+            error_msg = f"Failed to upload resume document: {str(e)}"
+            logger.error(error_msg)
+            return ChromaUploadResponse(
+                success=False,
+                message=error_msg,
+                collection_name="resumes",
+                document_id="",
+                chunks_created=0,
+                error_type="VERSIONING_ERROR"
+            )
+
     async def find_latest_by_section_and_narrative(
         self,
         section: str,
@@ -570,28 +813,71 @@ class ChromaManager:
         Returns the most recent document that has latest_version=true.
         """
         try:
-            result = await self.search_collection(
-                collection_name="career_brand",
-                query="",  # Empty query to get all
-                n_results=1,
-                where={
-                    "section": section,
-                    "narrative_id": narrative_id,
-                    "latest_version": True
-                },
-                include_metadata=True
-            )
+            if not await self.ensure_collection_exists("career_brand"):
+                return None
 
-            if result["success"] and result["documents"] and result["metadatas"]:
-                metadata = result["metadatas"][0]
-                return {
-                    "document_id": metadata["doc_id"],
-                    "content": result["documents"][0],
-                    "metadata": metadata,
-                    "version": metadata.get("version", 1)
-                }
+            client = self._get_client()
+            collection = client.get_collection("career_brand")
 
-            return None
+            def _get_latest(where_clause: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+                results = collection.get(
+                    where=where_clause,
+                    include=["metadatas", "documents", "ids"]
+                )
+
+                metadatas = results.get("metadatas", []) or []
+                documents = results.get("documents", []) or []
+
+                if not metadatas:
+                    return None
+
+                aggregated: Dict[str, Dict[str, Any]] = {}
+
+                for idx, metadata in enumerate(metadatas):
+                    if metadata is None:
+                        continue
+
+                    doc_id = metadata.get("doc_id")
+                    if not doc_id:
+                        continue
+
+                    document = documents[idx] if idx < len(documents) else ""
+
+                    entry = aggregated.setdefault(doc_id, {
+                        "document_id": doc_id,
+                        "content": document,
+                        "metadata": metadata,
+                        "version": metadata.get("version", 1)
+                    })
+
+                    # Prefer the lowest sequence chunk for representative content
+                    current_seq = entry["metadata"].get("seq", 0)
+                    new_seq = metadata.get("seq", 0)
+                    if new_seq < current_seq:
+                        entry["content"] = document
+                        entry["metadata"] = metadata
+                        entry["version"] = metadata.get("version", entry["version"])
+
+                if not aggregated:
+                    return None
+
+                return max(aggregated.values(), key=lambda item: item["version"])
+
+            latest = _get_latest({
+                "section": section,
+                "narrative_id": narrative_id,
+                "is_latest": True
+            })
+
+            if latest:
+                return latest
+
+            # Backwards compatibility for records that still use latest_version
+            return _get_latest({
+                "section": section,
+                "narrative_id": narrative_id,
+                "latest_version": True
+            })
 
         except Exception as e:
             logger.error(
@@ -628,6 +914,7 @@ class ChromaManager:
             for metadata in results["metadatas"]:
                 updated_metadata = dict(metadata)  # Make a copy
                 updated_metadata["latest_version"] = False  # Remove latest flag
+                updated_metadata["is_latest"] = False
                 updated_metadatas.append(updated_metadata)
 
             # Update the collection in batch
@@ -655,18 +942,34 @@ class ChromaManager:
         Returns all versions (old and latest) for audit and review purposes.
         """
         try:
-            result = await self.search_collection(
-                collection_name="career_brand",
-                query="",  # Empty query to get all
-                n_results=50,  # Get many potential versions
-                where={
-                    "section": section,
-                    "narrative_id": narrative_id
-                },
-                include_metadata=True
-            )
+            base_where = {
+                "section": section,
+                "narrative_id": narrative_id,
+            }
 
-            if not result["success"] or not result["documents"]:
+            # Try querying with the profile_id-aware filter first, but fall back
+            # to the legacy filter when no documents are returned. Legacy
+            # records did not populate profile_id so we need to remain backward
+            # compatible with that data.
+            where_clauses = [
+                {**base_where, "profile_id": narrative_id},
+                base_where,
+            ]
+
+            result = None
+            for where_clause in where_clauses:
+                result = await self.search_collection(
+                    collection_name="career_brand",
+                    query="",  # Empty query to get all
+                    n_results=50,  # Get many potential versions
+                    where=where_clause,
+                    include_metadata=True
+                )
+
+                if result["success"] and result["documents"]:
+                    break
+
+            if not result or not result["success"] or not result["documents"]:
                 return []
 
             # Process and deduplicate by document_id (since multiple chunks per doc)
@@ -682,10 +985,14 @@ class ChromaManager:
                     version_map[doc_id] = {
                         "document_id": doc_id,
                         "version": version,
-                        "latest_version": metadata.get("latest_version", False),
+                        "latest_version": metadata.get(
+                            "is_latest",
+                            metadata.get("latest_version", False)
+                        ),
                         "timestamp": metadata.get("timestamp"),
                         "uploaded_at": metadata.get("uploaded_at"),
                         "title": metadata.get("title"),
+                        "profile_id": metadata.get("profile_id", narrative_id),
                         "content_preview": content[:200] + "..." if len(content) > 200 else content
                     }
 
