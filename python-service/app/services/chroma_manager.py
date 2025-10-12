@@ -942,19 +942,34 @@ class ChromaManager:
         Returns all versions (old and latest) for audit and review purposes.
         """
         try:
-            result = await self.search_collection(
-                collection_name="career_brand",
-                query="",  # Empty query to get all
-                n_results=50,  # Get many potential versions
-                where={
-                    "section": section,
-                    "narrative_id": narrative_id,
-                    "profile_id": narrative_id
-                },
-                include_metadata=True
-            )
+            base_where = {
+                "section": section,
+                "narrative_id": narrative_id,
+            }
 
-            if not result["success"] or not result["documents"]:
+            # Try querying with the profile_id-aware filter first, but fall back
+            # to the legacy filter when no documents are returned. Legacy
+            # records did not populate profile_id so we need to remain backward
+            # compatible with that data.
+            where_clauses = [
+                {**base_where, "profile_id": narrative_id},
+                base_where,
+            ]
+
+            result = None
+            for where_clause in where_clauses:
+                result = await self.search_collection(
+                    collection_name="career_brand",
+                    query="",  # Empty query to get all
+                    n_results=50,  # Get many potential versions
+                    where=where_clause,
+                    include_metadata=True
+                )
+
+                if result["success"] and result["documents"]:
+                    break
+
+            if not result or not result["success"] or not result["documents"]:
                 return []
 
             # Process and deduplicate by document_id (since multiple chunks per doc)
