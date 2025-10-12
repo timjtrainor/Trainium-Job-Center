@@ -53,7 +53,9 @@ class ProofPointCreateRequest(BaseModel):
     def to_service_kwargs(self) -> Dict[str, Any]:
         """Convert the request into keyword arguments for the service layer."""
 
-        transitions = [transition.model_dump(by_alias=True) for transition in self.status_transitions]
+        transitions = [
+            transition.model_dump(mode="json", by_alias=True) for transition in self.status_transitions
+        ]
 
         return {
             "profile_id": self.profile_id,
@@ -123,7 +125,9 @@ class ResumeCreateRequest(BaseModel):
     def to_service_kwargs(self) -> Dict[str, Any]:
         """Convert request payload to service parameters."""
 
-        transitions = [transition.model_dump(by_alias=True) for transition in self.status_transitions]
+        transitions = [
+            transition.model_dump(mode="json", by_alias=True) for transition in self.status_transitions
+        ]
 
         return {
             "title": self.title,
@@ -167,7 +171,8 @@ class ResumeUpdateRequest(BaseModel):
         payload = self.model_dump(exclude_unset=True)
         if "status_transitions" in payload:
             payload["status_transitions"] = [
-                transition.model_dump(by_alias=True) for transition in payload["status_transitions"] or []
+                transition.model_dump(mode="json", by_alias=True)
+                for transition in payload["status_transitions"] or []
             ]
         if "selected_proof_points" in payload and payload["selected_proof_points"] is not None:
             payload["selected_proof_points"] = list(payload["selected_proof_points"])
