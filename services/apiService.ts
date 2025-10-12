@@ -251,6 +251,10 @@ const _parseApplication = (app: any): JobApplication => {
                 interview_date: sanitizedInterviewDate,
                 interview_contacts: mappedInterviewContacts,
                 ai_prep_data: safeParseJson(restInterview.ai_prep_data, 'ai_prep_data', interview.interview_id),
+                prep_outline: safeParseJson(restInterview.prep_outline, 'prep_outline', interview.interview_id),
+                live_notes: typeof restInterview.live_notes === 'string' || restInterview.live_notes === null
+                    ? restInterview.live_notes
+                    : undefined,
                 strategic_plan: safeParseJson(restInterview.strategic_plan, 'strategic_plan', interview.interview_id),
                 post_interview_debrief: safeParseJson(restInterview.post_interview_debrief, 'post_interview_debrief', interview.interview_id),
                 strategic_questions_to_ask: Array.isArray(rawQuestions)
@@ -269,7 +273,7 @@ export const getApplications = async (since?: string): Promise<JobApplication[]>
         `&select=*,` +
         `status:statuses(*),` +
         `messages(*),` +
-        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,story_deck:interview_story_decks(order_index,story_id,custom_notes),interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
+        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,prep_outline,live_notes,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,story_deck:interview_story_decks(order_index,story_id,custom_notes),interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
         `offers(*)` +
         `&order=date_applied.desc,created_at.desc`;
     if (since) {
@@ -286,7 +290,7 @@ export const getSingleApplication = async (appId: string): Promise<JobApplicatio
         `&select=*,` +
         `status:statuses(*),` +
         `messages(*),` +
-        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,story_deck:interview_story_decks(order_index,story_id,custom_notes),interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
+        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,prep_outline,live_notes,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,story_deck:interview_story_decks(order_index,story_id,custom_notes),interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
         `offers(*)` +
         `&limit=1`;
     const response = await fetch(url);
@@ -882,6 +886,10 @@ export const getInterviews = async (appId: string): Promise<Interview[]> => {
             interview_date: sanitizedInterviewDate,
             interview_contacts: mappedInterviewContacts,
             ai_prep_data: safeParseJson(interview.ai_prep_data, 'ai_prep_data', interview.interview_id),
+            prep_outline: safeParseJson(interview.prep_outline, 'prep_outline', interview.interview_id),
+            live_notes: typeof interview.live_notes === 'string' || interview.live_notes === null
+                ? interview.live_notes
+                : undefined,
             strategic_plan: safeParseJson(interview.strategic_plan, 'strategic_plan', interview.interview_id),
             post_interview_debrief: safeParseJson(interview.post_interview_debrief, 'post_interview_debrief', interview.interview_id),
             strategic_questions_to_ask: Array.isArray(parsedQuestions) ? parsedQuestions : [],

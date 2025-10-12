@@ -418,7 +418,7 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
                                              <button onClick={() => onOpenStrategyStudio(interview)} disabled={isLoading} className="p-1.5 text-xs font-semibold rounded-md bg-white dark:bg-slate-700 ring-1 ring-inset ring-slate-300 dark:ring-slate-600 inline-flex items-center gap-1.5 hover:bg-slate-50" title="Open Strategy Studio">
                                                 <StrategyIcon className="h-4 w-4"/> Studio
                                              </button>
-                                             <button onClick={() => { setEditingInterviewId(interview.interview_id); setEditableInterview({ interview_type: interview.interview_type, interview_date: interview.interview_date, notes: interview.notes, contact_ids: (interview.interview_contacts || []).map(c => c.contact_id) }); }} className="p-1.5 text-xs font-semibold rounded-md bg-white dark:bg-slate-700 ring-1 ring-inset ring-slate-300 dark:ring-slate-600">Edit</button>
+                                            <button onClick={() => { setEditingInterviewId(interview.interview_id); setEditableInterview({ interview_type: interview.interview_type, interview_date: interview.interview_date, live_notes: interview.live_notes || '', contact_ids: (interview.interview_contacts || []).map(c => c.contact_id) }); }} className="p-1.5 text-xs font-semibold rounded-md bg-white dark:bg-slate-700 ring-1 ring-inset ring-slate-300 dark:ring-slate-600">Edit</button>
                                              <button onClick={() => onDeleteInterview(interview.interview_id)} className="p-1 text-red-500 hover:text-red-400" title="Delete Interview"><TrashIcon className="h-5 w-5"/></button>
                                         </div>
                                     </div>
@@ -463,7 +463,7 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
                                                 )}
                                             </div>
                                         </div>
-                                        <div><label className={labelClass}>Notes</label><textarea rows={4} value={editableInterview.notes || ''} onChange={e => setEditableInterview(prev => ({...prev, notes: e.target.value}))} className={inputClass} /></div>
+                                        <div><label className={labelClass}>Live Notes</label><textarea rows={4} value={editableInterview.live_notes || ''} onChange={e => setEditableInterview(prev => ({...prev, live_notes: e.target.value}))} className={inputClass} /></div>
                                         <div className="flex justify-end gap-2"><button onClick={() => { setEditingInterviewId(null); setEditableInterview({}); }} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-white dark:bg-slate-700 ring-1 ring-inset ring-slate-300 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600">Cancel</button><button onClick={() => handleSaveInterview({ job_application_id: application.job_application_id, ...editableInterview }, editingInterviewId === 'new' ? undefined : editingInterviewId)} disabled={isSaving} className="px-3 py-1.5 text-sm font-semibold rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">{isSaving ? <LoadingSpinner/> : 'Save'}</button></div>
                                     </div>
                                 </div>
