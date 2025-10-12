@@ -299,6 +299,152 @@ class ChromaIntegrationService:
             tags=fallback_tags
         )
 
+    async def update_resume_document(
+        self,
+        document_id: str,
+        *,
+        status: Optional[str] = None,
+        selected_proof_points: Optional[List[str]] = None,
+        approved_by: Optional[str] = None,
+        approved_at: Optional[datetime] = None,
+        approval_notes: Optional[str] = None,
+        status_transitions: Optional[List[Dict[str, Any]]] = None,
+        is_latest: Optional[bool] = None
+    ) -> Dict[str, Any]:
+        """Update metadata for an existing resume document."""
+
+        try:
+            if not await self.manager.ensure_collection_exists("resumes"):
+                return {
+                    "success": False,
+                    "message": "Resumes collection is unavailable",
+                    "document_id": document_id,
+                }
+
+            client = self.manager._get_client()
+            collection = client.get_collection("resumes")
+
+            results = collection.get(
+                where={"doc_id": document_id},
+                include=["metadatas", "ids"]
+            )
+
+            metadatas = results.get("metadatas") or []
+            chunk_ids = results.get("ids") or []
+
+            if not metadatas or not chunk_ids:
+                return {
+                    "success": False,
+                    "message": f"Resume document '{document_id}' was not found",
+                    "document_id": document_id,
+                }
+
+            updated_at = datetime.utcnow().isoformat()
+            base_metadata = metadatas[0] or {}
+            updated_metadatas: List[Dict[str, Any]] = []
+
+            normalized_transitions: Optional[List[Dict[str, Any]]] = None
+            if status_transitions is not None:
+                normalized_transitions = []
+                for transition in status_transitions:
+                    normalized = dict(transition)
+                    if "changed_at" in normalized:
+                        normalized["changed_at"] = self._normalize_datetime(
+                            normalized["changed_at"]
+                        )
+                    normalized_transitions.append(normalized)
+
+            for metadata in metadatas:
+                updated_metadata = dict(metadata or {})
+                previous_status = updated_metadata.get("status")
+
+                if status is not None:
+                    updated_metadata["status"] = status
+                    if status != previous_status:
+                        transitions = list(updated_metadata.get("status_transitions") or [])
+                        transitions.append({
+                            "from": previous_status,
+                            "to": status,
+                            "changed_at": updated_at,
+                            "changed_by": approved_by or updated_metadata.get("approved_by"),
+                        })
+                        updated_metadata["status_transitions"] = transitions
+
+                if normalized_transitions is not None:
+                    updated_metadata["status_transitions"] = normalized_transitions
+
+                if selected_proof_points is not None:
+                    updated_metadata["selected_proof_points"] = list(selected_proof_points)
+
+                if approved_by is not None:
+                    updated_metadata["approved_by"] = approved_by
+
+                if approved_at is not None:
+                    updated_metadata["approved_at"] = self._normalize_datetime(approved_at)
+
+                if approval_notes is not None:
+                    updated_metadata["approval_notes"] = approval_notes
+
+                if is_latest is not None:
+                    updated_metadata["is_latest"] = is_latest
+                    updated_metadata["latest_version"] = is_latest
+
+                updated_metadata["updated_at"] = updated_at
+
+                updated_metadatas.append(updated_metadata)
+
+            collection.update(ids=chunk_ids, metadatas=updated_metadatas)
+
+            if is_latest:
+                unique_filters = {
+                    key: base_metadata.get(key)
+                    for key in ("profile_id", "job_target")
+                    if base_metadata.get(key) is not None
+                }
+
+                if unique_filters:
+                    existing = collection.get(
+                        where=unique_filters,
+                        include=["metadatas", "ids"]
+                    )
+
+                    demote_ids: List[str] = []
+                    demote_metadatas: List[Dict[str, Any]] = []
+
+                    for chunk_id, metadata in zip(
+                        existing.get("ids", []), existing.get("metadatas", [])
+                    ):
+                        if metadata is None or metadata.get("doc_id") == document_id:
+                            continue
+
+                        demoted_metadata = dict(metadata)
+                        if demoted_metadata.get("is_latest"):
+                            demoted_metadata["is_latest"] = False
+                        if demoted_metadata.get("latest_version"):
+                            demoted_metadata["latest_version"] = False
+                        demoted_metadata["updated_at"] = updated_at
+
+                        demote_ids.append(chunk_id)
+                        demote_metadatas.append(demoted_metadata)
+
+                    if demote_ids:
+                        collection.update(ids=demote_ids, metadatas=demote_metadatas)
+
+            return {
+                "success": True,
+                "message": "Resume metadata updated",
+                "document_id": document_id,
+                "metadata": updated_metadatas[0],
+            }
+
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.error(f"Failed to update resume document '{document_id}': {exc}")
+            return {
+                "success": False,
+                "message": str(exc),
+                "document_id": document_id,
+            }
+
     def _prepare_resume_rollover_metadata(
         self,
         *,
