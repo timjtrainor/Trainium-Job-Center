@@ -8,8 +8,10 @@ import {
     BragBankEntry, BragBankEntryPayload, SkillTrend, SkillTrendPayload,
     Sprint, SprintAction, CreateSprintPayload, SprintActionPayload, ApplicationQuestion,
     SiteSchedule, SiteDetails, SiteSchedulePayload,
-    UploadedDocument, UploadSuccessResponse, ContentType,
-    PaginatedResponse, ReviewedJob, ReviewedJobRecommendation
+    UploadedDocument, UploadSuccessResponse, ContentType, DocumentMetadata,
+    PaginatedResponse, ReviewedJob, ReviewedJobRecommendation,
+    StandardResponse, ChromaUploadResponseData, ProofPointPayload,
+    ResumeCreatePayload, ResumeUpdatePayload, ResumeDocumentResponseData
 } from '../types';
 import { API_BASE_URL, USER_ID, FASTAPI_BASE_URL } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -1438,24 +1440,64 @@ export const uploadCareerBrand = (payload: any) => uploadJsonDocument('/document
 export const uploadCareerPath = (payload: any) => uploadJsonDocument('/documents/career-paths', payload);
 export const uploadJobSearchStrategy = (payload: any) => uploadJsonDocument('/documents/job-search-strategies', payload);
 
-// Uploader for resume file data
-export const uploadResume = async (formData: FormData): Promise<UploadSuccessResponse> => {
-    const response = await fetch(buildFastApiUrl('documents/resume'), {
-        method: 'POST',
-        body: formData,
-        // No 'Content-Type' header here for FormData, browser sets it.
+const sanitizePayload = <T extends Record<string, unknown>>(payload: T): T => {
+    const cleanedEntries = Object.entries(payload).filter(([, value]) => value !== undefined);
+    return Object.fromEntries(cleanedEntries) as T;
+};
+
+const sendStandardJson = async <T>(endpoint: string, payload: Record<string, unknown>, method: 'POST' | 'PATCH' = 'POST'): Promise<StandardResponse<T>> => {
+    const response = await fetch(buildFastApiUrl(endpoint), {
+        method,
+        headers,
+        body: JSON.stringify(sanitizePayload(payload)),
     });
     return handleResponse(response);
 };
+
+export const createProofPoint = async (payload: ProofPointPayload): Promise<StandardResponse<ChromaUploadResponseData>> =>
+    sendStandardJson<ChromaUploadResponseData>('proof-points', payload as Record<string, unknown>);
+
+export const createResumeDocument = async (payload: ResumeCreatePayload): Promise<StandardResponse<ChromaUploadResponseData>> =>
+    sendStandardJson<ChromaUploadResponseData>('resumes', payload as Record<string, unknown>);
+
+export const updateResumeDocument = async (
+    documentId: string,
+    payload: ResumeUpdatePayload,
+): Promise<StandardResponse<ResumeDocumentResponseData>> =>
+    sendStandardJson<ResumeDocumentResponseData>(`resumes/${documentId}`, payload as Record<string, unknown>, 'PATCH');
 
 export const getUploadedDocuments = async (profileId: string): Promise<UploadedDocument[]> => {
     if (!profileId) return [];
     const response = await fetch(`${buildFastApiUrl('documents')}?profile_id=${profileId}`);
     const data = await handleResponse(response);
-    return (data?.documents || []).sort((a: UploadedDocument, b: UploadedDocument) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const documents: UploadedDocument[] = (data?.documents || []).map((doc: any) => {
+        const metadata = (doc?.metadata ?? undefined) as DocumentMetadata | undefined;
+        const createdAt =
+            doc?.created_at ||
+            (metadata?.created_at as string | undefined) ||
+            (metadata?.uploaded_at as string | undefined) ||
+            new Date().toISOString();
+        const title = doc?.title || (metadata?.title as string | undefined) || 'Untitled';
+        const section = doc?.section || (metadata?.section as string | undefined) || '';
+        const contentType = (doc?.content_type || metadata?.collection_name || '') as ContentType;
+        const profile = doc?.profile_id || (metadata?.profile_id as string | undefined) || profileId;
+
+        return {
+            id: doc?.id,
+            profile_id: profile,
+            title,
+            section,
+            content_type: contentType,
+            created_at: createdAt,
+            content_snippet: doc?.content_snippet,
+            metadata,
+        };
+    });
+
+    return documents.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 };
 
-export const deleteUploadedDocument = async (documentId: string, contentType: ContentType): Promise<void> => {
+export const deleteUploadedDocument = async (documentId: string): Promise<void> => {
     const response = await fetch(buildFastApiUrl(`documents/${documentId}`), {
         method: 'DELETE',
     });
