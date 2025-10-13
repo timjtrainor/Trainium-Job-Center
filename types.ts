@@ -971,7 +971,34 @@ export type BragBankEntryPayload = Partial<Omit<BragBankEntry, 'entry_id' | 'use
 export type SkillTrendPayload = Omit<SkillTrend, 'skill_trend_id' | 'user_id' | 'created_at'>;
 
 // --- Document Upload types ---
-export type ContentType = 'career_brand' | 'career_brand_full' | 'career_path' | 'job_search_strategy' | 'resume';
+export type ContentType =
+    | 'career_brand'
+    | 'career_brand_full'
+    | 'career_path'
+    | 'job_search_strategy'
+    | 'resume'
+    | 'resumes'
+    | 'proof_points';
+
+export interface DocumentMetadata {
+    status?: string | null;
+    is_latest?: boolean | null;
+    latest_version?: boolean | null;
+    job_target?: string | null;
+    role_title?: string | null;
+    company?: string | null;
+    selected_proof_points?: string[];
+    impact_tags?: string[];
+    approved_by?: string | null;
+    approved_at?: string | null;
+    approval_notes?: string | null;
+    skills?: string[];
+    collection_name?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+    uploaded_at?: string | null;
+    [key: string]: unknown;
+}
 
 export interface UploadedDocument {
     id: string; // uuid from backend
@@ -981,6 +1008,7 @@ export interface UploadedDocument {
     content_type: ContentType;
     created_at: string;
     content_snippet?: string;
+    metadata?: DocumentMetadata;
 }
 
 export interface UploadSuccessResponse {
@@ -995,6 +1023,77 @@ export interface DocumentUploadPayload {
     title: string;
     content: string;
     metadata?: object;
+}
+
+export interface StandardResponse<T> {
+    status: 'success' | 'error' | 'warning';
+    data?: T;
+    error?: string | null;
+    message?: string | null;
+}
+
+export interface ChromaUploadResponseData {
+    success: boolean;
+    message?: string | null;
+    collection_name: string;
+    document_id: string;
+    metadata?: DocumentMetadata;
+}
+
+export interface ResumeDocumentResponseData {
+    document_id: string;
+    metadata: DocumentMetadata;
+    message?: string | null;
+}
+
+export interface StatusTransitionPayload {
+    from?: string | null;
+    to: string;
+    changed_at?: string;
+    changed_by?: string | null;
+    notes?: string | null;
+}
+
+export interface ProofPointPayload {
+    profile_id: string;
+    role_title: string;
+    company: string;
+    title: string;
+    content: string;
+    status?: string;
+    job_metadata?: Record<string, unknown> | null;
+    impact_tags?: string[];
+    uploaded_at?: string;
+    status_transitions?: StatusTransitionPayload[];
+    additional_metadata?: Record<string, unknown> | null;
+}
+
+export interface ResumeCreatePayload {
+    profile_id: string;
+    title: string;
+    content: string;
+    section?: string;
+    job_target?: string | null;
+    status?: string;
+    selected_proof_points?: string[];
+    status_transitions?: StatusTransitionPayload[];
+    approved_by?: string | null;
+    approved_at?: string | null;
+    approval_notes?: string | null;
+    version?: number | null;
+    is_latest?: boolean | null;
+    uploaded_at?: string;
+    additional_metadata?: Record<string, unknown> | null;
+}
+
+export interface ResumeUpdatePayload {
+    status?: string | null;
+    selected_proof_points?: string[] | null;
+    approved_by?: string | null;
+    approved_at?: string | null;
+    approval_notes?: string | null;
+    status_transitions?: StatusTransitionPayload[] | null;
+    is_latest?: boolean | null;
 }
 
 // For Reviewed Jobs View
