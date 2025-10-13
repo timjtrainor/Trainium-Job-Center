@@ -290,6 +290,21 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
         [documents]
     );
 
+    const resetApprovalForm = () => {
+        setApprovalResumeId('');
+        setApprovalStatus('approved');
+        setApprovalIsLatest(true);
+        setApprovalProofs([]);
+        setApprovalNotes('');
+        setApprovalApprovedBy('');
+        setApprovalErrors({});
+    };
+
+    const handleNarrativeSelect = (id: string) => {
+        setNarrativeId(id);
+        resetApprovalForm();
+    };
+
     const handleTypeSelect = (type: NarrativeContentType) => {
         setContentType(type);
         setSection(NARRATIVE_CONTENT_TYPES[type].sections[0] || '');
@@ -578,10 +593,7 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
                     <select
                         id="narrative-select"
                         value={narrativeId}
-                        onChange={e => {
-                            setNarrativeId(e.target.value);
-                            setApprovalResumeId('');
-                        }}
+                        onChange={e => handleNarrativeSelect(e.target.value)}
                         className={inputClass}
                     >
                         <option value="">Select a narrative...</option>
@@ -1051,7 +1063,7 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
                 <DocumentViewer
                     strategicNarratives={strategicNarratives}
                     selectedNarrativeId={narrativeId}
-                    onSelectNarrative={setNarrativeId}
+                    onSelectNarrative={handleNarrativeSelect}
                     documents={documents}
                     isLoading={isLoadingDocuments}
                     onRefresh={refreshDocuments}
