@@ -232,6 +232,11 @@ class TestChromaIntegrationServiceEnhancements:
         result = await service.create_proof_point_for_job(
             profile_id="profile-1",
             role_title="Staff Engineer",
+            job_title="Staff Engineer - Platform",
+            location="Remote",
+            start_date="2022-01-01",
+            end_date="2022-12-31",
+            is_current=False,
             company="Acme Corp",
             content="Delivered 40% performance gains",
             title="Performance Wins",
@@ -246,10 +251,18 @@ class TestChromaIntegrationServiceEnhancements:
 
         assert kwargs['profile_id'] == "profile-1"
         assert kwargs['status'] == "ready"
+        assert kwargs['job_title'] == "Staff Engineer - Platform"
+        assert kwargs['location'] == "Remote"
+        assert kwargs['start_date'] == "2022-01-01"
+        assert kwargs['end_date'] == "2022-12-31"
+        assert kwargs['is_current'] is False
         metadata = kwargs['additional_metadata']
         assert metadata['job_id'] == "job-123"
-        assert metadata['job_title'] == "Staff Engineer"
-        assert metadata['job_location'] == "Remote"
+        assert metadata['job_title'] == "Staff Engineer - Platform"
+        assert metadata['location'] == "Remote"
+        assert metadata['start_date'] == "2022-01-01"
+        assert metadata['end_date'] == "2022-12-31"
+        assert metadata['is_current'] is False
         assert metadata['status_transitions'] == status_transitions
         assert metadata['impact_tags'] == ["performance"]
         assert 'uploaded_at' in metadata
@@ -261,6 +274,11 @@ class TestChromaIntegrationServiceEnhancements:
         await service.update_proof_point_for_job(
             profile_id="profile-1",
             role_title="Staff Engineer",
+            job_title="Staff Engineer - Platform",
+            location="Remote",
+            start_date="2022-01-01",
+            end_date=None,
+            is_current=True,
             company="Acme Corp",
             content="Updated impact",
             title="Performance Wins",
@@ -272,11 +290,17 @@ class TestChromaIntegrationServiceEnhancements:
         )
 
         kwargs = mock_manager.upload_proof_point_document.call_args.kwargs
+        assert kwargs['job_title'] == "Staff Engineer - Platform"
+        assert kwargs['location'] == "Remote"
+        assert kwargs['start_date'] == "2022-01-01"
+        assert kwargs['end_date'] == ""
+        assert kwargs['is_current'] is True
         metadata = kwargs['additional_metadata']
         assert metadata['job_id'] == "job-123"
         assert metadata['status'] == "approved"
         assert metadata['version'] == 3
         assert metadata['is_latest'] is False
+        assert metadata['is_current'] is True
     
     @pytest.mark.anyio("asyncio")
     async def test_search_for_crew_context_with_filters(self, service, mock_manager):
@@ -534,3 +558,94 @@ class TestChromaIntegrationServiceMetadataPersistence:
         assert approved_meta["approved_at"].startswith("2024-02-01T09:30:00")
         assert approved_meta["status_transitions"] == all_transitions
 
+    @pytest.mark.anyio("asyncio")
+    async def test_proof_point_experience_versioning(self, integration_service_with_mock_chroma):
+        """Ensure proof point uploads persist experience metadata and demote prior versions."""
+
+        service, mock_client = integration_service_with_mock_chroma
+
+        await service.create_proof_point_for_job(
+            profile_id="profile-pp-1",
+            role_title="Staff Engineer",
+            job_title="Staff Engineer - Platform",
+            location="Remote",
+            start_date="2020-01-01",
+            end_date="2021-06-01",
+            is_current=False,
+            company="OpenAI",
+            content="Launched new platform capabilities",
+            title="Platform Launch",
+            job_metadata={"id": "job-123"},
+            status="draft",
+            impact_tags=["launch"],
+            uploaded_at=datetime(2020, 1, 2, 12, 0, 0),
+        )
+
+        transitions = [
+            {"from": "draft", "to": "approved", "at": "2021-06-15T00:00:00Z"}
+        ]
+
+        await service.create_proof_point_for_job(
+            profile_id="profile-pp-1",
+            role_title="Staff Engineer",
+            job_title="Staff Engineer - Platform",
+            location="Remote",
+            start_date="2020-01-01",
+            end_date="2021-06-01",
+            is_current=False,
+            company="OpenAI",
+            content="Expanded platform adoption by 3x",
+            title="Platform Launch",
+            job_metadata={"id": "job-123"},
+            status="approved",
+            impact_tags=["launch", "growth"],
+            status_transitions=transitions,
+            uploaded_at=datetime(2021, 6, 15, 12, 0, 0),
+        )
+
+        collection = mock_client.get_collection("proof_points")
+        stored = collection.get(
+            where={
+                "profile_id": "profile-pp-1",
+                "company": "OpenAI",
+                "job_title": "Staff Engineer - Platform",
+                "location": "Remote",
+                "start_date": "2020-01-01",
+                "end_date": "2021-06-01",
+                "is_current": False,
+            },
+            include=["metadatas"]
+        )
+
+        metadata_by_doc = {}
+        for metadata in stored.get("metadatas", []):
+            doc_id = metadata.get("doc_id")
+            if doc_id and doc_id not in metadata_by_doc:
+                metadata_by_doc[doc_id] = metadata
+
+        assert len(metadata_by_doc) == 2
+
+        versions = {meta.get("version"): meta for meta in metadata_by_doc.values()}
+        draft_meta = versions.get(1)
+        approved_meta = versions.get(2)
+
+        assert draft_meta is not None
+        assert draft_meta["status"] == "draft"
+        assert draft_meta["is_latest"] is False
+        assert draft_meta["job_title"] == "Staff Engineer - Platform"
+        assert draft_meta["location"] == "Remote"
+        assert draft_meta["start_date"] == "2020-01-01"
+        assert draft_meta["end_date"] == "2021-06-01"
+        assert draft_meta["is_current"] is False
+
+        assert approved_meta is not None
+        assert approved_meta["status"] == "approved"
+        assert approved_meta["is_latest"] is True
+        assert approved_meta["impact_tags"] == ["launch", "growth"]
+        assert approved_meta["status_transitions"] == transitions
+        assert approved_meta["job_id"] == "job-123"
+        assert approved_meta["job_title"] == "Staff Engineer - Platform"
+        assert approved_meta["location"] == "Remote"
+        assert approved_meta["start_date"] == "2020-01-01"
+        assert approved_meta["end_date"] == "2021-06-01"
+        assert approved_meta["is_current"] is False

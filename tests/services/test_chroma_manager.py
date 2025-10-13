@@ -411,6 +411,11 @@ class TestChromaManager:
         result_v1 = await manager.upload_proof_point_document(
             profile_id="profile-456",
             role_title="Product Manager",
+            job_title="Product Manager - Launch",
+            location="Remote",
+            start_date="2021-01-01",
+            end_date="2021-12-31",
+            is_current=False,
             company="OpenAI",
             content="Delivered first version",
             title="Launch",
@@ -422,6 +427,11 @@ class TestChromaManager:
         result_v2 = await manager.upload_proof_point_document(
             profile_id="profile-456",
             role_title="Product Manager",
+            job_title="Product Manager - Launch",
+            location="Remote",
+            start_date="2021-01-01",
+            end_date="2021-12-31",
+            is_current=False,
             company="OpenAI",
             content="Improved performance",
             title="Launch",
@@ -434,22 +444,33 @@ class TestChromaManager:
         stored = collection.get(
             where={
                 "profile_id": "profile-456",
-                "role_title": "Product Manager",
-                "company": "OpenAI"
+                "company": "OpenAI",
+                "job_title": "Product Manager - Launch",
+                "location": "Remote",
+                "start_date": "2021-01-01",
+                "end_date": "2021-12-31",
+                "is_current": False,
             },
             include=["metadatas"]
         )
 
         latest_flags = {}
+        start_dates = {}
         for metadata in stored.get("metadatas", []):
             doc_id = metadata.get("doc_id")
             if not doc_id or doc_id in latest_flags:
                 continue
             latest_flags[doc_id] = metadata.get("is_latest")
+            start_dates[doc_id] = metadata.get("start_date")
+            assert metadata.get("job_title") == "Product Manager - Launch"
+            assert metadata.get("location") == "Remote"
+            assert metadata.get("end_date") == "2021-12-31"
+            assert metadata.get("is_current") is False
 
         assert set(latest_flags.keys()) == {result_v1.document_id, result_v2.document_id}
         assert latest_flags[result_v1.document_id] is False
         assert latest_flags[result_v2.document_id] is True
+        assert start_dates[result_v1.document_id] == "2021-01-01"
 
     @patch('app.services.chroma_manager.get_chroma_client')
     @patch('app.services.chroma_manager.get_embedding_function')

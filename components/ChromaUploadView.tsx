@@ -210,6 +210,11 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
     const [proofTitle, setProofTitle] = useState('');
     const [proofContent, setProofContent] = useState('');
     const [proofRole, setProofRole] = useState('');
+    const [proofJobTitle, setProofJobTitle] = useState('');
+    const [proofLocation, setProofLocation] = useState('');
+    const [proofStartDate, setProofStartDate] = useState('');
+    const [proofEndDate, setProofEndDate] = useState('');
+    const [proofIsCurrent, setProofIsCurrent] = useState(false);
     const [proofCompany, setProofCompany] = useState('');
     const [proofImpactTags, setProofImpactTags] = useState('');
     const [proofSkills, setProofSkills] = useState('');
@@ -410,6 +415,10 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
         if (!proofTitle.trim()) errors.title = 'Title is required.';
         if (!proofContent.trim()) errors.content = 'Content is required.';
         if (!proofRole.trim()) errors.role = 'Role is required.';
+        if (!proofJobTitle.trim()) errors.job_title = 'Job title is required.';
+        if (!proofLocation.trim()) errors.location = 'Location is required.';
+        if (!proofStartDate) errors.start_date = 'Start date is required.';
+        if (!proofIsCurrent && !proofEndDate) errors.end_date = 'End date is required unless current.';
         if (!proofCompany.trim()) errors.company = 'Company is required.';
         setProofErrors(errors);
         return Object.keys(errors).length === 0;
@@ -422,6 +431,11 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
             const payload = {
                 profile_id: narrativeId,
                 role_title: proofRole,
+                job_title: proofJobTitle,
+                location: proofLocation,
+                start_date: proofStartDate,
+                end_date: proofIsCurrent ? null : proofEndDate,
+                is_current: proofIsCurrent,
                 company: proofCompany,
                 title: proofTitle,
                 content: proofContent,
@@ -437,6 +451,11 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
             setProofTitle('');
             setProofContent('');
             setProofRole('');
+            setProofJobTitle('');
+            setProofLocation('');
+            setProofStartDate('');
+            setProofEndDate('');
+            setProofIsCurrent(false);
             setProofCompany('');
             setProofImpactTags('');
             setProofSkills('');
@@ -772,6 +791,88 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
                                     className={inputClass}
                                 />
                                 {proofErrors.company && <p className="text-xs text-red-500 mt-1">{proofErrors.company}</p>}
+                            </div>
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div>
+                                <label htmlFor="proof-job-title" className={labelClass}>
+                                    Job Title / Experience
+                                </label>
+                                <input
+                                    id="proof-job-title"
+                                    type="text"
+                                    value={proofJobTitle}
+                                    onChange={e => setProofJobTitle(e.target.value)}
+                                    className={inputClass}
+                                />
+                                {proofErrors.job_title && (
+                                    <p className="text-xs text-red-500 mt-1">{proofErrors.job_title}</p>
+                                )}
+                            </div>
+                            <div>
+                                <label htmlFor="proof-location" className={labelClass}>
+                                    Location
+                                </label>
+                                <input
+                                    id="proof-location"
+                                    type="text"
+                                    value={proofLocation}
+                                    onChange={e => setProofLocation(e.target.value)}
+                                    className={inputClass}
+                                />
+                                {proofErrors.location && (
+                                    <p className="text-xs text-red-500 mt-1">{proofErrors.location}</p>
+                                )}
+                            </div>
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div>
+                                <label htmlFor="proof-start-date" className={labelClass}>
+                                    Start Date
+                                </label>
+                                <input
+                                    id="proof-start-date"
+                                    type="date"
+                                    value={proofStartDate}
+                                    onChange={e => setProofStartDate(e.target.value)}
+                                    className={inputClass}
+                                />
+                                {proofErrors.start_date && (
+                                    <p className="text-xs text-red-500 mt-1">{proofErrors.start_date}</p>
+                                )}
+                            </div>
+                            <div>
+                                <div className="flex items-center justify-between">
+                                    <label htmlFor="proof-end-date" className={labelClass}>
+                                        End Date
+                                    </label>
+                                    <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                                        <input
+                                            type="checkbox"
+                                            checked={proofIsCurrent}
+                                            onChange={event => {
+                                                const checked = event.target.checked;
+                                                setProofIsCurrent(checked);
+                                                if (checked) {
+                                                    setProofEndDate('');
+                                                }
+                                            }}
+                                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        Current Role
+                                    </label>
+                                </div>
+                                <input
+                                    id="proof-end-date"
+                                    type="date"
+                                    value={proofEndDate}
+                                    onChange={e => setProofEndDate(e.target.value)}
+                                    className={inputClass}
+                                    disabled={proofIsCurrent}
+                                />
+                                {proofErrors.end_date && (
+                                    <p className="text-xs text-red-500 mt-1">{proofErrors.end_date}</p>
+                                )}
                             </div>
                         </div>
                         <div>

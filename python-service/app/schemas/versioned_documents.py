@@ -28,6 +28,26 @@ class ProofPointCreateRequest(BaseModel):
 
     profile_id: str = Field(..., description="Profile identifier for the proof point")
     role_title: str = Field(..., description="Role associated with the proof point")
+    job_title: Optional[str] = Field(
+        default=None,
+        description="Specific job title or experience label for uniqueness",
+    )
+    location: Optional[str] = Field(
+        default=None,
+        description="Location associated with the proof point experience",
+    )
+    start_date: Optional[str] = Field(
+        default=None,
+        description="Start date of the experience in ISO format",
+    )
+    end_date: Optional[str] = Field(
+        default=None,
+        description="End date of the experience in ISO format",
+    )
+    is_current: Optional[bool] = Field(
+        default=None,
+        description="Whether the experience is currently ongoing",
+    )
     company: str = Field(..., description="Company associated with the proof point")
     title: str = Field(..., description="Title for the proof point document")
     content: str = Field(..., description="Proof point content")
@@ -60,6 +80,11 @@ class ProofPointCreateRequest(BaseModel):
         return {
             "profile_id": self.profile_id,
             "role_title": self.role_title,
+            "job_title": self.job_title,
+            "location": self.location,
+            "start_date": self.start_date,
+            "end_date": self.end_date,
+            "is_current": self.is_current,
             "company": self.company,
             "content": self.content,
             "title": self.title,
