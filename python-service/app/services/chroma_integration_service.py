@@ -619,6 +619,8 @@ class ChromaIntegrationService:
             additional_metadata=additional_metadata
         )
 
+        normalized_is_current = bool(metadata.get("is_current", False))
+
         return await self.manager.upload_proof_point_document(
             profile_id=profile_id,
             role_title=role_title,
@@ -626,7 +628,7 @@ class ChromaIntegrationService:
             location=location or "",
             start_date=start_date or "",
             end_date=end_date or "",
-            is_current=is_current if is_current is not None else False,
+            is_current=normalized_is_current,
             company=company,
             content=content,
             title=title,
@@ -678,6 +680,8 @@ class ChromaIntegrationService:
         if is_latest is not None:
             metadata["is_latest"] = is_latest
 
+        normalized_is_current = bool(metadata.get("is_current", False))
+
         return await self.manager.upload_proof_point_document(
             profile_id=profile_id,
             role_title=role_title,
@@ -685,7 +689,7 @@ class ChromaIntegrationService:
             location=location or "",
             start_date=start_date or "",
             end_date=end_date or "",
-            is_current=is_current if is_current is not None else False,
+            is_current=normalized_is_current,
             company=company,
             content=content,
             title=title,

@@ -301,6 +301,38 @@ class TestChromaIntegrationServiceEnhancements:
         assert metadata['version'] == 3
         assert metadata['is_latest'] is False
         assert metadata['is_current'] is True
+
+    @pytest.mark.anyio("asyncio")
+    async def test_update_proof_point_for_job_preserves_is_current_when_omitted(
+        self,
+        service,
+        mock_manager
+    ):
+        """Omitting is_current should preserve the stored value for partial updates."""
+
+        existing_metadata = {
+            "job_id": "job-123",
+            "is_current": True,
+            "job_title": "Staff Engineer - Platform"
+        }
+
+        await service.update_proof_point_for_job(
+            profile_id="profile-1",
+            role_title="Staff Engineer",
+            job_title="Staff Engineer - Platform",
+            company="Acme Corp",
+            content="Updated impact",
+            title="Performance Wins",
+            status="approved",
+            additional_metadata=existing_metadata
+        )
+
+        kwargs = mock_manager.upload_proof_point_document.call_args.kwargs
+        assert kwargs['is_current'] is True
+
+        metadata = kwargs['additional_metadata']
+        assert metadata['is_current'] is True
+        assert metadata['job_id'] == "job-123"
     
     @pytest.mark.anyio("asyncio")
     async def test_search_for_crew_context_with_filters(self, service, mock_manager):
