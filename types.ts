@@ -1057,6 +1057,11 @@ export interface StatusTransitionPayload {
 export interface ProofPointPayload {
     profile_id: string;
     role_title: string;
+    job_title?: string | null;
+    location?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    is_current?: boolean;
     company: string;
     title: string;
     content: string;

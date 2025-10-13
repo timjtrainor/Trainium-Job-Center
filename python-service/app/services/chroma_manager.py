@@ -698,6 +698,11 @@ class ChromaManager:
         self,
         profile_id: str,
         role_title: str,
+        job_title: str,
+        location: str,
+        start_date: str,
+        end_date: str,
+        is_current: bool,
         company: str,
         content: str,
         title: str,
@@ -711,6 +716,11 @@ class ChromaManager:
             metadata = {
                 "profile_id": profile_id,
                 "role_title": role_title,
+                "job_title": job_title,
+                "location": location,
+                "start_date": start_date,
+                "end_date": end_date,
+                "is_current": is_current,
                 "company": company,
                 "title": title,
                 "status": status,
@@ -733,7 +743,15 @@ class ChromaManager:
                 title=title,
                 document_text=content,
                 base_metadata=metadata,
-                unique_keys=["profile_id", "role_title", "company"],
+                unique_keys=[
+                    "profile_id",
+                    "company",
+                    "job_title",
+                    "location",
+                    "start_date",
+                    "end_date",
+                    "is_current",
+                ],
                 tags=tags
             )
 

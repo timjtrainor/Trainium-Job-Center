@@ -527,6 +527,11 @@ class ChromaIntegrationService:
         self,
         *,
         job_metadata: Optional[Dict[str, Any]],
+        job_title: Optional[str],
+        location: Optional[str],
+        start_date: Optional[str],
+        end_date: Optional[str],
+        is_current: Optional[bool],
         status: str,
         uploaded_at: Optional[datetime],
         status_transitions: Optional[List[Dict[str, Any]]],
@@ -543,6 +548,23 @@ class ChromaIntegrationService:
             for key, value in job_metadata.items():
                 if value is not None:
                     metadata[f"job_{key}"] = value
+
+        def _stringify(value: Optional[Any]) -> str:
+            if value is None:
+                return ""
+            if isinstance(value, datetime):
+                return value.isoformat()
+            return str(value)
+
+        metadata["job_title"] = _stringify(job_title) or metadata.get("job_title") or ""
+        metadata["location"] = _stringify(location) or metadata.get("location") or ""
+        metadata["start_date"] = _stringify(start_date) or metadata.get("start_date") or ""
+        metadata["end_date"] = _stringify(end_date) or metadata.get("end_date") or ""
+        metadata["is_current"] = (
+            bool(is_current)
+            if is_current is not None
+            else bool(metadata.get("is_current", False))
+        )
 
         timestamp = self._normalize_datetime(uploaded_at) or metadata.get("uploaded_at")
         if not timestamp:
@@ -569,6 +591,11 @@ class ChromaIntegrationService:
         content: str,
         title: str,
         *,
+        job_title: Optional[str] = None,
+        location: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        is_current: Optional[bool] = None,
         job_metadata: Optional[Dict[str, Any]] = None,
         status: str = "draft",
         impact_tags: Optional[List[str]] = None,
@@ -580,6 +607,11 @@ class ChromaIntegrationService:
 
         metadata = self._prepare_proof_point_rollover_metadata(
             job_metadata=job_metadata,
+            job_title=job_title or role_title,
+            location=location,
+            start_date=start_date,
+            end_date=end_date,
+            is_current=is_current,
             status=status,
             uploaded_at=uploaded_at,
             status_transitions=status_transitions,
@@ -587,9 +619,16 @@ class ChromaIntegrationService:
             additional_metadata=additional_metadata
         )
 
+        normalized_is_current = bool(metadata.get("is_current", False))
+
         return await self.manager.upload_proof_point_document(
             profile_id=profile_id,
             role_title=role_title,
+            job_title=job_title or role_title,
+            location=location or "",
+            start_date=start_date or "",
+            end_date=end_date or "",
+            is_current=normalized_is_current,
             company=company,
             content=content,
             title=title,
@@ -606,6 +645,11 @@ class ChromaIntegrationService:
         content: str,
         title: str,
         *,
+        job_title: Optional[str] = None,
+        location: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        is_current: Optional[bool] = None,
         job_metadata: Optional[Dict[str, Any]] = None,
         status: str = "draft",
         impact_tags: Optional[List[str]] = None,
@@ -619,6 +663,11 @@ class ChromaIntegrationService:
 
         metadata = self._prepare_proof_point_rollover_metadata(
             job_metadata=job_metadata,
+            job_title=job_title or role_title,
+            location=location,
+            start_date=start_date,
+            end_date=end_date,
+            is_current=is_current,
             status=status,
             uploaded_at=uploaded_at,
             status_transitions=status_transitions,
@@ -631,9 +680,16 @@ class ChromaIntegrationService:
         if is_latest is not None:
             metadata["is_latest"] = is_latest
 
+        normalized_is_current = bool(metadata.get("is_current", False))
+
         return await self.manager.upload_proof_point_document(
             profile_id=profile_id,
             role_title=role_title,
+            job_title=job_title or role_title,
+            location=location or "",
+            start_date=start_date or "",
+            end_date=end_date or "",
+            is_current=normalized_is_current,
             company=company,
             content=content,
             title=title,
