@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { vi } from 'vitest';
 import { ChromaUploadView } from '../ChromaUploadView';
 import { ToastProvider } from '../../hooks/useToast';
@@ -15,6 +15,7 @@ vi.mock('../../services/apiService', () => ({
     createProofPoint: vi.fn(),
     createResumeDocument: vi.fn(),
     updateResumeDocument: vi.fn(),
+    getDocumentDetail: vi.fn(),
 }));
 
 type MockedApi = {
@@ -22,6 +23,7 @@ type MockedApi = {
     createProofPoint: ReturnType<typeof vi.fn>;
     createResumeDocument: ReturnType<typeof vi.fn>;
     updateResumeDocument: ReturnType<typeof vi.fn>;
+    getDocumentDetail: ReturnType<typeof vi.fn>;
 };
 
 const mockedApi = apiService as unknown as MockedApi;
@@ -46,6 +48,7 @@ describe('ChromaUploadView', () => {
         title: 'Led AI Adoption',
         section: 'General',
         content_type: 'proof_points',
+        collection_name: 'proof_points',
         created_at: '2024-01-01T00:00:00.000Z',
         metadata: {
             status: 'draft',
@@ -61,6 +64,7 @@ describe('ChromaUploadView', () => {
         title: 'Resume Draft',
         section: 'resume',
         content_type: 'resumes',
+        collection_name: 'resumes',
         created_at: '2024-01-02T00:00:00.000Z',
         metadata: {
             status: 'draft',
@@ -105,11 +109,18 @@ describe('ChromaUploadView', () => {
         await waitFor(() => expect(mockedApi.getUploadedDocuments).toHaveBeenCalledTimes(1));
 
         fireEvent.click(screen.getByRole('button', { name: /proof points/i }));
-        fireEvent.change(screen.getByLabelText(/^Title$/i), { target: { value: 'Platform Launch' } });
         fireEvent.change(screen.getByLabelText(/Role Title/i), { target: { value: 'Product Lead' } });
         fireEvent.change(screen.getByLabelText(/Company/i), { target: { value: 'Acme' } });
-        fireEvent.change(screen.getByLabelText(/Impact Tags/i), { target: { value: 'growth, ai' } });
-        fireEvent.change(screen.getByLabelText(/Target Skills/i), { target: { value: 'strategy, analytics' } });
+        fireEvent.change(screen.getByLabelText(/^Location$/i), { target: { value: 'Remote' } });
+        fireEvent.change(screen.getByLabelText(/^Start Date$/i), { target: { value: '2023-01-01' } });
+        fireEvent.click(screen.getByLabelText(/Current Role/i));
+        fireEvent.change(screen.getByLabelText('Skills (comma separated)'), { target: { value: 'growth, ai' } });
+        fireEvent.change(screen.getByLabelText('Keywords (comma separated)'), {
+            target: { value: 'strategy, analytics' },
+        });
+        fireEvent.change(screen.getByLabelText('Architecture (comma separated)'), {
+            target: { value: 'GCP, Kubernetes' },
+        });
         fireEvent.change(screen.getByLabelText(/^Content$/i), {
             target: { value: 'Scaled the AI platform with cross-functional pods.' },
         });
@@ -120,16 +131,20 @@ describe('ChromaUploadView', () => {
             expect(mockedApi.createProofPoint).toHaveBeenCalledWith(
                 expect.objectContaining({
                     profile_id: 'narrative-1',
-                    title: 'Platform Launch',
+                    title: 'Acme - Product Lead',
                     impact_tags: ['growth', 'ai'],
-                    job_metadata: { skills: ['strategy', 'analytics'] },
+                    job_metadata: {
+                        keywords: ['strategy', 'analytics'],
+                        architecture: ['GCP', 'Kubernetes'],
+                    },
                 }),
             ),
         );
 
         await waitFor(() => expect(mockedApi.getUploadedDocuments).toHaveBeenCalledTimes(2));
-        await screen.findByText(/Status: draft/i);
-        await screen.findByText(/Latest/i);
+        await screen.findByText(/Platform Launch/i);
+        const latestBadges = await screen.findAllByText(/Latest/i);
+        expect(latestBadges.length).toBeGreaterThan(0);
     });
 
     it('submits resume draft metadata including proof points', async () => {
@@ -157,7 +172,8 @@ describe('ChromaUploadView', () => {
         fireEvent.change(screen.getByLabelText(/^Title$/i), { target: { value: 'Principal PM Resume' } });
         fireEvent.change(screen.getByLabelText(/Role \/ Company Target/i), { target: { value: 'Principal PM @ Acme' } });
         fireEvent.change(screen.getAllByLabelText(/^Status$/i)[0], { target: { value: 'approved' } });
-        fireEvent.click(screen.getByLabelText(/Led AI Adoption/i));
+        const resumeSection = screen.getByRole('heading', { name: /Upload Resume Draft/i }).closest('div') as HTMLElement;
+        fireEvent.click(within(resumeSection).getByLabelText(/Led AI Adoption/i));
         fireEvent.change(screen.getByLabelText(/Skills Highlighted/i), { target: { value: 'ai strategy' } });
         fireEvent.change(screen.getAllByLabelText(/^Reviewer Email$/i)[0], {
             target: { value: 'reviewer@example.com' },
@@ -184,7 +200,8 @@ describe('ChromaUploadView', () => {
 
         await waitFor(() => expect(mockedApi.getUploadedDocuments).toHaveBeenCalledTimes(2));
         await screen.findByText(/Status: approved/i);
-        await screen.findByText(/Latest/i);
+        const updatedLatestBadges = await screen.findAllByText(/Latest/i);
+        expect(updatedLatestBadges.length).toBeGreaterThan(0);
     });
 
     it('patches resume metadata during approval flow', async () => {
@@ -225,15 +242,18 @@ describe('ChromaUploadView', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /resumes/i }));
         fireEvent.change(screen.getByLabelText(/Select Resume/i), { target: { value: 'resume-1' } });
-        await waitFor(() => expect(screen.getAllByLabelText(/Mark as latest version/i)[1]).not.toBeChecked());
 
-        fireEvent.change(screen.getAllByLabelText(/^Status$/i)[1], { target: { value: 'approved' } });
-        fireEvent.click(screen.getAllByLabelText(/Mark as latest version/i)[1]);
-        fireEvent.click(screen.getByLabelText(/Operational Excellence/i));
-        fireEvent.change(screen.getAllByLabelText(/^Reviewer Email$/i)[1], {
+        const approvalSection = screen.getByRole('heading', { name: /Approval & Status Updates/i }).closest('div') as HTMLElement;
+        const approvalLatestCheckbox = within(approvalSection).getByLabelText(/Mark as latest version/i) as HTMLInputElement;
+        await waitFor(() => expect(approvalLatestCheckbox).not.toBeChecked());
+
+        fireEvent.change(within(approvalSection).getByLabelText(/^Status$/i), { target: { value: 'approved' } });
+        fireEvent.click(approvalLatestCheckbox);
+        fireEvent.click(within(approvalSection).getByLabelText(/Operational Excellence/i));
+        fireEvent.change(within(approvalSection).getByLabelText(/^Reviewer Email$/i), {
             target: { value: 'approver@example.com' },
         });
-        fireEvent.change(screen.getAllByLabelText(/^Reviewer Notes$/i)[1], { target: { value: 'Ship it' } });
+        fireEvent.change(within(approvalSection).getByLabelText(/^Reviewer Notes$/i), { target: { value: 'Ship it' } });
 
         fireEvent.click(screen.getByRole('button', { name: /Submit Approval Update/i }));
 
@@ -252,6 +272,7 @@ describe('ChromaUploadView', () => {
 
         await waitFor(() => expect(mockedApi.getUploadedDocuments).toHaveBeenCalledTimes(2));
         await screen.findByText(/Status: approved/i);
-        await screen.findByText(/Latest/i);
+        const approvalLatestBadges = await screen.findAllByText(/Latest/i);
+        expect(approvalLatestBadges.length).toBeGreaterThan(0);
     });
 });

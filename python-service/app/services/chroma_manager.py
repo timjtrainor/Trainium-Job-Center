@@ -1,5 +1,6 @@
 """Extensible ChromaDB manager for CrewAI integration."""
 
+import json
 import uuid
 import hashlib
 from datetime import datetime, timezone
@@ -269,6 +270,34 @@ class ChromaManager:
         """Generate SHA1 hash of text."""
         return hashlib.sha1(text.encode("utf-8")).hexdigest()
 
+    def _sanitize_metadata_value(self, value: Any) -> Union[str, int, float, bool, None]:
+        """Convert metadata values to types accepted by Chroma."""
+        if value is None:
+            return None
+        if isinstance(value, (str, int, float, bool)):
+            return value
+        if isinstance(value, (list, tuple, set)):
+            return json.dumps(list(value), ensure_ascii=False, separators=(",", ":"))
+        if isinstance(value, dict):
+            return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        return str(value)
+
+    def _build_where_clause(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert simple equality filters into Chroma's operator format."""
+        clauses = []
+        for key, value in filters.items():
+            if value is None:
+                continue
+            clauses.append({key: {"$eq": value}})
+
+        if not clauses:
+            return {}
+
+        if len(clauses) == 1:
+            return clauses[0]
+
+        return {"$and": clauses}
+
     async def _prepare_versioning(
         self,
         collection_name: str,
@@ -286,7 +315,8 @@ class ChromaManager:
         client = self._get_client()
         collection = client.get_collection(collection_name)
 
-        results = collection.get(where=unique_filters, include=["metadatas", "ids"])
+        where_clause = self._build_where_clause(unique_filters)
+        results = collection.get(where=where_clause, include=["metadatas"])
 
         doc_chunks: Dict[str, Dict[str, Any]] = {}
         max_version = 0
@@ -350,6 +380,7 @@ class ChromaManager:
         })
         metadata.setdefault("uploaded_at", timestamp)
         metadata.setdefault("created_at", timestamp)
+        metadata = {key: self._sanitize_metadata_value(value) for key, value in metadata.items()}
 
         return await self.upload_document(
             collection_name=collection_name,
@@ -516,10 +547,11 @@ class ChromaManager:
             if include_metadata:
                 include_params.append("metadatas")
             
+            where_clause = self._build_where_clause(where or {})
             results = collection.query(
                 query_texts=[query],
                 n_results=n_results,
-                where=where,
+                where=where_clause if where_clause else None,
                 include=include_params
             )
             
@@ -838,10 +870,7 @@ class ChromaManager:
             collection = client.get_collection("career_brand")
 
             def _get_latest(where_clause: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-                results = collection.get(
-                    where=where_clause,
-                    include=["metadatas", "documents", "ids"]
-                )
+                results = collection.get(where=where_clause, include=["metadatas", "documents"])
 
                 metadatas = results.get("metadatas", []) or []
                 documents = results.get("documents", []) or []
@@ -881,21 +910,23 @@ class ChromaManager:
 
                 return max(aggregated.values(), key=lambda item: item["version"])
 
-            latest = _get_latest({
+            latest_filters = {
                 "section": section,
                 "narrative_id": narrative_id,
                 "is_latest": True
-            })
+            }
+            latest = _get_latest(self._build_where_clause(latest_filters))
 
             if latest:
                 return latest
 
             # Backwards compatibility for records that still use latest_version
-            return _get_latest({
+            legacy_filters = {
                 "section": section,
                 "narrative_id": narrative_id,
                 "latest_version": True
-            })
+            }
+            return _get_latest(self._build_where_clause(legacy_filters))
 
         except Exception as e:
             logger.error(
@@ -919,7 +950,7 @@ class ChromaManager:
             where_filter = {"doc_id": document_id}
 
             # Query to find all chunks for this document
-            results = collection.get(where=where_filter, include=["metadatas"])
+            results = collection.get(where=self._build_where_clause(where_filter), include=["metadatas"])
 
             if not results["metadatas"]:
                 logger.warning(f"No chunks found for document {document_id}")

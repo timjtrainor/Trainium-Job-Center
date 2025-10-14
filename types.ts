@@ -978,7 +978,8 @@ export type ContentType =
     | 'job_search_strategy'
     | 'resume'
     | 'resumes'
-    | 'proof_points';
+    | 'proof_points'
+    | string;
 
 export interface DocumentMetadata {
     status?: string | null;
@@ -1006,9 +1007,21 @@ export interface UploadedDocument {
     title: string;
     section: string;
     content_type: ContentType;
+    collection_name?: string;
     created_at: string;
     content_snippet?: string;
+    chunk_count?: number;
     metadata?: DocumentMetadata;
+}
+
+export interface DocumentDetail {
+    id: string;
+    title: string;
+    collection_name: ContentType;
+    content: string;
+    metadata: DocumentMetadata;
+    chunk_count?: number;
+    created_at?: string;
 }
 
 export interface UploadSuccessResponse {

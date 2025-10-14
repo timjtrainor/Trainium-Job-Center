@@ -8,7 +8,7 @@ import {
     BragBankEntry, BragBankEntryPayload, SkillTrend, SkillTrendPayload,
     Sprint, SprintAction, CreateSprintPayload, SprintActionPayload, ApplicationQuestion,
     SiteSchedule, SiteDetails, SiteSchedulePayload,
-    UploadedDocument, UploadSuccessResponse, ContentType, DocumentMetadata,
+    UploadedDocument, UploadSuccessResponse, ContentType, DocumentMetadata, DocumentDetail,
     PaginatedResponse, ReviewedJob, ReviewedJobRecommendation,
     StandardResponse, ChromaUploadResponseData, ProofPointPayload,
     ResumeCreatePayload, ResumeUpdatePayload, ResumeDocumentResponseData
@@ -43,12 +43,18 @@ const safeParseJson = (data: any, fieldName: string, recordId: string): any => {
         return data; // It's already an object/null, no parsing needed
     }
     if (typeof data === 'string') {
-        try {
-            return JSON.parse(data);
-        } catch (e) {
-            console.warn(`Could not parse JSON for field '${fieldName}' on record ID '${recordId}'. Returning null. Error: ${e.message}. Raw data:`, data);
-            return null;
+        // Only attempt to parse strings that look like JSON
+        const trimmed = data.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('"')) {
+            try {
+                return JSON.parse(data);
+            } catch (e) {
+                console.warn(`Could not parse JSON for field '${fieldName}' on record ID '${recordId}'. Returning null. Error: ${e.message}. Raw data:`, data);
+                return null;
+            }
         }
+        // Return string as-is if it's not JSON
+        return data;
     }
     return data; // Return as is if it's not a string or object
 };
@@ -184,6 +190,19 @@ const genericHealthCheck = async (url: string): Promise<{ status: number; status
             data: { error: errorMessage },
         };
     }
+};
+
+const parseMetadataObject = (metadata: any, recordId: string): DocumentMetadata | undefined => {
+    if (!metadata || typeof metadata !== 'object') {
+        return undefined;
+    }
+
+    const parsed: DocumentMetadata = {};
+    Object.entries(metadata as Record<string, unknown>).forEach(([key, value]) => {
+        parsed[key] = safeParseJson(value, `documents.${key}`, recordId);
+    });
+
+    return parsed;
 };
 
 export const checkPostgrestHealth = async (): Promise<{ status: number; statusText: string; data: any; }> => {
@@ -1471,15 +1490,16 @@ export const getUploadedDocuments = async (profileId: string): Promise<UploadedD
     const response = await fetch(`${buildFastApiUrl('documents')}?profile_id=${profileId}`);
     const data = await handleResponse(response);
     const documents: UploadedDocument[] = (data?.documents || []).map((doc: any) => {
-        const metadata = (doc?.metadata ?? undefined) as DocumentMetadata | undefined;
+        const recordId = doc?.id || 'unknown';
+        const metadata = parseMetadataObject(doc?.metadata, recordId);
         const createdAt =
             doc?.created_at ||
-            (metadata?.created_at as string | undefined) ||
-            (metadata?.uploaded_at as string | undefined) ||
+            metadata?.created_at ||
+            metadata?.uploaded_at ||
             new Date().toISOString();
-        const title = doc?.title || (metadata?.title as string | undefined) || 'Untitled';
+        const title = doc?.title || metadata?.title || 'Untitled';
         const section = doc?.section || (metadata?.section as string | undefined) || '';
-        const contentType = (doc?.content_type || metadata?.collection_name || '') as ContentType;
+        const contentType = (doc?.content_type || doc?.collection_name || metadata?.collection_name || '') as ContentType;
         const profile = doc?.profile_id || (metadata?.profile_id as string | undefined) || profileId;
 
         return {
@@ -1488,8 +1508,10 @@ export const getUploadedDocuments = async (profileId: string): Promise<UploadedD
             title,
             section,
             content_type: contentType,
+            collection_name: doc?.collection_name || contentType,
             created_at: createdAt,
             content_snippet: doc?.content_snippet,
+            chunk_count: doc?.chunk_count,
             metadata,
         };
     });
@@ -1502,6 +1524,22 @@ export const deleteUploadedDocument = async (documentId: string): Promise<void> 
         method: 'DELETE',
     });
     await handleResponse(response);
+};
+
+export const getDocumentDetail = async (collectionName: string, documentId: string): Promise<DocumentDetail> => {
+    const response = await fetch(buildFastApiUrl(`documents/${collectionName}/${documentId}`));
+    const data = await handleResponse(response);
+    const metadata = parseMetadataObject(data?.metadata, documentId);
+
+    return {
+        id: data?.id ?? documentId,
+        title: data?.title ?? 'Untitled',
+        collection_name: (data?.collection_name ?? collectionName) as ContentType,
+        content: data?.content ?? '',
+        chunk_count: data?.chunk_count ?? 0,
+        created_at: data?.created_at,
+        metadata,
+    };
 };
 
 // --- Reviewed Jobs ---

@@ -1,10 +1,11 @@
 """Service for ChromaDB operations."""
 
+import json
 import uuid
 import hashlib
 import traceback
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Dict, List, Any
 from loguru import logger
 
 from .infrastructure import get_chroma_client
@@ -67,6 +68,37 @@ class ChromaService:
     def _sha1_hash(self, text: str) -> str:
         """Generate SHA1 hash of text."""
         return hashlib.sha1(text.encode("utf-8")).hexdigest()
+
+    def _parse_metadata(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Attempt to parse JSON-encoded metadata values."""
+        parsed: Dict[str, Any] = {}
+        for key, value in (metadata or {}).items():
+            if isinstance(value, str):
+                stripped = value.strip()
+                if (stripped.startswith("{") and stripped.endswith("}")) or (
+                    stripped.startswith("[") and stripped.endswith("]")
+                ):
+                    try:
+                        parsed[key] = json.loads(stripped)
+                        continue
+                    except json.JSONDecodeError:
+                        pass
+            parsed[key] = value
+        return parsed
+
+    def _build_where_clause(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert simple equality filters into Chroma's where format."""
+        clauses = []
+        for key, value in (filters or {}).items():
+            if value is None:
+                continue
+            clauses.append({key: {"$eq": value}})
+
+        if not clauses:
+            return {}
+        if len(clauses) == 1:
+            return clauses[0]
+        return {"$and": clauses}
     
     async def upload_document(self, request: ChromaUploadRequest) -> ChromaUploadResponse:
         """Upload a document to ChromaDB."""
@@ -318,49 +350,74 @@ class ChromaService:
             client = self._get_client()
             collection = client.get_collection(collection_name)
 
-            # Get all document metadata. We don't need the raw chunk text here.
-            result = collection.get(include=["metadatas"])
+            result = collection.get(include=["metadatas", "documents"])
 
             grouped_docs: Dict[str, dict] = {}
 
-            if result["ids"]:
-                for i, chunk_id in enumerate(result["ids"]):
-                    metadata = result["metadatas"][i] if result["metadatas"] else {}
+            ids = result.get("ids", []) or []
+            metadatas = result.get("metadatas", []) or []
+            documents = result.get("documents", []) or []
 
-                    # Determine the logical document id (shared across chunks)
-                    document_id = metadata.get(
-                        "doc_id",
-                        chunk_id.split("::")[0] if "::" in chunk_id else chunk_id
-                    )
+            for idx, chunk_id in enumerate(ids):
+                metadata = metadatas[idx] if idx < len(metadatas) else {}
+                document_text = documents[idx] if idx < len(documents) else ""
 
-                    existing = grouped_docs.get(document_id)
+                document_id = metadata.get(
+                    "doc_id",
+                    chunk_id.split("::")[0] if "::" in chunk_id else chunk_id
+                )
 
-                    # Some uploads (e.g., resumes) include additional metadata such as profile_id
-                    # and section. Preserve the richest metadata we encounter for the document.
-                    if existing is None:
-                        grouped_docs[document_id] = {
-                            "id": document_id,
-                            "title": metadata.get("title", "Untitled"),
-                            "tags": metadata.get("tags", ""),
-                            "created_at": metadata.get("created_at", ""),
-                            "chunk_count": 1,
-                            "type": metadata.get("type", "document"),
-                            "metadata": metadata,
-                        }
-                    else:
-                        existing["chunk_count"] += 1
+                entry = grouped_docs.setdefault(
+                    document_id,
+                    {
+                        "id": document_id,
+                        "title": metadata.get("title", "Untitled"),
+                        "created_at": metadata.get("created_at")
+                        or metadata.get("uploaded_at")
+                        or datetime.now(timezone.utc).isoformat(),
+                        "chunk_count": 0,
+                        "type": metadata.get("type", "document"),
+                        "collection_name": collection_name,
+                        "metadata": metadata,
+                        "_snippet_seq": metadata.get("seq", 0),
+                        "content_snippet": document_text,
+                    },
+                )
 
-                        # Prefer metadata that includes uploaded_at/profile_id information when present
-                        existing_metadata = existing.get("metadata", {})
-                        existing_uploaded_at = existing_metadata.get("uploaded_at")
-                        current_uploaded_at = metadata.get("uploaded_at")
+                entry["chunk_count"] += 1
 
-                        if current_uploaded_at and (
-                            not existing_uploaded_at or current_uploaded_at > existing_uploaded_at
-                        ):
-                            existing["metadata"] = metadata
+                # Prefer metadata from the most recent chunk
+                entry_uploaded = entry["metadata"].get("uploaded_at") if entry.get("metadata") else None
+                current_uploaded = metadata.get("uploaded_at")
+                if current_uploaded and (not entry_uploaded or current_uploaded > entry_uploaded):
+                    entry["metadata"] = metadata
 
-            return list(grouped_docs.values())
+                # Store snippet from lowest sequence chunk
+                current_seq = metadata.get("seq", 0)
+                if current_seq < entry.get("_snippet_seq", current_seq + 1):
+                    entry["_snippet_seq"] = current_seq
+                    entry["content_snippet"] = document_text
+
+                if not entry.get("title") and metadata.get("title"):
+                    entry["title"] = metadata.get("title")
+
+            documents_list: List[dict] = []
+            for doc in grouped_docs.values():
+                metadata = self._parse_metadata(doc.get("metadata", {}))
+                documents_list.append(
+                    {
+                        "id": doc["id"],
+                        "title": doc.get("title", "Untitled"),
+                        "collection_name": doc["collection_name"],
+                        "created_at": doc.get("created_at"),
+                        "chunk_count": doc.get("chunk_count", 0),
+                        "section": metadata.get("section", ""),
+                        "content_snippet": (doc.get("content_snippet") or "")[:500],
+                        "metadata": metadata,
+                    }
+                )
+
+            return documents_list
 
         except Exception as e:
             logger.error(f"Failed to list documents in collection '{collection_name}': {e}")
@@ -394,3 +451,65 @@ class ChromaService:
         except Exception as e:
             logger.error(f"Failed to delete document '{document_id}' from collection '{collection_name}': {e}")
             return False
+
+    async def get_document_detail(self, collection_name: str, document_id: str) -> Dict[str, Any]:
+        """Retrieve full document content and metadata for a specific document."""
+        client = self._get_client()
+        collection = client.get_collection(collection_name)
+
+        where_clause = self._build_where_clause({"doc_id": document_id})
+        result = collection.get(where=where_clause, include=["metadatas", "documents"])
+
+        ids = result.get("ids", []) or []
+        metadatas = result.get("metadatas", []) or []
+        documents = result.get("documents", []) or []
+
+        if not ids:
+            # fall back to scanning entire collection for legacy records
+            fallback = collection.get(include=["metadatas", "documents"])
+            ids = fallback.get("ids", []) or []
+            metadatas = fallback.get("metadatas", []) or []
+            documents = fallback.get("documents", []) or []
+
+        chunks: List[tuple[int, str]] = []
+        aggregated_metadata: Dict[str, Any] = {}
+
+        for idx, chunk_id in enumerate(ids):
+            metadata = metadatas[idx] if idx < len(metadatas) else {}
+            doc_id = metadata.get(
+                "doc_id",
+                chunk_id.split("::")[0] if "::" in chunk_id else chunk_id
+            )
+
+            if doc_id != document_id:
+                continue
+
+            document_text = documents[idx] if idx < len(documents) else ""
+            seq = metadata.get("seq", idx)
+            chunks.append((seq, document_text))
+
+            uploaded_at = aggregated_metadata.get("uploaded_at")
+            current_uploaded = metadata.get("uploaded_at")
+            if current_uploaded and (not uploaded_at or current_uploaded > uploaded_at):
+                aggregated_metadata = metadata
+            elif not aggregated_metadata:
+                aggregated_metadata = metadata
+
+        if not chunks and not aggregated_metadata:
+            raise ValueError(f"Document '{document_id}' not found in collection '{collection_name}'")
+
+        chunks.sort(key=lambda item: item[0])
+        content = "\n\n".join(chunk for _, chunk in chunks)
+
+        parsed_metadata = self._parse_metadata(aggregated_metadata)
+
+        return {
+            "id": document_id,
+            "title": parsed_metadata.get("title", "Untitled"),
+            "collection_name": collection_name,
+            "metadata": parsed_metadata,
+            "content": content,
+            "chunk_count": len(chunks),
+            "created_at": parsed_metadata.get("created_at")
+            or parsed_metadata.get("uploaded_at"),
+        }

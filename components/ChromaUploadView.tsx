@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { ArrowUturnLeftIcon, CheckIcon, RocketLaunchIcon, TrashIcon } from './IconComponents';
 import * as apiService from '../services/apiService';
 import { FASTAPI_BASE_URL } from '../constants';
-import { StrategicNarrative, UploadedDocument } from '../types';
+import { StrategicNarrative, UploadedDocument, DocumentDetail } from '../types';
 import { useToast } from '../hooks/useToast';
 
 type NarrativeContentType = 'career_brand' | 'career_brand_full' | 'career_path' | 'job_search_strategy';
@@ -75,6 +75,11 @@ const DocumentViewer = ({
     onRefresh,
 }: DocumentViewerProps) => {
     const [showHistory, setShowHistory] = useState(false);
+    const [collectionFilter, setCollectionFilter] = useState<string>('all');
+    const [detailDocument, setDetailDocument] = useState<UploadedDocument | null>(null);
+    const [detailData, setDetailData] = useState<DocumentDetail | null>(null);
+    const [isDetailOpen, setIsDetailOpen] = useState(false);
+    const [isDetailLoading, setIsDetailLoading] = useState(false);
     const { addToast } = useToast();
 
     const handleDelete = async (doc: UploadedDocument) => {
@@ -89,6 +94,40 @@ const DocumentViewer = ({
         }
     };
 
+    const closeDetail = () => {
+        setIsDetailOpen(false);
+        setDetailData(null);
+        setDetailDocument(null);
+    };
+
+    const handleView = async (doc: UploadedDocument) => {
+        setDetailDocument(doc);
+        setIsDetailOpen(true);
+        setIsDetailLoading(true);
+        setDetailData(null);
+        try {
+            const detail = await apiService.getDocumentDetail(doc.collection_name || doc.content_type, doc.id);
+            setDetailData(detail);
+        } catch (error) {
+            console.error(error);
+            addToast('Failed to load document details', 'error');
+            closeDetail();
+        } finally {
+            setIsDetailLoading(false);
+        }
+    };
+
+    const collectionOptions = useMemo(() => {
+        const set = new Set<string>();
+        documents.forEach(doc => {
+            const key = doc.collection_name || doc.content_type;
+            if (key) {
+                set.add(key);
+            }
+        });
+        return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }, [documents]);
+
     const displayedDocuments = useMemo(() => {
         if (showHistory) {
             return documents;
@@ -96,7 +135,7 @@ const DocumentViewer = ({
 
         const latestDocs = new Map<string, UploadedDocument>();
         for (const doc of documents) {
-            const key = `${doc.content_type}-${doc.section}-${doc.metadata?.job_target ?? ''}`;
+            const key = `${doc.collection_name || doc.content_type}-${doc.section}-${doc.metadata?.job_target ?? ''}`;
             const existing = latestDocs.get(key);
             const docTimestamp = new Date(doc.metadata?.updated_at ?? doc.created_at).getTime();
             if (!existing) {
@@ -111,6 +150,15 @@ const DocumentViewer = ({
         }
         return Array.from(latestDocs.values());
     }, [documents, showHistory]);
+
+    const filteredDocuments = useMemo(() => {
+        if (collectionFilter === 'all') {
+            return displayedDocuments;
+        }
+        return displayedDocuments.filter(
+            doc => (doc.collection_name || doc.content_type) === collectionFilter,
+        );
+    }, [collectionFilter, displayedDocuments]);
 
     return (
         <div className="space-y-4">
@@ -136,12 +184,24 @@ const DocumentViewer = ({
                     />
                     Show History
                 </label>
+                <select
+                    value={collectionFilter}
+                    onChange={e => setCollectionFilter(e.target.value)}
+                    className="w-full max-w-xs p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"
+                >
+                    <option value="all">All Collections</option>
+                    {collectionOptions.map(option => (
+                        <option key={option} value={option}>
+                            {option}
+                        </option>
+                    ))}
+                </select>
             </div>
             {isLoading ? (
                 <p>Loading documents...</p>
             ) : (
                 <div className="space-y-3">
-                    {displayedDocuments.map(doc => (
+                    {filteredDocuments.map(doc => (
                         <div
                             key={doc.id}
                             className="p-4 bg-slate-100 dark:bg-slate-700/50 rounded-lg flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
@@ -162,6 +222,11 @@ const DocumentViewer = ({
                                             <CheckIcon className="h-3 w-3" /> Latest
                                         </span>
                                     )}
+                                    {doc.collection_name && (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-200 text-slate-700 dark:bg-slate-600 dark:text-slate-100 px-2 py-1">
+                                            {doc.collection_name}
+                                        </span>
+                                    )}
                                     {doc.metadata?.selected_proof_points && doc.metadata.selected_proof_points.length > 0 && (
                                         <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200 px-2 py-1">
                                             {doc.metadata.selected_proof_points.length} proof point(s)
@@ -169,18 +234,86 @@ const DocumentViewer = ({
                                     )}
                                 </div>
                             </div>
-                            <button
-                                onClick={() => handleDelete(doc)}
-                                className="self-start md:self-auto p-2 text-red-500 hover:text-red-400"
-                                aria-label={`Delete ${doc.title}`}
-                            >
-                                <TrashIcon className="h-4 w-4" />
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => handleView(doc)}
+                                    className="self-start md:self-auto px-3 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                                >
+                                    View
+                                </button>
+                                <button
+                                    onClick={() => handleDelete(doc)}
+                                    className="self-start md:self-auto p-2 text-red-500 hover:text-red-400"
+                                    aria-label={`Delete ${doc.title}`}
+                                >
+                                    <TrashIcon className="h-4 w-4" />
+                                </button>
+                            </div>
                         </div>
                     ))}
                     {documents.length === 0 && selectedNarrativeId && (
                         <p className="text-center text-sm text-slate-500 py-4">No documents found for this narrative.</p>
                     )}
+                </div>
+            )}
+
+            {isDetailOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                            <div>
+                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                                    {detailDocument?.title || 'Document Details'}
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    {(detailDocument?.collection_name || detailDocument?.content_type) ?? ''}
+                                    {detailData?.created_at && ` • ${new Date(detailData.created_at).toLocaleString()}`}
+                                    {typeof detailData?.chunk_count === 'number' && ` • ${detailData.chunk_count} chunk(s)`}
+                                </p>
+                            </div>
+                            <button
+                                onClick={closeDetail}
+                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl"
+                                aria-label="Close document detail"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+                            {isDetailLoading ? (
+                                <p className="text-sm text-slate-500">Loading document details…</p>
+                            ) : detailData ? (
+                                <>
+                                    <section>
+                                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wide">Metadata</h4>
+                                        <div className="mt-2 space-y-2 text-sm">
+                                            {Object.entries(detailData.metadata || {}).map(([key, value]) => (
+                                                <div key={key} className="border border-slate-200 dark:border-slate-700 rounded-md px-3 py-2">
+                                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{key}</p>
+                                                    <pre className="mt-1 whitespace-pre-wrap break-words text-slate-800 dark:text-slate-100 text-sm">
+                                                        {typeof value === 'string'
+                                                            ? value
+                                                            : JSON.stringify(value, null, 2)}
+                                                    </pre>
+                                                </div>
+                                            ))}
+                                            {(!detailData.metadata || Object.keys(detailData.metadata).length === 0) && (
+                                                <p className="text-slate-500">No metadata available.</p>
+                                            )}
+                                        </div>
+                                    </section>
+                                    <section>
+                                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wide">Content</h4>
+                                        <pre className="mt-2 whitespace-pre-wrap break-words bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-md px-3 py-3 text-sm text-slate-900 dark:text-slate-100">
+                                            {detailData.content || 'No content available.'}
+                                        </pre>
+                                    </section>
+                                </>
+                            ) : (
+                                <p className="text-sm text-slate-500">Document details could not be loaded.</p>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
@@ -207,18 +340,16 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
     const [documents, setDocuments] = useState<UploadedDocument[]>([]);
     const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
 
-    const [proofTitle, setProofTitle] = useState('');
     const [proofContent, setProofContent] = useState('');
     const [proofRole, setProofRole] = useState('');
-    const [proofJobTitle, setProofJobTitle] = useState('');
     const [proofLocation, setProofLocation] = useState('');
     const [proofStartDate, setProofStartDate] = useState('');
     const [proofEndDate, setProofEndDate] = useState('');
     const [proofIsCurrent, setProofIsCurrent] = useState(false);
     const [proofCompany, setProofCompany] = useState('');
-    const [proofImpactTags, setProofImpactTags] = useState('');
     const [proofSkills, setProofSkills] = useState('');
-    const [proofStatus, setProofStatus] = useState<typeof STATUS_OPTIONS[number]['value']>('draft');
+    const [proofKeywords, setProofKeywords] = useState('');
+    const [proofArchitecture, setProofArchitecture] = useState('');
     const [proofErrors, setProofErrors] = useState<Record<string, string>>({});
     const [isSavingProof, setIsSavingProof] = useState(false);
 
@@ -412,10 +543,8 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
     const validateProofPoint = () => {
         const errors: Record<string, string> = {};
         if (!narrativeId) errors.narrative = 'Narrative is required.';
-        if (!proofTitle.trim()) errors.title = 'Title is required.';
         if (!proofContent.trim()) errors.content = 'Content is required.';
-        if (!proofRole.trim()) errors.role = 'Role is required.';
-        if (!proofJobTitle.trim()) errors.job_title = 'Job title is required.';
+        if (!proofRole.trim()) errors.role = 'Role title is required.';
         if (!proofLocation.trim()) errors.location = 'Location is required.';
         if (!proofStartDate) errors.start_date = 'Start date is required.';
         if (!proofIsCurrent && !proofEndDate) errors.end_date = 'End date is required unless current.';
@@ -428,38 +557,45 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
         if (!validateProofPoint()) return;
         setIsSavingProof(true);
         try {
+            const computedTitleParts = [proofCompany.trim(), proofRole.trim()].filter(Boolean);
+            const computedTitle = computedTitleParts.join(' - ') || proofCompany.trim() || proofRole.trim();
+
+            const jobMetadata: Record<string, unknown> = {};
+            if (proofKeywords.trim()) {
+                jobMetadata.keywords = parseCsv(proofKeywords);
+            }
+            if (proofArchitecture.trim()) {
+                jobMetadata.architecture = parseCsv(proofArchitecture);
+            }
+
             const payload = {
                 profile_id: narrativeId,
-                role_title: proofRole,
-                job_title: proofJobTitle,
-                location: proofLocation,
+                role_title: proofRole.trim(),
+                location: proofLocation.trim(),
                 start_date: proofStartDate,
-                end_date: proofIsCurrent ? null : proofEndDate,
+                end_date: proofIsCurrent ? null : proofEndDate || null,
                 is_current: proofIsCurrent,
-                company: proofCompany,
-                title: proofTitle,
-                content: proofContent,
-                status: proofStatus,
-                impact_tags: parseCsv(proofImpactTags),
-                job_metadata: proofSkills ? { skills: parseCsv(proofSkills) } : undefined,
+                company: proofCompany.trim(),
+                title: computedTitle,
+                content: proofContent.trim(),
+                impact_tags: parseCsv(proofSkills),
+                job_metadata: Object.keys(jobMetadata).length > 0 ? jobMetadata : undefined,
             };
             const response = await apiService.createProofPoint(payload);
             if (response.status !== 'success') {
                 throw new Error(response.error || response.message || 'Failed to save proof point');
             }
             addToast('Proof point saved!', 'success');
-            setProofTitle('');
             setProofContent('');
             setProofRole('');
-            setProofJobTitle('');
             setProofLocation('');
             setProofStartDate('');
             setProofEndDate('');
             setProofIsCurrent(false);
             setProofCompany('');
-            setProofImpactTags('');
             setProofSkills('');
-            setProofStatus('draft');
+            setProofKeywords('');
+            setProofArchitecture('');
             refreshDocuments();
         } catch (error) {
             addToast(error instanceof Error ? error.message : 'Failed to save proof point', 'error');
@@ -752,19 +888,6 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
                 {activeTab === 'proofPoints' && (
                     <div className="space-y-4">
                         <h2 className="text-xl font-semibold">Create Proof Point</h2>
-                        <div>
-                            <label htmlFor="proof-title" className={labelClass}>
-                                Title
-                            </label>
-                            <input
-                                id="proof-title"
-                                type="text"
-                                value={proofTitle}
-                                onChange={e => setProofTitle(e.target.value)}
-                                className={inputClass}
-                            />
-                            {proofErrors.title && <p className="text-xs text-red-500 mt-1">{proofErrors.title}</p>}
-                        </div>
                         <div className="grid gap-4 md:grid-cols-2">
                             <div>
                                 <label htmlFor="proof-role" className={labelClass}>
@@ -793,37 +916,20 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
                                 {proofErrors.company && <p className="text-xs text-red-500 mt-1">{proofErrors.company}</p>}
                             </div>
                         </div>
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <div>
-                                <label htmlFor="proof-job-title" className={labelClass}>
-                                    Job Title / Experience
-                                </label>
-                                <input
-                                    id="proof-job-title"
-                                    type="text"
-                                    value={proofJobTitle}
-                                    onChange={e => setProofJobTitle(e.target.value)}
-                                    className={inputClass}
-                                />
-                                {proofErrors.job_title && (
-                                    <p className="text-xs text-red-500 mt-1">{proofErrors.job_title}</p>
-                                )}
-                            </div>
-                            <div>
-                                <label htmlFor="proof-location" className={labelClass}>
-                                    Location
-                                </label>
-                                <input
-                                    id="proof-location"
-                                    type="text"
-                                    value={proofLocation}
-                                    onChange={e => setProofLocation(e.target.value)}
-                                    className={inputClass}
-                                />
-                                {proofErrors.location && (
-                                    <p className="text-xs text-red-500 mt-1">{proofErrors.location}</p>
-                                )}
-                            </div>
+                        <div>
+                            <label htmlFor="proof-location" className={labelClass}>
+                                Location
+                            </label>
+                            <input
+                                id="proof-location"
+                                type="text"
+                                value={proofLocation}
+                                onChange={e => setProofLocation(e.target.value)}
+                                className={inputClass}
+                            />
+                            {proofErrors.location && (
+                                <p className="text-xs text-red-500 mt-1">{proofErrors.location}</p>
+                            )}
                         </div>
                         <div className="grid gap-4 md:grid-cols-2">
                             <div>
@@ -876,43 +982,38 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
                             </div>
                         </div>
                         <div>
-                            <label htmlFor="proof-status" className={labelClass}>
-                                Status
-                            </label>
-                            <select
-                                id="proof-status"
-                                value={proofStatus}
-                                onChange={e => setProofStatus(e.target.value as typeof STATUS_OPTIONS[number]['value'])}
-                                className={inputClass}
-                            >
-                                {STATUS_OPTIONS.map(option => (
-                                    <option key={option.value} value={option.value}>
-                                        {option.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label htmlFor="proof-impact" className={labelClass}>
-                                Impact Tags / Skills (comma separated)
-                            </label>
-                            <input
-                                id="proof-impact"
-                                type="text"
-                                value={proofImpactTags}
-                                onChange={e => setProofImpactTags(e.target.value)}
-                                className={inputClass}
-                            />
-                        </div>
-                        <div>
                             <label htmlFor="proof-skills" className={labelClass}>
-                                Target Skills & Keywords (comma separated)
+                                Skills (comma separated)
                             </label>
                             <input
                                 id="proof-skills"
                                 type="text"
                                 value={proofSkills}
                                 onChange={e => setProofSkills(e.target.value)}
+                                className={inputClass}
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="proof-keywords" className={labelClass}>
+                                Keywords (comma separated)
+                            </label>
+                            <input
+                                id="proof-keywords"
+                                type="text"
+                                value={proofKeywords}
+                                onChange={e => setProofKeywords(e.target.value)}
+                                className={inputClass}
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="proof-architecture" className={labelClass}>
+                                Architecture (comma separated)
+                            </label>
+                            <input
+                                id="proof-architecture"
+                                type="text"
+                                value={proofArchitecture}
+                                onChange={e => setProofArchitecture(e.target.value)}
                                 className={inputClass}
                             />
                         </div>
