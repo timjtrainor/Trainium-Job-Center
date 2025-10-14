@@ -24,6 +24,17 @@ def get_chroma_service() -> ChromaService:
     return ChromaService()
 
 
+def _list_collection_names(service: ChromaService) -> List[str]:
+    """List all collection names available in ChromaDB."""
+    try:
+        client = service._get_client()
+        collections = client.list_collections()
+        return [collection.name for collection in collections]
+    except Exception as exc:  # pragma: no cover - defensive programming
+        logger.warning(f"Failed to list collections: {exc}")
+        return []
+
+
 @router.post("/documents/career-brand/full")
 async def upload_full_career_brand_document(
     file: UploadFile = File(..., description="Full career brand document in Markdown format"),
@@ -446,66 +457,43 @@ async def get_documents(
 ):
     """Get all documents for a specific profile ID across all document collections."""
     try:
-        # Initialize service if needed
         await chroma_service.initialize()
 
-        # List of document collections to query
-        document_collections = [
-            "career_brand",
-            "career_paths",
-            "job_search_strategies",
-            "resumes"
-        ]
+        collection_names = _list_collection_names(chroma_service)
+        all_documents: List[dict] = []
 
-        client = chroma_service._get_client()
-        all_documents = []
-
-        # Query each document collection
-        for collection_name in document_collections:
+        for collection_name in collection_names:
             try:
-                # Check if collection exists
-                try:
-                    collection = client.get_collection(collection_name)
-                except Exception:
-                    # Collection doesn't exist, skip
+                documents = await chroma_service.list_documents(collection_name)
+            except Exception as exc:  # pragma: no cover - defensive guard
+                logger.warning(f"Failed to list documents for collection '{collection_name}': {exc}")
+                continue
+
+            for document in documents:
+                metadata = document.get("metadata", {}) or {}
+                doc_profile_id = metadata.get("profile_id")
+                if doc_profile_id and doc_profile_id != profile_id:
                     continue
 
-                # Get all documents with metadata
-                result = collection.get(include=["metadatas"])
+                all_documents.append(
+                    {
+                        "id": document["id"],
+                        "title": document.get("title", "Untitled"),
+                        "profile_id": doc_profile_id or "",
+                        "content_type": document.get("collection_name", collection_name),
+                        "collection_name": document.get("collection_name", collection_name),
+                        "section": document.get("section", ""),
+                        "created_at": document.get("created_at"),
+                        "chunk_count": document.get("chunk_count", 0),
+                        "content_snippet": document.get("content_snippet", ""),
+                        "metadata": metadata,
+                    }
+                )
 
-                if result["ids"] and result["metadatas"]:
-                    for i, chunk_id in enumerate(result["ids"]):
-                        metadata = result["metadatas"][i]
-
-                        # Only include documents that match the profile_id
-                        doc_profile_id = metadata.get("profile_id")
-                        if doc_profile_id != profile_id:
-                            continue
-
-                        # Determine the logical document id (shared across chunks)
-                        document_id = metadata.get(
-                            "doc_id",
-                            chunk_id.split("::")[0] if "::" in chunk_id else chunk_id
-                        )
-
-                        # Create document object in expected format
-                        document = {
-                            "id": document_id,
-                            "title": metadata.get("title", "Untitled"),
-                            "content": "",  # Frontend doesn't need full content
-                            "content_type": collection_name,
-                            "section": metadata.get("section", ""),
-                            "created_at": metadata.get("created_at", ""),
-                            "metadata": metadata
-                        }
-
-                        # Avoid duplicates
-                        if not any(doc["id"] == document_id for doc in all_documents):
-                            all_documents.append(document)
-
-            except Exception as e:
-                logger.warning(f"Failed to query collection {collection_name}: {e}")
-                continue
+        all_documents.sort(
+            key=lambda doc: doc.get("created_at") or "",
+            reverse=True,
+        )
 
         return {"documents": all_documents}
 
@@ -514,6 +502,32 @@ async def get_documents(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get documents: {str(e)}"
+        )
+
+
+@router.get("/documents/{collection_name}/{document_id}")
+async def get_document_detail(
+    collection_name: str,
+    document_id: str,
+    chroma_service: ChromaService = Depends(get_chroma_service)
+):
+    """Retrieve metadata and content for a specific document."""
+    try:
+        await chroma_service.initialize()
+        detail = await chroma_service.get_document_detail(collection_name, document_id)
+        return detail
+
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.error(
+            f"Failed to fetch document '{document_id}' in collection '{collection_name}': {exc}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get document detail: {str(exc)}",
         )
 
 
@@ -527,13 +541,7 @@ async def delete_document_by_id(
         # Initialize service if needed
         await chroma_service.initialize()
 
-        # List of document collections to search
-        document_collections = [
-            "career_brand",
-            "career_paths",
-            "job_search_strategies",
-            "resumes"
-        ]
+        document_collections = _list_collection_names(chroma_service)
 
         client = chroma_service._get_client()
         deleted = False

@@ -8,8 +8,10 @@ import {
     BragBankEntry, BragBankEntryPayload, SkillTrend, SkillTrendPayload,
     Sprint, SprintAction, CreateSprintPayload, SprintActionPayload, ApplicationQuestion,
     SiteSchedule, SiteDetails, SiteSchedulePayload,
-    UploadedDocument, UploadSuccessResponse, ContentType,
-    PaginatedResponse, ReviewedJob, ReviewedJobRecommendation
+    UploadedDocument, UploadSuccessResponse, ContentType, DocumentMetadata, DocumentDetail,
+    PaginatedResponse, ReviewedJob, ReviewedJobRecommendation,
+    StandardResponse, ChromaUploadResponseData, ProofPointPayload,
+    ResumeCreatePayload, ResumeUpdatePayload, ResumeDocumentResponseData
 } from '../types';
 import { API_BASE_URL, USER_ID, FASTAPI_BASE_URL } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -41,12 +43,18 @@ const safeParseJson = (data: any, fieldName: string, recordId: string): any => {
         return data; // It's already an object/null, no parsing needed
     }
     if (typeof data === 'string') {
-        try {
-            return JSON.parse(data);
-        } catch (e) {
-            console.warn(`Could not parse JSON for field '${fieldName}' on record ID '${recordId}'. Returning null. Error: ${e.message}. Raw data:`, data);
-            return null;
+        // Only attempt to parse strings that look like JSON
+        const trimmed = data.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('"')) {
+            try {
+                return JSON.parse(data);
+            } catch (e) {
+                console.warn(`Could not parse JSON for field '${fieldName}' on record ID '${recordId}'. Returning null. Error: ${e.message}. Raw data:`, data);
+                return null;
+            }
         }
+        // Return string as-is if it's not JSON
+        return data;
     }
     return data; // Return as is if it's not a string or object
 };
@@ -182,6 +190,19 @@ const genericHealthCheck = async (url: string): Promise<{ status: number; status
             data: { error: errorMessage },
         };
     }
+};
+
+const parseMetadataObject = (metadata: any, recordId: string): DocumentMetadata | undefined => {
+    if (!metadata || typeof metadata !== 'object') {
+        return undefined;
+    }
+
+    const parsed: DocumentMetadata = {};
+    Object.entries(metadata as Record<string, unknown>).forEach(([key, value]) => {
+        parsed[key] = safeParseJson(value, `documents.${key}`, recordId);
+    });
+
+    return parsed;
 };
 
 export const checkPostgrestHealth = async (): Promise<{ status: number; statusText: string; data: any; }> => {
@@ -1438,28 +1459,87 @@ export const uploadCareerBrand = (payload: any) => uploadJsonDocument('/document
 export const uploadCareerPath = (payload: any) => uploadJsonDocument('/documents/career-paths', payload);
 export const uploadJobSearchStrategy = (payload: any) => uploadJsonDocument('/documents/job-search-strategies', payload);
 
-// Uploader for resume file data
-export const uploadResume = async (formData: FormData): Promise<UploadSuccessResponse> => {
-    const response = await fetch(buildFastApiUrl('documents/resume'), {
-        method: 'POST',
-        body: formData,
-        // No 'Content-Type' header here for FormData, browser sets it.
+const sanitizePayload = <T extends Record<string, unknown>>(payload: T): T => {
+    const cleanedEntries = Object.entries(payload).filter(([, value]) => value !== undefined);
+    return Object.fromEntries(cleanedEntries) as T;
+};
+
+const sendStandardJson = async <T>(endpoint: string, payload: Record<string, unknown>, method: 'POST' | 'PATCH' = 'POST'): Promise<StandardResponse<T>> => {
+    const response = await fetch(buildFastApiUrl(endpoint), {
+        method,
+        headers,
+        body: JSON.stringify(sanitizePayload(payload)),
     });
     return handleResponse(response);
 };
+
+export const createProofPoint = async (payload: ProofPointPayload): Promise<StandardResponse<ChromaUploadResponseData>> =>
+    sendStandardJson<ChromaUploadResponseData>('proof-points', payload as Record<string, unknown>);
+
+export const createResumeDocument = async (payload: ResumeCreatePayload): Promise<StandardResponse<ChromaUploadResponseData>> =>
+    sendStandardJson<ChromaUploadResponseData>('resumes', payload as Record<string, unknown>);
+
+export const updateResumeDocument = async (
+    documentId: string,
+    payload: ResumeUpdatePayload,
+): Promise<StandardResponse<ResumeDocumentResponseData>> =>
+    sendStandardJson<ResumeDocumentResponseData>(`resumes/${documentId}`, payload as Record<string, unknown>, 'PATCH');
 
 export const getUploadedDocuments = async (profileId: string): Promise<UploadedDocument[]> => {
     if (!profileId) return [];
     const response = await fetch(`${buildFastApiUrl('documents')}?profile_id=${profileId}`);
     const data = await handleResponse(response);
-    return (data?.documents || []).sort((a: UploadedDocument, b: UploadedDocument) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const documents: UploadedDocument[] = (data?.documents || []).map((doc: any) => {
+        const recordId = doc?.id || 'unknown';
+        const metadata = parseMetadataObject(doc?.metadata, recordId);
+        const createdAt =
+            doc?.created_at ||
+            metadata?.created_at ||
+            metadata?.uploaded_at ||
+            new Date().toISOString();
+        const title = doc?.title || metadata?.title || 'Untitled';
+        const section = doc?.section || (metadata?.section as string | undefined) || '';
+        const contentType = (doc?.content_type || doc?.collection_name || metadata?.collection_name || '') as ContentType;
+        const profile = doc?.profile_id || (metadata?.profile_id as string | undefined) || profileId;
+
+        return {
+            id: doc?.id,
+            profile_id: profile,
+            title,
+            section,
+            content_type: contentType,
+            collection_name: doc?.collection_name || contentType,
+            created_at: createdAt,
+            content_snippet: doc?.content_snippet,
+            chunk_count: doc?.chunk_count,
+            metadata,
+        };
+    });
+
+    return documents.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 };
 
-export const deleteUploadedDocument = async (documentId: string, contentType: ContentType): Promise<void> => {
+export const deleteUploadedDocument = async (documentId: string): Promise<void> => {
     const response = await fetch(buildFastApiUrl(`documents/${documentId}`), {
         method: 'DELETE',
     });
     await handleResponse(response);
+};
+
+export const getDocumentDetail = async (collectionName: string, documentId: string): Promise<DocumentDetail> => {
+    const response = await fetch(buildFastApiUrl(`documents/${collectionName}/${documentId}`));
+    const data = await handleResponse(response);
+    const metadata = parseMetadataObject(data?.metadata, documentId);
+
+    return {
+        id: data?.id ?? documentId,
+        title: data?.title ?? 'Untitled',
+        collection_name: (data?.collection_name ?? collectionName) as ContentType,
+        content: data?.content ?? '',
+        chunk_count: data?.chunk_count ?? 0,
+        created_at: data?.created_at,
+        metadata,
+    };
 };
 
 // --- Reviewed Jobs ---
