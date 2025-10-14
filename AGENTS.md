@@ -79,6 +79,44 @@ The Python service integrates with MCP servers through the Docker MCP Gateway, p
 - **DuckDuckGo** (`mcp/duckduckgo`): Web search capabilities via `duckduckgo_search` and `duckduckgo_news` tools
 - **LinkedIn** (`stickerdaniel/linkedin-mcp-server`): LinkedIn people and job search capabilities via tools like `search_jobs`, `get_job_details`, `get_company_profile`, etc.
 
+### Chroma Upload Integration Guidelines
+
+#### Enhanced Document Management Capabilities
+- **Resume Document Upload**: Crews can now upload resume documents with versioned metadata tracking
+- **Proof Point Management**: Support for proof points with approval workflow and status transitions
+- **Career Brand Upload**: Enhanced career branding document management with semantic search integration
+- **Document Status Tracking**: Real-time status updates for document processing and approvals
+
+#### Template for Chroma Upload Agent Integration
+```python
+# Example integration pattern for Chroma document upload in crews
+def get_document_upload_tools(self):
+    """Tools available for document upload and management tasks"""
+    return {
+        'resume_upload': {
+            'endpoint': '/documents/resumes',
+            'required_fields': ['profile_id', 'title', 'content', 'job_target'],
+            'optional_fields': ['status', 'selected_proof_points', 'approval_workflow']
+        },
+        'proof_point_upload': {
+            'endpoint': '/documents/proof-points',
+            'required_fields': ['profile_id', 'role_title', 'job_title', 'content'],
+            'optional_fields': ['skills', 'impact_tags', 'approval_metadata']
+        },
+        'career_brand_upload': {
+            'endpoint': '/documents/career-brand',
+            'required_fields': ['profile_id', 'title', 'content'],
+            'optional_fields': ['section', 'metadata']
+        }
+    }
+
+def upload_document_to_chroma(self, document_type: str, data: dict):
+    """Standardized document upload method for Chroma integration"""
+    endpoint = self.get_document_upload_tools()[document_type]['endpoint']
+    response = send_standard_json(endpoint, data)
+    return response
+```
+
 ### Adding New MCP Tools
 
 To add a new MCP server or tools to an existing crew:
@@ -95,7 +133,7 @@ To add a new MCP server or tools to an existing crew:
    agent_name_tools:
      - tool_name_1
      - tool_name_2
-   
+
    shared_tools:
      - shared_tool_name
    ```
@@ -103,7 +141,7 @@ To add a new MCP server or tools to an existing crew:
 3. **Update the crew.py** to follow the established pattern:
    ```python
    from crewai_tools import MCPServerAdapter
-   
+
    # MCP Server configuration
    _MCP_SERVER_CONFIG = [
        {
@@ -112,12 +150,12 @@ To add a new MCP server or tools to an existing crew:
            "headers": {"Accept": "application/json, text/event-stream"}
        }
    ]
-   
+
    class YourCrew:
        def _get_mcp_tools(self):
            self._mcp_adapter = MCPServerAdapter(_MCP_SERVER_CONFIG)
            self._mcp_tools = self._mcp_adapter.__enter__()
-           
+
        def _get_tools_for_agent(self, section: str):
            # Load tools from tools.yaml and filter available MCP tools
    ```

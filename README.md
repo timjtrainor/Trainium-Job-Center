@@ -56,6 +56,12 @@ For AI Product Managers, this showcases how to:
 - Semantic search across job descriptions and company research
 - Embedding-based similarity scoring for fit analysis
 
+### ✅ **Resume and Proof Point Management**
+- Versioned metadata tracking for proof points and resumes with approval workflows
+- Document upload capabilities for career brands, career paths, job search strategies
+- Status transition tracking and bulk document management
+- Enhanced ChromaDB integration for document storage and retrieval
+
 ## 🛠 Technology Stack
 
 | Component | Technology | Purpose |
