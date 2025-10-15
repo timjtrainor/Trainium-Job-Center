@@ -19,7 +19,7 @@ import type {
     JobProblemAnalysisResult,
     InterviewPrepOutline,
 } from '../types';
-import { buildHydratedDeck } from '../utils/interviewDeck';
+import { buildHydratedDeck } from '@/utils/interviewDeck';
 import { Switch } from './Switch';
 import { CheckIcon, LoadingSpinner, SparklesIcon } from './IconComponents';
 import { appendUnique, formatTimestamp } from './interview-copilot/utils';

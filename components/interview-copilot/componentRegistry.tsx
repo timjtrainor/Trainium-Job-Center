@@ -22,7 +22,7 @@ import type {
     WidgetState,
     WidgetId,
 } from './types';
-import { serializeDeck } from '../../utils/interviewDeck';
+import { serializeDeck } from '@/utils/interviewDeck';
 
 const createLayouts = (config: {
     lg: { x: number; y: number; w: number; h: number };

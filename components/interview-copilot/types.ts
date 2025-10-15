@@ -7,7 +7,7 @@ import type {
     JobProblemAnalysisResult,
     StrategicNarrative,
 } from '../../types';
-import type { HydratedDeckItem } from '../../utils/interviewDeck';
+import type { HydratedDeckItem } from '@/utils/interviewDeck';
 
 export type WidgetMode = 'prep' | 'live';
 

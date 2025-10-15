@@ -7,8 +7,8 @@ import {
     removeRoleFromDeck,
     updateDeckOrder,
     upsertDeckStory,
-} from '../../../utils/interviewDeck';
-import type { HydratedDeckItem } from '../../../utils/interviewDeck';
+} from '@/utils/interviewDeck';
+import type { HydratedDeckItem } from '@/utils/interviewDeck';
 import { GripVerticalIcon, SparklesIcon } from '../../IconComponents';
 
 const STORY_FORMAT_FIELDS: Record<string, string[]> = {

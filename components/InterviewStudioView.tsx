@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { JobApplication, Company, Prompt, InterviewCoachingQuestion, StrategicNarrative, StrategicNarrativePayload, Interview, Contact, ImpactStory, StorytellingFormat, StarBody, ScopeBody, WinsBody, SpotlightBody, InterviewStoryDeckEntry } from '../types';
 import { LoadingSpinner, MicrophoneIcon, StrategyIcon, SparklesIcon, LightBulbIcon, GripVerticalIcon, CheckIcon } from './IconComponents';
 import * as geminiService from '../services/geminiService';
-import { HydratedDeckItem, buildHydratedDeck, ensureRoleOnDeck, removeRoleFromDeck, serializeDeck, updateDeckOrder, upsertDeckStory } from '../utils/interviewDeck';
+import { HydratedDeckItem, buildHydratedDeck, ensureRoleOnDeck, removeRoleFromDeck, serializeDeck, updateDeckOrder, upsertDeckStory } from '@/utils/interviewDeck';
 
 interface InterviewStudioViewProps {
     applications: JobApplication[];
