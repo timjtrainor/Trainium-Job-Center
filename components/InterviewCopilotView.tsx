@@ -9,8 +9,15 @@ import type {
     WidgetState,
     WidgetRuntimeContext,
 } from './interview-copilot/types';
-import type { JobApplication, Interview, StrategicNarrative, InterviewPayload, Company } from '../types';
-import type { JobProblemAnalysisResult, InterviewPrepOutline } from '../types';
+import type {
+    JobApplication,
+    Interview,
+    StrategicNarrative,
+    InterviewPayload,
+    Company,
+    JobProblemAnalysisResult,
+    InterviewPrepOutline,
+} from '../types';
 import { buildHydratedDeck } from '../utils/interviewDeck';
 import { Switch } from './Switch';
 import { CheckIcon, LoadingSpinner, SparklesIcon } from './IconComponents';
