@@ -21,6 +21,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "react-grid-layout": [
+        "./components/interview-copilot/shims/react-grid-layout"
       ]
     },
     "allowImportingTsExtensions": true,
