@@ -11,3 +11,4 @@ jobs_deduplication_indexes [jobs_table_init] 2025-01-28T10:00:00Z System Adminis
 jobs_deduplicated_view [jobs_table_init jobs_deduplication_indexes] 2025-01-28T10:30:00Z System Administrator <root@localhost> # Create deduplicated view for job review workflow
 add_duplicate_status_field [jobs_deduplicated_view] 2025-10-05T00:00:00Z System Administrator <root@localhost> # Add duplicate_status field for preventive deduplication
 backfill_application_missing_data [add_duplicate_status_field] 2025-10-05T01:00:00Z System Administrator <root@localhost> # Backfill missing job_link, salary, location, and company data for applications created from jobs
+add_interview_copilot_columns [backfill_application_missing_data] 2025-10-05T02:00:00Z System Administrator <root@localhost> # Persist Interview Co-pilot layout and widget metadata
