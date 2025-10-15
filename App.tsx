@@ -1221,16 +1221,27 @@ const AppContent = () => {
             return { app: null, interview: null, company: null };
         }, [applications, interviewId, companies]);
     
-        if (isAppLoading || !app || !interview || !activeNarrative || !company) {
+        const fallbackNarrative = useMemo<StrategicNarrative>(() => ({
+            narrative_id: 'fallback',
+            user_id: userProfile?.user_id ?? '',
+            narrative_name: 'Interview Copilot Fallback',
+            desired_title: '',
+            positioning_statement: '',
+            impact_stories: [],
+        }), [userProfile?.user_id]);
+
+        if (isAppLoading || !app || !interview || !company) {
             return <div className="flex-1 flex items-center justify-center"><LoadingSpinner /></div>;
         }
-    
+
+        const narrativeForView = activeNarrative ?? fallbackNarrative;
+
         return (
             <InterviewCopilotView
                 application={app}
                 interview={interview}
                 company={company}
-                activeNarrative={activeNarrative}
+                activeNarrative={narrativeForView}
                 onBack={() => navigate(`/application/${app.job_application_id}?tab=interviews`)}
                 onSaveInterview={handleSaveInterview}
                 onGenerateInterviewPrep={handleGenerateInterviewPrep}

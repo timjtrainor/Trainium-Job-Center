@@ -31,7 +31,7 @@ interface InterviewCopilotViewProps {
     application: JobApplication;
     interview: Interview;
     company: Company;
-    activeNarrative: StrategicNarrative;
+    activeNarrative: StrategicNarrative | null;
     onBack: () => void;
     onSaveInterview: (payload: InterviewPayload, interviewId: string) => Promise<void>;
     onGenerateInterviewPrep: (app: JobApplication, interview: Interview) => Promise<void>;
@@ -225,6 +225,15 @@ const pruneCoverage = (values: string[], covered: string[]): string[] => {
     return covered.filter((value) => set.has(value));
 };
 
+const buildFallbackNarrative = (): StrategicNarrative => ({
+    narrative_id: 'fallback',
+    user_id: '',
+    narrative_name: 'Fallback Narrative',
+    desired_title: '',
+    positioning_statement: '',
+    impact_stories: [],
+});
+
 export const InterviewCopilotView = ({
     application,
     interview,
@@ -242,14 +251,19 @@ export const InterviewCopilotView = ({
     const [notesSuccess, setNotesSuccess] = useState(false);
     const [isGeneratingPrep, setIsGeneratingPrep] = useState(false);
 
+    const narrative = useMemo(
+        () => activeNarrative ?? buildFallbackNarrative(),
+        [activeNarrative],
+    );
+
     const jobAnalysis = useMemo(() => application.job_problem_analysis_result, [application]);
     const prepOutline = useMemo(
         () => buildPrepOutline(jobAnalysis, interview.prep_outline),
         [jobAnalysis, interview.prep_outline],
     );
     const storyDeck = useMemo(
-        () => buildHydratedDeck(interview, activeNarrative),
-        [interview, activeNarrative],
+        () => buildHydratedDeck(interview, narrative),
+        [interview, narrative],
     );
 
     const defaultLayouts = useMemo(() => buildDefaultLayouts(), []);
@@ -259,7 +273,7 @@ export const InterviewCopilotView = ({
         const context = {
             application,
             interview,
-            narrative: activeNarrative,
+            narrative,
             prepOutline,
             storyDeck,
             jobAnalysis,
@@ -299,7 +313,7 @@ export const InterviewCopilotView = ({
     }, [
         application,
         interview,
-        activeNarrative,
+        narrative,
         prepOutline,
         storyDeck,
         jobAnalysis,
@@ -441,10 +455,10 @@ export const InterviewCopilotView = ({
             jobAnalysis,
             interview,
             application,
-            narrative: activeNarrative,
-            availableStories: activeNarrative.impact_stories || [],
+            narrative,
+            availableStories: narrative.impact_stories || [],
         }),
-        [appendToNotes, jobAnalysis, interview, application, activeNarrative],
+        [appendToNotes, jobAnalysis, interview, application, narrative],
     );
 
     const handleSave = useCallback(async () => {
@@ -454,7 +468,7 @@ export const InterviewCopilotView = ({
             const context = {
                 application,
                 interview,
-                narrative: activeNarrative,
+                narrative,
                 prepOutline,
                 storyDeck,
                 jobAnalysis,
@@ -489,7 +503,7 @@ export const InterviewCopilotView = ({
     }, [
         application,
         interview,
-        activeNarrative,
+        narrative,
         prepOutline,
         storyDeck,
         jobAnalysis,
