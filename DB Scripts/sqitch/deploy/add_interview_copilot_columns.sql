@@ -50,48 +50,65 @@ RETURNS TABLE (
 )
 LANGUAGE sql
 AS $function$
-    INSERT INTO interviews (
-        interview_id,
-        job_application_id,
-        interview_date,
-        interview_type,
-        notes,
-        ai_prep_data,
-        prep_outline,
-        live_notes
+    WITH upserted AS (
+        INSERT INTO interviews (
+            interview_id,
+            job_application_id,
+            interview_date,
+            interview_type,
+            notes,
+            ai_prep_data,
+            prep_outline,
+            live_notes
+        )
+        VALUES (
+            COALESCE(p_interview_id, gen_random_uuid()),
+            p_job_application_id,
+            p_interview_date,
+            p_interview_type,
+            p_notes,
+            p_ai_prep_data,
+            p_prep_outline,
+            p_live_notes
+        )
+        ON CONFLICT (interview_id) DO UPDATE SET
+            job_application_id = EXCLUDED.job_application_id,
+            interview_date = EXCLUDED.interview_date,
+            interview_type = EXCLUDED.interview_type,
+            notes = EXCLUDED.notes,
+            ai_prep_data = EXCLUDED.ai_prep_data,
+            prep_outline = EXCLUDED.prep_outline,
+            live_notes = EXCLUDED.live_notes
+        RETURNING *
+    ),
+    deleted_contacts AS (
+        DELETE FROM public.interview_contacts ic
+        USING upserted u
+        WHERE ic.interview_id = u.interview_id
+        RETURNING 1
+    ),
+    inserted_contacts AS (
+        INSERT INTO public.interview_contacts (interview_id, contact_id)
+        SELECT u.interview_id, contact_id
+        FROM upserted u
+        CROSS JOIN LATERAL unnest(COALESCE(p_contact_ids, '{}')) AS c(contact_id)
+        ON CONFLICT (interview_id, contact_id) DO NOTHING
+        RETURNING 1
     )
-    VALUES (
-        COALESCE(p_interview_id, gen_random_uuid()),
-        p_job_application_id,
-        p_interview_date,
-        p_interview_type,
-        p_notes,
-        p_ai_prep_data,
-        p_prep_outline,
-        p_live_notes
-    )
-    ON CONFLICT (interview_id) DO UPDATE SET
-        job_application_id = EXCLUDED.job_application_id,
-        interview_date = EXCLUDED.interview_date,
-        interview_type = EXCLUDED.interview_type,
-        notes = EXCLUDED.notes,
-        ai_prep_data = EXCLUDED.ai_prep_data,
-        prep_outline = EXCLUDED.prep_outline,
-        live_notes = EXCLUDED.live_notes
-    RETURNING
-        interviews.interview_id,
-        interviews.job_application_id,
-        interviews.interview_date,
-        interviews.interview_type,
-        interviews.notes,
-        interviews.created_at,
-        interviews.ai_prep_data,
-        interviews.prep_outline,
-        interviews.live_notes,
-        interviews.strategic_plan,
-        interviews.post_interview_debrief,
-        interviews.strategic_opening,
-        interviews.strategic_questions_to_ask,
+    SELECT
+        u.interview_id,
+        u.job_application_id,
+        u.interview_date,
+        u.interview_type,
+        u.notes,
+        u.created_at,
+        u.ai_prep_data,
+        u.prep_outline,
+        u.live_notes,
+        u.strategic_plan,
+        u.post_interview_debrief,
+        u.strategic_opening,
+        u.strategic_questions_to_ask,
         COALESCE(
             (
                 SELECT jsonb_agg(jsonb_build_object(
@@ -100,7 +117,7 @@ AS $function$
                     'custom_notes', d.custom_notes
                 ) ORDER BY d.order_index)
                 FROM public.interview_story_decks d
-                WHERE d.interview_id = interviews.interview_id
+                WHERE d.interview_id = u.interview_id
             ),
             '[]'::jsonb
         ) AS story_deck,
@@ -113,10 +130,11 @@ AS $function$
                 ) ORDER BY c.first_name, c.last_name)
                 FROM public.interview_contacts ic
                 JOIN public.contacts c ON c.contact_id = ic.contact_id
-                WHERE ic.interview_id = interviews.interview_id
+                WHERE ic.interview_id = u.interview_id
             ),
             '[]'::jsonb
-        ) AS interview_contacts;
+        ) AS interview_contacts
+    FROM upserted u;
 $function$;
 
 -- Expose full interview decks, prep outline, and live notes from a single RPC
