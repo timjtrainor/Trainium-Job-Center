@@ -25,6 +25,25 @@ IS 'Weighted overall alignment score (0-10) from career brand analysis. Higher s
 COMMENT ON COLUMN job_reviews.crew_output_version
 IS 'Version of crew output format. Enables schema evolution and migration of older analysis records.';
 
+-- Persist Interview Co-pilot session state
+ALTER TABLE interviews
+ADD COLUMN IF NOT EXISTS layout JSONB DEFAULT '{}'::jsonb;
+
+ALTER TABLE interviews
+ADD COLUMN IF NOT EXISTS widgets JSONB DEFAULT '{}'::jsonb;
+
+ALTER TABLE interviews
+ADD COLUMN IF NOT EXISTS widget_metadata JSONB DEFAULT '{}'::jsonb;
+
+COMMENT ON COLUMN interviews.layout
+IS 'Responsive grid layout configuration for Interview Co-pilot widgets.';
+
+COMMENT ON COLUMN interviews.widgets
+IS 'Serialized widget data payloads captured from the Interview Co-pilot experience.';
+
+COMMENT ON COLUMN interviews.widget_metadata
+IS 'Per-widget UI metadata (collapse state, sizing hints) for Interview Co-pilot sessions.';
+
 -- Validation: Check existing structure
 DO $$
 BEGIN
@@ -44,5 +63,29 @@ BEGIN
         AND indexname = 'idx_job_reviews_overall_alignment_score'
     ) THEN
         RAISE EXCEPTION 'overall_alignment_score index was not created successfully';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'interviews'
+        AND column_name = 'layout'
+    ) THEN
+        RAISE EXCEPTION 'layout column was not created successfully on interviews';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'interviews'
+        AND column_name = 'widgets'
+    ) THEN
+        RAISE EXCEPTION 'widgets column was not created successfully on interviews';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'interviews'
+        AND column_name = 'widget_metadata'
+    ) THEN
+        RAISE EXCEPTION 'widget_metadata column was not created successfully on interviews';
     END IF;
 END $$;

@@ -1,3 +1,5 @@
+import type { Layout, Layouts } from 'react-grid-layout';
+
 // Represents the user's core, non-strategic information
 export interface UserProfile {
     user_id: string; // uuid
@@ -456,7 +458,29 @@ export interface Interview {
     last_name: string;
   }[];
   story_deck?: InterviewStoryDeckEntry[];
+  layout?: InterviewLayoutState | null;
+  widgets?: InterviewWidgetStateMap | null;
+  widget_metadata?: InterviewWidgetMetadataMap | null;
 }
+
+export type InterviewLayoutState = Partial<Layouts>;
+
+export type InterviewLayoutItem = Layout;
+
+export interface InterviewWidgetStateValue<TData = unknown> {
+  data?: TData;
+  lastUpdated?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export type InterviewWidgetStateMap = Record<string, InterviewWidgetStateValue>;
+
+export interface InterviewWidgetMetadataEntry {
+  collapsed?: boolean;
+  custom?: Record<string, unknown>;
+}
+
+export type InterviewWidgetMetadataMap = Record<string, InterviewWidgetMetadataEntry>;
 
 export interface Offer {
     offer_id: string; // uuid

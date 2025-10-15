@@ -1,8 +1,8 @@
-import { 
-    JobApplication, Company, BaseResume, Status, CompanyPayload, JobApplicationPayload, 
+import {
+    JobApplication, Company, BaseResume, Status, CompanyPayload, JobApplicationPayload,
     BaseResumePayload, Contact, ContactPayload, Message, MessagePayload, Interview,
     InterviewPayload, InterviewStoryDeckEntry, LinkedInPost, LinkedInPostPayload, UserProfile,
-    UserProfilePayload, LinkedInEngagement, PostResponse, PostResponsePayload, 
+    UserProfilePayload, LinkedInEngagement, PostResponse, PostResponsePayload,
     LinkedInEngagementPayload, StandardJobRole, StandardJobRolePayload, Resume, ResumeHeader, DateInfo, Education, Certification,
     StrategicNarrative, StrategicNarrativePayload, Offer, OfferPayload,
     BragBankEntry, BragBankEntryPayload, SkillTrend, SkillTrendPayload,
@@ -11,11 +11,13 @@ import {
     UploadedDocument, UploadSuccessResponse, ContentType, DocumentMetadata, DocumentDetail,
     PaginatedResponse, ReviewedJob, ReviewedJobRecommendation,
     StandardResponse, ChromaUploadResponseData, ProofPointPayload,
-    ResumeCreatePayload, ResumeUpdatePayload, ResumeDocumentResponseData
+    ResumeCreatePayload, ResumeUpdatePayload, ResumeDocumentResponseData,
+    InterviewLayoutState, InterviewWidgetMetadataMap, InterviewWidgetStateMap,
 } from '../types';
 import { API_BASE_URL, USER_ID, FASTAPI_BASE_URL } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
 import { ensureUniqueAchievementIds } from '../utils/resume';
+import type { Layout, Layouts } from 'react-grid-layout';
 
 // --- API Helpers ---
 
@@ -108,6 +110,143 @@ const normalizeDeckEntries = (deck: any): InterviewStoryDeckEntry[] => {
         .filter((entry): entry is InterviewStoryDeckEntry => Boolean(entry))
         .sort((a, b) => a.order_index - b.order_index)
         .map((entry, index) => ({ ...entry, order_index: index }));
+};
+
+const isPlainObject = (value: unknown): value is Record<string, any> =>
+    Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const cloneLayouts = (layouts: Layouts | undefined | null): InterviewLayoutState | undefined => {
+    if (!layouts || typeof layouts !== 'object') {
+        return undefined;
+    }
+
+    const cloned: InterviewLayoutState = {};
+    Object.entries(layouts as Record<string, Layout[] | undefined>).forEach(([breakpoint, items]) => {
+        if (!Array.isArray(items)) {
+            return;
+        }
+        cloned[breakpoint] = items.map((item) => ({ ...item }));
+    });
+    return cloned;
+};
+
+const normalizeLayoutItem = (item: any): Layout | null => {
+    if (!isPlainObject(item) || typeof item.i === 'undefined') {
+        return null;
+    }
+
+    const sanitized: Layout = {
+        i: String(item.i),
+        x: Number.isFinite(Number(item.x)) ? Number(item.x) : 0,
+        y: Number.isFinite(Number(item.y)) ? Number(item.y) : 0,
+        w: Number.isFinite(Number(item.w)) ? Number(item.w) : 1,
+        h: Number.isFinite(Number(item.h)) ? Number(item.h) : 1,
+    };
+
+    const numericProps: Array<keyof Layout> = ['minW', 'maxW', 'minH', 'maxH'];
+    numericProps.forEach((key) => {
+        const value = (item as Record<string, any>)[key];
+        if (value !== undefined && value !== null && Number.isFinite(Number(value))) {
+            (sanitized as Record<string, any>)[key] = Number(value);
+        }
+    });
+
+    const booleanProps: Array<keyof Layout> = ['static', 'isBounded', 'moved'];
+    booleanProps.forEach((key) => {
+        if ((item as Record<string, any>).hasOwnProperty(key)) {
+            (sanitized as Record<string, any>)[key] = Boolean((item as Record<string, any>)[key]);
+        }
+    });
+
+    return sanitized;
+};
+
+const normalizeLayouts = (layouts: any): InterviewLayoutState | undefined => {
+    if (!isPlainObject(layouts)) {
+        return undefined;
+    }
+
+    const normalized: InterviewLayoutState = {};
+    Object.entries(layouts as Record<string, any>).forEach(([breakpoint, items]) => {
+        if (!Array.isArray(items)) {
+            return;
+        }
+        const normalizedItems = items
+            .map((item) => normalizeLayoutItem(item))
+            .filter((item): item is Layout => Boolean(item));
+        normalized[breakpoint] = normalizedItems;
+    });
+    return normalized;
+};
+
+const normalizeWidgetStateMap = (widgets: any): InterviewWidgetStateMap | undefined => {
+    if (!isPlainObject(widgets)) {
+        return undefined;
+    }
+
+    const normalized: InterviewWidgetStateMap = {};
+    Object.entries(widgets as Record<string, any>).forEach(([widgetId, value]) => {
+        if (!isPlainObject(value)) {
+            return;
+        }
+
+        const { data, lastUpdated, last_updated, metadata, ...rest } = value;
+        const normalizedValue: InterviewWidgetStateMap[string] = {};
+
+        if (value.hasOwnProperty('data')) {
+            normalizedValue.data = data;
+        }
+
+        const resolvedLastUpdated = typeof lastUpdated === 'string'
+            ? lastUpdated
+            : typeof last_updated === 'string'
+                ? last_updated
+                : undefined;
+
+        if (resolvedLastUpdated) {
+            normalizedValue.lastUpdated = resolvedLastUpdated;
+        }
+
+        const metadataObject = isPlainObject(metadata) ? metadata : undefined;
+        const additionalMetadata = Object.keys(rest).length > 0 ? rest : undefined;
+        const mergedMetadata = metadataObject || additionalMetadata;
+
+        if (mergedMetadata) {
+            normalizedValue.metadata = mergedMetadata;
+        }
+
+        normalized[widgetId] = normalizedValue;
+    });
+
+    return normalized;
+};
+
+const normalizeWidgetMetadataMap = (metadata: any): InterviewWidgetMetadataMap | undefined => {
+    if (!isPlainObject(metadata)) {
+        return undefined;
+    }
+
+    const normalized: InterviewWidgetMetadataMap = {};
+    Object.entries(metadata as Record<string, any>).forEach(([widgetId, value]) => {
+        if (!isPlainObject(value)) {
+            return;
+        }
+
+        const { collapsed, ...rest } = value;
+        const entry: InterviewWidgetMetadataMap[string] = {};
+
+        if (typeof collapsed === 'boolean') {
+            entry.collapsed = collapsed;
+        }
+
+        if (Object.keys(rest).length > 0) {
+            entry.custom = rest;
+        }
+
+        normalized[widgetId] = entry;
+    });
+
+    return normalized;
 };
 
 const FASTAPI_BASE = FASTAPI_BASE_URL.replace(/\/+$/u, '') || '/api';
@@ -267,6 +406,16 @@ const _parseApplication = (app: any): JobApplication => {
                 ? new Date(restInterview.interview_date).toISOString().split('T')[0]
                 : undefined;
 
+            const parsedLayout = normalizeLayouts(
+                safeParseJson(restInterview.layout, 'layout', interview.interview_id),
+            );
+            const parsedWidgets = normalizeWidgetStateMap(
+                safeParseJson(restInterview.widgets, 'widgets', interview.interview_id),
+            );
+            const parsedWidgetMetadata = normalizeWidgetMetadataMap(
+                safeParseJson(restInterview.widget_metadata, 'widget_metadata', interview.interview_id),
+            );
+
             return {
                 ...restInterview,
                 interview_date: sanitizedInterviewDate,
@@ -282,6 +431,9 @@ const _parseApplication = (app: any): JobApplication => {
                     ? rawQuestions
                     : safeParseJson(rawQuestions, 'strategic_questions_to_ask', interview.interview_id),
                 story_deck: normalizeDeckEntries(rawDeck ?? legacyDeck),
+                layout: parsedLayout,
+                widgets: parsedWidgets,
+                widget_metadata: parsedWidgetMetadata,
             };
         });
         return { ...parsedApp, interviews: mappedInterviews };
@@ -294,7 +446,7 @@ export const getApplications = async (since?: string): Promise<JobApplication[]>
         `&select=*,` +
         `status:statuses(*),` +
         `messages(*),` +
-        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,prep_outline,live_notes,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,story_deck:interview_story_decks(order_index,story_id,custom_notes),interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
+        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,prep_outline,live_notes,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,layout,widgets,widget_metadata,story_deck:interview_story_decks(order_index,story_id,custom_notes),interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
         `offers(*)` +
         `&order=date_applied.desc,created_at.desc`;
     if (since) {
@@ -311,7 +463,7 @@ export const getSingleApplication = async (appId: string): Promise<JobApplicatio
         `&select=*,` +
         `status:statuses(*),` +
         `messages(*),` +
-        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,prep_outline,live_notes,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,story_deck:interview_story_decks(order_index,story_id,custom_notes),interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
+        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,prep_outline,live_notes,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,layout,widgets,widget_metadata,story_deck:interview_story_decks(order_index,story_id,custom_notes),interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
         `offers(*)` +
         `&limit=1`;
     const response = await fetch(url);
@@ -902,6 +1054,16 @@ export const getInterviews = async (appId: string): Promise<Interview[]> => {
             ? interview.strategic_questions_to_ask
             : safeParseJson(interview.strategic_questions_to_ask, 'strategic_questions_to_ask', interview.interview_id);
 
+        const parsedLayout = normalizeLayouts(
+            safeParseJson(interview.layout, 'layout', interview.interview_id),
+        );
+        const parsedWidgets = normalizeWidgetStateMap(
+            safeParseJson(interview.widgets, 'widgets', interview.interview_id),
+        );
+        const parsedWidgetMetadata = normalizeWidgetMetadataMap(
+            safeParseJson(interview.widget_metadata, 'widget_metadata', interview.interview_id),
+        );
+
         return {
             ...interview,
             interview_date: sanitizedInterviewDate,
@@ -915,40 +1077,57 @@ export const getInterviews = async (appId: string): Promise<Interview[]> => {
             post_interview_debrief: safeParseJson(interview.post_interview_debrief, 'post_interview_debrief', interview.interview_id),
             strategic_questions_to_ask: Array.isArray(parsedQuestions) ? parsedQuestions : [],
             story_deck: normalizeDeckEntries(interview.story_deck),
+            layout: parsedLayout,
+            widgets: parsedWidgets,
+            widget_metadata: parsedWidgetMetadata,
         };
     });
 };
 
 export const saveInterview = async (interviewData: InterviewPayload, interviewId?: string): Promise<Interview> => {
-    const { contact_ids, story_deck, ...rest } = interviewData;
+    const { contact_ids, story_deck, layout, widgets, widget_metadata, ...rest } = interviewData;
 
-    let savedInterview: Interview;
+    const payload: Record<string, unknown> = { ...rest };
+
+    if (layout !== undefined) {
+        payload.layout = layout === null ? null : cloneLayouts(layout) ?? null;
+    }
+
+    if (widgets !== undefined) {
+        payload.widgets = widgets === null ? null : widgets;
+    }
+
+    if (widget_metadata !== undefined) {
+        payload.widget_metadata = widget_metadata === null ? null : widget_metadata;
+    }
+
+    let savedInterviewRecord: any;
     if (interviewId) {
         const response = await fetch(`${API_BASE_URL}/interviews?interview_id=eq.${interviewId}`, {
             method: 'PATCH',
             headers: { ...headers, 'Prefer': 'return=representation' },
-            body: JSON.stringify(rest),
+            body: JSON.stringify(payload),
         });
         const data = await handleResponse(response);
-        savedInterview = data[0];
+        savedInterviewRecord = data[0];
     } else {
         const response = await fetch(`${API_BASE_URL}/interviews`, {
             method: 'POST',
             headers: { ...headers, 'Prefer': 'return=representation' },
-            body: JSON.stringify(rest),
+            body: JSON.stringify(payload),
         });
         const data = await handleResponse(response);
-        savedInterview = data[0];
+        savedInterviewRecord = data[0];
     }
 
-    if (savedInterview && contact_ids) {
-        await handleResponse(await fetch(`${API_BASE_URL}/interview_contacts?interview_id=eq.${savedInterview.interview_id}`, {
+    if (savedInterviewRecord && contact_ids) {
+        await handleResponse(await fetch(`${API_BASE_URL}/interview_contacts?interview_id=eq.${savedInterviewRecord.interview_id}`, {
             method: 'DELETE',
             headers,
         }));
         if (contact_ids.length > 0) {
             const contactLinks = contact_ids.map(contact_id => ({
-                interview_id: savedInterview.interview_id,
+                interview_id: savedInterviewRecord.interview_id,
                 contact_id: contact_id,
             }));
             await handleResponse(await fetch(`${API_BASE_URL}/interview_contacts`, {
@@ -959,15 +1138,15 @@ export const saveInterview = async (interviewData: InterviewPayload, interviewId
         }
     }
 
-    if (savedInterview && story_deck) {
-        await handleResponse(await fetch(`${API_BASE_URL}/interview_story_decks?interview_id=eq.${savedInterview.interview_id}`, {
+    if (savedInterviewRecord && story_deck) {
+        await handleResponse(await fetch(`${API_BASE_URL}/interview_story_decks?interview_id=eq.${savedInterviewRecord.interview_id}`, {
             method: 'DELETE',
             headers,
         }));
 
         if (story_deck.length > 0) {
             const deckPayload = story_deck.map((entry, index) => ({
-                interview_id: savedInterview.interview_id,
+                interview_id: savedInterviewRecord.interview_id,
                 story_id: entry.story_id,
                 order_index: Number.isInteger(entry.order_index) ? entry.order_index : index,
                 custom_notes: entry.custom_notes && Object.keys(entry.custom_notes).length > 0 ? entry.custom_notes : null,
@@ -980,7 +1159,19 @@ export const saveInterview = async (interviewData: InterviewPayload, interviewId
             }));
         }
     }
-    return savedInterview;
+
+    if (!savedInterviewRecord) {
+        throw new Error('Failed to save interview. No response received from server.');
+    }
+
+    const interviewIdForParse = savedInterviewRecord.interview_id || interviewId || 'unknown-interview';
+
+    return {
+        ...savedInterviewRecord,
+        layout: normalizeLayouts(safeParseJson(savedInterviewRecord.layout, 'layout', interviewIdForParse)),
+        widgets: normalizeWidgetStateMap(safeParseJson(savedInterviewRecord.widgets, 'widgets', interviewIdForParse)),
+        widget_metadata: normalizeWidgetMetadataMap(safeParseJson(savedInterviewRecord.widget_metadata, 'widget_metadata', interviewIdForParse)),
+    } as Interview;
 };
 
 export const deleteInterview = async (interviewId: string): Promise<void> => {
