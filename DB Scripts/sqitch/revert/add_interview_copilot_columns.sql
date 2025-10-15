@@ -131,6 +131,7 @@ AS $function$
             ),
             '[]'::jsonb
         ) AS interview_contacts
+    -- Source interviews for the given application; alias i is referenced above.
     FROM public.interviews i
     WHERE i.job_application_id = p_job_application_id
     ORDER BY i.interview_date NULLS LAST, i.created_at DESC;
