@@ -125,7 +125,7 @@ export const InterviewCopilotView = ({
 }: InterviewCopilotViewProps) => {
     const [mode, setMode] = useState<WidgetMode>('live');
     const [isSaving, setIsSaving] = useState(false);
-    const [saveSuccess, setSaveSuccess] = useState(false);
+    const [saveSuccess, setIsSavingSuccess] = useState(false);
     const [isSavingNotes, setIsSavingNotes] = useState(false);
     const [notesSuccess, setNotesSuccess] = useState(false);
     const [isGeneratingPrep, setIsGeneratingPrep] = useState(false);
@@ -171,47 +171,47 @@ export const InterviewCopilotView = ({
     }, [initialWidgetStates]);
 
     const updateWidgetData = useCallback(<TId extends WidgetId>(id: TId, value: WidgetDataMap[TId]) => {
-            setWidgetStates((prev) => {
-                const current = prev[id];
-                if (!current) {
-                    return prev;
-                }
-                const timestamp = new Date().toISOString();
-                const nextState: WidgetStateMap = {
-                    ...prev,
-                    [id]: {
-                        ...current,
-                        data: value,
-                        lastUpdated: timestamp,
-                    },
-                };
+        setWidgetStates((prev) => {
+            const current = prev[id];
+            if (!current) {
+                return prev;
+            }
+            const timestamp = new Date().toISOString();
+            const nextState: WidgetStateMap = {
+                ...prev,
+                [id]: {
+                    ...current,
+                    data: value,
+                    lastUpdated: timestamp,
+                },
+            };
 
-                if (id === 'jobCheatSheet') {
-                    const cheatSheet = value;
-                    const checklist = prev.liveChecklist;
-                    if (checklist) {
-                        const updatedChecklist = {
-                            ...checklist,
-                            data: {
-                                ...checklist.data,
-                                metrics: cheatSheet.keySuccessMetrics,
-                                levers: cheatSheet.roleLevers,
-                                blockers: cheatSheet.potentialBlockers,
-                                covered: {
-                                    metrics: pruneCoverage(cheatSheet.keySuccessMetrics, checklist.data.covered.metrics),
-                                    levers: pruneCoverage(cheatSheet.roleLevers, checklist.data.covered.levers),
-                                    blockers: pruneCoverage(cheatSheet.potentialBlockers, checklist.data.covered.blockers),
-                                },
+            if (id === 'jobCheatSheet') {
+                const cheatSheet = value;
+                const checklist = prev.liveChecklist;
+                if (checklist) {
+                    const updatedChecklist = {
+                        ...checklist,
+                        data: {
+                            ...checklist.data,
+                            metrics: cheatSheet.keySuccessMetrics,
+                            levers: cheatSheet.roleLevers,
+                            blockers: cheatSheet.potentialBlockers,
+                            covered: {
+                                metrics: pruneCoverage(cheatSheet.keySuccessMetrics, checklist.data.covered.metrics),
+                                levers: pruneCoverage(cheatSheet.roleLevers, checklist.data.covered.levers),
+                                blockers: pruneCoverage(cheatSheet.potentialBlockers, checklist.data.covered.blockers),
                             },
-                            lastUpdated: timestamp,
-                        };
-                        nextState.liveChecklist = updatedChecklist;
-                    }
+                        },
+                        lastUpdated: timestamp,
+                    };
+                    nextState.liveChecklist = updatedChecklist;
                 }
+            }
 
-                return nextState;
-            });
-        }, []);
+            return nextState;
+        });
+    }, []);
 
     const toggleCollapse = useCallback(
         (id: WidgetId) => {
@@ -291,7 +291,7 @@ export const InterviewCopilotView = ({
 
     const handleSave = useCallback(async () => {
         setIsSaving(true);
-        setSaveSuccess(false);
+        setIsSavingSuccess(false);
         try {
             const context = {
                 application,
@@ -319,8 +319,8 @@ export const InterviewCopilotView = ({
                 return acc;
             }, {} as InterviewPayload);
             await onSaveInterview(payload, interview.interview_id);
-            setSaveSuccess(true);
-            setTimeout(() => setSaveSuccess(false), 2000);
+            setIsSavingSuccess(true);
+            setTimeout(() => setIsSavingSuccess(false), 2000);
         } catch (error) {
             console.error('Failed to save Interview Co-pilot data', error);
         } finally {

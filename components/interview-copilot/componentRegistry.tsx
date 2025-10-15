@@ -22,7 +22,7 @@ import type {
     WidgetState,
     WidgetId,
 } from './types';
-import { serializeDeck } from '@/utils/interviewDeck';
+import { serializeDeck } from '../../utils/interviewDeck';
 
 const createLayouts = (config: {
     lg: { x: number; y: number; w: number; h: number };
@@ -126,11 +126,7 @@ const notesInitialState = ({ interview }: WidgetInitContext): WidgetState<NotesD
     },
 });
 
-type WidgetRegistryEntry = {
-    [K in WidgetId]: WidgetConfig<WidgetDataMap[K], K>;
-}[WidgetId];
-
-export const componentRegistry = [
+export const componentRegistry: WidgetConfig<any>[] = [
     {
         id: 'jobCheatSheet',
         title: 'Job Cheat Sheet',
@@ -254,6 +250,6 @@ export const componentRegistry = [
         getInitialState: notesInitialState,
         serialize: ({ data }) => ({ live_notes: data.content }),
     },
-] satisfies WidgetRegistryEntry[];
+];
 
 export const widgetMap = new Map(componentRegistry.map((config) => [config.id, config]));
