@@ -18,6 +18,9 @@ import type {
     Company,
     JobProblemAnalysisResult,
     InterviewPrepOutline,
+    InterviewLayoutState,
+    InterviewWidgetMetadataMap,
+    InterviewWidgetStateMap,
 } from '../types';
 import { buildHydratedDeck } from '@/utils/interviewDeck';
 import { Switch } from './Switch';
@@ -108,6 +111,98 @@ const buildDefaultHeights = (): Record<string, Record<WidgetId, number>> => {
     return heights;
 };
 
+const mergeLayoutsWithDefaults = (
+    defaults: Layouts,
+    persisted?: InterviewLayoutState | null,
+): Layouts => {
+    const widgetIds = new Set<WidgetId>(componentRegistry.map((config) => config.id));
+    const merged: Layouts = {};
+    const persistedLayouts = (persisted || {}) as InterviewLayoutState;
+    const breakpoints = new Set<string>([
+        ...Object.keys(defaults || {}),
+        ...Object.keys(persistedLayouts || {}),
+    ]);
+
+    breakpoints.forEach((breakpoint) => {
+        const defaultItems = (defaults[breakpoint] || []).map((item) => ({ ...item }));
+        const defaultById = new Map(defaultItems.map((item) => [item.i, item]));
+        const persistedItemsRaw = Array.isArray(persistedLayouts?.[breakpoint])
+            ? (persistedLayouts[breakpoint] as Layout[])
+            : [];
+
+        const sanitizedPersisted = persistedItemsRaw
+            .filter((item): item is Layout => Boolean(item && widgetIds.has(item.i as WidgetId)))
+            .map((item) => {
+                const base = defaultById.get(item.i);
+                return {
+                    ...(base ? { ...base } : { i: item.i, x: 0, y: 0, w: 1, h: 1 }),
+                    ...item,
+                };
+            });
+
+        const seen = new Set(sanitizedPersisted.map((item) => item.i));
+        defaultItems.forEach((item) => {
+            if (!seen.has(item.i)) {
+                sanitizedPersisted.push({ ...item });
+            }
+        });
+
+        merged[breakpoint] = sanitizedPersisted;
+    });
+
+    return merged;
+};
+
+const applyCollapsedStateToLayouts = (
+    layouts: Layouts,
+    states: WidgetStateMap,
+    defaultHeights: Record<string, Record<WidgetId, number>>,
+): Layouts => {
+    const adjusted: Layouts = {};
+    (Object.keys(layouts) as (keyof Layouts)[]).forEach((breakpoint) => {
+        const items = layouts[breakpoint] || [];
+        adjusted[breakpoint] = items.map((item) => {
+            const state = states[item.i as WidgetId];
+            if (state?.collapsed) {
+                return { ...item, h: 2 };
+            }
+            const defaultHeight = defaultHeights[breakpoint]?.[item.i as WidgetId];
+            return defaultHeight ? { ...item, h: defaultHeight } : { ...item };
+        });
+    });
+    return adjusted;
+};
+
+const buildSessionStatePayload = (
+    states: WidgetStateMap,
+    layouts: Layouts,
+): Pick<InterviewPayload, 'layout' | 'widgets' | 'widget_metadata'> => {
+    const layoutPayload: InterviewLayoutState = {};
+    Object.entries(layouts).forEach(([breakpoint, items]) => {
+        layoutPayload[breakpoint] = (items || []).map((item) => ({ ...item }));
+    });
+
+    const widgetData: InterviewWidgetStateMap = {};
+    const widgetMetadata: InterviewWidgetMetadataMap = {};
+
+    Object.entries(states).forEach(([id, state]) => {
+        widgetData[id] = { data: state.data };
+        if (state.lastUpdated) {
+            widgetData[id].lastUpdated = state.lastUpdated;
+        }
+
+        if (state.collapsed !== undefined) {
+            widgetMetadata[id] = { collapsed: state.collapsed };
+        }
+    });
+
+    return {
+        layout: layoutPayload,
+        widgets: widgetData,
+        widget_metadata: widgetMetadata,
+    };
+};
+
 const pruneCoverage = (values: string[], covered: string[]): string[] => {
     const set = new Set(values);
     return covered.filter((value) => set.has(value));
@@ -153,22 +248,68 @@ export const InterviewCopilotView = ({
             jobAnalysis,
         };
         const states = {} as WidgetStateMap;
+        const persistedWidgets = (interview.widgets || {}) as InterviewWidgetStateMap;
+        const persistedMetadata = (interview.widget_metadata || {}) as InterviewWidgetMetadataMap;
+
         componentRegistry.forEach((config) => {
-            states[config.id] = {
-                ...config.getInitialState(context),
-                lastUpdated: interview.interview_date || undefined,
-            } as WidgetState<WidgetDataMap[typeof config.id]>;
+            const defaultState = config.getInitialState(context) as WidgetState<WidgetDataMap[typeof config.id]>;
+            const persistedState = persistedWidgets[config.id];
+            const metadata = persistedMetadata[config.id];
+
+            const resolvedState: WidgetState<WidgetDataMap[typeof config.id]> = {
+                ...defaultState,
+            };
+
+            if (persistedState && Object.prototype.hasOwnProperty.call(persistedState, 'data')) {
+                resolvedState.data = persistedState.data as WidgetDataMap[typeof config.id];
+            }
+
+            if (typeof persistedState?.lastUpdated === 'string') {
+                resolvedState.lastUpdated = persistedState.lastUpdated;
+            }
+
+            if (typeof metadata?.collapsed === 'boolean') {
+                resolvedState.collapsed = metadata.collapsed;
+            }
+
+            if (!resolvedState.lastUpdated && interview.interview_date) {
+                resolvedState.lastUpdated = interview.interview_date;
+            }
+
+            states[config.id] = resolvedState;
         });
         return states;
-    }, [application, interview, activeNarrative, prepOutline, storyDeck, jobAnalysis]);
+    }, [
+        application,
+        interview,
+        activeNarrative,
+        prepOutline,
+        storyDeck,
+        jobAnalysis,
+        interview.widgets,
+        interview.widget_metadata,
+    ]);
+
+    const mergedLayouts = useMemo(
+        () => mergeLayoutsWithDefaults(defaultLayouts, interview.layout),
+        [defaultLayouts, interview.layout],
+    );
+
+    const initialLayouts = useMemo(
+        () => applyCollapsedStateToLayouts(mergedLayouts, initialWidgetStates, defaultHeights),
+        [mergedLayouts, initialWidgetStates, defaultHeights],
+    );
 
     const [widgetStates, setWidgetStates] = useState<WidgetStateMap>(initialWidgetStates);
-    const [layouts, setLayouts] = useState<Layouts>(defaultLayouts);
+    const [layouts, setLayouts] = useState<Layouts>(initialLayouts);
 
     useEffect(() => {
         setWidgetStates(initialWidgetStates);
-        setLayouts(buildDefaultLayouts());
     }, [initialWidgetStates]);
+
+    useEffect(() => {
+        setLayouts(initialLayouts);
+    }, [initialLayouts]);
 
     const updateWidgetData = useCallback(<TId extends WidgetId>(id: TId, value: WidgetDataMap[TId]) => {
         setWidgetStates((prev) => {
@@ -318,6 +459,8 @@ export const InterviewCopilotView = ({
                 }
                 return acc;
             }, {} as InterviewPayload);
+            const sessionState = buildSessionStatePayload(widgetStates, layouts);
+            Object.assign(payload, sessionState);
             await onSaveInterview(payload, interview.interview_id);
             setIsSavingSuccess(true);
             setTimeout(() => setIsSavingSuccess(false), 2000);
@@ -334,6 +477,7 @@ export const InterviewCopilotView = ({
         storyDeck,
         jobAnalysis,
         widgetStates,
+        layouts,
         onSaveInterview,
     ]);
 
@@ -345,7 +489,8 @@ export const InterviewCopilotView = ({
         setIsSavingNotes(true);
         setNotesSuccess(false);
         try {
-            await onSaveInterview({ live_notes: notesState.data.content }, interview.interview_id);
+            const sessionState = buildSessionStatePayload(widgetStates, layouts);
+            await onSaveInterview({ live_notes: notesState.data.content, ...sessionState }, interview.interview_id);
             setNotesSuccess(true);
             setTimeout(() => setNotesSuccess(false), 2000);
         } catch (error) {
@@ -353,7 +498,7 @@ export const InterviewCopilotView = ({
         } finally {
             setIsSavingNotes(false);
         }
-    }, [widgetStates, interview, onSaveInterview]);
+    }, [widgetStates, layouts, interview, onSaveInterview]);
 
     const handleRerunAI = useCallback(async () => {
         setIsGeneratingPrep(true);

@@ -675,6 +675,9 @@ RETURNS TABLE (
     post_interview_debrief jsonb,
     strategic_opening text,
     strategic_questions_to_ask jsonb,
+    layout jsonb,
+    widgets jsonb,
+    widget_metadata jsonb,
     story_deck jsonb,
     interview_contacts jsonb
 )
@@ -695,6 +698,9 @@ AS $function$
         i.post_interview_debrief,
         i.strategic_opening,
         i.strategic_questions_to_ask,
+        i.layout,
+        i.widgets,
+        i.widget_metadata,
         COALESCE(
             (
                 SELECT jsonb_agg(jsonb_build_object(
