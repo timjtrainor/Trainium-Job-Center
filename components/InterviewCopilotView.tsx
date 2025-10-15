@@ -158,16 +158,33 @@ const applyCollapsedStateToLayouts = (
     states: WidgetStateMap,
     defaultHeights: Record<string, Record<WidgetId, number>>,
 ): Layouts => {
+    const COLLAPSED_HEIGHT = 2;
     const adjusted: Layouts = {};
     (Object.keys(layouts) as (keyof Layouts)[]).forEach((breakpoint) => {
         const items = layouts[breakpoint] || [];
         adjusted[breakpoint] = items.map((item) => {
             const state = states[item.i as WidgetId];
-            if (state?.collapsed) {
-                return { ...item, h: 2 };
-            }
             const defaultHeight = defaultHeights[breakpoint]?.[item.i as WidgetId];
-            return defaultHeight ? { ...item, h: defaultHeight } : { ...item };
+            if (state?.collapsed) {
+                return { ...item, h: COLLAPSED_HEIGHT };
+            }
+
+            const persistedHeight =
+                typeof item.h === 'number' && item.h > 0 ? item.h : undefined;
+
+            if (persistedHeight && persistedHeight !== COLLAPSED_HEIGHT) {
+                return { ...item, h: persistedHeight };
+            }
+
+            if (persistedHeight === COLLAPSED_HEIGHT && typeof defaultHeight === 'number') {
+                return { ...item, h: defaultHeight };
+            }
+
+            if (typeof defaultHeight === 'number') {
+                return { ...item, h: defaultHeight };
+            }
+
+            return { ...item };
         });
     });
     return adjusted;
