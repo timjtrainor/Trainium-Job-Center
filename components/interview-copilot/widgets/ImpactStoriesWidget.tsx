@@ -2,9 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { WidgetProps } from '../types';
 import type { ImpactStoriesData } from '../types';
 import { formatTimestamp } from '../utils';
-import { ensureRoleOnDeck, removeRoleFromDeck, updateDeckOrder, upsertDeckStory } from '../../utils/interviewDeck';
-import type { HydratedDeckItem } from '../../utils/interviewDeck';
-import { GripVerticalIcon, SparklesIcon } from '../../IconComponents';
+import {
+    ensureRoleOnDeck,
+    removeRoleFromDeck,
+    updateDeckOrder,
+    upsertDeckStory,
+} from '../../../utils/interviewDeck';
+import type { HydratedDeckItem } from '../../../utils/interviewDeck';
+import { GripVerticalIcon, SparklesIcon } from '../../../components/IconComponents';
 
 const STORY_FORMAT_FIELDS: Record<string, string[]> = {
     STAR: ['situation', 'task', 'action', 'result'],

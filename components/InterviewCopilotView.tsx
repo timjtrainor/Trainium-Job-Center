@@ -3,15 +3,23 @@ import { Responsive, WidthProvider } from 'react-grid-layout';
 import type { Layouts, Layout } from 'react-grid-layout';
 import { componentRegistry } from './interview-copilot/componentRegistry';
 import type {
-    JobCheatSheetData,
+    WidgetDataMap,
     WidgetId,
     WidgetMode,
-    WidgetState,
     WidgetRuntimeContext,
+    WidgetState,
+    WidgetStateMap,
 } from './interview-copilot/types';
-import type { JobApplication, Interview, StrategicNarrative, InterviewPayload, Company } from '../types';
-import type { JobProblemAnalysisResult, InterviewPrepOutline } from '../types';
-import { buildHydratedDeck } from '../utils/interviewDeck';
+import type {
+    JobApplication,
+    Interview,
+    StrategicNarrative,
+    InterviewPayload,
+    Company,
+    JobProblemAnalysisResult,
+    InterviewPrepOutline,
+} from '../types';
+import { buildHydratedDeck } from '@/utils/interviewDeck';
 import { Switch } from './Switch';
 import { CheckIcon, LoadingSpinner, SparklesIcon } from './IconComponents';
 import { appendUnique, formatTimestamp } from './interview-copilot/utils';
@@ -117,7 +125,7 @@ export const InterviewCopilotView = ({
 }: InterviewCopilotViewProps) => {
     const [mode, setMode] = useState<WidgetMode>('live');
     const [isSaving, setIsSaving] = useState(false);
-    const [saveSuccess, setSaveSuccess] = useState(false);
+    const [saveSuccess, setIsSavingSuccess] = useState(false);
     const [isSavingNotes, setIsSavingNotes] = useState(false);
     const [notesSuccess, setNotesSuccess] = useState(false);
     const [isGeneratingPrep, setIsGeneratingPrep] = useState(false);
@@ -135,7 +143,7 @@ export const InterviewCopilotView = ({
     const defaultLayouts = useMemo(() => buildDefaultLayouts(), []);
     const defaultHeights = useMemo(() => buildDefaultHeights(), []);
 
-    const initialWidgetStates = useMemo(() => {
+    const initialWidgetStates = useMemo<WidgetStateMap>(() => {
         const context = {
             application,
             interview,
@@ -144,13 +152,17 @@ export const InterviewCopilotView = ({
             storyDeck,
             jobAnalysis,
         };
-        return componentRegistry.reduce<Record<WidgetId, WidgetState<any>>>((acc, config) => {
-            acc[config.id] = { ...config.getInitialState(context), lastUpdated: interview.interview_date || undefined };
-            return acc;
-        }, {} as Record<WidgetId, WidgetState<any>>);
+        const states = {} as WidgetStateMap;
+        componentRegistry.forEach((config) => {
+            states[config.id] = {
+                ...config.getInitialState(context),
+                lastUpdated: interview.interview_date || undefined,
+            } as WidgetState<WidgetDataMap[typeof config.id]>;
+        });
+        return states;
     }, [application, interview, activeNarrative, prepOutline, storyDeck, jobAnalysis]);
 
-    const [widgetStates, setWidgetStates] = useState<Record<WidgetId, WidgetState<any>>>(initialWidgetStates);
+    const [widgetStates, setWidgetStates] = useState<WidgetStateMap>(initialWidgetStates);
     const [layouts, setLayouts] = useState<Layouts>(defaultLayouts);
 
     useEffect(() => {
@@ -158,51 +170,48 @@ export const InterviewCopilotView = ({
         setLayouts(buildDefaultLayouts());
     }, [initialWidgetStates]);
 
-    const updateWidgetData = useCallback(
-        (id: WidgetId, value: unknown) => {
-            setWidgetStates((prev) => {
-                const current = prev[id];
-                if (!current) {
-                    return prev;
-                }
-                const timestamp = new Date().toISOString();
-                const nextState: Record<WidgetId, WidgetState<any>> = {
-                    ...prev,
-                    [id]: {
-                        ...current,
-                        data: value,
-                        lastUpdated: timestamp,
-                    },
-                };
+    const updateWidgetData = useCallback(<TId extends WidgetId>(id: TId, value: WidgetDataMap[TId]) => {
+        setWidgetStates((prev) => {
+            const current = prev[id];
+            if (!current) {
+                return prev;
+            }
+            const timestamp = new Date().toISOString();
+            const nextState: WidgetStateMap = {
+                ...prev,
+                [id]: {
+                    ...current,
+                    data: value,
+                    lastUpdated: timestamp,
+                },
+            };
 
-                if (id === 'jobCheatSheet') {
-                    const cheatSheet = value as JobCheatSheetData;
-                    const checklist = prev.liveChecklist;
-                    if (checklist) {
-                        const updatedChecklist = {
-                            ...checklist,
-                            data: {
-                                ...checklist.data,
-                                metrics: cheatSheet.keySuccessMetrics,
-                                levers: cheatSheet.roleLevers,
-                                blockers: cheatSheet.potentialBlockers,
-                                covered: {
-                                    metrics: pruneCoverage(cheatSheet.keySuccessMetrics, checklist.data.covered.metrics),
-                                    levers: pruneCoverage(cheatSheet.roleLevers, checklist.data.covered.levers),
-                                    blockers: pruneCoverage(cheatSheet.potentialBlockers, checklist.data.covered.blockers),
-                                },
+            if (id === 'jobCheatSheet') {
+                const cheatSheet = value;
+                const checklist = prev.liveChecklist;
+                if (checklist) {
+                    const updatedChecklist = {
+                        ...checklist,
+                        data: {
+                            ...checklist.data,
+                            metrics: cheatSheet.keySuccessMetrics,
+                            levers: cheatSheet.roleLevers,
+                            blockers: cheatSheet.potentialBlockers,
+                            covered: {
+                                metrics: pruneCoverage(cheatSheet.keySuccessMetrics, checklist.data.covered.metrics),
+                                levers: pruneCoverage(cheatSheet.roleLevers, checklist.data.covered.levers),
+                                blockers: pruneCoverage(cheatSheet.potentialBlockers, checklist.data.covered.blockers),
                             },
-                            lastUpdated: timestamp,
-                        };
-                        nextState.liveChecklist = updatedChecklist;
-                    }
+                        },
+                        lastUpdated: timestamp,
+                    };
+                    nextState.liveChecklist = updatedChecklist;
                 }
+            }
 
-                return nextState;
-            });
-        },
-        [],
-    );
+            return nextState;
+        });
+    }, []);
 
     const toggleCollapse = useCallback(
         (id: WidgetId) => {
@@ -282,7 +291,7 @@ export const InterviewCopilotView = ({
 
     const handleSave = useCallback(async () => {
         setIsSaving(true);
-        setSaveSuccess(false);
+        setIsSavingSuccess(false);
         try {
             const context = {
                 application,
@@ -310,8 +319,8 @@ export const InterviewCopilotView = ({
                 return acc;
             }, {} as InterviewPayload);
             await onSaveInterview(payload, interview.interview_id);
-            setSaveSuccess(true);
-            setTimeout(() => setSaveSuccess(false), 2000);
+            setIsSavingSuccess(true);
+            setTimeout(() => setIsSavingSuccess(false), 2000);
         } catch (error) {
             console.error('Failed to save Interview Co-pilot data', error);
         } finally {
@@ -455,7 +464,8 @@ export const InterviewCopilotView = ({
                             const isCollapsed = state.collapsed;
                             const lastUpdated = state.lastUpdated;
                             const titleTimestamp = lastUpdated ? formatTimestamp(lastUpdated) : undefined;
-                            const handleChange = (value: unknown) => updateWidgetData(config.id, value);
+                            const handleChange = (value: WidgetDataMap[typeof config.id]) =>
+                                updateWidgetData(config.id, value);
                             const content = isCollapsed ? null : (
                                 <div className="flex-1 overflow-y-auto p-3">
                                     <config.component

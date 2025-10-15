@@ -7,7 +7,17 @@ import type {
     JobProblemAnalysisResult,
     StrategicNarrative,
 } from '../../types';
+<<<<<<< HEAD
 import type { HydratedDeckItem } from '../../utils/interviewDeck';
+>>>>>>> origin/New-Interview-Co-Pilot
+
+export type WidgetMode = 'prep' | 'live';
+import type { HydratedDeckItem } from '../../utils/interviewDeck';
+
+export type WidgetMode = 'prep' | 'live';
+=======
+import type { HydratedDeckItem } from '../../utils/interviewDeck';
+>>>>>>> origin/New-Interview-Co-Pilot
 
 export type WidgetMode = 'prep' | 'live';
 
@@ -39,6 +49,15 @@ export interface WidgetState<TData> {
 
 export interface WidgetConfig<TData> {
     id: WidgetId;
+>>>>>>> origin/New-Interview-Co-Pilot
+    title: string;
+export interface WidgetConfig<TData> {
+    id: WidgetId;
+    title: string;
+=======
+export interface WidgetConfig<TData> {
+    id: WidgetId;
+>>>>>>> origin/New-Interview-Co-Pilot
     title: string;
     component: (props: WidgetProps<TData>) => JSX.Element;
     defaultLayouts: Layouts;
@@ -71,6 +90,22 @@ export type WidgetId =
     | 'liveChecklist'
     | 'notes';
 
+<<<<<<< HEAD
+export type WidgetDataMap = {
+    jobCheatSheet: JobCheatSheetData;
+    clarifyingPrompt: ClarifyingPromptData;
+    topOfMind: TopOfMindData;
+    strategicOpening: StrategicOpeningData;
+    questionArsenal: QuestionArsenalData;
+    impactStories: ImpactStoriesData;
+    liveChecklist: LiveChecklistData;
+    notes: NotesData;
+};
+
+export type WidgetStateMap = { [K in WidgetId]: WidgetState<WidgetDataMap[K]> };
+
+=======
+>>>>>>> origin/New-Interview-Co-Pilot
 export interface JobCheatSheetData {
     coreProblem: string;
     suggestedPositioning: string;
