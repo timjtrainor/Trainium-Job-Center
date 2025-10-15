@@ -69,13 +69,13 @@ const company: Company = {
 };
 
 describe('InterviewCopilotView', () => {
-    const renderView = () =>
+    const renderView = (narrative: StrategicNarrative | null = activeNarrative) =>
         render(
             <InterviewCopilotView
                 application={baseApplication}
                 interview={baseInterview}
                 company={company}
-                activeNarrative={activeNarrative}
+                activeNarrative={narrative}
                 onBack={() => undefined}
                 onSaveInterview={async () => undefined}
                 onGenerateInterviewPrep={async () => undefined}
@@ -89,6 +89,13 @@ describe('InterviewCopilotView', () => {
         expect(screen.getByText('Job Cheat Sheet')).toBeInTheDocument();
         expect(screen.getByText('Live Notes')).toBeInTheDocument();
         expect(screen.queryByText('Role Intelligence Research')).not.toBeInTheDocument();
+    });
+
+    it('renders with a missing narrative by falling back to defaults', () => {
+        renderView(null);
+
+        expect(screen.getByText('Job Cheat Sheet')).toBeInTheDocument();
+        expect(screen.getByText('Live Notes')).toBeInTheDocument();
     });
 
     it('switches to prep workspace when toggled', () => {

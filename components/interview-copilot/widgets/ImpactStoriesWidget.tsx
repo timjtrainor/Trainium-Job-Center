@@ -105,6 +105,7 @@ export const ImpactStoriesWidget = ({
 }: WidgetProps<ImpactStoriesData>) => {
     const [draggingStoryId, setDraggingStoryId] = useState<string | null>(null);
     const availableStories = context.availableStories || [];
+    const hasAvailableStories = availableStories.length > 0;
 
     const availableRoles = useMemo(() => {
         const roles = new Set<string>(['default']);
@@ -212,7 +213,11 @@ export const ImpactStoriesWidget = ({
                         <ImpactStoryTrigger key={item.story_id} item={item} activeRole={data.activeRole} onNoteChange={handleNoteChange} isPrep={false} />
                     ))
                 ) : (
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Add stories in prep mode to surface them here.</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                        {hasAvailableStories
+                            ? 'Add stories in prep mode to surface them here.'
+                            : 'No stories available yet. Add impact stories to your narrative to populate this section.'}
+                    </p>
                 )}
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">Last updated: {formatTimestamp(lastUpdated)}</p>
@@ -272,6 +277,7 @@ export const ImpactStoriesWidget = ({
                 <select
                     value={data.storyToAdd}
                     onChange={(event) => onChange({ ...data, storyToAdd: event.target.value })}
+                    disabled={!hasAvailableStories}
                     className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800"
                 >
                     <option value="">Select story to add</option>
@@ -284,12 +290,17 @@ export const ImpactStoriesWidget = ({
                 <button
                     type="button"
                     onClick={handleAddStory}
-                    disabled={!data.storyToAdd}
+                    disabled={!hasAvailableStories || !data.storyToAdd}
                     className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
                 >
                     <SparklesIcon className="h-4 w-4" /> Add Story
                 </button>
             </div>
+            {!hasAvailableStories && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Add impact stories to your narrative in the Positioning Hub to enable this widget.
+                </p>
+            )}
             <div className="space-y-3">
                 {data.storyDeck.length > 0 ? (
                     data.storyDeck.map((item) => (

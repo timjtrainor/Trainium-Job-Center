@@ -80,16 +80,35 @@ const topOfMindInitialState = ({ interview }: WidgetInitContext): WidgetState<To
     },
 });
 
-const openingInitialState = ({ interview, narrative, application }: WidgetInitContext): WidgetState<StrategicOpeningData> => ({
-    id: 'strategicOpening',
-    data: {
-        opening:
-            interview.strategic_opening ||
-            `"I'm a product leader who excels at ${narrative.positioning_statement}. My understanding is the core challenge here is ${
-                application.job_problem_analysis_result?.core_problem_analysis?.core_problem || '...'
-            }. That's a problem I'm familiar with from my time when I ${narrative.impact_story_title}."`,
-    },
-});
+const openingInitialState = ({ interview, narrative, application }: WidgetInitContext): WidgetState<StrategicOpeningData> => {
+    const savedOpening = interview.strategic_opening?.trim();
+    if (savedOpening) {
+        return {
+            id: 'strategicOpening',
+            data: { opening: savedOpening },
+        };
+    }
+
+    const positioning = narrative.positioning_statement?.trim();
+    const coreProblem = application.job_problem_analysis_result?.core_problem_analysis?.core_problem?.trim();
+    const storyTitle = narrative.impact_story_title?.trim();
+
+    const intro = positioning
+        ? `"I'm a product leader who excels at ${positioning}."`
+        : '"I appreciate the chance to connect today."';
+    const problemStatement = coreProblem ? `My understanding is the core challenge here is ${coreProblem}.` : null;
+    const credibility = storyTitle ? `That's a problem I'm familiar with from my time when I ${storyTitle}.` : null;
+
+    const opening = [intro, problemStatement, credibility].filter(Boolean).join(' ');
+
+    return {
+        id: 'strategicOpening',
+        data: {
+            opening: opening ||
+                'Use this space to craft an opening that connects your background to their priorities.',
+        },
+    };
+};
 
 const questionsInitialState = ({ interview }: WidgetInitContext): WidgetState<QuestionArsenalData> => ({
     id: 'questionArsenal',
