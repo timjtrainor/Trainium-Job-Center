@@ -37,8 +37,8 @@ export interface WidgetState<TData> {
     collapsed?: boolean;
 }
 
-export interface WidgetConfig<TData> {
-    id: WidgetId;
+export interface WidgetConfig<TData, TId extends WidgetId = WidgetId> {
+    id: TId;
     title: string;
     component: (props: WidgetProps<TData>) => JSX.Element;
     defaultLayouts: Layouts;
@@ -70,6 +70,19 @@ export type WidgetId =
     | 'impactStories'
     | 'liveChecklist'
     | 'notes';
+
+export type WidgetDataMap = {
+    jobCheatSheet: JobCheatSheetData;
+    clarifyingPrompt: ClarifyingPromptData;
+    topOfMind: TopOfMindData;
+    strategicOpening: StrategicOpeningData;
+    questionArsenal: QuestionArsenalData;
+    impactStories: ImpactStoriesData;
+    liveChecklist: LiveChecklistData;
+    notes: NotesData;
+};
+
+export type WidgetStateMap = { [K in WidgetId]: WidgetState<WidgetDataMap[K]> };
 
 export interface JobCheatSheetData {
     coreProblem: string;

@@ -3,11 +3,12 @@ import { Responsive, WidthProvider } from 'react-grid-layout';
 import type { Layouts, Layout } from 'react-grid-layout';
 import { componentRegistry } from './interview-copilot/componentRegistry';
 import type {
-    JobCheatSheetData,
+    WidgetDataMap,
     WidgetId,
     WidgetMode,
-    WidgetState,
     WidgetRuntimeContext,
+    WidgetState,
+    WidgetStateMap,
 } from './interview-copilot/types';
 import type {
     JobApplication,
@@ -142,7 +143,7 @@ export const InterviewCopilotView = ({
     const defaultLayouts = useMemo(() => buildDefaultLayouts(), []);
     const defaultHeights = useMemo(() => buildDefaultHeights(), []);
 
-    const initialWidgetStates = useMemo(() => {
+    const initialWidgetStates = useMemo<WidgetStateMap>(() => {
         const context = {
             application,
             interview,
@@ -151,13 +152,17 @@ export const InterviewCopilotView = ({
             storyDeck,
             jobAnalysis,
         };
-        return componentRegistry.reduce<Record<WidgetId, WidgetState<any>>>((acc, config) => {
-            acc[config.id] = { ...config.getInitialState(context), lastUpdated: interview.interview_date || undefined };
-            return acc;
-        }, {} as Record<WidgetId, WidgetState<any>>);
+        const states = {} as WidgetStateMap;
+        componentRegistry.forEach((config) => {
+            states[config.id] = {
+                ...config.getInitialState(context),
+                lastUpdated: interview.interview_date || undefined,
+            } as WidgetState<WidgetDataMap[typeof config.id]>;
+        });
+        return states;
     }, [application, interview, activeNarrative, prepOutline, storyDeck, jobAnalysis]);
 
-    const [widgetStates, setWidgetStates] = useState<Record<WidgetId, WidgetState<any>>>(initialWidgetStates);
+    const [widgetStates, setWidgetStates] = useState<WidgetStateMap>(initialWidgetStates);
     const [layouts, setLayouts] = useState<Layouts>(defaultLayouts);
 
     useEffect(() => {
@@ -165,15 +170,14 @@ export const InterviewCopilotView = ({
         setLayouts(buildDefaultLayouts());
     }, [initialWidgetStates]);
 
-    const updateWidgetData = useCallback(
-        (id: WidgetId, value: unknown) => {
+    const updateWidgetData = useCallback(<TId extends WidgetId>(id: TId, value: WidgetDataMap[TId]) => {
             setWidgetStates((prev) => {
                 const current = prev[id];
                 if (!current) {
                     return prev;
                 }
                 const timestamp = new Date().toISOString();
-                const nextState: Record<WidgetId, WidgetState<any>> = {
+                const nextState: WidgetStateMap = {
                     ...prev,
                     [id]: {
                         ...current,
@@ -183,7 +187,7 @@ export const InterviewCopilotView = ({
                 };
 
                 if (id === 'jobCheatSheet') {
-                    const cheatSheet = value as JobCheatSheetData;
+                    const cheatSheet = value;
                     const checklist = prev.liveChecklist;
                     if (checklist) {
                         const updatedChecklist = {
@@ -207,9 +211,7 @@ export const InterviewCopilotView = ({
 
                 return nextState;
             });
-        },
-        [],
-    );
+        }, []);
 
     const toggleCollapse = useCallback(
         (id: WidgetId) => {
@@ -462,7 +464,8 @@ export const InterviewCopilotView = ({
                             const isCollapsed = state.collapsed;
                             const lastUpdated = state.lastUpdated;
                             const titleTimestamp = lastUpdated ? formatTimestamp(lastUpdated) : undefined;
-                            const handleChange = (value: unknown) => updateWidgetData(config.id, value);
+                            const handleChange = (value: WidgetDataMap[typeof config.id]) =>
+                                updateWidgetData(config.id, value);
                             const content = isCollapsed ? null : (
                                 <div className="flex-1 overflow-y-auto p-3">
                                     <config.component

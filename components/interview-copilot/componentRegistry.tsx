@@ -17,6 +17,7 @@ import type {
     StrategicOpeningData,
     TopOfMindData,
     WidgetConfig,
+    WidgetDataMap,
     WidgetInitContext,
     WidgetState,
     WidgetId,
@@ -125,7 +126,11 @@ const notesInitialState = ({ interview }: WidgetInitContext): WidgetState<NotesD
     },
 });
 
-export const componentRegistry: WidgetConfig<any>[] = [
+type WidgetRegistryEntry = {
+    [K in WidgetId]: WidgetConfig<WidgetDataMap[K], K>;
+}[WidgetId];
+
+export const componentRegistry = [
     {
         id: 'jobCheatSheet',
         title: 'Job Cheat Sheet',
@@ -249,6 +254,6 @@ export const componentRegistry: WidgetConfig<any>[] = [
         getInitialState: notesInitialState,
         serialize: ({ data }) => ({ live_notes: data.content }),
     },
-];
+] satisfies WidgetRegistryEntry[];
 
 export const widgetMap = new Map(componentRegistry.map((config) => [config.id, config]));
