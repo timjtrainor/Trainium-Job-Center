@@ -131,6 +131,8 @@ services:
       CHROMA_PORT: ${CHROMA_PORT:-8001}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      DISABLE_JOB_POSTING_REVIEW: ${DISABLE_JOB_POSTING_REVIEW}
+      JOB_REVIEW_ENABLED: ${JOB_REVIEW_ENABLED}
     volumes:
       # Mount the python service code for development
       - ./python-service:/app
@@ -178,6 +180,8 @@ services:
       LINKEDIN_EMAIL: ${LINKEDIN_EMAIL}
       LINKEDIN_PASSWORD: ${LINKEDIN_PASSWORD}
       LINKEDIN_COOKIE: ${LINKEDIN_COOKIE}
+      DISABLE_JOB_POSTING_REVIEW: ${DISABLE_JOB_POSTING_REVIEW}
+      JOB_REVIEW_ENABLED: ${JOB_REVIEW_ENABLED}
     deploy:
       replicas: 5   # Number of workers
     depends_on:
@@ -211,6 +215,8 @@ services:
       REDIS_DB: ${REDIS_DB:-0}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      DISABLE_JOB_POSTING_REVIEW: ${DISABLE_JOB_POSTING_REVIEW}
+      JOB_REVIEW_ENABLED: ${JOB_REVIEW_ENABLED}
     depends_on:
       redis:
         condition: service_healthy
@@ -277,4 +283,3 @@ volumes:
   postgres_data:
   redis_data:
   chroma_data:
-  
