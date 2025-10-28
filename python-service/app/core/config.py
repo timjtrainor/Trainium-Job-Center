@@ -87,6 +87,10 @@ class Settings:
         # Poller Configuration
         self.poll_interval_minutes: int = int(os.getenv("POLL_INTERVAL_MINUTES", "5"))  # Default 5 min
 
+        # Job Review Configuration
+        self.disable_job_posting_review: bool = os.getenv("DISABLE_JOB_POSTING_REVIEW", "false").lower() == "true"
+        self.job_review_enabled: bool = os.getenv("JOB_REVIEW_ENABLED", "true").lower() == "true"
+
         # Environment-based configuration
         self.environment: str = os.getenv("ENVIRONMENT", "development")
 

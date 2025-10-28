@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ReviewedJob } from '../types';
 import { overrideJobReview, JobReviewOverrideRequest, JobReviewOverrideResponse } from '../services/apiService';
 import * as apiService from '../services/apiService';
-import { CheckIcon, XCircleIcon, ChevronLeftIcon, ChevronRightIcon, UsersIcon, ThumbUpIcon, ThumbDownIcon, InformationCircleIcon, SparklesIcon, DocumentTextIcon, XMarkIcon, MapPinIcon, CalendarIcon, CurrencyDollarIcon } from './IconComponents';
+import { CheckIcon, XCircleIcon, ChevronLeftIcon, ChevronRightIcon, UsersIcon, ThumbUpIcon, ThumbDownIcon, InformationCircleIcon, SparklesIcon, DocumentTextIcon, XMarkIcon, MapPinIcon, CalendarIcon, CurrencyDollarIcon, GlobeAltIcon } from './IconComponents';
 import { MarkdownPreview } from './MarkdownPreview';
 import { useToast } from '../hooks/useToast';
 
@@ -78,6 +78,44 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
         : 0;
 
     const isActionPending = pendingAction !== null;
+    const currentJob = jobs[safeIndex] ?? null;
+
+    const humanizeSource = useCallback((value?: string | null) => {
+        if (!value) {
+            return null;
+        }
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return null;
+        }
+        const looksPlain = /^[a-z0-9_-]+$/.test(trimmed);
+        if (!looksPlain) {
+            return trimmed;
+        }
+
+        return trimmed
+            .split(/[_-]/)
+            .filter(Boolean)
+            .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ');
+    }, []);
+
+    const extractDomain = useCallback((value?: string | null) => {
+        if (!value) {
+            return null;
+        }
+        try {
+            const hostname = new URL(value).hostname.replace(/^www\./i, '');
+            return hostname || null;
+        } catch {
+            return null;
+        }
+    }, []);
+
+    const jobSourceInfo = useMemo(() => {
+        const label = humanizeSource(currentJob?.source ?? null) || extractDomain(currentJob?.url ?? null) || null;
+        return { label };
+    }, [currentJob, humanizeSource, extractDomain]);
 
     useEffect(() => {
         if (jobs.length === 0) {
@@ -209,7 +247,7 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
         );
     }
 
-    if (jobs.length === 0) {
+    if (!currentJob) {
         return (
             <div className="text-center py-12">
                 <UsersIcon className="h-12 w-12 text-slate-400 mx-auto mb-4" />
@@ -218,8 +256,6 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
             </div>
         );
     }
-
-    const currentJob = jobs[safeIndex];
     const hasOverride = currentJob.override_recommend !== null && currentJob.override_recommend !== undefined;
 
     const getConfidenceColor = (confidence?: string) => {
@@ -245,6 +281,7 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
         if (score >= 7.6) return 'text-yellow-600';      // Amber: Medium matches (Good, Borderline)
         return 'text-red-600';                           // Red: Low matches (Concerns, Poor)
     };
+
 
     return (
         <div className="max-w-2xl mx-auto p-4">
@@ -376,6 +413,10 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
                         <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
                             <CalendarIcon className="h-4 w-4 text-slate-500" />
                             <span>{currentJob.date_posted ? new Date(currentJob.date_posted).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                            <GlobeAltIcon className="h-4 w-4 text-slate-500" />
+                            <span className="truncate">{jobSourceInfo.label || 'Unknown source'}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getConfidenceTextColor(currentJob.confidence_level)} bg-opacity-20 ${
@@ -616,21 +657,27 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
                                         {currentJob.salary_range || (currentJob.salary_min ? `$${currentJob.salary_min}` : `$${currentJob.salary_max}`)}
                                     </span>
                                 )}
+                            <span className="flex items-center gap-1">
+                                <CalendarIcon className="h-4 w-4" />
+                                Posted {currentJob.date_posted ? new Date(currentJob.date_posted).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently'}
+                            </span>
+                            {jobSourceInfo.label && (
                                 <span className="flex items-center gap-1">
-                                    <CalendarIcon className="h-4 w-4" />
-                                    Posted {currentJob.date_posted ? new Date(currentJob.date_posted).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently'}
+                                    <GlobeAltIcon className="h-4 w-4" />
+                                    {jobSourceInfo.label}
                                 </span>
-                                {currentJob.url && (
-                                    <a
-                                        href={currentJob.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
-                                    >
-                                        View on LinkedIn →
-                                    </a>
-                                )}
-                            </div>
+                            )}
+                            {currentJob.url && (
+                                <a
+                                    href={currentJob.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
+                                >
+                                    View on {jobSourceInfo.label || 'job site'} →
+                                </a>
+                            )}
+                        </div>
                         </div>
 
                         {/* Body: Full JD */}
@@ -643,7 +690,7 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
                                 <div className="text-center py-12">
                                     <DocumentTextIcon className="h-12 w-12 text-slate-400 mx-auto mb-4" />
                                     <p className="text-slate-600 dark:text-slate-400">
-                                        Job description not available. <a href={currentJob.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">View on LinkedIn</a>
+                                        Job description not available. <a href={currentJob.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">View on {jobSourceInfo.label || 'job site'}</a>
                                     </p>
                                 </div>
                             )}

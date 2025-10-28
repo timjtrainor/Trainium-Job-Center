@@ -51,6 +51,7 @@ import { ReviewedJobsView } from './components/ReviewedJobsView';
 import { QuickAddLinkedInJob } from './components/QuickAddLinkedInJob';
 
 
+
 type JobDetailsPayload = {
   companyName: string;
   isRecruitingFirm: boolean;
@@ -121,6 +122,7 @@ const AppContent = () => {
     const [resumeAlignmentScore, setResumeAlignmentScore] = useState<number | null>(null);
     const [applicationQuestions, setApplicationQuestions] = useState<ApplicationQuestion[]>([]);
     const [postSubmissionPlan, setPostSubmissionPlan] = useState<PostSubmissionPlan | null>(null);
+    const [coverLetterDraft, setCoverLetterDraft] = useState<string>('');
     
     // --- UI/Modal State ---
     const [isReanalyzing, setIsReanalyzing] = useState(false);
@@ -153,6 +155,7 @@ const AppContent = () => {
     const [selectedInterviewForDebrief, setSelectedInterviewForDebrief] = useState<Interview | null>(null);
     const [initialAppForStudio, setInitialAppForStudio] = useState<JobApplication | null>(null);
     const [isGeneratingDebrief, setIsGeneratingDebrief] = useState(false);
+    const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
 
     // --- AI & Debug State ---
     const [isDebugMode, setIsDebugMode] = useState(false);
@@ -229,6 +232,10 @@ const AppContent = () => {
     
     // --- New App Flow Handlers ---
     
+    const currentApplication = currentApplicationId
+        ? applications.find(a => a.job_application_id === currentApplicationId) || null
+        : null;
+
     const handleStartNewApplication = () => {
         resetNewAppFlow();
         navigate('/new-application');
@@ -261,6 +268,38 @@ const AppContent = () => {
         setIsMessageOnlyApp(false);
         setApplicationMessageDrafts([]);
         setFinalApplicationMessage('');
+        setCoverLetterDraft('');
+    };
+
+    const resumeToPlainText = (resume?: Resume | null): string => {
+        if (!resume) return '';
+        const lines: string[] = [];
+        if (resume.summary?.paragraph) {
+            lines.push(resume.summary.paragraph);
+        }
+        if (Array.isArray(resume.summary?.bullets)) {
+            lines.push(...resume.summary.bullets);
+        }
+        if (Array.isArray(resume.work_experience)) {
+            resume.work_experience.forEach(exp => {
+                if (exp.job_title || exp.company_name) {
+                    lines.push([exp.job_title, exp.company_name].filter(Boolean).join(' at '));
+                }
+                if (Array.isArray(exp.accomplishments)) {
+                    exp.accomplishments.forEach(acc => {
+                        if (acc.description) {
+                            lines.push(acc.description);
+                        }
+                    });
+                }
+            });
+        }
+        return lines.join('\n');
+    };
+
+    const normalizeQuestions = (qs: ApplicationQuestion[] | null | undefined): ApplicationQuestion[] => {
+        if (!qs) return [];
+        return qs.map(q => q.id ? q : { ...q, id: uuidv4() });
     };
 
     const handleInitialSubmit = async () => {
@@ -567,6 +606,154 @@ const AppContent = () => {
         }
     };
     
+    const handleGenerateCoverLetter = async ({ tone, hook, includeHumor }: { tone: 'confident' | 'warm' | 'bold'; hook?: string; includeHumor?: boolean }) => {
+        if (!currentApplicationId) {
+            addToast('No application selected.', 'error');
+            return;
+        }
+
+        const prompt = PROMPTS.find(p => p.id === 'GENERATE_ADVANCED_COVER_LETTER');
+        if (!prompt) {
+            addToast('Cover letter prompt is missing.', 'error');
+            return;
+        }
+
+        const app = currentApplication || applications.find(a => a.job_application_id === currentApplicationId);
+        if (!app) {
+            addToast('Unable to load application context.', 'error');
+            return;
+        }
+
+        const company = companies.find(c => c.company_id === app.company_id);
+        const resumeSource = finalResume || app.tailored_resume_json || baseResume;
+        if (!resumeSource) {
+            addToast('Select or generate a tailored resume before creating a cover letter.', 'info');
+            return;
+        }
+
+        const mission = jobDetails.mission || company?.mission?.text || '';
+        const values = jobDetails.values || company?.values?.text || '';
+        const jobDescriptionSummary = (jobDetails.jobDescription || app.job_description || '').trim().slice(0, 1200);
+
+        const coreProblems: string[] = [];
+        const analysis = app.job_problem_analysis_result?.core_problem_analysis;
+        if (analysis?.core_problem) coreProblems.push(analysis.core_problem);
+        if (Array.isArray(analysis?.problem_statements)) coreProblems.push(...analysis.problem_statements);
+        if (Array.isArray(app.job_problem_analysis_result?.role_levers)) coreProblems.push(...app.job_problem_analysis_result.role_levers);
+        if (Array.isArray(app.job_problem_analysis_result?.key_success_metrics)) {
+            coreProblems.push(...app.job_problem_analysis_result.key_success_metrics.map(metric => `Success metric: ${metric}`));
+        }
+
+        const context = {
+            JOB_DESCRIPTION_SUMMARY: jobDescriptionSummary || 'No job summary provided.',
+            JOB_CORE_PROBLEMS: JSON.stringify(coreProblems.slice(0, 6)),
+            COMPANY_MISSION: mission,
+            COMPANY_VALUES: values,
+            RESUME_PROOF_POINTS: JSON.stringify(resumeSource.work_experience || []),
+            CANDIDATE_POSITIONING: activeNarrative?.positioning_statement || 'Product leader focused on trust, adoption, and scale.',
+            USER_HOOK: hook || '',
+            TONE: includeHumor ? tone : `${tone} with minimal humor`,
+        };
+
+        setIsGeneratingCoverLetter(true);
+        try {
+            const coverLetter = await geminiService.generateAdvancedCoverLetter(context, prompt.content);
+            if (!coverLetter) {
+                throw new Error('No cover letter returned.');
+            }
+            setCoverLetterDraft(coverLetter);
+            await handleUpdateApplication(currentApplicationId, { cover_letter_draft: coverLetter });
+            addToast('Cover letter generated!', 'success');
+        } catch (err) {
+            handleError(err, 'Failed to generate cover letter');
+        } finally {
+            setIsGeneratingCoverLetter(false);
+        }
+    };
+
+    const handleGenerateApplicationAnswers = async () => {
+        if (!currentApplicationId) {
+            addToast('No application selected.', 'error');
+            return;
+        }
+
+        const prompt = PROMPTS.find(p => p.id === 'GENERATE_APPLICATION_ANSWERS');
+        if (!prompt) {
+            addToast('AI prompt for application answers is missing.', 'error');
+            return;
+        }
+
+        const questionsForPrompt = applicationQuestions
+            .map(q => q.question.trim())
+            .filter(Boolean);
+
+        if (questionsForPrompt.length === 0) {
+            addToast('Add questions before generating answers.', 'info');
+            return;
+        }
+
+        const app = applications.find(a => a.job_application_id === currentApplicationId);
+        if (!app) {
+            addToast('Unable to load application context.', 'error');
+            return;
+        }
+
+        const company = companies.find(c => c.company_id === app.company_id);
+        const resumeSource = finalResume || app.tailored_resume_json || baseResume;
+        const resumeText = resumeToPlainText(resumeSource);
+
+        setNewAppLoadingState('planning');
+        try {
+            const context = {
+                COMPANY_NAME: jobDetails.companyName || company?.company_name || '',
+                JOB_TITLE: jobDetails.jobTitle || app.job_title,
+                JOB_DESCRIPTION: jobDetails.jobDescription || app.job_description || '',
+                MISSION: jobDetails.mission || company?.mission?.text || '',
+                VALUES: jobDetails.values || company?.values?.text || '',
+                GOALS: company?.goals?.text || '',
+                ISSUES: company?.issues?.text || '',
+                RESUME_TEXT: resumeText,
+                QUESTIONS: JSON.stringify(questionsForPrompt),
+                USER_THOUGHTS: JSON.stringify(applicationQuestions.map(q => (q.user_thoughts || '').trim())),
+            };
+
+            const aiResponses = await geminiService.generateApplicationAnswers(context, prompt.content);
+            if (!Array.isArray(aiResponses) || aiResponses.length === 0) {
+                throw new Error('AI did not return any answers.');
+            }
+
+            const updatedQuestions = applicationQuestions.map((q, index) => {
+                const response = aiResponses[index] || aiResponses.find(ans => ans.question?.trim?.().toLowerCase() === q.question.trim().toLowerCase());
+                const aiAnswer = response?.answer?.trim?.();
+                return {
+                    ...q,
+                    answer: aiAnswer && aiAnswer.length > 0 ? aiAnswer : q.answer,
+                };
+            });
+
+            setApplicationQuestions(normalizeQuestions(updatedQuestions));
+            addToast('AI answers generated!', 'success');
+        } catch (err) {
+            handleError(err, 'Failed to generate application answers');
+        } finally {
+            setNewAppLoadingState('idle');
+        }
+    };
+
+    const handleSaveCoverLetter = async (draft: string) => {
+        setCoverLetterDraft(draft);
+        if (!currentApplicationId) {
+            addToast('Cover letter saved locally.', 'info');
+            return;
+        }
+        try {
+            await handleUpdateApplication(currentApplicationId, { cover_letter_draft: draft });
+            addToast('Cover letter saved.', 'success');
+        } catch (err) {
+            handleError(err, 'Failed to save cover letter');
+        }
+    };
+    
     const handleSaveAnswersAndGeneratePlan = async () => {
         if (!currentApplicationId) return;
         setNewAppLoadingState('planning');
@@ -605,11 +792,94 @@ const AppContent = () => {
     const handleFinishApplication = async () => {
         if (currentApplicationId) {
             const appliedStatusId = statuses.find(s => s.status_name === 'Step-4: Applied')?.status_id;
+            const today = new Date().toISOString().split('T')[0];
+            const payload: JobApplicationPayload = {
+                date_applied: today,
+            };
             if (appliedStatusId) {
-                await handleUpdateApplication(currentApplicationId, { status_id: appliedStatusId });
+                payload.status_id = appliedStatusId;
             }
+            await handleUpdateApplication(currentApplicationId, payload);
+            addToast('Marked as applied.', 'success');
         }
+        resetNewAppFlow();
+        fetchInitialData();
         navigate('/applications');
+    };
+
+    const handleCreateSprint = async (payload: CreateSprintPayload): Promise<void> => {
+        try {
+            const newSprint = await apiService.createSprintWithActions(payload);
+            setSprint(newSprint);
+            addToast('Sprint created.', 'success');
+        } catch (err) {
+            handleError(err, 'Failed to create sprint');
+            throw err;
+        }
+    };
+
+    const handleUpdateSprint = async (sprintId: string, payload: Partial<Sprint>): Promise<void> => {
+        try {
+            await apiService.updateSprint(sprintId, payload);
+            const refreshed = await apiService.getActiveSprint();
+            if (refreshed) {
+                setSprint(refreshed);
+            }
+        } catch (err) {
+            handleError(err, 'Failed to update sprint');
+            throw err;
+        }
+    };
+
+    const handleUpdateSprintAction = async (actionId: string, payload: SprintActionPayload): Promise<void> => {
+        try {
+            const updated = await apiService.updateSprintAction(actionId, payload);
+            setSprint(prev => {
+                if (!prev) return prev;
+                return {
+                    ...prev,
+                    actions: prev.actions.map(action =>
+                        action.action_id === updated.action_id ? { ...action, ...updated } : action
+                    ),
+                };
+            });
+        } catch (err) {
+            handleError(err, 'Failed to update sprint action');
+            throw err;
+        }
+    };
+
+    const handleAddSprintActions = async (sprintId: string, actions: SprintActionPayload[]): Promise<void> => {
+        if (!sprintId || actions.length === 0) {
+            addToast('Nothing to add to the sprint yet.', 'info');
+            return;
+        }
+        try {
+            const createdActions = await apiService.addActionsToSprint(sprintId, actions);
+            setSprint(prev => {
+                if (!prev || prev.sprint_id !== sprintId) {
+                    return prev;
+                }
+                return {
+                    ...prev,
+                    actions: [...prev.actions, ...createdActions],
+                };
+            });
+            addToast('Sprint updated with networking focus.', 'success');
+        } catch (err) {
+            handleError(err, 'Failed to add sprint actions');
+            throw err;
+        }
+    };
+
+    const handleUpdateApplicationStatusInline = async (appId: string, statusId: string): Promise<void> => {
+        try {
+            await handleUpdateApplication(appId, { status_id: statusId });
+            addToast('Status updated.', 'success');
+        } catch (err) {
+            handleError(err, 'Failed to update status');
+            throw err;
+        }
     };
     
     // --- Generic Handlers ---
@@ -876,8 +1146,9 @@ const AppContent = () => {
         setIsMessageOnlyApp(wasMessageOnly);
 
         setFinalResume(appToResume.tailored_resume_json || null);
-        setApplicationQuestions(appToResume.application_questions || []);
+        setApplicationQuestions(normalizeQuestions(appToResume.application_questions));
         setFinalApplicationMessage(appToResume.application_message || '');
+        setCoverLetterDraft(appToResume.cover_letter_draft || '');
 
         if (appToResume.why_this_job && appToResume.next_steps_plan) {
             setPostSubmissionPlan({
@@ -887,10 +1158,22 @@ const AppContent = () => {
         }
 
         // ENHANCEMENT: Applications from AI Jobs Board always start at "Paste JD" to allow JDS review/editing
+        // ENHANCEMENT: Applications in "Step-3: Resume created" status open directly to download
         let resumeStep: NewAppStep;
         const isFromJobsBoard = appToResume.source_job_id !== null;
+        const resumeCreatedStatus = statuses.find(s => s.status_name.toLowerCase() === 'step-3: resume created');
+        const statusName = appToResume.status?.status_name?.toLowerCase() || '';
+        const statusId = appToResume.status?.status_id || null;
+        const isResumeCreatedStatus =
+            statusName === 'step-3: resume created' ||
+            statusName === 'step-3 resume created' ||
+            statusName.includes('resume created') ||
+            (!!resumeCreatedStatus && statusId === resumeCreatedStatus.status_id);
 
-        if (isFromJobsBoard) {
+        if (isResumeCreatedStatus) {
+            // Applications in "Step-3: Resume created" status open directly to download
+            resumeStep = NewAppStep.DOWNLOAD_RESUME;
+        } else if (isFromJobsBoard) {
             // Jobs board applications start at Paste JD (editable) regardless of completion status
             resumeStep = NewAppStep.INITIAL_INPUT;
         } else {
@@ -1336,9 +1619,106 @@ const AppContent = () => {
                     {newAppStep === NewAppStep.RESUME_SELECT && baseResumes && userProfile && <SelectResumeStep baseResumes={baseResumes} onNext={handleResumeSelect} isLoading={newAppLoadingState === 'tailoring'} prompts={PROMPTS} keywords={keywords} userProfile={userProfile} applicationNarrative={activeNarrative} application={currentApplicationId ? applications.find(a => a.job_application_id === currentApplicationId) : null} onSkipToAnswerQuestions={() => setNewAppStep(NewAppStep.ANSWER_QUESTIONS)} />}
                     {newAppStep === NewAppStep.TAILOR_RESUME && finalResume && <TailorResumeStep finalResume={finalResume} setFinalResume={setFinalResume} summaryParagraphOptions={summaryParagraphOptions} allSkillOptions={allSkillOptions} keywords={keywords} missingKeywords={missingKeywords} setMissingKeywords={setMissingKeywords} onNext={handleSaveTailoredResume} isLoading={newAppLoadingState === 'saving'} prompts={PROMPTS} userProfile={userProfile} activeNarrative={activeNarrative} jobTitle={jobDetails.jobTitle} companyName={jobDetails.companyName} resumeAlignmentScore={resumeAlignmentScore} onRecalculateScore={handleRecalculateScore} />}
                     {newAppStep === NewAppStep.CRAFT_MESSAGE && <CraftMessageStep drafts={applicationMessageDrafts} onSelectDraft={setFinalApplicationMessage} finalMessage={finalApplicationMessage} setFinalMessage={setFinalApplicationMessage} onNext={handleSaveMessage} isLoading={newAppLoadingState === 'saving'} />}
-                    {newAppStep === NewAppStep.DOWNLOAD_RESUME && finalResume && <DownloadResumeStep finalResume={finalResume} companyName={jobDetails.companyName} onNext={() => setNewAppStep(NewAppStep.ANSWER_QUESTIONS)} isLoading={false} />}
-                    {newAppStep === NewAppStep.ANSWER_QUESTIONS && <AnswerQuestionsStep questions={applicationQuestions} setQuestions={setApplicationQuestions} onGenerateAllAnswers={async ()=>{}} onSaveApplication={handleSaveAnswersAndGeneratePlan} onBack={() => setNewAppStep(NewAppStep.DOWNLOAD_RESUME)} isLoading={newAppLoadingState === 'planning'} onOpenJobDetailsModal={() => setIsJdModalOpen(true)} onOpenAiAnalysisModal={() => setIsGuidanceModalOpen(true)} />}
-                    {newAppStep === NewAppStep.POST_SUBMIT_PLAN && postSubmissionPlan && <PostSubmitPlan summary={postSubmissionPlan.why_this_job} plan={postSubmissionPlan.next_steps_plan} onFinish={handleFinishApplication} sprint={sprint} onAddActions={async ()=>{}} companyName={jobDetails.companyName} />}
+                    {newAppStep === NewAppStep.DOWNLOAD_RESUME && finalResume && (
+                        <DownloadResumeStep
+                            finalResume={finalResume}
+                            companyName={jobDetails.companyName}
+                            onNext={() => setNewAppStep(NewAppStep.ANSWER_QUESTIONS)}
+                            isLoading={false}
+                            jobApplicationId={currentApplicationId}
+                            currentJobLink={jobDetails.jobLink}
+                            onUpdateJobLink={async (appId, jobLink) => {
+                                await handleUpdateApplication(appId, { job_link: jobLink });
+                                setJobDetails(prev => ({ ...prev, jobLink }));
+                                addToast('Job link updated!', 'success');
+                            }}
+                            jobTitle={jobDetails.jobTitle}
+                            salary={jobDetails.salary}
+                            jobDescription={jobDetails.jobDescription}
+                            isMessageOnlyApp={isMessageOnlyApp}
+                            workflowMode={currentApplicationId ? applications.find(a => a.job_application_id === currentApplicationId)?.workflow_mode : undefined}
+                            onResetToDraft={async ({ workflowMode: nextWorkflowMode, jobTitle: updatedJobTitle, jobLink: updatedJobLink, jobDescription: updatedJobDescription, isMessageOnlyApp: nextMessageOnly }) => {
+                                if (!currentApplicationId) {
+                                    return;
+                                }
+                                await handleUpdateApplication(currentApplicationId, {
+                                    status_id: 'd45cb421-3c30-4c0d-82b1-9fbec532a720',
+                                    workflow_mode: nextWorkflowMode,
+                                    job_title: updatedJobTitle,
+                                    job_link: updatedJobLink,
+                                    job_description: updatedJobDescription,
+                                    tailored_resume_json: null,
+                                    application_message: null,
+                                    keywords: null,
+                                    guidance: null,
+                                    job_problem_analysis_result: null,
+                                    strategic_fit_score: null,
+                                });
+                                setJobDetails(prev => ({
+                                    ...prev,
+                                    jobTitle: updatedJobTitle,
+                                    jobLink: updatedJobLink,
+                                    jobDescription: updatedJobDescription,
+                                }));
+                                setIsMessageOnlyApp(nextMessageOnly);
+                                setJobUrlSources([]);
+                                setJobProblemAnalysisResult(null);
+                                setStrategicFitScore(null);
+                                setAssumedRequirements([]);
+                                setKeywords(null);
+                                setGuidance(null);
+                                setBaseResume(null);
+                                setFinalResume(null);
+                                setSummaryParagraphOptions([]);
+                                setAllSkillOptions([]);
+                                setMissingKeywords([]);
+                                setResumeAlignmentScore(null);
+                                setApplicationQuestions([]);
+                                setPostSubmissionPlan(null);
+                                setApplicationMessageDrafts([]);
+                                setFinalApplicationMessage('');
+                                setNewAppStep(NewAppStep.INITIAL_INPUT);
+                                addToast('Application reset with new targeting. AI workflow restarting!', 'success');
+                            }}
+                            onMarkBadFit={async () => {
+                                if (currentApplicationId) {
+                                    await handleUpdateApplication(currentApplicationId, { status_id: 'a1b2c3d4-0012-4012-8012-cccccccccccc' });
+                                    addToast('Marked as Bad Fit.', 'info');
+                                    navigate('/applications');
+                                }
+                            }}
+                        />
+                    )}
+                    {newAppStep === NewAppStep.ANSWER_QUESTIONS && (
+                        <AnswerQuestionsStep
+                            questions={applicationQuestions}
+                            setQuestions={setApplicationQuestions}
+                            onGenerateAllAnswers={handleGenerateApplicationAnswers}
+                            onSaveApplication={handleSaveAnswersAndGeneratePlan}
+                            onBack={() => setNewAppStep(NewAppStep.DOWNLOAD_RESUME)}
+                            isLoading={newAppLoadingState === 'planning'}
+                            onOpenJobDetailsModal={() => setIsJdModalOpen(true)}
+                            onOpenAiAnalysisModal={() => setIsGuidanceModalOpen(true)}
+                            coverLetterDraft={coverLetterDraft}
+                            onCoverLetterChange={setCoverLetterDraft}
+                            onGenerateCoverLetter={handleGenerateCoverLetter}
+                            onSaveCoverLetter={handleSaveCoverLetter}
+                            isGeneratingCoverLetter={isGeneratingCoverLetter}
+                        />
+                    )}
+                    {newAppStep === NewAppStep.POST_SUBMIT_PLAN && postSubmissionPlan && (
+                        <PostSubmitPlan
+                            summary={postSubmissionPlan.why_this_job}
+                            plan={postSubmissionPlan.next_steps_plan || []}
+                            onFinish={handleFinishApplication}
+                            sprint={sprint}
+                            onAddActions={handleAddSprintActions}
+                            companyName={jobDetails.companyName}
+                            jobTitle={jobDetails.jobTitle || currentApplication?.job_title}
+                            companyId={currentApplication?.company_id || null}
+                            jobApplicationId={currentApplicationId}
+                        />
+                    )}
                 </div>
             </div>
         </div>
@@ -1362,9 +1742,10 @@ const AppContent = () => {
                     <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
                         <Routes>
                             <Route path="/" element={<DashboardView applications={applications} contacts={contacts} messages={messages} linkedInPosts={linkedInPosts} engagements={engagements} pendingFollowUps={messages.filter(m => m.follow_up_due_date)} userProfile={userProfile} activeNarrative={activeNarrative || null} strategicNarratives={strategicNarratives} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onScoutForOpportunities={() => {}} onUpdateContactStatus={(contactId, status) => handleSaveContact({ contact_id: contactId, status })} prompts={PROMPTS} baseResumes={baseResumes} onCreateSynthesizedNarrative={handleCreateSynthesizedNarrative} onSaveSkillTrends={handleSaveSkillTrends} sprint={sprint} skillTrends={skillTrends} companies={companies} weeklyProgress={""} onAddActions={async () => {}} />} />
-                            <Route path="/applications" element={<ApplicationsView applications={applications} companies={companies} statuses={statuses} offers={offers} onViewApplication={(appId) => navigate(`/application/${appId}`)} onViewCompany={(companyId) => navigate(`/company/${companyId}`)} onResumeApplication={handleResumeApplication} onAddNew={handleStartNewApplication} onDeleteApplication={handleDeleteApplication} onDeleteOffer={async (id) => { await apiService.deleteOffer(id); fetchInitialData(); }} resumes={baseResumes} userProfile={userProfile} onAddNewResume={() => navigate('/resume/new')} onEditResume={(res) => navigate(`/resume/${res.resume_id}`)} onDeleteResume={handleDeleteResume} onCopyResume={async (res) => {}} onSetDefaultResume={(id) => handleSaveNarrative({ default_resume_id: id }, activeNarrativeId!)} onToggleLock={async ()=>{}} isLoading={isAppLoading} activeNarrative={activeNarrative} strategicNarratives={strategicNarratives} />} />
+                            <Route path="/applications" element={<ApplicationsView applications={applications} companies={companies} statuses={statuses} offers={offers} onViewApplication={(appId) => navigate(`/application/${appId}`)} onViewCompany={(companyId) => navigate(`/company/${companyId}`)} onResumeApplication={handleResumeApplication} onAddNew={handleStartNewApplication} onDeleteApplication={handleDeleteApplication} onUpdateApplicationStatus={handleUpdateApplicationStatusInline} onDeleteOffer={async (id) => { await apiService.deleteOffer(id); fetchInitialData(); }} resumes={baseResumes} userProfile={userProfile} onAddNewResume={() => navigate('/resume/new')} onEditResume={(res) => navigate(`/resume/${res.resume_id}`)} onDeleteResume={handleDeleteResume} onCopyResume={async (res) => {}} onSetDefaultResume={(id) => handleSaveNarrative({ default_resume_id: id }, activeNarrativeId!)} onToggleLock={async ()=>{}} isLoading={isAppLoading} activeNarrative={activeNarrative} strategicNarratives={strategicNarratives} />} />
                             <Route path="/reviewed-jobs" element={<ReviewedJobsView />} />
                             <Route path="/add-linkedin-job" element={<QuickAddLinkedInJob />} />
+
                             <Route path="/positioning" element={<PositioningHub narratives={strategicNarratives} activeNarrative={activeNarrative} activeNarrativeId={activeNarrativeId} onSetNarrative={setActiveNarrativeId} onSaveNarrative={handleSaveNarrative} onUpdateNarrative={handleUpdateNarrative} prompts={PROMPTS} standardRoles={standardRoles} onCreateStandardRole={async (payload, narrativeId) => { await apiService.createStandardJobRole(payload, narrativeId); fetchInitialData(); }} onUpdateStandardRole={async (roleId, payload) => { await apiService.updateStandardJobRole(roleId, payload); fetchInitialData(); }} onDeleteStandardRole={async (roleId) => { await apiService.deleteStandardJobRole(roleId); fetchInitialData(); }} baseResumes={baseResumes} />} />
                             <Route path="/engagement" element={<EngagementHub contacts={contacts} posts={linkedInPosts} engagements={engagements} postResponses={postResponses} applications={applications} allMessages={messages} userProfile={userProfile} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onCreatePostResponse={async ()=>{}} onUpdatePostResponse={handleUpdatePostResponse} onCreateLinkedInEngagement={handleCreateLinkedInEngagement} onCreatePost={handleCreatePost} onImportContacts={async ()=>{}} prompts={PROMPTS} onDeleteContact={handleDeleteContact} companies={companies} onViewCompany={(id)=>navigate(`/company/${id}`)} onAddNewCompany={()=>setIsCompanyModalOpen(true)} baseResumes={baseResumes} strategicNarratives={strategicNarratives} activeNarrative={activeNarrative} onScoreEngagement={()=>{}} />} />
                             {/* FIX: `onSaveNarrative` was passed instead of `handleSaveNarrative` */}
@@ -1405,17 +1786,23 @@ const AppContent = () => {
                 )}
             </main>
 
-            {/* Floating Action Button for Quick Add LinkedIn Job */}
-            <div className="fixed bottom-6 right-6 z-50">
-                <button
-                    onClick={() => navigate('/add-linkedin-job')}
-                    className="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full shadow-lg flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
-                    title="Quick Add LinkedIn Job"
-                >
-                    <PlusIcon className="h-6 w-6" />
-                    <span className="hidden md:inline font-semibold">Quick Add Job</span>
-                </button>
-            </div>
+            <SprintModal
+                isOpen={isSprintModalOpen}
+                onClose={() => setIsSprintModalOpen(false)}
+                sprint={sprint}
+                activeNarrative={activeNarrative}
+                prompts={PROMPTS}
+                onCreateSprint={handleCreateSprint}
+                onUpdateSprint={handleUpdateSprint}
+                onUpdateAction={handleUpdateSprintAction}
+                onAddActions={handleAddSprintActions}
+                applications={applications}
+                contacts={contacts}
+                linkedInPosts={linkedInPosts}
+                allMessages={messages}
+            />
+
+
 
              {isContactModalOpen && <ContactModal isOpen={isContactModalOpen} onClose={() => setIsContactModalOpen(false)} onSaveContact={handleSaveContact} onCreateMessage={handleCreateMessage} onAddNewCompany={() => setIsCompanyModalOpen(true)} contact={selectedContact} companies={companies} applications={applications} baseResumes={baseResumes} linkedInPosts={linkedInPosts} userProfile={userProfile} strategicNarratives={strategicNarratives} activeNarrativeId={activeNarrativeId} prompts={PROMPTS} onDeleteContact={handleDeleteContact} />}
              {isCompanyModalOpen && <CreateCompanyModal isOpen={isCompanyModalOpen} onClose={() => setIsCompanyModalOpen(false)} onCreate={isCompanyModalForNewApp ? handleCreateCompanyForNewApp : handleCreateCompany} initialData={initialCompanyData} prompts={PROMPTS} />}

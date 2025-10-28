@@ -323,6 +323,57 @@ export async function generateApplicationMessage(context: PromptContext, promptC
     return parsed.message_drafts || [];
 }
 
+export async function generateApplicationAnswers(context: PromptContext, promptContent: string, debugCallbacks?: DebugCallbacks): Promise<Array<{ question: string; answer: string }>> {
+    const aiClient = getAiClient();
+    const systemInstruction = "You are a career strategist helping a candidate answer supplemental application questions.";
+    const prompt = replacePlaceholders(promptContent, context);
+    if (debugCallbacks?.before) await debugCallbacks.before(prompt);
+
+    const response = await aiClient.models.generateContent({
+        model: currentModel,
+        contents: prompt,
+        config: {
+            systemInstruction,
+            responseMimeType: "application/json",
+            temperature: 0.6,
+        },
+    });
+
+    if (debugCallbacks?.after) await debugCallbacks.after(response.text);
+    const parsed = cleanAndParseJson(response.text);
+    if (!parsed || !Array.isArray(parsed.answers)) {
+        return [];
+    }
+
+    return parsed.answers
+        .map((item: any) => ({
+            question: typeof item?.question === 'string' ? item.question : '',
+            answer: typeof item?.answer === 'string' ? item.answer : '',
+        }))
+        .filter(entry => entry.question || entry.answer);
+}
+
+export async function generateAdvancedCoverLetter(context: PromptContext, promptContent: string, debugCallbacks?: DebugCallbacks): Promise<string> {
+    const aiClient = getAiClient();
+    const systemInstruction = "You are an expert product management storyteller crafting concise, human cover letters.";
+    const prompt = replacePlaceholders(promptContent, context);
+    if (debugCallbacks?.before) await debugCallbacks.before(prompt);
+
+    const response = await aiClient.models.generateContent({
+        model: currentModel,
+        contents: prompt,
+        config: {
+            systemInstruction,
+            responseMimeType: "application/json",
+            temperature: 0.6,
+        },
+    });
+
+    if (debugCallbacks?.after) await debugCallbacks.after(response.text);
+    const parsed = cleanAndParseJson(response.text);
+    return parsed && typeof parsed.cover_letter === 'string' ? parsed.cover_letter : '';
+}
+
 export async function generatePostSubmissionPlan(context: PromptContext, promptContent: string, debugCallbacks?: DebugCallbacks): Promise<PostSubmissionPlan> {
     const aiClient = getAiClient();
     const systemInstruction = "You are a career strategist creating an immediate action plan for a candidate who just submitted an application.";

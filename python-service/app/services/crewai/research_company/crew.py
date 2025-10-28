@@ -11,18 +11,12 @@ from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
 from crewai_tools import MCPServerAdapter
 
+from ..mcp_config import get_mcp_server_config
+
 _logger = logging.getLogger(__name__)
 
 # MCP Server configuration for the Gateway
-_MCP_SERVER_CONFIG = [
-    {
-        "url": "http://mcp-gateway:8811/mcp/",
-        "transport": "streamable-http",
-        "headers": {
-            "Accept": "application/json, text/event-stream"
-        }
-    }
-]
+_MCP_SERVER_CONFIG = get_mcp_server_config()
 
 _cached_crew: Optional[Crew] = None
 _crew_lock = Lock()

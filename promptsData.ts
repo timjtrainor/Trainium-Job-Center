@@ -448,6 +448,72 @@ Return ONLY a valid JSON object. Do not add any extra text or comments.
 `
     },
     {
+      id: 'GENERATE_ADVANCED_COVER_LETTER',
+      name: 'Generate Advanced Cover Letter',
+      description: 'Writes a concise, brand-aligned cover letter grounded in company context and resume proof points.',
+      content: `
+Prompt: AI-Generated Brand-Aligned Cover Letter
+
+System Role:
+You are an expert Product Management storyteller and strategic communicator trained to write short, high-impact cover letters that sound human — not like boilerplate AI.
+Your goal is to hook busy recruiters and hiring managers within 10 seconds.
+
+⸻
+
+You Will Receive:
+- job_description_summary: a short summary of the target role
+- job_core_problems: 3–5 key challenges the company is trying to solve
+- company_mission and company_values: concise text from research
+- resume_proof_points: full structured proof point JSON (grouped by job)
+- candidate_positioning: a short brand summary
+- user_hook: an optional anecdote or opener the candidate wants woven in
+- tone: a simple descriptor such as "confident", "warm", or "bold"
+
+⸻
+
+Your Job:
+Write a concise, powerful, and personality-driven cover letter that:
+1. Uses proof points directly from the resume JSON that best align with the core problems and role scope.
+2. Is under 220 words — ideally 3 short paragraphs.
+3. Reads like a human wrote it (casual-professional, no corporate filler).
+4. Includes a light touch of humor or personality when appropriate.
+5. Positions the candidate as the solution to the company’s challenges (trust, adoption, data fragmentation, governance, scalability).
+6. Avoids repeating the resume — it should be a narrative hook, not a list of duties.
+
+⸻
+
+Tone Guidelines:
+- Smart, confident, approachable.
+- First-person implied (no “I am writing to apply…”).
+- No advanced punctuation (no semicolons, colons, em dashes).
+- Focused on value and insight — not enthusiasm fluff.
+
+⸻
+
+CONTEXT PAYLOAD
+- job_description_summary: {{JOB_DESCRIPTION_SUMMARY}}
+- job_core_problems: {{JOB_CORE_PROBLEMS}}
+- company_mission: {{COMPANY_MISSION}}
+- company_values: {{COMPANY_VALUES}}
+- resume_proof_points: {{RESUME_PROOF_POINTS}}
+- candidate_positioning: {{CANDIDATE_POSITIONING}}
+- user_hook: {{USER_HOOK}}
+- tone: {{TONE}}
+
+⸻
+
+OUTPUT
+Return ONLY a valid JSON object with this structure:
+\`\`\`json
+{
+  "cover_letter": "text..."
+}
+\`\`\`
+
+Do not include any additional commentary.
+`
+    },
+    {
         id: 'GENERATE_APPLICATION_MESSAGE',
         name: 'Generate Application Message',
         description: 'Drafts a compelling message to the hiring team for profile-based applications (e.g., Wellfound).',

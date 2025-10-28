@@ -17,6 +17,8 @@ from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, task, crew
 from crewai_tools import MCPServerAdapter
 
+from ..mcp_config import get_mcp_server_config
+
 _logger = logging.getLogger(__name__)
 
 # JobPosting schema keys for validation
@@ -29,15 +31,7 @@ _JOB_POSTING_SCHEMA_KEYS = {
 }
 
 # MCP Server configuration for the Gateway
-_MCP_SERVER_CONFIG = [
-    {
-        "url": "http://mcp-gateway:8811/mcp/",
-        "transport": "streamable-http",
-        "headers": {
-            "Accept": "application/json, text/event-stream"
-        }
-    }
-]
+_MCP_SERVER_CONFIG = get_mcp_server_config()
 
 
 @CrewBase
@@ -61,12 +55,12 @@ class LinkedInRecommendedJobsCrew:
                     _MCP_SERVER_CONFIG[0]["url"],
                     _MCP_SERVER_CONFIG[0]["transport"],
                 )
-                with MCPServerAdapter(_MCP_SERVER_CONFIG) as tools:
-                    self._mcp_tools = tools
-                    _logger.info(
-                        "Available MCP Tools: %s",
-                        [tool.name for tool in self._mcp_tools],
-                    )
+                self._mcp_adapter = MCPServerAdapter(_MCP_SERVER_CONFIG)
+                self._mcp_tools = self._mcp_adapter.__enter__()
+                _logger.info(
+                    "Available MCP Tools: %s",
+                    [tool.name for tool in self._mcp_tools],
+                )
             except Exception as e:
                 _logger.error("Failed to connect to MCP Gateway: %s", e)
                 self._mcp_tools = []

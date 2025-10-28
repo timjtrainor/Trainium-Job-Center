@@ -242,6 +242,8 @@ services:
       # Poller-specific configuration
       POLL_INTERVAL_MINUTES: ${POLL_INTERVAL_MINUTES:-5}
       JOB_REVIEW_QUEUE_NAME: ${JOB_REVIEW_QUEUE_NAME:-job_review}
+      DISABLE_JOB_POSTING_REVIEW: ${DISABLE_JOB_POSTING_REVIEW}
+      JOB_REVIEW_ENABLED: ${JOB_REVIEW_ENABLED}
     depends_on:
       db:
         condition: service_healthy
@@ -253,7 +255,7 @@ services:
     container_name: trainium_mcp_gateway
     image: docker/mcp-gateway:latest
     command:
-      - --servers=duckduckgo,linkedin-mcp-server
+      - --servers=duckduckgo,linkedin-mcp-server, playwright, markitdown, mcp-db-server
       - --transport=streaming
       - --secrets=docker-desktop
       - --port=8811
@@ -277,9 +279,43 @@ services:
       retries: 3
       start_period: 30s
 
+  activepieces:
+    image: activepieces/activepieces:latest
+    container_name: trainium_activepieces
+    restart: unless-stopped
+    ports:
+      - "${ACTIVEPIECES_PORT:-8280}:80"
+    environment:
+      AP_ENCRYPTION_KEY: ${ACTIVEPIECES_ENCRYPTION_KEY}
+      AP_JWT_SECRET: ${ACTIVEPIECES_JWT_SECRET}
+      AP_FRONTEND_URL: http://host.docker.internal:${ACTIVEPIECES_PORT:-8280}
+      AP_DB_TYPE: POSTGRES
+      AP_POSTGRES_HOST: db
+      AP_POSTGRES_PORT: 5432
+      AP_POSTGRES_USERNAME: ${POSTGRES_USER}
+      AP_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      AP_POSTGRES_DATABASE: activepieces
+      AP_REDIS_URL: ${ACTIVEPIECES_REDIS_URL}
+      AP_TELEMETRY_ENABLED: "false"
+      AP_EXECUTION_MODE: UNSANDBOXED
+
+      AP_PIECES_SOURCE: CLOUD_AND_DB  # Default, allows both cloud pieces and custom DB pieces
+      AP_PIECES_SYNC_MODE: OFFICIAL_AUTO  # Automatically sync piece metadata
+      AP_WORKER_CONCURRENCY: 25  # Increase for better AI workflow performance
+      AP_TRIGGER_DEFAULT_POLL_INTERVAL: 5  # Default polling interval for triggers
+      AP_MAX_FILE_SIZE_MB: 50
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - activepieces_data:/usr/src/app/cache
+
 
 volumes:
   # Defines the named volumes for data persistence.
   postgres_data:
   redis_data:
   chroma_data:
+  activepieces_data:

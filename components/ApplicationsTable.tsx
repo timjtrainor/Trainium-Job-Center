@@ -11,6 +11,7 @@ interface ApplicationsTableProps {
   strategicNarratives: StrategicNarrative[];
   onViewApplication: (appId: string) => void;
   onViewCompany: (companyId: string) => void;
+  onUpdateApplicationStatus: (appId: string, statusId: string) => Promise<void>;
   onDeleteApplication?: (appId: string) => void;
 }
 
@@ -29,15 +30,18 @@ const getStatusClassName = (statusName: string) => {
     'Waiting': 'bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-400/10 dark:text-blue-400 dark:ring-blue-400/20',
     'Interviewing': 'bg-blue-50 text-blue-700 ring-blue-700/10 font-bold dark:bg-blue-400/10 dark:text-blue-300 dark:ring-blue-400/30',
     'Accepted': 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400 dark:ring-emerald-500/20',
+    'AI Generated': 'bg-indigo-50 text-indigo-700 ring-indigo-600/20 dark:bg-indigo-400/10 dark:text-indigo-300 dark:ring-indigo-400/20',
+    'Draft': 'bg-slate-50 text-slate-700 ring-slate-600/20 dark:bg-slate-500/10 dark:text-slate-300 dark:ring-slate-500/20',
   };
   return `${baseClass} ${statusMap[statusName] || 'bg-gray-50 text-gray-600 ring-gray-500/10'}`;
 };
 
 
-export const ApplicationsTable = ({ title, applications, companies, statuses, strategicNarratives, onViewApplication, onViewCompany, onDeleteApplication }: ApplicationsTableProps): React.ReactNode => {
+export const ApplicationsTable = ({ title, applications, companies, statuses, strategicNarratives, onViewApplication, onViewCompany, onUpdateApplicationStatus, onDeleteApplication }: ApplicationsTableProps): React.ReactNode => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showRejected, setShowRejected] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
 
   const companyMap = useMemo(() => new Map(companies.map(c => [c.company_id, c.company_name])), [companies]);
   const narrativeMap = useMemo(() => new Map(strategicNarratives.map(n => [n.narrative_id, n.narrative_name])), [strategicNarratives]);
@@ -45,17 +49,25 @@ export const ApplicationsTable = ({ title, applications, companies, statuses, st
   const filteredAndSortedApplications = useMemo(() => {
     const statusSortOrder: Record<string, number> = {
         'Interviewing': 1,
-        'Accepted': 2,
-        'Step-6: Email sent waiting for follow-up': 3,
-        'Step-5: Comment/DM created': 4,
-        'Step-4: Applied': 5,
-        'Waiting': 6,
-        'Hold': 7,
-        'Step-3: Resume created': 8,
-        'Step-2: Approved by Applicant': 9,
-        'Step-1: Job loaded': 10,
-        'Bad Fit': 11,
-        'Rejected': 12,
+        'Step-3: Resume created': 2,
+        'AI Generated': 3,
+        'Draft': 4,
+        'Accepted': 5,
+        'Step-6: Email sent waiting for follow-up': 6,
+        'Step-5: Comment/DM created': 7,
+        'Step-4: Applied': 8,
+        'Waiting': 9,
+        'Hold': 10,
+        'Step-2: Approved by Applicant': 11,
+        'Step-1: Job loaded': 12,
+        'Bad Fit': 13,
+        'Rejected': 14,
+    };
+
+    const workflowSortOrder: Record<string, number> = {
+        'fast_track': 1,
+        'ai_generated': 2,
+        'manual': 3,
     };
 
     const getSortKey = (statusName: string | undefined): number => {
@@ -90,6 +102,11 @@ export const ApplicationsTable = ({ title, applications, companies, statuses, st
         if (sortKeyA !== sortKeyB) {
           return sortKeyA - sortKeyB;
         }
+        const workflowKeyA = workflowSortOrder[a.workflow_mode || ''] || 99;
+        const workflowKeyB = workflowSortOrder[b.workflow_mode || ''] || 99;
+        if (workflowKeyA !== workflowKeyB) {
+          return workflowKeyA - workflowKeyB;
+        }
         // Then by date applied
         return new Date(b.date_applied).getTime() - new Date(a.date_applied).getTime();
       });
@@ -98,6 +115,19 @@ export const ApplicationsTable = ({ title, applications, companies, statuses, st
   }, [applications, searchTerm, statusFilter, showRejected, companyMap, narrativeMap]);
 
   const uniqueStatuses = useMemo(() => Array.from(new Set(applications.map(app => app.status?.status_name).filter(Boolean))), [applications]);
+
+  const getWorkflowLabel = (mode?: string) => {
+    switch (mode) {
+      case 'fast_track':
+        return 'Fast Track';
+      case 'ai_generated':
+        return 'AI Generated';
+      case 'manual':
+        return 'Manual AI';
+      default:
+        return 'Manual AI';
+    }
+  };
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
@@ -138,6 +168,7 @@ export const ApplicationsTable = ({ title, applications, companies, statuses, st
                     <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6">Job</th>
                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Narrative</th>
                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Status</th>
+                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Workflow</th>
                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Applied</th>
                     <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6"><span className="sr-only">Actions</span></th>
                 </tr>
@@ -155,7 +186,41 @@ export const ApplicationsTable = ({ title, applications, companies, statuses, st
                             </div>
                         </td>
                         <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400 cursor-pointer" onClick={() => onViewApplication(app.job_application_id)}>{narrativeMap.get(app.narrative_id) || 'N/A'}</td>
-                        <td className="px-3 py-4 text-sm text-gray-500 cursor-pointer" onClick={() => onViewApplication(app.job_application_id)}><span className={getStatusClassName(app.status?.status_name || '')}>{app.status?.status_name || 'N/A'}</span></td>
+                        <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400" onClick={(e) => e.stopPropagation()}>
+                            {(() => {
+                                const currentStatus = statuses.find(status => status.status_id === app.status?.status_id);
+                                const wrapperClass = getStatusClassName(currentStatus?.status_name || 'Unknown');
+                                return (
+                                    <div className={`${wrapperClass} cursor-pointer transition hover:ring-2 hover:ring-blue-400 dark:hover:ring-blue-300 focus-within:ring-2 focus-within:ring-blue-500`}
+                                        style={{ padding: 0 }}
+                                    >
+                                        <select
+                                            value={app.status?.status_id || ''}
+                                            onChange={async (event) => {
+                                                const nextStatusId = event.target.value;
+                                                if (!nextStatusId || nextStatusId === app.status?.status_id) {
+                                                    return;
+                                                }
+                                                setStatusUpdating(app.job_application_id);
+                                                try {
+                                                    await onUpdateApplicationStatus(app.job_application_id, nextStatusId);
+                                                } finally {
+                                                    setStatusUpdating(null);
+                                                }
+                                            }}
+                                            disabled={statusUpdating === app.job_application_id}
+                                            className="bg-transparent border-none text-sm font-medium text-current px-2 py-1 pr-6 appearance-none focus:outline-none"
+                                        >
+                                            <option value="" disabled>Select status</option>
+                                            {statuses.map(status => (
+                                                <option key={status.status_id} value={status.status_id}>{status.status_name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                );
+                            })()}
+                        </td>
+                        <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400 cursor-pointer" onClick={() => onViewApplication(app.job_application_id)}>{getWorkflowLabel(app.workflow_mode)}</td>
                         <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400 cursor-pointer" onClick={() => onViewApplication(app.job_application_id)}>{new Date(app.date_applied).toLocaleDateString()}</td>
                         <td className="py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                             {onDeleteApplication && <button onClick={(e) => { e.stopPropagation(); onDeleteApplication(app.job_application_id); }} className="p-1 text-slate-400 hover:text-red-500 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 opacity-0 group-hover:opacity-100 transition-opacity" title="Delete Application"><TrashIcon className="h-5 w-5"/></button>}

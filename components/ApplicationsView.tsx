@@ -15,6 +15,7 @@ interface ApplicationsViewProps {
   onResumeApplication: (app: JobApplication) => void;
   onAddNew: () => void;
   onDeleteApplication: (appId: string) => void;
+  onUpdateApplicationStatus: (appId: string, statusId: string) => Promise<void>;
   onDeleteOffer: (offerId: string) => void;
   resumes: BaseResume[];
   userProfile: UserProfile | null;
@@ -38,7 +39,7 @@ const tabs: { id: Tab; name: string; icon: React.ElementType }[] = [
 ];
 
 export const ApplicationsView = ({ 
-    applications, companies, statuses, offers, onViewApplication, onViewCompany, onResumeApplication, onAddNew, onDeleteApplication, onDeleteOffer,
+    applications, companies, statuses, offers, onViewApplication, onViewCompany, onResumeApplication, onAddNew, onDeleteApplication, onUpdateApplicationStatus, onDeleteOffer,
     resumes, userProfile, onAddNewResume, onEditResume, onDeleteResume, onCopyResume, onSetDefaultResume, onToggleLock, isLoading, activeNarrative, strategicNarratives
 }: ApplicationsViewProps): React.ReactNode => {
     const [activeTab, setActiveTab] = useState<Tab>('lab');
@@ -116,6 +117,7 @@ export const ApplicationsView = ({
                 onViewApplication={handleAppClick}
                 onViewCompany={onViewCompany}
                 onDeleteApplication={onDeleteApplication}
+                onUpdateApplicationStatus={onUpdateApplicationStatus}
                 strategicNarratives={strategicNarratives}
             />
         )}

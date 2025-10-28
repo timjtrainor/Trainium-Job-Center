@@ -51,12 +51,16 @@ async def scrape_glassdoor_job_description(job_url: str, timeout: int = 30000) -
             # Navigate to job URL
             logger.info(f"Fetching Glassdoor job: {job_url}")
             await page.goto(job_url, wait_until='networkidle', timeout=timeout)
+            await page.wait_for_load_state("domcontentloaded")
 
             # Wait for job description container to load
             # Glassdoor uses various selectors, try multiple
             selectors = [
+                'div.JobDetails_jobDescription__uW_fK.JobDetails_showHidden__C_FOA',
+                'div.JobDetails_jobDescription__uW_fK',
+                'section[data-test="JobDescription"]',
+                'article[data-test="job-description"]',
                 '[data-test="jobDescriptionContent"]',
-                '.JobDetails_jobDescription__uW_fK',
                 '.desc',
                 '#JobDescriptionContainer',
                 'div.jobDescriptionContent'
@@ -72,14 +76,42 @@ async def scrape_glassdoor_job_description(job_url: str, timeout: int = 30000) -
                 except PlaywrightTimeout:
                     continue
 
-            if not description_element:
+            description_text = None
+            if description_element:
+                description_text = await description_element.inner_text()
+            else:
+                # Fallback for layouts that render description inside a shadow root
+                shadow_selectors = [
+                    'div.JobDetails_jobDescription__uW_fK.JobDetails_showHidden__C_FOA',
+                    'section[data-test="JobDescription"]',
+                    'article[data-test="job-description"]'
+                ]
+                try:
+                    description_text = await page.evaluate(
+                        """(selectors) => {
+                            const host = document.querySelector('gd-ui-job-details');
+                            if (!host || !host.shadowRoot) return null;
+                            for (const selector of selectors) {
+                                const el = host.shadowRoot.querySelector(selector);
+                                if (el && el.innerText) {
+                                    return el.innerText;
+                                }
+                            }
+                            return null;
+                        }""",
+                        shadow_selectors
+                    )
+                    if description_text:
+                        logger.info("Found description via shadow DOM fallback")
+                except Exception as fallback_error:
+                    logger.debug(f"Shadow DOM fallback failed: {fallback_error}")
+
+            if not description_text:
                 logger.warning(f"Could not find job description element for {job_url}")
                 await browser.close()
                 return None
 
             # Extract text content
-            description_text = await description_element.inner_text()
-
             # Convert to markdown format
             description_md = format_glassdoor_description_as_markdown(description_text)
 

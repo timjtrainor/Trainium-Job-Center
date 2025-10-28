@@ -482,11 +482,11 @@ export const getSingleApplication = async (appId: string): Promise<JobApplicatio
 // This prevents client-side relational objects (like 'status' or 'interviews') from
 // being sent in the request body, which would cause a "malformed json" error.
 const APPLICATION_TABLE_FIELDS: (keyof JobApplicationPayload)[] = [
-    'narrative_id', 'company_id', 'job_title', 'job_description', 'job_link', 'salary',
+    'narrative_id', 'company_id', 'job_title', 'job_description', 'job_link', 'workflow_mode', 'salary',
     'location', 'remote_status', 'date_applied', 'status_id', 'ai_summary',
     'job_problem_analysis_result', 'keywords', 'guidance', 'resume_summary',
     'resume_summary_bullets', 'tailored_resume_json', 'application_questions',
-    'application_message', 'strategic_fit_score', 'initial_interview_prep', 'why_this_job', 'next_steps_plan',
+    'application_message', 'cover_letter_draft', 'strategic_fit_score', 'initial_interview_prep', 'why_this_job', 'next_steps_plan',
     'first_90_day_plan', 'keyword_coverage_score', 'assumed_requirements',
     'referral_target_suggestion'
 ];
@@ -1562,17 +1562,18 @@ export const updateSprintAction = async (actionId: string, payload: SprintAction
     return data[0];
 };
 
-export const addActionsToSprint = async (sprintId: string, actions: Omit<SprintActionPayload, 'sprint_id'>[]): Promise<void> => {
+export const addActionsToSprint = async (sprintId: string, actions: Omit<SprintActionPayload, 'sprint_id'>[]): Promise<SprintAction[]> => {
     const payload = actions.map(action => ({
         ...action,
         sprint_id: sprintId,
         user_id: USER_ID,
     }));
-     await fetch(`${API_BASE_URL}/sprint_actions`, {
+     const response = await fetch(`${API_BASE_URL}/sprint_actions`, {
         method: 'POST',
         headers: { ...headers, 'Prefer': 'return=representation' },
         body: JSON.stringify(payload),
     });
+    return await handleResponse(response);
 };
 
 // --- Scheduler / Dev Mode ---
@@ -1822,6 +1823,19 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
     filters?: ReviewedJobsFilters;
     sort?: ReviewedJobsSort;
 }): Promise<PaginatedResponse<ReviewedJob>> => {
+    const deriveSourceFromUrl = (value: unknown): string | null => {
+        if (typeof value !== 'string' || !value.trim()) {
+            return null;
+        }
+
+        try {
+            const hostname = new URL(value).hostname.replace(/^www\./i, '');
+            return hostname || null;
+        } catch {
+            return null;
+        }
+    };
+
     const formatSalaryComponent = (value: unknown): string | null => {
         if (value === null || value === undefined) {
             return null;
@@ -1836,6 +1850,28 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
         }
 
         return String(value);
+    };
+
+    const formatSourceLabel = (sourceValue: unknown, urlValue: unknown): string | null => {
+        if (typeof sourceValue === 'string') {
+            const trimmed = sourceValue.trim();
+            if (!trimmed) {
+                return deriveSourceFromUrl(urlValue);
+            }
+
+            const simpleToken = /^[a-z0-9_-]+$/;
+            if (!simpleToken.test(trimmed)) {
+                return trimmed;
+            }
+
+            return trimmed
+                .split(/[_-]/)
+                .filter(Boolean)
+                .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+                .join(' ');
+        }
+
+        return deriveSourceFromUrl(urlValue);
     };
 
     const params = buildReviewedJobsSearchParams({ page, size, filters, sort });
@@ -1861,6 +1897,7 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
             url: job.url ?? null,
             title: job.title ?? null,
             company_name: job.company ?? null,
+            source: formatSourceLabel(job.source ?? job.site, job.url),
             location: job.location ?? null,
             date_posted: job.date_posted ?? null,
             recommendation,

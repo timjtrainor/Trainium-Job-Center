@@ -115,12 +115,17 @@ class PollerService:
     async def poll_and_enqueue_jobs(self) -> int:
         """
         Main polling function: get pending jobs, enqueue them, and update status.
-        
+
         Returns:
             Number of jobs successfully enqueued
         """
         if not self.initialized:
             logger.warning("Poller not initialized")
+            return 0
+
+        # Check feature flags
+        if self.settings.disable_job_posting_review or not self.settings.job_review_enabled:
+            logger.info("Job posting review is disabled - skipping polling cycle")
             return 0
 
         try:

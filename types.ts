@@ -249,6 +249,7 @@ export interface JobApplication {
   tailored_resume_json?: Resume;
   application_questions?: ApplicationQuestion[];
   application_message?: string;
+  cover_letter_draft?: string;
   workflow_mode?: string; // 'ai_generated', 'fast_track', or 'manual'
   // New relational data
   messages?: Message[];
@@ -1146,6 +1147,7 @@ export interface ReviewedJob {
   url: string | null;
   title: string | null;
   company_name: string | null;
+  source?: string | null;
   location: string | null;
   date_posted: string | null; // ISO date string
   recommendation: ReviewedJobRecommendation;

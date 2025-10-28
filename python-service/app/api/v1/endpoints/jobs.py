@@ -3,14 +3,17 @@ Jobs API endpoints.
 
 Provides REST API for accessing jobs and job reviews.
 """
-from typing import Optional
+import base64
+from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
 from loguru import logger
 from datetime import datetime
 
 from ....schemas.job_reviews import ReviewedJobsResponse, ReviewedJob, JobDetails, JobReviewData
+from ....schemas.jobspy import ScrapedJob
 from ....services.infrastructure.database import get_database_service, DatabaseService
+from ....services.infrastructure.job_persistence import persist_jobs
 
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -60,6 +63,43 @@ class OverrideResponse(BaseModel):
                 "updated_at": "2024-01-15T10:30:00Z"
             }
         }
+
+
+class JobIngestRecord(ScrapedJob):
+    """Extended job payload allowing encoded descriptions."""
+    description_encoded: Optional[str] = Field(
+        default=None,
+        description="Base64-encoded job description; overrides plain description if provided"
+    )
+
+    class Config:
+        extra = "ignore"
+
+
+class JobIngestRequest(BaseModel):
+    """Request payload for ingesting external job records."""
+    site_name: str = Field(..., min_length=1, description="Source identifier or job board name")
+    jobs: List[JobIngestRecord] = Field(..., min_items=1, description="List of job records to persist")
+
+    @validator("jobs", each_item=True)
+    def _validate_job(cls, job: JobIngestRecord):
+        if not job.job_url:
+            raise ValueError("job_url is required for each job")
+        if not job.title:
+            raise ValueError("title is required for each job")
+        return job
+
+
+class JobIngestSummary(BaseModel):
+    inserted: int = 0
+    skipped_duplicates: int = 0
+    blocked_duplicates: int = 0
+    errors: List[str] = Field(default_factory=list)
+
+
+class JobIngestResponse(BaseModel):
+    success: bool
+    summary: JobIngestSummary
 
 
 async def get_database():
@@ -249,4 +289,46 @@ async def override_job_review(
         logger.error(f"Failed to override job review: {e}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ingest", response_model=JobIngestResponse)
+async def ingest_jobs(request: JobIngestRequest):
+    """
+    Ingest externally sourced job records and persist them with deduplication.
+
+    The payload should include a source `site_name` and a list of job objects.
+    Each job must include at least `title`, `company`, and `job_url`. Records
+    are normalized and passed through the existing persistence pipeline, which
+    performs canonical-key deduplication and fingerprint checks.
+    """
+    try:
+        normalized_jobs: List[dict] = []
+        for job in request.jobs:
+            job_data = job.model_dump()
+            encoded_description = job_data.pop("description_encoded", None)
+            if encoded_description:
+                try:
+                    decoded_bytes = base64.b64decode(encoded_description)
+                    job_data["description"] = decoded_bytes.decode("utf-8")
+                except Exception as decode_error:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid base64 description for job '{job.job_url}': {decode_error}"
+                    ) from decode_error
+            job_data.setdefault("site", request.site_name)
+            normalized_jobs.append(job_data)
+
+        summary_dict = await persist_jobs(records=normalized_jobs, site_name=request.site_name)
+        summary = JobIngestSummary(**summary_dict)
+        success = summary.inserted > 0 and not summary.errors
+
+        return JobIngestResponse(success=success, summary=summary)
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to ingest jobs: {e}")
         raise HTTPException(status_code=500, detail=str(e))

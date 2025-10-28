@@ -394,6 +394,13 @@ export const XMarkIcon = ({ className }: { className: string }): React.ReactNode
     </svg>
 );
 
+export const GlobeAltIcon = ({ className }: { className: string }): React.ReactNode => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 12a9 9 0 1118 0 9 9 0 01-18 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.6 9h16.8M3.6 15h16.8M10 3.055A21.177 21.177 0 0012 21a21.177 21.177 0 002-17.945" />
+    </svg>
+);
+
 export const MapPinIcon = ({ className }: { className: string }): React.ReactNode => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />

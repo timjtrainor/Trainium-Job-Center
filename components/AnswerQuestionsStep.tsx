@@ -1,36 +1,86 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ApplicationQuestion } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { LoadingSpinner, PlusCircleIcon, TrashIcon, DocumentTextIcon, LightBulbIcon } from './IconComponents';
 
 interface AnswerQuestionsStepProps {
     questions: ApplicationQuestion[];
-    setQuestions: (questions: ApplicationQuestion[]) => void;
+    setQuestions: (questions: ApplicationQuestion[] | ((prev: ApplicationQuestion[]) => ApplicationQuestion[])) => void;
     onGenerateAllAnswers: () => Promise<void>;
     onSaveApplication: () => void;
     onBack: () => void;
     isLoading: boolean;
     onOpenJobDetailsModal: () => void;
     onOpenAiAnalysisModal: () => void;
+    coverLetterDraft: string;
+    onCoverLetterChange: (draft: string) => void;
+    onGenerateCoverLetter: (options: { tone: 'confident' | 'warm' | 'bold'; hook?: string; includeHumor?: boolean }) => Promise<void> | void;
+    onSaveCoverLetter: (draft: string) => Promise<void> | void;
+    isGeneratingCoverLetter: boolean;
 }
 
-export const AnswerQuestionsStep = ({ questions, setQuestions, onGenerateAllAnswers, onSaveApplication, onBack, isLoading, onOpenJobDetailsModal, onOpenAiAnalysisModal }: AnswerQuestionsStepProps): React.ReactNode => {
+export const AnswerQuestionsStep = ({
+    questions,
+    setQuestions,
+    onGenerateAllAnswers,
+    onSaveApplication,
+    onBack,
+    isLoading,
+    onOpenJobDetailsModal,
+    onOpenAiAnalysisModal,
+    coverLetterDraft,
+    onCoverLetterChange,
+    onGenerateCoverLetter,
+    onSaveCoverLetter,
+    isGeneratingCoverLetter,
+}: AnswerQuestionsStepProps): React.ReactNode => {
+    const [coverLetterHook, setCoverLetterHook] = useState('');
+    const [coverLetterTone, setCoverLetterTone] = useState<'confident' | 'warm' | 'bold'>('confident');
+    const [includeHumor, setIncludeHumor] = useState(true);
+    const [hasCopiedCoverLetter, setHasCopiedCoverLetter] = useState(false);
     
     const handleQuestionChange = (index: number, field: keyof ApplicationQuestion, value: string) => {
-        const newQuestions = [...questions];
-        (newQuestions[index] as any)[field] = value;
-        setQuestions(newQuestions);
+        setQuestions(prev =>
+            prev.map((item, i) =>
+                i === index ? { ...item, [field]: value } : item
+            )
+        );
     };
 
     const addQuestion = () => {
-        setQuestions([...questions, { id: uuidv4(), question: '', answer: '', user_thoughts: '' }]);
+        setQuestions(prev => [...prev, { id: uuidv4(), question: '', answer: '', user_thoughts: '' }]);
     };
     
     const removeQuestion = (index: number) => {
-        setQuestions(questions.filter((_, i) => i !== index));
+        setQuestions(prev => prev.filter((_, i) => i !== index));
     };
 
     const canSave = questions.every(q => q.question.trim() && q.answer.trim()) || questions.length === 0;
+
+    const coverLetterWordCount = useMemo(() => {
+        if (!coverLetterDraft) return 0;
+        return coverLetterDraft.trim().split(/\s+/).filter(Boolean).length;
+    }, [coverLetterDraft]);
+
+    useEffect(() => {
+        setHasCopiedCoverLetter(false);
+    }, [coverLetterDraft]);
+
+    const handleGenerateCoverLetterClick = async () => {
+        setHasCopiedCoverLetter(false);
+        await onGenerateCoverLetter({ tone: coverLetterTone, hook: coverLetterHook.trim(), includeHumor });
+    };
+
+    const handleCopyCoverLetter = async () => {
+        if (!coverLetterDraft) return;
+        try {
+            await navigator.clipboard.writeText(coverLetterDraft);
+            setHasCopiedCoverLetter(true);
+            setTimeout(() => setHasCopiedCoverLetter(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy cover letter', err);
+        }
+    };
 
     return (
         <div className="space-y-6 animate-fade-in">
@@ -117,6 +167,91 @@ export const AnswerQuestionsStep = ({ questions, setQuestions, onGenerateAllAnsw
                         </div>
                     </div>
                 ))}
+            </div>
+
+            <div className="mt-8 p-4 border border-blue-200 dark:border-blue-700 rounded-lg bg-blue-50 dark:bg-blue-900/30">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-200">Advanced Cover Letter AI</h3>
+                        <p className="text-sm text-blue-700 dark:text-blue-300">Generate a concise, brand-aligned cover letter without leaving this step.</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleGenerateCoverLetterClick}
+                        disabled={isGeneratingCoverLetter}
+                        className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-400"
+                    >
+                        {isGeneratingCoverLetter ? <LoadingSpinner /> : 'Generate Cover Letter'}
+                    </button>
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    <div className="md:col-span-2">
+                        <label htmlFor="cover-letter-hook" className="block text-sm font-medium text-blue-800 dark:text-blue-200">Optional opener or hook</label>
+                        <input
+                            id="cover-letter-hook"
+                            type="text"
+                            value={coverLetterHook}
+                            onChange={(e) => setCoverLetterHook(e.target.value)}
+                            placeholder="e.g., I fix broken data ecosystems and make teams trust what they ship."
+                            className="mt-1 w-full rounded-md border border-blue-200 dark:border-blue-600 bg-white dark:bg-blue-950 text-sm px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="cover-letter-tone" className="block text-sm font-medium text-blue-800 dark:text-blue-200">Tone</label>
+                        <select
+                            id="cover-letter-tone"
+                            value={coverLetterTone}
+                            onChange={(e) => setCoverLetterTone(e.target.value as 'confident' | 'warm' | 'bold')}
+                            className="mt-1 w-full rounded-md border border-blue-200 dark:border-blue-600 bg-white dark:bg-blue-950 text-sm px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
+                        >
+                            <option value="confident">Confident</option>
+                            <option value="warm">Warm</option>
+                            <option value="bold">Bold</option>
+                        </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <input
+                            id="cover-letter-humor"
+                            type="checkbox"
+                            checked={includeHumor}
+                            onChange={(e) => setIncludeHumor(e.target.checked)}
+                            className="h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <label htmlFor="cover-letter-humor" className="text-sm text-blue-800 dark:text-blue-200">Allow light personality</label>
+                    </div>
+                </div>
+
+                <div className="mt-4">
+                    <label htmlFor="cover-letter-draft" className="block text-sm font-medium text-blue-800 dark:text-blue-200">Draft Cover Letter ({coverLetterWordCount} words)</label>
+                    <textarea
+                        id="cover-letter-draft"
+                        rows={8}
+                        value={coverLetterDraft}
+                        onChange={(e) => onCoverLetterChange(e.target.value)}
+                        placeholder="Your AI-generated cover letter will appear here."
+                        className="mt-1 block w-full rounded-md border border-blue-200 dark:border-blue-600 bg-white dark:bg-blue-950 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    />
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={handleCopyCoverLetter}
+                        disabled={!coverLetterDraft}
+                        className="inline-flex items-center rounded-md bg-white dark:bg-blue-950 px-3 py-1.5 text-sm font-semibold text-blue-700 dark:text-blue-200 shadow-sm ring-1 ring-inset ring-blue-200 dark:ring-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900 disabled:opacity-60"
+                    >
+                        {hasCopiedCoverLetter ? 'Copied!' : 'Copy to Clipboard'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onSaveCoverLetter(coverLetterDraft)}
+                        disabled={!coverLetterDraft}
+                        className="inline-flex items-center rounded-md bg-green-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:bg-green-400"
+                    >
+                        Save Cover Letter
+                    </button>
+                </div>
             </div>
 
             <div className="mt-4">

@@ -1,9 +1,12 @@
 """LinkedIn job import endpoints with duplicate detection and error handling."""
 
 import asyncio
+import json
 import re
 from datetime import datetime
-from typing import Optional
+from json import JSONDecodeError
+from typing import Optional, Any, Dict
+
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field, validator
 from loguru import logger
@@ -44,6 +47,48 @@ class LinkedInAuthError(Exception):
 class LinkedInRateLimitError(Exception):
     """Raised when LinkedIn rate limit is hit."""
     pass
+
+
+def _coerce_mcp_job_details(result: Any) -> Dict[str, Any]:
+    """
+    Normalize MCP tool responses into a dict for downstream processing.
+
+    Handles raw strings, JSON payloads, or list-wrapped records that some tools return.
+    """
+    if result is None:
+        return {}
+
+    if isinstance(result, dict):
+        return result
+
+    if isinstance(result, list) and result:
+        first = result[0]
+        if isinstance(first, dict):
+            return first
+
+    if isinstance(result, str):
+        stripped = result.strip()
+        if not stripped:
+            return {}
+        try:
+            parsed = json.loads(stripped)
+        except JSONDecodeError:
+            return {"raw": stripped}
+        if isinstance(parsed, dict):
+            return parsed
+        if isinstance(parsed, list) and parsed and isinstance(parsed[0], dict):
+            return parsed[0]
+        return {"raw": parsed}
+
+    if hasattr(result, "dict"):
+        try:
+            return result.dict()  # type: ignore[no-any-return]
+        except Exception:
+            pass
+    if hasattr(result, "__dict__"):
+        return dict(result.__dict__)
+
+    return {"raw": result}
 
 
 @router.post("/fetch-by-url", response_model=JobFetchResponse)
@@ -179,13 +224,14 @@ async def _fetch_job_via_mcp(url: str) -> dict:
             raise Exception("LinkedIn MCP tool 'get_job_details' not available")
 
         # Call the MCP tool directly - crewai tools handle their own async context
-        result = job_details_tool.run(url=url)
+        raw_result = job_details_tool.run(url=url)
+        job_data = _coerce_mcp_job_details(raw_result)
 
         # Validate required fields
-        if not result.get('title') or not result.get('company'):
+        if not job_data.get('title') or not job_data.get('company'):
             raise Exception("Incomplete job data from LinkedIn")
 
-        return result
+        return job_data
 
     except Exception as e:
         # Check if it's an auth error

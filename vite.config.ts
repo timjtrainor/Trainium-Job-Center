@@ -32,6 +32,7 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
+          'react-grid-layout/css/styles.css': path.resolve(__dirname, 'components/interview-copilot/shims/react-grid-layout.css'),
           'react-grid-layout': path.resolve(
               __dirname,
               'components/interview-copilot/shims/react-grid-layout.tsx',
