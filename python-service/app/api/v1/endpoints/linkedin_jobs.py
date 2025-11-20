@@ -29,6 +29,25 @@ class LinkedInJobUrlRequest(BaseModel):
         return v
 
 
+class ManualJobCreateRequest(BaseModel):
+    title: str = Field(..., min_length=1, description="Job title")
+    company_name: str = Field(..., min_length=1, description="Company name")
+    description: str = Field(..., min_length=1, description="Job description")
+    location: Optional[str] = Field(None, description="Job location")
+    url: Optional[str] = Field(None, description="Job posting URL")
+    salary_min: Optional[float] = Field(None, description="Minimum salary")
+    salary_max: Optional[float] = Field(None, description="Maximum salary")
+    salary_currency: Optional[str] = Field(None, description="Salary currency")
+    remote_status: Optional[str] = Field(None, description="Remote work status")
+    date_posted: Optional[str] = Field(None, description="Date job was posted (ISO format)")
+
+    @validator('remote_status')
+    def validate_remote_status(cls, v):
+        if v and v not in ['Remote', 'Hybrid', 'On-site']:
+            raise ValueError('Remote status must be Remote, Hybrid, or On-site')
+        return v
+
+
 class JobFetchResponse(BaseModel):
     success: bool
     job_id: Optional[str] = None
@@ -348,6 +367,168 @@ def _extract_company_url_from_job_url(job_url: str) -> str:
     if match:
         return f"https://www.linkedin.com/company/{match.group(1)}"
     return ""
+
+
+@router.post("/create-manual", response_model=JobFetchResponse)
+async def create_manual_job(
+    request: ManualJobCreateRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    Create a job manually with provided details and queue for AI review.
+
+    Flow:
+    1. Check for duplicates by normalized company+title
+    2. Auto-match or create company
+    3. Insert job with 'pending_review' status
+    4. Queue for AI review in background
+    5. Return immediately with task tracking
+    """
+
+    db_service = get_database_service()
+    await db_service.initialize()
+
+    try:
+        # 1. DUPLICATE DETECTION - Check by normalized company + title
+        normalized_company = normalize_company_name(request.company_name)
+        normalized_title = _normalize_job_title(request.title)
+
+        existing_by_content = await db_service.get_job_by_normalized_fields(
+            normalized_company=normalized_company,
+            normalized_title=normalized_title
+        )
+
+        if existing_by_content:
+            return JobFetchResponse(
+                success=False,
+                error="duplicate",
+                message=f"Similar job already exists: '{existing_by_content.get('title')}' at {existing_by_content.get('company_name')}",
+                existing_job_id=str(existing_by_content.get('id')),
+                status=existing_by_content.get('workflow_status')
+            )
+
+        # 2. DUPLICATE DETECTION - Check by URL if provided
+        if request.url:
+            existing_by_url = await db_service.get_job_by_url(request.url)
+            if existing_by_url:
+                return JobFetchResponse(
+                    success=False,
+                    error="duplicate",
+                    message=_get_duplicate_message(existing_by_url.get('workflow_status')),
+                    existing_job_id=str(existing_by_url.get('id')),
+                    status=existing_by_url.get('workflow_status')
+                )
+
+        # 3. AUTO COMPANY MATCHING
+        company_id = await _match_or_create_company_manual(request.company_name, request.url)
+
+        # 4. INSERT JOB
+        # Parse date_posted if provided, otherwise use today's date
+        date_posted = None
+        if request.date_posted:
+            try:
+                # Parse ISO date string (YYYY-MM-DD) to date object
+                date_posted = datetime.fromisoformat(request.date_posted).date()
+            except ValueError:
+                # If parsing fails, use today's date
+                date_posted = datetime.utcnow().date()
+        else:
+            date_posted = datetime.utcnow().date()
+
+        job_record = {
+            "title": request.title,
+            "company_id": company_id,
+            "company_name": request.company_name,
+            "location": request.location,
+            "description": request.description,
+            "url": request.url,
+            "source": "manual_entry",
+            "workflow_status": "pending_review",
+            "date_posted": date_posted,
+            "salary_min": request.salary_min,
+            "salary_max": request.salary_max,
+            "salary_currency": request.salary_currency,
+            "remote_status": request.remote_status,
+            "scraped_at": datetime.utcnow().isoformat(),
+            "normalized_title": normalized_title,
+            "normalized_company": normalized_company
+        }
+
+        job_id = await db_service.insert_job(job_record)
+
+        # 5. QUEUE FOR REVIEW in background
+        background_tasks.add_task(_queue_job_for_review, str(job_id))
+
+        logger.info(f"Manual job created successfully: {job_id}")
+
+        return JobFetchResponse(
+            success=True,
+            job_id=str(job_id),
+            message="Job created and queued for AI review",
+            task_id=str(job_id)  # Use for polling status
+        )
+
+    except Exception as e:
+        logger.error(f"Unexpected error creating manual job: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _match_or_create_company_manual(company_name: str, job_url: Optional[str] = None) -> str:
+    """Match existing company or auto-create new one for manual job entry."""
+    db_service = get_database_service()
+
+    # Clean the company name for better matching
+    cleaned_company_name = company_name.strip()
+    # Remove trailing punctuation and extra spaces, but keep meaningful internal punctuation
+    cleaned_company_name = re.sub(r'[^\w\s]+$', '', cleaned_company_name).strip()
+    # Remove any remaining trailing spaces
+    cleaned_company_name = cleaned_company_name.rstrip()
+
+    # Normalize company name
+    normalized_name = normalize_company_name(cleaned_company_name)
+
+    # Get default user ID
+    user_id = await db_service.get_default_user_id()
+
+    # First check if company with exact cleaned name already exists (unique constraint)
+    await db_service.initialize()  # Ensure pool is ready
+    async with db_service.pool.acquire() as conn:
+        exact_match = await conn.fetchrow("""
+            SELECT company_id, company_name
+            FROM companies
+            WHERE company_name = $1
+            LIMIT 1
+        """, cleaned_company_name)
+
+    if exact_match:
+        logger.info(f"Matched to existing company: {exact_match['company_name']}")
+        return str(exact_match["company_id"])
+
+    # If no exact match, try normalized name matching
+    existing = await db_service.get_company_by_normalized_name(normalized_name, user_id)
+    if existing:
+        logger.info(f"Matched to existing company by normalized name: {existing.get('company_name')}")
+        return str(existing.get('company_id'))
+
+    # Create new company with cleaned name
+    company_url = ""
+    if job_url:
+        company_url = _extract_company_url_from_job_url(job_url)
+
+    new_company = await db_service.create_company({
+        "company_name": cleaned_company_name,
+        "normalized_name": normalized_name,
+        "company_url": company_url,
+        "source": "manual_entry",
+        "is_recruiting_firm": False,
+        "user_id": user_id,
+    })
+
+    company_id = new_company.get('company_id') if isinstance(new_company, dict) else new_company.company_id
+
+    logger.info(f"Created new company: {cleaned_company_name} -> {company_id}")
+
+    return str(company_id)
 
 
 @router.get("/review-status/{job_id}")

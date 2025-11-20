@@ -9,6 +9,7 @@ const sanitizedFastApiBaseUrl = rawFastApiBaseUrl.replace(/\/+$/u, '');
 
 export const FASTAPI_BASE_URL = sanitizedFastApiBaseUrl || '/api'; // FastAPI
 
+
 // Hardcoded user ID for the single-user version of the app.
 // This allows the data model to be ready for multi-user in the future.
 export const USER_ID = '11111111-2222-3333-4444-555555555555';

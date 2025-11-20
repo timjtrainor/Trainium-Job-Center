@@ -255,7 +255,7 @@ services:
     container_name: trainium_mcp_gateway
     image: docker/mcp-gateway:latest
     command:
-      - --servers=duckduckgo,linkedin-mcp-server, playwright, markitdown, mcp-db-server
+      - --servers=duckduckgo,linkedin-mcp-server,playwright,markitdown,mcp-db-server
       - --transport=streaming
       - --secrets=docker-desktop
       - --port=8811
@@ -264,11 +264,12 @@ services:
       LINKEDIN_EMAIL: ${LINKEDIN_EMAIL}
       LINKEDIN_PASSWORD: ${LINKEDIN_PASSWORD}
       LINKEDIN_COOKIE: ${LINKEDIN_COOKIE}
-      PYTHON_KEYRING_BACKEND: keyrings.alt.file.PlaintextKeyring
+      INTERACTIVE: "false"
+      PYTHON_KEYRING_BACKEND: keyring.backends.osx.KeychainBackend
       LITELLM_PROVIDER: ollama
       OLLAMA_API_BASE: http://host.docker.internal:11434
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock.raw:/var/run/docker.sock
     ports:
       - "${MCP_GATEWAY_PORT:-8811}:8811"
     restart: unless-stopped

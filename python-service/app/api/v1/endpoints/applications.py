@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from loguru import logger
 import json
+import re
 
 from ....services.infrastructure.database import get_database_service, DatabaseService
 from ....services.ai.application_generator import get_application_generator

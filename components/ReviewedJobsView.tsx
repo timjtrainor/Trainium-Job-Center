@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getReviewedJobs, ReviewedJobsFilters, ReviewedJobsSort } from '../services/apiService';
 import { ReviewedJob, PaginatedResponse, ReviewedJobRecommendation } from '../types';
-import { LoadingSpinner, CheckIcon, XCircleIcon, TableCellsIcon, Squares2X2Icon } from './IconComponents';
+import { LoadingSpinner, CheckIcon, XCircleIcon, TableCellsIcon, Squares2X2Icon, PlusCircleIcon } from './IconComponents';
 import { JobReviewModal } from './JobReviewModal';
 import { JobCardView } from './JobCardView';
 import { useToast } from '../hooks/useToast';
@@ -36,6 +37,7 @@ const RecommendationBadge = ({ recommendation, hasOverride }: { recommendation: 
 };
 
 export const ReviewedJobsView = () => {
+    const navigate = useNavigate();
     const [data, setData] = useState<PaginatedResponse<ReviewedJob> | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -189,10 +191,19 @@ export const ReviewedJobsView = () => {
 
     return (
         <div className="space-y-6 animate-fade-in">
-            <header>
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Reviewed Jobs</h1>
-                <p className="mt-1 text-slate-600 dark:text-slate-400">Jobs automatically reviewed by the AI based on your active narrative.</p>
-            </header>
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white">AI Job Board</h1>
+                    <p className="mt-1 text-slate-600 dark:text-slate-400">Jobs automatically reviewed by the AI based on your active narrative.</p>
+                </div>
+                <button
+                    onClick={() => navigate('/add-manual-job')}
+                    className="inline-flex items-center justify-center w-full md:w-auto px-5 py-2 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                >
+                    <PlusCircleIcon className="w-5 h-5 mr-2 -ml-1" />
+                    Add Manual Job
+                </button>
+            </div>
 
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-4 sm:p-6 border border-slate-200 dark:border-slate-700">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">

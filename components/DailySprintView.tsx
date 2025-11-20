@@ -50,7 +50,7 @@ const SprintCreationView = ({ onCreateSprint, activeNarrative }: { onCreateSprin
         if (field === 'goal_type') {
             newGoals[index].goal_type = value as GoalType;
         } else {
-            newGoals[index].goal_target = Number(value);
+            newGoals[index].goal_target = Number(value) || 0;
         }
         setGoals(newGoals);
     };
@@ -104,7 +104,7 @@ const SprintCreationView = ({ onCreateSprint, activeNarrative }: { onCreateSprin
                     </button>
                  </div>
             </div>
-            <button onClick={handleCreate} disabled={!theme || goals.length === 0} className="mt-6 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400">
+            <button onClick={handleCreate} disabled={!theme && !goals.some(g => g.goal_target && g.goal_target > 0)} className="mt-6 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400">
                 Create Sprint
             </button>
         </div>

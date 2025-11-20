@@ -257,6 +257,7 @@ const buildFastApiUrl = (path = ''): string => {
 };
 
 
+
 const parseDateString = (dateString: string | null | undefined): DateInfo => {
     if (!dateString) return { year: new Date().getFullYear(), month: 1 };
     const dateParts = String(dateString).split('-');
@@ -1992,6 +1993,55 @@ export const getJobReviewStatus = async (jobId: string): Promise<any> => {
     const response = await fetch(buildFastApiUrl(`linkedin-jobs/review-status/${jobId}`), {
         method: 'GET',
         headers,
+    });
+
+    return handleResponse(response);
+};
+
+export interface JobIngestRequest {
+    site_name: string;
+    jobs: Array<{
+        title: string;
+        company: string;
+        job_url: string;
+        description?: string;
+        location?: string;
+        salary_min?: number;
+        salary_max?: number;
+        is_remote?: boolean;
+        date_posted?: string;
+        job_type?: string;
+        interval?: string;
+        salary_source?: string;
+    }>;
+}
+
+export const ingestJobs = async (payload: JobIngestRequest): Promise<any> => {
+    const response = await fetch(buildFastApiUrl('jobs/ingest'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+    });
+
+    return handleResponse(response);
+};
+
+export const createManualJob = async (jobData: {
+    title: string;
+    company_name: string;
+    description: string;
+    location?: string;
+    url?: string;
+    salary_min?: number;
+    salary_max?: number;
+    salary_currency?: string;
+    remote_status?: string;
+    date_posted?: string;
+}): Promise<any> => {
+    const response = await fetch(buildFastApiUrl('linkedin-jobs/create-manual'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(jobData),
     });
 
     return handleResponse(response);
