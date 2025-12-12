@@ -16,7 +16,7 @@ from ....schemas.job_parsing import JobParseRequest, JobParseResponse
 from ....schemas.jobspy import ScrapedJob
 from ....services.infrastructure.database import get_database_service, DatabaseService
 from ....services.infrastructure.job_persistence import persist_jobs
-from ....services.ai.job_parser import JobParser
+from ....services.ai.job_parser import JobParser, get_job_parser
 
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -338,12 +338,14 @@ async def ingest_jobs(request: JobIngestRequest):
 
 
 @router.post("/parse", response_model=JobParseResponse)
-async def parse_job_description(request: JobParseRequest):
+async def parse_job_description(
+    request: JobParseRequest,
+    parser: JobParser = Depends(get_job_parser)
+):
     """
     Parse a raw job description using AI to extract structured data.
     """
     try:
-        parser = JobParser()
         # Run blocking parser in a separate thread to avoid blocking the event loop
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, parser.parse_job_text, request.description)
