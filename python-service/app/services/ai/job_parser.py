@@ -7,7 +7,6 @@ from ...core.config import get_settings
 from .llm_clients import LLMRouter
 from ...schemas.job_parsing import JobParseResponse
 
-
 class JobParser:
     def __init__(self):
         settings = get_settings()
@@ -32,43 +31,17 @@ class JobParser:
         8. date_posted: The posting date in YYYY-MM-DD format if available.
         9. cleaned_description: The core job description text, stripped of navigation menus, headers, footers, and irrelevant side-bar content.
 
-        Return ONLY a raw JSON object, with no markdown code fences, no explanatory text before or after, and no formatting.
-        Do NOT include any markdown formatting such as ```json or ``` or any text outside the JSON object.
+        Return the result as a single valid JSON object. Do not include markdown formatting like ```json ... ```.
+
         If a field cannot be found, set it to null.
 
-        Examples:
-        Valid output:
-        {{
-          "title": "Software Engineer",
-          "company_name": "Acme Corp",
-          "location": "San Francisco, CA",
-          "salary_min": 120000,
-          "salary_max": 150000,
-          "salary_currency": "USD",
-          "remote_status": "Hybrid",
-          "date_posted": "2023-10-01",
-          "cleaned_description": "We are seeking a Software Engineer to join our team..."
-        }}
-
-        Invalid outputs (do NOT do this):
-        ```json
-        {{
-          "title": "Software Engineer",
-          ...
-        }}
-        ```
-        or
-        Here is the extracted information:
-        {{
-          "title": "Software Engineer",
-          ...
-        }}
         RAW TEXT:
         {text[:15000]}  # Truncate to avoid token limits if extremely long
 
         JSON OUTPUT:
         """
 
+        response_text = ""
         try:
             response_text = self.router.generate(prompt)
 
@@ -116,14 +89,9 @@ class JobParser:
             if isinstance(value, (int, float)):
                 return float(value)
             if isinstance(value, str):
-                # Match a valid float with optional negative sign and commas (US format)
-                # Examples: "1,000.50", "-1000.50", "1000", "-1,000"
-                match = re.match(r'^\s*([-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?|[-+]?\d+(?:\.\d+)?)(?!\S)', value)
-                if match:
-                    num_str = match.group(1).replace(',', '')
-                    return float(num_str)
-                else:
-                    return None
+                # Remove currency symbols and commas
+                clean = re.sub(r'[^\d.]', '', value)
+                return float(clean)
         except ValueError:
             return None
         return None
@@ -139,15 +107,3 @@ class JobParser:
         if "site" in value or "office" in value:
             return "On-site"
         return None
-
-
-# Global parser instance
-_job_parser: Optional[JobParser] = None
-
-
-def get_job_parser() -> JobParser:
-    """Get the global job parser instance."""
-    global _job_parser
-    if _job_parser is None:
-        _job_parser = JobParser()
-    return _job_parser
