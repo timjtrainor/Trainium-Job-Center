@@ -3,6 +3,7 @@ Jobs API endpoints.
 
 Provides REST API for accessing jobs and job reviews.
 """
+import asyncio
 import base64
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends, Query
@@ -343,8 +344,9 @@ async def parse_job_description(request: JobParseRequest):
     """
     try:
         parser = JobParser()
-        # If url provided, we could potentially use it, but for now we rely on text as requested
-        result = parser.parse_job_text(request.description)
+        # Run blocking parser in a separate thread to avoid blocking the event loop
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, parser.parse_job_text, request.description)
         return result
     except Exception as e:
         logger.error(f"Error in parse_job_description: {e}")
