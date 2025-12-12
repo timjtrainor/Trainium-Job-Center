@@ -920,6 +920,8 @@ const generateDocx = async (resume: Resume | AiWorkflowResume, companyName: stri
         education.forEach(edu => {
             docChildren.push(
                 new Paragraph({
+                    // Set spacing after to 40 twips (approx 2pt)
+                    spacing: { after: 40 },
                     children: [
                         new TextRun({ text: `${edu.degree} in ${edu.major.join(', ')}`, bold: true, size: 24, font: "Calibri" }),
                         new TextRun({ children: [new Tab(), `${edu.start_year} - ${edu.end_year}`], size: 24, font: "Calibri" }),
@@ -934,15 +936,22 @@ const generateDocx = async (resume: Resume | AiWorkflowResume, companyName: stri
     if (certifications && certifications.length > 0) {
         docChildren.push(new Paragraph({ style: "Section", text: "Certifications" }));
         certifications.forEach(cert => {
+            // Extract year from issued_date
+            let year = "";
+            if (cert.issued_date) {
+                const yearMatch = cert.issued_date.match(/\b(19|20)\d{2}\b/);
+                year = yearMatch ? yearMatch[0] : cert.issued_date;
+            }
+
             docChildren.push(
                 new Paragraph({
                     children: [
                         new TextRun({ text: cert.name, bold: true, size: 24, font: "Calibri" }),
-                        new TextRun({ children: [new Tab(), cert.issued_date], size: 24, font: "Calibri" }),
+                        new TextRun({ text: ` - ${cert.organization}`, size: 24, font: "Calibri" }),
+                        new TextRun({ children: [new Tab(), year], size: 24, font: "Calibri" }),
                     ],
                     tabStops: [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX }],
-                }),
-                new Paragraph({ style: "EduOther", text: cert.organization })
+                })
             );
         });
     }

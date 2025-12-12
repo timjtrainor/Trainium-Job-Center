@@ -452,6 +452,46 @@ class ChromaService:
             logger.error(f"Failed to delete document '{document_id}' from collection '{collection_name}': {e}")
             return False
 
+    def _deduplicate_chunks(self, chunks: List[str]) -> str:
+        """
+        Merge overlapping chunks to reconstruct the original text.
+        Assumes chunks are in correct sequence and may overlap.
+        """
+        if not chunks:
+            return ""
+        if len(chunks) == 1:
+            return chunks[0]
+
+        merged_text = chunks[0]
+
+        for i in range(1, len(chunks)):
+            prev_chunk = chunks[i-1]
+            current_chunk = chunks[i]
+            
+            # Find overlap
+            # We look for the longest suffix of prev_chunk that matches a prefix of current_chunk
+            # We restrict search to a reasonable window (e.g., last 200 chars) to valid false positives
+            
+            overlap_len = 0
+            # Default overlap in _chunk_text is usually small (e.g. 50 words), so 1000 chars is safe upper bound
+            search_window_size = min(len(prev_chunk), 2000) 
+            search_window = prev_chunk[-search_window_size:]
+            
+            # Try to find the overlap
+            for j in range(len(search_window)):
+                suffix = search_window[j:]
+                if current_chunk.startswith(suffix):
+                    overlap_len = len(suffix)
+                    break
+            
+            if overlap_len > 0:
+                merged_text += current_chunk[overlap_len:]
+            else:
+                # No overlap found, just append (should ideally not happen if chunking is consistent)
+                merged_text += current_chunk
+
+        return merged_text
+
     async def get_document_detail(self, collection_name: str, document_id: str) -> Dict[str, Any]:
         """Retrieve full document content and metadata for a specific document."""
         client = self._get_client()
@@ -499,7 +539,8 @@ class ChromaService:
             raise ValueError(f"Document '{document_id}' not found in collection '{collection_name}'")
 
         chunks.sort(key=lambda item: item[0])
-        content = "\n\n".join(chunk for _, chunk in chunks)
+        # Use deduplication logic instead of simple join
+        content = self._deduplicate_chunks([chunk for _, chunk in chunks])
 
         parsed_metadata = self._parse_metadata(aggregated_metadata)
 
@@ -751,7 +792,10 @@ class ChromaService:
 
         # Aggregate chunks
         latest_doc["chunks"].sort(key=lambda x: x["seq"])
-        content = "\n\n".join(chunk["content"] for chunk in latest_doc["chunks"])
+        
+        # Use deduplication logic instead of simple join
+        chunk_contents = [chunk["content"] for chunk in latest_doc["chunks"]]
+        content = self._deduplicate_chunks(chunk_contents)
 
         # Extract metadata fields only (exclude document structure fields)
         metadata_only = {
@@ -837,25 +881,27 @@ class ChromaService:
                 latest_timestamp = doc_timestamp
 
         if not latest_doc:
+            # Should be caught by the empty result check, but just in case
             raise ValueError(f"No valid proof points found for company '{company}'")
 
         # Aggregate chunks
         latest_doc["chunks"].sort(key=lambda x: x["seq"])
-        content = "\n\n".join(chunk["content"] for chunk in latest_doc["chunks"])
+        
+        # Use deduplication logic
+        chunk_contents = [chunk["content"] for chunk in latest_doc["chunks"]]
+        content = self._deduplicate_chunks(chunk_contents)
 
-        # Extract metadata fields only (exclude document structure fields)
+        # Extract metadata
         metadata_only = {
             k: v for k, v in latest_doc.items()
-            if k not in ["chunks", "id", "title", "company", "uploaded_at", "updated_at", "latest_version"]
+            if k not in ["chunks", "id", "title", "company", "uploaded_at", "updated_at"]
         }
-
-        # Parse metadata
         parsed_metadata = self._parse_metadata(metadata_only)
 
         return {
             "id": latest_doc["id"],
             "title": latest_doc["title"],
-            "collection_name": "proof_points",
+            "collection_name": collection_name,
             "company": latest_doc["company"],
             "metadata": parsed_metadata,
             "content": content,
