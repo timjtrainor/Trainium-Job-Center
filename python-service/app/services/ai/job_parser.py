@@ -116,9 +116,14 @@ class JobParser:
             if isinstance(value, (int, float)):
                 return float(value)
             if isinstance(value, str):
-                # Remove currency symbols and commas
-                clean = re.sub(r'[^\d.]', '', value)
-                return float(clean)
+                # Match a valid float with optional negative sign and commas (US format)
+                # Examples: "1,000.50", "-1000.50", "1000", "-1,000"
+                match = re.match(r'^\s*([-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?|[-+]?\d+(?:\.\d+)?)(?!\S)', value)
+                if match:
+                    num_str = match.group(1).replace(',', '')
+                    return float(num_str)
+                else:
+                    return None
         except ValueError:
             return None
         return None
