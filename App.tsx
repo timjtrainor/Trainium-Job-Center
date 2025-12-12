@@ -1633,6 +1633,11 @@ const AppContent = () => {
                                 setJobDetails(prev => ({ ...prev, jobLink }));
                                 addToast('Job link updated!', 'success');
                             }}
+                            onUpdateSalary={async (appId, salary) => {
+                                await handleUpdateApplication(appId, { salary });
+                                setJobDetails(prev => ({ ...prev, salary }));
+                                addToast('Salary updated!', 'success');
+                            }}
                             jobTitle={jobDetails.jobTitle}
                             salary={jobDetails.salary}
                             jobDescription={jobDetails.jobDescription}

@@ -28,7 +28,7 @@ export const ResumePreviewForPdf = forwardRef<HTMLDivElement, ResumePreviewProps
                 <h1 className="text-3xl font-bold tracking-wider">{header.first_name} {header.last_name}</h1>
                 <p className="text-xl font-medium mt-1">{header.job_title}</p>
                 <p className="text-xs mt-2">
-                    {header.city}, {header.state} | {header.email} | {header.phone_number}
+                    {header.city} | {header.state} | {header.email} | {header.phone_number}
                     {header.links && header.links.length > 0 && ` | ${header.links.join(' | ')}`}
                 </p>
             </div>
@@ -83,19 +83,19 @@ export const ResumePreviewForPdf = forwardRef<HTMLDivElement, ResumePreviewProps
             )}
 
             {certifications && certifications.length > 0 && (
-                 <Section title="Certifications">
+                <Section title="Certifications">
                     {certifications.map((cert, index) => (
                         <div key={index} className={index > 0 ? 'mt-2' : ''}>
                             <div className="flex justify-between items-baseline">
                                 <h3 className="text-base font-semibold">{cert.name}</h3>
                                 <p className="text-sm">{new Date(cert.issued_date + 'T00:00:00').toLocaleDateString("en-US", { month: 'long', year: 'numeric', timeZone: 'UTC' })}</p>
                             </div>
-                             <p className="text-sm italic">{cert.organization}</p>
+                            <p className="text-sm italic">{cert.organization}</p>
                         </div>
                     ))}
                 </Section>
             )}
-            
+
             {skills && skills.length > 0 && (
                 <Section title="Skills">
                     <div className="text-sm leading-relaxed">

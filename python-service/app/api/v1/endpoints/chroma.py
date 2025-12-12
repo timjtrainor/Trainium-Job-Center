@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from fastapi.responses import JSONResponse
-from typing import List, Optional
+from typing import List, Optional, Dict
 from loguru import logger
 import json
 
@@ -13,6 +13,7 @@ from ....schemas.chroma import (
     ChromaCollectionInfo
 )
 from ....services.chroma_service import ChromaService
+from ....services.chroma_manager import get_chroma_manager
 from ....schemas.responses import create_success_response, create_error_response
 
 
@@ -22,6 +23,11 @@ router = APIRouter()
 def get_chroma_service() -> ChromaService:
     """Dependency to get ChromaService instance."""
     return ChromaService()
+
+
+def get_chroma_manager_instance():
+    """Dependency to get ChromaManager instance."""
+    return get_chroma_manager()
 
 
 def _list_collection_names(service: ChromaService) -> List[str]:
@@ -453,42 +459,107 @@ async def list_collection_documents(
 @router.get("/documents")
 async def get_documents(
     profile_id: str,
-    chroma_service: ChromaService = Depends(get_chroma_service)
+    chroma_manager = Depends(get_chroma_manager_instance)
 ):
     """Get all documents for a specific profile ID across all document collections."""
     try:
-        await chroma_service.initialize()
+        await chroma_manager.initialize()
 
-        collection_names = _list_collection_names(chroma_service)
+        # Ensure all default collections exist
+        for config in chroma_manager.list_registered_collections():
+            await chroma_manager.ensure_collection_exists(config.name)
+
+        # Get ChromaDB client to access collections directly
+        client = chroma_manager._get_client()
+
+        # Get all collections that should contain user documents
+        document_collections = [
+            "career_brand",
+            "proof_points",
+            "resumes",
+            "job_postings",
+            "company_profiles",
+            "documents"
+        ]
+
         all_documents: List[dict] = []
 
-        for collection_name in collection_names:
+        for collection_name in document_collections:
             try:
-                documents = await chroma_service.list_documents(collection_name)
+                # Ensure collection exists
+                if not await chroma_manager.ensure_collection_exists(collection_name):
+                    logger.warning(f"Could not ensure collection '{collection_name}' exists")
+                    continue
+
+                # Get collection
+                collection = client.get_collection(collection_name)
+
+                # Get all documents from this collection
+                result = collection.get(include=["metadatas", "documents"])
+
+                ids = result.get("ids", []) or []
+                metadatas = result.get("metadatas", []) or []
+                documents = result.get("documents", []) or []
+
+                # Group by document ID (since ChromaDB chunks documents)
+                grouped_docs: Dict[str, dict] = {}
+
+                for idx, chunk_id in enumerate(ids):
+                    metadata = metadatas[idx] if idx < len(metadatas) else {}
+                    document_text = documents[idx] if idx < len(documents) else ""
+
+                    if not metadata:
+                        continue
+
+                    # Filter by profile_id
+                    doc_profile_id = metadata.get("profile_id")
+                    if doc_profile_id and doc_profile_id != profile_id:
+                        continue
+
+                    document_id = metadata.get("doc_id", chunk_id.split("::")[0] if "::" in chunk_id else chunk_id)
+
+                    entry = grouped_docs.setdefault(
+                        document_id,
+                        {
+                            "id": document_id,
+                            "title": metadata.get("title", "Untitled"),
+                            "profile_id": doc_profile_id or "",
+                            "content_type": collection_name,  # Use collection name as content_type
+                            "collection_name": collection_name,
+                            "section": metadata.get("section", ""),
+                            "created_at": metadata.get("created_at") or metadata.get("uploaded_at"),
+                            "chunk_count": 0,
+                            "content_snippet": document_text,
+                            "metadata": metadata,
+                            "_latest_seq": metadata.get("seq", 0),
+                        },
+                    )
+
+                    entry["chunk_count"] += 1
+
+                    # Prefer metadata from the most recent chunk
+                    entry_uploaded = entry["metadata"].get("uploaded_at")
+                    current_uploaded = metadata.get("uploaded_at")
+                    if current_uploaded and (not entry_uploaded or current_uploaded > entry_uploaded):
+                        entry["metadata"] = metadata
+
+                    # Store snippet from lowest sequence chunk
+                    current_seq = metadata.get("seq", 0)
+                    if current_seq < entry.get("_latest_seq", current_seq + 1):
+                        entry["_latest_seq"] = current_seq
+                        entry["content_snippet"] = document_text
+
+                # Add grouped documents to results
+                for doc in grouped_docs.values():
+                    # Remove internal fields
+                    doc.pop("_latest_seq", None)
+                    # Truncate content snippet
+                    doc["content_snippet"] = doc["content_snippet"][:500] if doc.get("content_snippet") else ""
+                    all_documents.append(doc)
+
             except Exception as exc:  # pragma: no cover - defensive guard
                 logger.warning(f"Failed to list documents for collection '{collection_name}': {exc}")
                 continue
-
-            for document in documents:
-                metadata = document.get("metadata", {}) or {}
-                doc_profile_id = metadata.get("profile_id")
-                if doc_profile_id and doc_profile_id != profile_id:
-                    continue
-
-                all_documents.append(
-                    {
-                        "id": document["id"],
-                        "title": document.get("title", "Untitled"),
-                        "profile_id": doc_profile_id or "",
-                        "content_type": document.get("collection_name", collection_name),
-                        "collection_name": document.get("collection_name", collection_name),
-                        "section": document.get("section", ""),
-                        "created_at": document.get("created_at"),
-                        "chunk_count": document.get("chunk_count", 0),
-                        "content_snippet": document.get("content_snippet", ""),
-                        "metadata": metadata,
-                    }
-                )
 
         all_documents.sort(
             key=lambda doc: doc.get("created_at") or "",
@@ -502,6 +573,73 @@ async def get_documents(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get documents: {str(e)}"
+        )
+
+
+@router.get("/documents/by-dimension")
+async def get_document_by_dimension(
+    dimension: str,
+    collection: str = "career_brand",  # Default collection
+    encode_content: bool = False,  # Option to base64 encode content
+    chroma_service: ChromaService = Depends(get_chroma_service)
+):
+    """Retrieve the latest document for a specific dimension."""
+    try:
+        await chroma_service.initialize()
+        detail = await chroma_service.get_latest_document_by_dimension(collection, dimension)
+
+        # Optionally base64 encode content for safe JSON embedding
+        if encode_content:
+            import base64
+            detail["content"] = base64.b64encode(detail["content"].encode('utf-8')).decode('utf-8')
+            detail["content_encoded"] = True
+
+        return detail
+
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(
+            f"Failed to fetch document for dimension '{dimension}': {exc}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get document for dimension: {str(exc)}",
+        )
+
+
+@router.get("/documents/proof-points/by-company")
+async def get_proof_points_by_company(
+    company: str,
+    encode_content: bool = False,  # Option to base64 encode content
+    chroma_service: ChromaService = Depends(get_chroma_service)
+):
+    """Retrieve the latest proof points document for a specific company."""
+    try:
+        await chroma_service.initialize()
+        detail = await chroma_service.get_latest_proof_points_by_company(company, "proof_points")
+
+        # Optionally base64 encode content for safe JSON embedding
+        if encode_content:
+            import base64
+            detail["content"] = base64.b64encode(detail["content"].encode('utf-8')).decode('utf-8')
+            detail["content_encoded"] = True
+
+        return detail
+
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(
+            f"Failed to fetch proof points for company '{company}': {exc}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get proof points for company: {str(exc)}",
         )
 
 
@@ -528,6 +666,66 @@ async def get_document_detail(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get document detail: {str(exc)}",
+        )
+
+
+@router.patch("/documents/{collection_name}/{document_id}")
+async def update_document_metadata(
+    collection_name: str,
+    document_id: str,
+    metadata: dict,
+    chroma_service: ChromaService = Depends(get_chroma_service)
+):
+    """Update metadata for a specific document and automatically set updated_at timestamp."""
+    try:
+        await chroma_service.initialize()
+
+        # Add automatic updated_at timestamp
+        from datetime import datetime, timezone
+        metadata["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        # First try the specified collection
+        success = await chroma_service.update_document_metadata(collection_name, document_id, metadata)
+
+        if success:
+            return create_success_response(
+                message=f"Successfully updated metadata for document '{document_id}' in collection '{collection_name}'",
+                data={"document_id": document_id, "collection_name": collection_name, "updated_metadata": metadata}
+            )
+
+        # If not found in specified collection, search across all collections
+        logger.info(f"Document '{document_id}' not found in '{collection_name}', searching all collections")
+        document_collections = _list_collection_names(chroma_service)
+
+        for coll_name in document_collections:
+            if coll_name == collection_name:
+                continue  # Already tried this one
+
+            try:
+                success = await chroma_service.update_document_metadata(coll_name, document_id, metadata)
+                if success:
+                    logger.info(f"Found and updated document '{document_id}' in collection '{coll_name}'")
+                    return create_success_response(
+                        message=f"Successfully updated metadata for document '{document_id}' in collection '{coll_name}'",
+                        data={"document_id": document_id, "collection_name": coll_name, "updated_metadata": metadata}
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to check collection '{coll_name}': {e}")
+                continue
+
+        # Document not found in any collection
+        raise HTTPException(
+            status_code=404,
+            detail=f"Document '{document_id}' not found in any collection"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update document metadata '{document_id}': {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update document metadata: {str(e)}"
         )
 
 

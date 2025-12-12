@@ -513,3 +513,239 @@ class ChromaService:
             "created_at": parsed_metadata.get("created_at")
             or parsed_metadata.get("uploaded_at"),
         }
+
+    async def update_document_metadata(self, collection_name: str, document_id: str, metadata_updates: Dict[str, Any]) -> bool:
+        """Update metadata for all chunks of a specific document."""
+        try:
+            client = self._get_client()
+            collection = client.get_collection(collection_name)
+
+            # First try with doc_id filter
+            where_clause = self._build_where_clause({"doc_id": document_id})
+            result = collection.get(where=where_clause, include=["metadatas"])
+
+            if not result["ids"] or not result["metadatas"]:
+                # Fallback: scan entire collection for legacy documents
+                logger.info(f"Document '{document_id}' not found with doc_id filter, trying legacy scan")
+                fallback_result = collection.get(include=["metadatas", "ids"])
+
+                chunk_ids_to_update = []
+                current_metadatas = []
+
+                for i, chunk_id in enumerate(fallback_result["ids"]):
+                    metadata = fallback_result["metadatas"][i] if fallback_result["metadatas"] else {}
+                    doc_id = metadata.get("doc_id", chunk_id.split("::")[0] if "::" in chunk_id else chunk_id)
+
+                    if doc_id == document_id:
+                        chunk_ids_to_update.append(chunk_id)
+                        current_metadatas.append(metadata)
+
+                if not chunk_ids_to_update:
+                    logger.warning(f"Document '{document_id}' not found in collection '{collection_name}' even with legacy scan")
+                    return False
+
+                result = {"ids": chunk_ids_to_update, "metadatas": current_metadatas}
+
+            chunk_ids_to_update = result["ids"]
+            current_metadatas = result["metadatas"]
+
+            # Update each chunk's metadata
+            updated_metadatas = []
+            for metadata in current_metadatas:
+                if metadata is None:
+                    metadata = {}
+                # Create a copy and update with new metadata
+                updated_metadata = dict(metadata)
+                updated_metadata.update(metadata_updates)
+                updated_metadatas.append(updated_metadata)
+
+            # Update the metadata for all chunks
+            collection.update(ids=chunk_ids_to_update, metadatas=updated_metadatas)
+
+            logger.info(f"Successfully updated metadata for document '{document_id}' ({len(chunk_ids_to_update)} chunks) in collection '{collection_name}'")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to update document metadata '{document_id}' in collection '{collection_name}': {e}")
+            return False
+
+    async def get_latest_document_by_dimension(self, collection_name: str, dimension: str) -> Dict[str, Any]:
+        """Get the latest document for a specific dimension."""
+        client = self._get_client()
+        collection = client.get_collection(collection_name)
+
+        # Query for all chunks with this dimension
+        where_clause = self._build_where_clause({"dimension": dimension})
+        result = collection.get(where=where_clause, include=["metadatas", "documents"])
+
+        if not result["ids"]:
+            raise ValueError(f"No documents found for dimension '{dimension}' in collection '{collection_name}'")
+
+        # Group chunks by document ID
+        documents = {}
+
+        for idx, chunk_id in enumerate(result["ids"]):
+            metadata = result["metadatas"][idx] if result["metadatas"] else {}
+            document_text = result["documents"][idx] if result["documents"] else ""
+
+            doc_id = metadata.get("doc_id", chunk_id.split("::")[0] if "::" in chunk_id else chunk_id)
+
+            if doc_id not in documents:
+                documents[doc_id] = {
+                    "id": doc_id,
+                    "title": metadata.get("title", "Untitled"),
+                    "dimension": metadata.get("dimension"),
+                    "uploaded_at": metadata.get("uploaded_at"),
+                    "updated_at": metadata.get("updated_at"),
+                    "is_latest": metadata.get("is_latest", False),
+                    "chunks": []
+                }
+
+            documents[doc_id]["chunks"].append({
+                "seq": metadata.get("seq", 0),
+                "content": document_text
+            })
+
+        # Find the latest document
+        latest_doc = None
+        latest_timestamp = 0
+
+        for doc in documents.values():
+            # Check if this document is marked as latest
+            if doc["is_latest"]:
+                latest_doc = doc
+                break
+
+            # Otherwise, compare timestamps
+            doc_timestamp = 0
+            if doc.get("updated_at"):
+                try:
+                    doc_timestamp = datetime.fromisoformat(doc["updated_at"].replace('Z', '+00:00')).timestamp()
+                except (ValueError, AttributeError):
+                    pass
+            elif doc.get("uploaded_at"):
+                try:
+                    doc_timestamp = datetime.fromisoformat(doc["uploaded_at"].replace('Z', '+00:00')).timestamp()
+                except (ValueError, AttributeError):
+                    pass
+
+            if not latest_doc or doc_timestamp > latest_timestamp:
+                latest_doc = doc
+                latest_timestamp = doc_timestamp
+
+        if not latest_doc:
+            raise ValueError(f"No valid documents found for dimension '{dimension}'")
+
+        # Aggregate chunks
+        latest_doc["chunks"].sort(key=lambda x: x["seq"])
+        content = "\n\n".join(chunk["content"] for chunk in latest_doc["chunks"])
+
+        # Extract metadata fields only (exclude document structure fields)
+        metadata_only = {
+            k: v for k, v in latest_doc.items()
+            if k not in ["chunks", "id", "title", "dimension", "uploaded_at", "updated_at", "is_latest"]
+        }
+
+        # Parse metadata
+        parsed_metadata = self._parse_metadata(metadata_only)
+
+        return {
+            "id": latest_doc["id"],
+            "title": latest_doc["title"],
+            "collection_name": collection_name,
+            "dimension": latest_doc["dimension"],
+            "metadata": parsed_metadata,
+            "content": content,
+            "chunk_count": len(latest_doc["chunks"]),
+            "created_at": latest_doc.get("uploaded_at") or latest_doc.get("updated_at"),
+        }
+
+    async def get_latest_proof_points_by_company(self, company: str, collection_name: str = "proof_points") -> Dict[str, Any]:
+        """Get the latest proof points document for a specific company."""
+        client = self._get_client()
+        collection = client.get_collection(collection_name)
+
+        # Query for all chunks with this company and latest_version=true
+        where_clause = self._build_where_clause({
+            "company": company,
+            "latest_version": True
+        })
+        result = collection.get(where=where_clause, include=["metadatas", "documents"])
+
+        if not result["ids"]:
+            raise ValueError(f"No latest proof points found for company '{company}'")
+
+        # Group chunks by document ID
+        documents = {}
+
+        for idx, chunk_id in enumerate(result["ids"]):
+            metadata = result["metadatas"][idx] if result["metadatas"] else {}
+            document_text = result["documents"][idx] if result["documents"] else ""
+
+            doc_id = metadata.get("doc_id", chunk_id.split("::")[0] if "::" in chunk_id else chunk_id)
+
+            if doc_id not in documents:
+                documents[doc_id] = {
+                    **metadata,
+                    "id": doc_id,
+                    "title": metadata.get("title", "Untitled"),
+                    "company": metadata.get("company"),
+                    "uploaded_at": metadata.get("uploaded_at"),
+                    "updated_at": metadata.get("updated_at"),
+                    "latest_version": metadata.get("latest_version", False),
+                    "chunks": []
+                }
+
+            documents[doc_id]["chunks"].append({
+                "seq": metadata.get("seq", 0),
+                "content": document_text
+            })
+
+        # Find the latest document (should only be one with latest_version=true, but handle multiple just in case)
+        latest_doc = None
+        latest_timestamp = 0
+
+        for doc in documents.values():
+            # All should have latest_version=true, but compare timestamps just in case
+            doc_timestamp = 0
+            if doc.get("updated_at"):
+                try:
+                    doc_timestamp = datetime.fromisoformat(doc["updated_at"].replace('Z', '+00:00')).timestamp()
+                except (ValueError, AttributeError):
+                    pass
+            elif doc.get("uploaded_at"):
+                try:
+                    doc_timestamp = datetime.fromisoformat(doc["uploaded_at"].replace('Z', '+00:00')).timestamp()
+                except (ValueError, AttributeError):
+                    pass
+
+            if not latest_doc or doc_timestamp > latest_timestamp:
+                latest_doc = doc
+                latest_timestamp = doc_timestamp
+
+        if not latest_doc:
+            raise ValueError(f"No valid proof points found for company '{company}'")
+
+        # Aggregate chunks
+        latest_doc["chunks"].sort(key=lambda x: x["seq"])
+        content = "\n\n".join(chunk["content"] for chunk in latest_doc["chunks"])
+
+        # Extract metadata fields only (exclude document structure fields)
+        metadata_only = {
+            k: v for k, v in latest_doc.items()
+            if k not in ["chunks", "id", "title", "company", "uploaded_at", "updated_at", "latest_version"]
+        }
+
+        # Parse metadata
+        parsed_metadata = self._parse_metadata(metadata_only)
+
+        return {
+            "id": latest_doc["id"],
+            "title": latest_doc["title"],
+            "collection_name": "proof_points",
+            "company": latest_doc["company"],
+            "metadata": parsed_metadata,
+            "content": content,
+            "chunk_count": len(latest_doc["chunks"]),
+            "created_at": latest_doc.get("uploaded_at") or latest_doc.get("updated_at"),
+        }

@@ -80,6 +80,12 @@ const DocumentViewer = ({
     const [detailData, setDetailData] = useState<DocumentDetail | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [isDetailLoading, setIsDetailLoading] = useState(false);
+
+    const [editDocument, setEditDocument] = useState<UploadedDocument | null>(null);
+    const [editMetadata, setEditMetadata] = useState<Record<string, unknown>>({});
+    const [isEditOpen, setIsEditOpen] = useState(false);
+    const [isUpdatingMetadata, setIsUpdatingMetadata] = useState(false);
+
     const { addToast } = useToast();
 
     const handleDelete = async (doc: UploadedDocument) => {
@@ -115,6 +121,48 @@ const DocumentViewer = ({
         } finally {
             setIsDetailLoading(false);
         }
+    };
+
+    const handleEditMetadata = (doc: UploadedDocument) => {
+        setEditDocument(doc);
+        setEditMetadata(doc.metadata || {});
+        setIsEditOpen(true);
+    };
+
+    const closeEdit = () => {
+        setIsEditOpen(false);
+        setEditDocument(null);
+        setEditMetadata({});
+    };
+
+    const handleMetadataUpdate = async () => {
+        if (!editDocument) return;
+
+        setIsUpdatingMetadata(true);
+        try {
+            const result = await apiService.updateDocumentMetadata(
+                editDocument.collection_name || editDocument.content_type,
+                editDocument.id,
+                editMetadata
+            );
+
+            if (result.status === 'success') {
+                addToast('Metadata updated successfully!', 'success');
+                closeEdit();
+                onRefresh();
+            } else {
+                addToast('Failed to update metadata', 'error');
+            }
+        } catch (error) {
+            console.error(error);
+            addToast('Failed to update metadata', 'error');
+        } finally {
+            setIsUpdatingMetadata(false);
+        }
+    };
+
+    const handleMetadataChange = (key: string, value: unknown) => {
+        setEditMetadata(prev => ({ ...prev, [key]: value }));
     };
 
     const collectionOptions = useMemo(() => {
@@ -242,6 +290,12 @@ const DocumentViewer = ({
                                     View
                                 </button>
                                 <button
+                                    onClick={() => handleEditMetadata(doc)}
+                                    className="self-start md:self-auto px-3 py-2 text-sm font-semibold text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600"
+                                >
+                                    Edit Metadata
+                                </button>
+                                <button
                                     onClick={() => handleDelete(doc)}
                                     className="self-start md:self-auto p-2 text-red-500 hover:text-red-400"
                                     aria-label={`Delete ${doc.title}`}
@@ -312,6 +366,82 @@ const DocumentViewer = ({
                             ) : (
                                 <p className="text-sm text-slate-500">Document details could not be loaded.</p>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isEditOpen && editDocument && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                            <div>
+                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                                    Edit Metadata: {editDocument.title}
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    {editDocument.collection_name || editDocument.content_type}
+                                </p>
+                            </div>
+                            <button
+                                onClick={closeEdit}
+                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl"
+                                aria-label="Close edit modal"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                            <div className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+                                Last updated: {editDocument.metadata?.updated_at ? new Date(editDocument.metadata.updated_at as string).toLocaleString() : 'Never'}
+                            </div>
+
+                            {Object.entries(editMetadata).map(([key, value]) => (
+                                <div key={key}>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                        {key}
+                                    </label>
+                                    {typeof value === 'boolean' ? (
+                                        <input
+                                            type="checkbox"
+                                            checked={value}
+                                            onChange={(e) => handleMetadataChange(key, e.target.checked)}
+                                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                    ) : Array.isArray(value) ? (
+                                        <input
+                                            type="text"
+                                            value={value.join(', ')}
+                                            onChange={(e) => handleMetadataChange(key, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                                            className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"
+                                            placeholder="Comma-separated values"
+                                        />
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            value={String(value)}
+                                            onChange={(e) => handleMetadataChange(key, e.target.value)}
+                                            className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"
+                                        />
+                                    )}
+                                </div>
+                            ))}
+
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={handleMetadataUpdate}
+                                    disabled={isUpdatingMetadata}
+                                    className="flex-1 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 disabled:bg-blue-400"
+                                >
+                                    {isUpdatingMetadata ? 'Updating...' : 'Update Metadata'}
+                                </button>
+                                <button
+                                    onClick={closeEdit}
+                                    className="px-4 py-2 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

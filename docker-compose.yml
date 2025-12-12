@@ -183,7 +183,7 @@ services:
       DISABLE_JOB_POSTING_REVIEW: ${DISABLE_JOB_POSTING_REVIEW}
       JOB_REVIEW_ENABLED: ${JOB_REVIEW_ENABLED}
     deploy:
-      replicas: 5   # Number of workers
+      replicas: 2   # Number of workers
     depends_on:
       redis:
         condition: service_healthy

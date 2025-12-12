@@ -59,7 +59,7 @@ const safeGetNumber = (val: unknown): number | '' => (typeof val === 'number' ? 
 
 export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, onAutoSave, isLoading, prompts, commonKeywords, onSetDefault }: ResumeEditorViewProps): React.ReactNode => {
     const [editableResume, setEditableResume] = useState<BaseResume | null>(null);
-    const [editingAchievement, setEditingAchievement] = useState<{achievement: ResumeAccomplishment, expIndex: number, accIndex: number} | null>(null);
+    const [editingAchievement, setEditingAchievement] = useState<{ achievement: ResumeAccomplishment, expIndex: number, accIndex: number } | null>(null);
     const [isSummaryPanelOpen, setIsSummaryPanelOpen] = useState(false);
     const [isCombineModalOpen, setIsCombineModalOpen] = useState(false);
     const [combineSuggestions, setCombineSuggestions] = useState<CombinedAchievementSuggestion[]>([]);
@@ -69,7 +69,7 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [showFloatingSave, setShowFloatingSave] = useState(false);
-    
+
     // State for preview functionality
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
     const [isPreviewReady, setIsPreviewReady] = useState(false);
@@ -104,14 +104,14 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                     if (acc.order_index === undefined) acc.order_index = index;
                 });
                 // Ensure accomplishments are sorted by order_index
-                exp.accomplishments.sort((a,b) => a.order_index - b.order_index);
+                exp.accomplishments.sort((a, b) => a.order_index - b.order_index);
             });
             setEditableResume(deepCopy);
         } else {
             setEditableResume(null);
         }
     }, [resume]);
-    
+
     // --- State Update Handlers ---
 
     const handleResumeChange = (updater: (draft: BaseResume) => void) => {
@@ -122,12 +122,12 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
             return newResume;
         });
     };
-    
+
     const handleSaveAchievement = (updatedAchievement: ResumeAccomplishment) => {
         if (!editingAchievement) return;
-        const {expIndex, accIndex} = editingAchievement;
+        const { expIndex, accIndex } = editingAchievement;
         handleResumeChange(draft => {
-            if(draft.content)
+            if (draft.content)
                 draft.content.work_experience[expIndex].accomplishments[accIndex] = updatedAchievement;
         });
         setEditingAchievement(null);
@@ -135,15 +135,15 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
 
     const handleSaveSummary = (newSummary: string) => {
         handleResumeChange(draft => {
-            if(draft.content?.summary)
+            if (draft.content?.summary)
                 draft.content.summary.paragraph = newSummary;
         });
     };
 
     const handleOpenRefinementPanel = (achievement: ResumeAccomplishment, expIndex: number, accIndex: number) => {
-        setEditingAchievement({achievement, expIndex, accIndex});
+        setEditingAchievement({ achievement, expIndex, accIndex });
     };
-    
+
     const handleSave = async (andExit: boolean = false) => {
         if (!editableResume) return;
         setIsSaving(true);
@@ -152,7 +152,7 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
             await onSave(editableResume);
             setSaveSuccess(true);
             setTimeout(() => setSaveSuccess(false), 2000);
-            if(andExit) {
+            if (andExit) {
                 onCancel(); // Use the onCancel prop to navigate back
             }
         } catch (e) {
@@ -190,12 +190,12 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
         });
         setDraggedItem(null);
     };
-    
+
     const handleCombineClick = async (expIndex: number) => {
         if (!editableResume?.content) return;
         const experience = editableResume.content.work_experience[expIndex];
         if (!experience || experience.accomplishments.length < 2) return;
-        
+
         setIsCombining(true);
         setEditingExperienceIndex(expIndex);
 
@@ -215,10 +215,10 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
             setIsCombining(false);
         }
     };
-    
+
     const handleApplyCombinedSuggestion = (suggestionGroup: CombinedAchievementSuggestion, chosenSuggestion: string) => {
         if (editingExperienceIndex === null) return;
-        
+
         handleResumeChange(draft => {
             const experienceToUpdate = draft.content?.work_experience[editingExperienceIndex];
             if (!experienceToUpdate) return;
@@ -231,7 +231,7 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                 order_index: experienceToUpdate.accomplishments.length // Will be re-ordered later
             };
             // Remove old items in reverse index order to avoid shifting
-            suggestionGroup.original_indices.sort((a,b) => b-a).forEach(indexToRemove => {
+            suggestionGroup.original_indices.sort((a, b) => b - a).forEach(indexToRemove => {
                 experienceToUpdate.accomplishments.splice(indexToRemove, 1);
             });
             // Add the new combined one and re-index
@@ -243,14 +243,14 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
         setCombineSuggestions([]);
         setEditingExperienceIndex(null);
     };
-    
+
     const handleGeneratePreview = async () => {
         if (!editableResume?.content || !previewJobTitle || !previewCompanyName) {
             // Can set an error state for the modal here
             return;
         }
         setIsGeneratingPreview(true);
-    
+
         try {
             // Create a direct "what you see is what you get" preview. No AI re-writing.
             const previewContent: Resume = {
@@ -281,7 +281,7 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
         match_strength: 0.8,
         resume_boost: true
     }));
-    
+
     if (!editableResume || !editableResume.content) {
         return (
             <div className="flex items-center justify-center h-[50vh]">
@@ -290,12 +290,12 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
             </div>
         );
     }
-    
+
     const isDefault = editableResume?.resume_id === activeNarrative?.default_resume_id;
 
     return (
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 sm:p-8 border border-slate-200 dark:border-slate-700 animate-fade-in">
-             {editingAchievement && (
+            {editingAchievement && (
                 <AchievementRefinementPanel
                     isOpen={!!editingAchievement}
                     onClose={() => setEditingAchievement(null)}
@@ -306,14 +306,14 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                     jobContext={{
                         jobTitle: 'Various Roles',
                         companyName: 'Various Companies',
-                        keywords: { 
+                        keywords: {
                             hard_keywords: commonKeywordsAsResult,
                             soft_keywords: []
                         }
                     }}
                 />
             )}
-             {showFloatingSave && (
+            {showFloatingSave && (
                 <div className="fixed bottom-6 right-6 z-40">
                     <button
                         type="button"
@@ -351,7 +351,7 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                     </button>
                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Resume Editor</h2>
                 </div>
-                 <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4">
                     <button
                         type="button"
                         onClick={() => setIsPreviewModalOpen(true)}
@@ -376,26 +376,26 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                                     onClick={() => editableResume && onSetDefault(editableResume.resume_id)}
                                     disabled={isDefault || isLoading}
                                     className={`inline-flex items-center gap-x-1.5 rounded-md px-3 py-2 text-sm font-semibold shadow-sm ring-1 ring-inset disabled:cursor-not-allowed disabled:opacity-50
-                                        ${isDefault 
-                                            ? 'bg-green-100 text-green-700 ring-green-300 dark:bg-green-900/50 dark:text-green-300 dark:ring-green-700' 
+                                        ${isDefault
+                                            ? 'bg-green-100 text-green-700 ring-green-300 dark:bg-green-900/50 dark:text-green-300 dark:ring-green-700'
                                             : 'bg-white text-gray-900 ring-gray-300 hover:bg-gray-50 dark:bg-slate-700 dark:text-white dark:ring-slate-600 dark:hover:bg-slate-600'}`}
                                 >
-                                    {isDefault && <CheckIcon className="h-5 w-5 -ml-1"/>}
+                                    {isDefault && <CheckIcon className="h-5 w-5 -ml-1" />}
                                     {isDefault ? 'Default' : `Set as Default for ${activeNarrative?.narrative_name}`}
                                 </button>
                             </div>
                         </div>
                     </FormSection>
-                    
+
                     <FormSection title="Header Info">
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div><label htmlFor="first_name" className={labelClass}>First Name</label><input type="text" id="first_name" value={safeGetString(editableResume.content.header?.first_name)} onChange={e => handleResumeChange(draft => { if(draft.content?.header) draft.content.header.first_name = e.target.value })} className={inputClass} /></div>
-                            <div><label htmlFor="last_name" className={labelClass}>Last Name</label><input type="text" id="last_name" value={safeGetString(editableResume.content.header?.last_name)} onChange={e => handleResumeChange(draft => { if(draft.content?.header) draft.content.header.last_name = e.target.value })} className={inputClass} /></div>
-                            <div><label htmlFor="email" className={labelClass}>Email</label><input type="email" id="email" value={safeGetString(editableResume.content.header?.email)} onChange={e => handleResumeChange(draft => { if(draft.content?.header) draft.content.header.email = e.target.value })} className={inputClass} /></div>
-                            <div><label htmlFor="phone_number" className={labelClass}>Phone</label><input type="tel" id="phone_number" value={safeGetString(editableResume.content.header?.phone_number)} onChange={e => handleResumeChange(draft => { if(draft.content?.header) draft.content.header.phone_number = e.target.value })} className={inputClass} /></div>
-                            <div><label htmlFor="city" className={labelClass}>City</label><input type="text" id="city" value={safeGetString(editableResume.content.header?.city)} onChange={e => handleResumeChange(draft => { if(draft.content?.header) draft.content.header.city = e.target.value })} className={inputClass} /></div>
-                            <div><label htmlFor="state" className={labelClass}>State</label><input type="text" id="state" value={safeGetString(editableResume.content.header?.state)} onChange={e => handleResumeChange(draft => { if(draft.content?.header) draft.content.header.state = e.target.value })} className={inputClass} /></div>
-                            <div className="sm:col-span-2"><label htmlFor="links" className={labelClass}>Links (one per line)</label><textarea id="links" rows={3} value={(Array.isArray(editableResume.content.header?.links) ? editableResume.content.header.links.filter(l => typeof l === 'string') : []).join('\n')} onChange={e => handleResumeChange(draft => { if(draft.content?.header) draft.content.header.links = e.target.value.split('\n') })} className={textareaClass} /></div>
+                            <div><label htmlFor="first_name" className={labelClass}>First Name</label><input type="text" id="first_name" value={safeGetString(editableResume.content.header?.first_name)} onChange={e => handleResumeChange(draft => { if (draft.content?.header) draft.content.header.first_name = e.target.value })} className={inputClass} /></div>
+                            <div><label htmlFor="last_name" className={labelClass}>Last Name</label><input type="text" id="last_name" value={safeGetString(editableResume.content.header?.last_name)} onChange={e => handleResumeChange(draft => { if (draft.content?.header) draft.content.header.last_name = e.target.value })} className={inputClass} /></div>
+                            <div><label htmlFor="email" className={labelClass}>Email</label><input type="email" id="email" value={safeGetString(editableResume.content.header?.email)} onChange={e => handleResumeChange(draft => { if (draft.content?.header) draft.content.header.email = e.target.value })} className={inputClass} /></div>
+                            <div><label htmlFor="phone_number" className={labelClass}>Phone</label><input type="tel" id="phone_number" value={safeGetString(editableResume.content.header?.phone_number)} onChange={e => handleResumeChange(draft => { if (draft.content?.header) draft.content.header.phone_number = e.target.value })} className={inputClass} /></div>
+                            <div><label htmlFor="city" className={labelClass}>City</label><input type="text" id="city" value={safeGetString(editableResume.content.header?.city)} onChange={e => handleResumeChange(draft => { if (draft.content?.header) draft.content.header.city = e.target.value })} className={inputClass} /></div>
+                            <div><label htmlFor="state" className={labelClass}>State</label><input type="text" id="state" value={safeGetString(editableResume.content.header?.state)} onChange={e => handleResumeChange(draft => { if (draft.content?.header) draft.content.header.state = e.target.value })} className={inputClass} /></div>
+                            <div className="sm:col-span-2"><label htmlFor="links" className={labelClass}>Links (one per line)</label><textarea id="links" rows={3} value={(Array.isArray(editableResume.content.header?.links) ? editableResume.content.header.links.filter(l => typeof l === 'string') : []).join('\n')} onChange={e => handleResumeChange(draft => { if (draft.content?.header) draft.content.header.links = e.target.value.split('\n') })} className={textareaClass} /></div>
                         </div>
                     </FormSection>
 
@@ -403,24 +403,24 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                         <div className="flex justify-between items-center"><label htmlFor="summary" className={labelClass}>Summary Paragraph</label><button type="button" onClick={() => setIsSummaryPanelOpen(true)} className="p-1 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200" title="Refine with AI"><SparklesIcon className="w-5 h-5" /></button></div>
                         <textarea id="summary" rows={4} value={safeGetString(editableResume.content.summary?.paragraph)} onChange={e => handleSaveSummary(e.target.value)} className={textareaClass} />
                     </FormSection>
-                    
+
                     <FormSection title="Work Experience" onAdd={() => handleResumeChange(draft => draft.content?.work_experience.push({ company_name: '', job_title: '', location: '', start_date: { month: 1, year: 2024 }, end_date: { month: 1, year: 2024 }, is_current: false, filter_accomplishment_count: 3, accomplishments: [] }))} addLabel="Add Experience">
                         {(Array.isArray(editableResume.content.work_experience) ? editableResume.content.work_experience : []).map((exp, expIdx) => {
                             if (typeof exp !== 'object' || !exp) return null;
                             return (
                                 <ArrayItemWrapper key={expIdx} onRemove={() => handleResumeChange(draft => { draft.content?.work_experience.splice(expIdx, 1) })}>
                                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
-                                        <div className="sm:col-span-3"><label className={labelClass}>Company</label><input type="text" value={safeGetString(exp.company_name)} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.work_experience[expIdx].company_name = e.target.value })} className={inputClass} /></div>
-                                        <div className="sm:col-span-3"><label className={labelClass}>Job Title</label><input type="text" value={safeGetString(exp.job_title)} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.work_experience[expIdx].job_title = e.target.value })} className={inputClass} /></div>
-                                        <div className="sm:col-span-2"><label className={labelClass}>Location</label><input type="text" value={safeGetString(exp.location)} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.work_experience[expIdx].location = e.target.value })} className={inputClass} /></div>
-                                        <div className="sm:col-span-2"><label className={labelClass}>Accomplishments to Show</label><input type="number" value={safeGetNumber(exp.filter_accomplishment_count)} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.work_experience[expIdx].filter_accomplishment_count = parseInt(e.target.value, 10) || 0 })} className={inputClass} /></div>
-                                        <div className="sm:col-span-2 flex items-end pb-1"><div className="relative flex items-start"><div className="flex h-6 items-center"><input id={`current-${expIdx}`} type="checkbox" checked={exp.is_current} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.work_experience[expIdx].is_current = e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /></div><div className="ml-3 text-sm leading-6"><label htmlFor={`current-${expIdx}`} className={labelClass}>Current</label></div></div></div>
-                                        <div className="sm:col-span-3 grid grid-cols-2 gap-2"><label className={`${labelClass} col-span-2`}>Start Date</label><input type="number" placeholder="MM" value={safeGetNumber(exp.start_date?.month)} onChange={e => handleResumeChange(draft => { if(draft.content?.work_experience[expIdx].start_date) draft.content.work_experience[expIdx].start_date.month = parseInt(e.target.value) })} className={inputClass} /><input type="number" placeholder="YYYY" value={safeGetNumber(exp.start_date?.year)} onChange={e => handleResumeChange(draft => { if(draft.content?.work_experience[expIdx].start_date) draft.content.work_experience[expIdx].start_date.year = parseInt(e.target.value) })} className={inputClass} /></div>
-                                        <div className="sm:col-span-3 grid grid-cols-2 gap-2"><label className={`${labelClass} col-span-2`}>End Date</label><input type="number" placeholder="MM" disabled={exp.is_current} value={safeGetNumber(exp.end_date?.month)} onChange={e => handleResumeChange(draft => { if(draft.content?.work_experience[expIdx].end_date) draft.content.work_experience[expIdx].end_date.month = parseInt(e.target.value) })} className={`${inputClass} disabled:bg-slate-100 dark:disabled:bg-slate-700`} /><input type="number" placeholder="YYYY" disabled={exp.is_current} value={safeGetNumber(exp.end_date?.year)} onChange={e => handleResumeChange(draft => { if(draft.content?.work_experience[expIdx].end_date) draft.content.work_experience[expIdx].end_date.year = parseInt(e.target.value) })} className={`${inputClass} disabled:bg-slate-100 dark:disabled:bg-slate-700`} /></div>
-                                        
+                                        <div className="sm:col-span-3"><label className={labelClass}>Company</label><input type="text" value={safeGetString(exp.company_name)} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.work_experience[expIdx].company_name = e.target.value })} className={inputClass} /></div>
+                                        <div className="sm:col-span-3"><label className={labelClass}>Job Title</label><input type="text" value={safeGetString(exp.job_title)} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.work_experience[expIdx].job_title = e.target.value })} className={inputClass} /></div>
+                                        <div className="sm:col-span-2"><label className={labelClass}>Location</label><input type="text" value={safeGetString(exp.location)} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.work_experience[expIdx].location = e.target.value })} className={inputClass} /></div>
+                                        <div className="sm:col-span-2"><label className={labelClass}>Accomplishments to Show</label><input type="number" value={safeGetNumber(exp.filter_accomplishment_count)} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.work_experience[expIdx].filter_accomplishment_count = parseInt(e.target.value, 10) || 0 })} className={inputClass} /></div>
+                                        <div className="sm:col-span-2 flex items-end pb-1"><div className="relative flex items-start"><div className="flex h-6 items-center"><input id={`current-${expIdx}`} type="checkbox" checked={exp.is_current} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.work_experience[expIdx].is_current = e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /></div><div className="ml-3 text-sm leading-6"><label htmlFor={`current-${expIdx}`} className={labelClass}>Current</label></div></div></div>
+                                        <div className="sm:col-span-3 grid grid-cols-2 gap-2"><label className={`${labelClass} col-span-2`}>Start Date</label><input type="number" placeholder="MM" value={safeGetNumber(exp.start_date?.month)} onChange={e => handleResumeChange(draft => { if (draft.content?.work_experience[expIdx].start_date) draft.content.work_experience[expIdx].start_date.month = parseInt(e.target.value) })} className={inputClass} /><input type="number" placeholder="YYYY" value={safeGetNumber(exp.start_date?.year)} onChange={e => handleResumeChange(draft => { if (draft.content?.work_experience[expIdx].start_date) draft.content.work_experience[expIdx].start_date.year = parseInt(e.target.value) })} className={inputClass} /></div>
+                                        <div className="sm:col-span-3 grid grid-cols-2 gap-2"><label className={`${labelClass} col-span-2`}>End Date</label><input type="number" placeholder="MM" disabled={exp.is_current} value={safeGetNumber(exp.end_date?.month)} onChange={e => handleResumeChange(draft => { if (draft.content?.work_experience[expIdx].end_date) draft.content.work_experience[expIdx].end_date.month = parseInt(e.target.value) })} className={`${inputClass} disabled:bg-slate-100 dark:disabled:bg-slate-700`} /><input type="number" placeholder="YYYY" disabled={exp.is_current} value={safeGetNumber(exp.end_date?.year)} onChange={e => handleResumeChange(draft => { if (draft.content?.work_experience[expIdx].end_date) draft.content.work_experience[expIdx].end_date.year = parseInt(e.target.value) })} className={`${inputClass} disabled:bg-slate-100 dark:disabled:bg-slate-700`} /></div>
+
                                         <div className="sm:col-span-6">
                                             <FormSection title="Accomplishments">
-                                                <div className="flex justify-end -mt-12 mb-2"><button type="button" onClick={() => handleCombineClick(expIdx)} disabled={isCombining || (exp.accomplishments || []).length < 2} className="inline-flex items-center gap-x-1.5 rounded-md bg-indigo-50 dark:bg-indigo-500/10 px-2.5 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 ring-1 ring-inset ring-indigo-200 dark:ring-indigo-500/30 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 disabled:opacity-50">{isCombining ? <LoadingSpinner/> : <SparklesIcon className="h-4 w-4" />} Combine Similar</button></div>
+                                                <div className="flex justify-end -mt-12 mb-2"><button type="button" onClick={() => handleCombineClick(expIdx)} disabled={isCombining || (exp.accomplishments || []).length < 2} className="inline-flex items-center gap-x-1.5 rounded-md bg-indigo-50 dark:bg-indigo-500/10 px-2.5 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 ring-1 ring-inset ring-indigo-200 dark:ring-indigo-500/30 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 disabled:opacity-50">{isCombining ? <LoadingSpinner /> : <SparklesIcon className="h-4 w-4" />} Combine Similar</button></div>
                                                 <div className="space-y-2">
                                                     {(Array.isArray(exp.accomplishments) ? exp.accomplishments : []).map((acc, accIdx) => {
                                                         if (typeof acc !== 'object' || !acc) return null;
@@ -428,10 +428,10 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                                                             <div key={acc.achievement_id} draggable onDragStart={(e) => handleDragStart(e, expIdx, accIdx)} onDragEnd={() => setDraggedItem(null)} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, expIdx, accIdx)} className={`flex items-start gap-2 rounded-lg transition-opacity ${draggedItem?.expIdx === expIdx && draggedItem?.accIdx === accIdx ? 'opacity-50' : ''}`}>
                                                                 <div className="cursor-grab text-slate-400 pt-5"><GripVerticalIcon className="w-5 h-5" /></div>
                                                                 <div className="flex-grow"><ArrayItemWrapper onRemove={() => handleResumeChange(draft => { draft.content?.work_experience[expIdx].accomplishments.splice(accIdx, 1) })} >
-                                                                    <div className="space-y-2"><label className={labelClass}>Description</label><textarea rows={3} value={safeGetString(acc.description)} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.work_experience[expIdx].accomplishments[accIdx].description = e.target.value })} className={textareaClass} />
+                                                                    <div className="space-y-2"><label className={labelClass}>Description</label><textarea rows={3} value={safeGetString(acc.description)} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.work_experience[expIdx].accomplishments[accIdx].description = e.target.value })} className={textareaClass} />
                                                                         {acc.score && typeof acc.score.overall_score === 'number' && (<div className="flex items-center gap-x-4 text-xs text-slate-500 dark:text-slate-400 p-2 bg-slate-100 dark:bg-slate-900/50 rounded-md"><strong className="text-slate-600 dark:text-slate-300">AI Score:</strong><span>Overall: <span className="font-semibold">{acc.score.overall_score.toFixed(1)}</span></span><span>Clarity: <span className="font-semibold">{acc.score.clarity.toFixed(1)}</span></span><span>Drama: <span className="font-semibold">{acc.score.drama.toFixed(1)}</span></span></div>)}
                                                                         <div className="flex justify-between items-center"><div className="flex gap-4">
-                                                                            <div className="relative flex items-start"><div className="flex h-6 items-center"><input id={`always-${expIdx}-${accIdx}`} type="checkbox" checked={acc.always_include} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.work_experience[expIdx].accomplishments[accIdx].always_include = e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /></div><div className="ml-3 text-sm leading-6"><label htmlFor={`always-${expIdx}-${accIdx}`} className={labelClass}>Always Include</label></div></div>
+                                                                            <div className="relative flex items-start"><div className="flex h-6 items-center"><input id={`always-${expIdx}-${accIdx}`} type="checkbox" checked={acc.always_include} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.work_experience[expIdx].accomplishments[accIdx].always_include = e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /></div><div className="ml-3 text-sm leading-6"><label htmlFor={`always-${expIdx}-${accIdx}`} className={labelClass}>Always Include</label></div></div>
                                                                         </div><button type="button" onClick={() => handleOpenRefinementPanel(acc, expIdx, accIdx)} className="inline-flex items-center gap-x-1 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-500"><SparklesIcon className="h-4 w-4" />Refine</button></div>
                                                                     </div>
                                                                 </ArrayItemWrapper></div>
@@ -453,35 +453,35 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                             if (typeof edu !== 'object' || !edu) return null;
                             return (
                                 <ArrayItemWrapper key={idx} onRemove={() => handleResumeChange(draft => { draft.content?.education.splice(idx, 1) })}><div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
-                                    <div className="sm:col-span-3"><label className={labelClass}>School</label><input type="text" value={safeGetString(edu.school)} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.education[idx].school = e.target.value })} className={inputClass} /></div>
-                                    <div className="sm:col-span-3"><label className={labelClass}>Location</label><input type="text" value={safeGetString(edu.location)} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.education[idx].location = e.target.value })} className={inputClass} /></div>
-                                    <div className="sm:col-span-6"><label className={labelClass}>Degree</label><input type="text" value={safeGetString(edu.degree)} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.education[idx].degree = e.target.value })} className={inputClass} /></div>
-                                    <div className="sm:col-span-3"><label className={labelClass}>Major(s) (comma separated)</label><input type="text" value={(Array.isArray(edu.major) ? edu.major.filter(i => typeof i === 'string') : []).join(', ')} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.education[idx].major = e.target.value.split(',').map(s => s.trim()) })} className={inputClass}/></div>
-                                    <div className="sm:col-span-3"><label className={labelClass}>Minor(s) (comma separated)</label><input type="text" value={(Array.isArray(edu.minor) ? edu.minor.filter(i => typeof i === 'string') : []).join(', ')} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.education[idx].minor = e.target.value.split(',').map(s => s.trim()) })} className={inputClass}/></div>
+                                    <div className="sm:col-span-3"><label className={labelClass}>School</label><input type="text" value={safeGetString(edu.school)} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.education[idx].school = e.target.value })} className={inputClass} /></div>
+                                    <div className="sm:col-span-3"><label className={labelClass}>Location</label><input type="text" value={safeGetString(edu.location)} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.education[idx].location = e.target.value })} className={inputClass} /></div>
+                                    <div className="sm:col-span-6"><label className={labelClass}>Degree</label><input type="text" value={safeGetString(edu.degree)} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.education[idx].degree = e.target.value })} className={inputClass} /></div>
+                                    <div className="sm:col-span-3"><label className={labelClass}>Major(s) (comma separated)</label><input type="text" value={(Array.isArray(edu.major) ? edu.major.filter(i => typeof i === 'string') : []).join(', ')} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.education[idx].major = e.target.value.split(',').map(s => s.trim()) })} className={inputClass} /></div>
+                                    <div className="sm:col-span-3"><label className={labelClass}>Minor(s) (comma separated)</label><input type="text" value={(Array.isArray(edu.minor) ? edu.minor.filter(i => typeof i === 'string') : []).join(', ')} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.education[idx].minor = e.target.value.split(',').map(s => s.trim()) })} className={inputClass} /></div>
                                     <div className="sm:col-span-3 grid grid-cols-2 gap-2">
                                         <label className={`${labelClass} col-span-2`}>Start Date</label>
-                                        <input type="number" placeholder="MM" value={safeGetNumber(edu.start_month)} onChange={e => handleResumeChange(draft => { if(draft.content?.education[idx]) draft.content.education[idx].start_month = parseInt(e.target.value, 10) })} className={inputClass} />
-                                        <input type="number" placeholder="YYYY" value={safeGetNumber(edu.start_year)} onChange={e => handleResumeChange(draft => { if(draft.content?.education[idx]) draft.content.education[idx].start_year = parseInt(e.target.value, 10) })} className={inputClass} />
+                                        <input type="number" placeholder="MM" value={safeGetNumber(edu.start_month)} onChange={e => handleResumeChange(draft => { if (draft.content?.education[idx]) draft.content.education[idx].start_month = parseInt(e.target.value, 10) })} className={inputClass} />
+                                        <input type="number" placeholder="YYYY" value={safeGetNumber(edu.start_year)} onChange={e => handleResumeChange(draft => { if (draft.content?.education[idx]) draft.content.education[idx].start_year = parseInt(e.target.value, 10) })} className={inputClass} />
                                     </div>
                                     <div className="sm:col-span-3 grid grid-cols-2 gap-2">
                                         <label className={`${labelClass} col-span-2`}>End Date</label>
-                                        <input type="number" placeholder="MM" value={safeGetNumber(edu.end_month)} onChange={e => handleResumeChange(draft => { if(draft.content?.education[idx]) draft.content.education[idx].end_month = parseInt(e.target.value, 10) })} className={inputClass} />
-                                        <input type="number" placeholder="YYYY" value={safeGetNumber(edu.end_year)} onChange={e => handleResumeChange(draft => { if(draft.content?.education[idx]) draft.content.education[idx].end_year = parseInt(e.target.value, 10) })} className={inputClass} />
+                                        <input type="number" placeholder="MM" value={safeGetNumber(edu.end_month)} onChange={e => handleResumeChange(draft => { if (draft.content?.education[idx]) draft.content.education[idx].end_month = parseInt(e.target.value, 10) })} className={inputClass} />
+                                        <input type="number" placeholder="YYYY" value={safeGetNumber(edu.end_year)} onChange={e => handleResumeChange(draft => { if (draft.content?.education[idx]) draft.content.education[idx].end_year = parseInt(e.target.value, 10) })} className={inputClass} />
                                     </div>
                                 </div></ArrayItemWrapper>
                             )
                         })}
                     </FormSection>
 
-                     <FormSection title="Certifications" onAdd={() => handleResumeChange(draft => draft.content?.certifications.push({ name: '', organization: '', link: '', issued_date: '2024-01-01' }))} addLabel="Add Certification">
+                    <FormSection title="Certifications" onAdd={() => handleResumeChange(draft => draft.content?.certifications.push({ name: '', organization: '', link: '', issued_date: '2024-01-01' }))} addLabel="Add Certification">
                         {(Array.isArray(editableResume.content.certifications) ? editableResume.content.certifications : []).map((cert, idx) => {
                             if (typeof cert !== 'object' || !cert) return null;
                             return (
                                 <ArrayItemWrapper key={idx} onRemove={() => handleResumeChange(draft => { draft.content?.certifications.splice(idx, 1) })}><div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
-                                    <div className="sm:col-span-3"><label className={labelClass}>Name</label><input type="text" value={safeGetString(cert.name)} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.certifications[idx].name = e.target.value })} className={inputClass} /></div>
-                                    <div className="sm:col-span-3"><label className={labelClass}>Organization</label><input type="text" value={safeGetString(cert.organization)} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.certifications[idx].organization = e.target.value })} className={inputClass} /></div>
-                                    <div className="sm:col-span-3"><label className={labelClass}>Date Issued (YYYY-MM-DD)</label><input type="text" placeholder="YYYY-MM-DD" value={safeGetString(cert.issued_date)} onChange={e => handleResumeChange(draft => { if(draft.content?.certifications[idx]) draft.content.certifications[idx].issued_date = e.target.value })} className={inputClass} /></div>
-                                    <div className="sm:col-span-3"><label className={labelClass}>Link</label><input type="url" value={safeGetString(cert.link)} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.certifications[idx].link = e.target.value })} className={inputClass} /></div>
+                                    <div className="sm:col-span-3"><label className={labelClass}>Name</label><input type="text" value={safeGetString(cert.name)} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.certifications[idx].name = e.target.value })} className={inputClass} /></div>
+                                    <div className="sm:col-span-3"><label className={labelClass}>Organization</label><input type="text" value={safeGetString(cert.organization)} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.certifications[idx].organization = e.target.value })} className={inputClass} /></div>
+                                    <div className="sm:col-span-3"><label className={labelClass}>Date Issued (YYYY-MM-DD)</label><input type="text" placeholder="YYYY-MM-DD" value={safeGetString(cert.issued_date)} onChange={e => handleResumeChange(draft => { if (draft.content?.certifications[idx]) draft.content.certifications[idx].issued_date = e.target.value })} className={inputClass} /></div>
+                                    <div className="sm:col-span-3"><label className={labelClass}>Link</label><input type="url" value={safeGetString(cert.link)} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.certifications[idx].link = e.target.value })} className={inputClass} /></div>
                                 </div></ArrayItemWrapper>
                             )
                         })}
@@ -492,8 +492,8 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                             if (typeof skill !== 'object' || !skill) return null;
                             return (
                                 <ArrayItemWrapper key={idx} onRemove={() => handleResumeChange(draft => { draft.content?.skills.splice(idx, 1) })}><div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
-                                    <div className="sm:col-span-6"><label className={labelClass}>Heading</label><input type="text" value={safeGetString(skill.heading)} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.skills[idx].heading = e.target.value })} className={inputClass} /></div>
-                                    <div className="sm:col-span-6"><label className={labelClass}>Items (comma separated)</label><textarea rows={3} value={(Array.isArray(skill.items) ? skill.items.filter(i => typeof i === 'string') : []).join(', ')} onChange={e => handleResumeChange(draft => { if(draft.content) draft.content.skills[idx].items = e.target.value.split(',').map(s=> s.trim()) })} className={textareaClass} /></div>
+                                    <div className="sm:col-span-6"><label className={labelClass}>Heading</label><input type="text" value={safeGetString(skill.heading)} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.skills[idx].heading = e.target.value })} className={inputClass} /></div>
+                                    <div className="sm:col-span-6"><label className={labelClass}>Items (comma separated)</label><textarea rows={3} value={(Array.isArray(skill.items) ? skill.items.filter(i => typeof i === 'string') : []).join(', ')} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.skills[idx].items = e.target.value.split(',').map(s => s.trim()) })} className={textareaClass} /></div>
                                 </div></ArrayItemWrapper>
                             )
                         })}
@@ -501,12 +501,12 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                 </div>
                 <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700 flex justify-end items-center gap-4">
                     <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium rounded-lg text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 border border-slate-300 dark:border-slate-500 shadow-sm transition-colors">Cancel</button>
-                    <button type="submit" className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">{isLoading || isSaving ? <LoadingSpinner/> : 'Save & Exit'}</button>
+                    <button type="submit" className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">{isLoading || isSaving ? <LoadingSpinner /> : 'Save & Exit'}</button>
                 </div>
             </form>
             {editableResume.content.summary && <SummaryRefinementPanel isOpen={isSummaryPanelOpen} onClose={() => setIsSummaryPanelOpen(false)} summary={safeGetString(editableResume.content.summary?.paragraph)} resume={editableResume.content} activeNarrative={activeNarrative} onSave={handleSaveSummary} prompts={prompts} />}
             {editingExperienceIndex !== null && (<CombineAchievementsModal isOpen={isCombineModalOpen} onClose={() => setIsCombineModalOpen(false)} suggestions={combineSuggestions} onApplySuggestion={handleApplyCombinedSuggestion} originalAccomplishments={((editableResume.content.work_experience[editingExperienceIndex] || {}).accomplishments || []).map(a => a.description)} />)}
-            
+
             {isPreviewModalOpen && (
                 <div className="relative z-[80]" aria-labelledby="modal-title" role="dialog" aria-modal="true">
                     <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
@@ -540,7 +540,7 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                     </div>
                 </div>
             )}
-             {isPreviewReady && previewResume && (
+            {isPreviewReady && previewResume && (
                 <div className="relative z-[80]" aria-labelledby="modal-title" role="dialog" aria-modal="true">
                     <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
                     <div className="fixed inset-0 z-10 w-screen overflow-y-auto">

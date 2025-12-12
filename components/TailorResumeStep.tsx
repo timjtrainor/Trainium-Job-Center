@@ -5,23 +5,23 @@ import * as geminiService from '../services/geminiService';
 import { ensureUniqueAchievementIds } from '../utils/resume';
 
 interface TailorResumeStepProps {
-  finalResume: Resume;
-  setFinalResume: React.Dispatch<React.SetStateAction<Resume | null>>;
-  summaryParagraphOptions: string[];
-  allSkillOptions: string[];
-  keywords: KeywordsResult | null;
-  missingKeywords: KeywordDetail[];
-  setMissingKeywords: React.Dispatch<React.SetStateAction<KeywordDetail[]>>;
-  onNext: () => void;
-  isLoading: boolean;
-  prompts: Prompt[];
-  userProfile: UserProfile | null;
-  activeNarrative: StrategicNarrative | null;
-  jobTitle: string;
-  companyName: string;
-  debugCallbacks?: { before: (p: string) => Promise<void>; after: (r: string) => Promise<void>; };
-  resumeAlignmentScore: number | null;
-  onRecalculateScore: () => Promise<void>;
+    finalResume: Resume;
+    setFinalResume: React.Dispatch<React.SetStateAction<Resume | null>>;
+    summaryParagraphOptions: string[];
+    allSkillOptions: string[];
+    keywords: KeywordsResult | null;
+    missingKeywords: KeywordDetail[];
+    setMissingKeywords: React.Dispatch<React.SetStateAction<KeywordDetail[]>>;
+    onNext: () => void;
+    isLoading: boolean;
+    prompts: Prompt[];
+    userProfile: UserProfile | null;
+    activeNarrative: StrategicNarrative | null;
+    jobTitle: string;
+    companyName: string;
+    debugCallbacks?: { before: (p: string) => Promise<void>; after: (r: string) => Promise<void>; };
+    resumeAlignmentScore: number | null;
+    onRecalculateScore: () => Promise<void>;
 }
 
 const SectionCard = ({ title, children, subtitle }: { title: string, subtitle?: string, children: React.ReactNode }) => (
@@ -53,16 +53,16 @@ const AlignmentScore = ({ score, onRecalculate, isLoading }: { score: number | n
                 <div className="relative h-32 w-32">
                     <svg className="h-full w-full" viewBox="0 0 100 100">
                         <circle className="stroke-current text-slate-200 dark:text-slate-700" strokeWidth="10" cx="50" cy="50" r={radius} fill="transparent" />
-                        <circle 
+                        <circle
                             className={`stroke-current ${scoreColor} transition-all duration-1000 ease-in-out`}
-                            strokeWidth="10" 
-                            cx="50" 
-                            cy="50" 
-                            r={radius} 
-                            fill="transparent" 
-                            strokeLinecap="round" 
-                            strokeDasharray={circumference} 
-                            strokeDashoffset={strokeDashoffset} 
+                            strokeWidth="10"
+                            cx="50"
+                            cy="50"
+                            r={radius}
+                            fill="transparent"
+                            strokeLinecap="round"
+                            strokeDasharray={circumference}
+                            strokeDashoffset={strokeDashoffset}
                             transform="rotate(-90 50 50)"
                         />
                     </svg>
@@ -72,12 +72,12 @@ const AlignmentScore = ({ score, onRecalculate, isLoading }: { score: number | n
                         </span>
                     </div>
                 </div>
-                <button 
-                    onClick={onRecalculate} 
+                <button
+                    onClick={onRecalculate}
                     disabled={isLoading}
                     className="inline-flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400"
                 >
-                    {isLoading ? <LoadingSpinner/> : <SparklesIcon className="h-5 w-5"/>}
+                    {isLoading ? <LoadingSpinner /> : <SparklesIcon className="h-5 w-5" />}
                     Recalculate Score
                 </button>
                 <p className="text-xs text-slate-500 dark:text-slate-400 text-center">Recalculate after making edits to see your updated score.</p>
@@ -102,7 +102,7 @@ export const TailorResumeStep = (props: TailorResumeStepProps) => {
     const {
         finalResume, setFinalResume,
         summaryParagraphOptions,
-        allSkillOptions, keywords, 
+        allSkillOptions, keywords,
         missingKeywords, setMissingKeywords,
         onNext, isLoading,
         prompts,
@@ -134,13 +134,13 @@ export const TailorResumeStep = (props: TailorResumeStepProps) => {
         setFinalResume(prev => prev ? { ...prev, summary: { ...prev.summary, paragraph: newParagraph, bullets: [] } } : null);
     }, [setFinalResume]);
 
-    
+
     const handleSkillChange = useCallback((skill: string, isChecked: boolean) => {
         setFinalResume(prev => {
             if (!prev) return null;
             const skillSection: SkillSection = (prev.skills && prev.skills[0]) ? { ...prev.skills[0] } : { heading: 'Core Competencies', items: [] };
             let currentItems = skillSection.items || [];
-    
+
             if (isChecked) {
                 if (currentItems.length < 9 && !currentItems.includes(skill)) {
                     skillSection.items = [...currentItems, skill];
@@ -166,13 +166,25 @@ export const TailorResumeStep = (props: TailorResumeStepProps) => {
             return { ...prev, work_experience: newWorkExperience };
         });
     }, [setFinalResume]);
-    
+
+    const handleRoleContextChange = useCallback((companyName: string, newContext: string) => {
+        setFinalResume(prev => {
+            if (!prev) return null;
+            const newWorkExperience = prev.work_experience.map(job =>
+                job.company_name === companyName
+                    ? { ...job, role_context: newContext }
+                    : job
+            );
+            return { ...prev, work_experience: newWorkExperience };
+        });
+    }, [setFinalResume]);
+
     const handleRefineWithKeywords = useCallback(async (achievementId: string) => {
         const keywordsToUse = [...selectedKeywords];
         if (keywordsToUse.length === 0 || !finalResume) return;
 
         setRefiningId(achievementId);
-        
+
         let achievementToRefine: ResumeAccomplishment | null = null;
         for (const job of finalResume.work_experience) {
             const found = job.accomplishments.find(acc => acc.achievement_id === achievementId);
@@ -187,19 +199,19 @@ export const TailorResumeStep = (props: TailorResumeStepProps) => {
             setRefiningId(null);
             return;
         }
-        
+
         try {
             const prompt = prompts.find(p => p.id === 'REFINE_ACHIEVEMENT_WITH_KEYWORDS');
             if (!prompt) throw new Error("Refine with keywords prompt not found.");
-            
+
             const context = {
                 ACHIEVEMENT_TO_REFINE: achievementToRefine.description,
                 KEYWORDS_TO_INCLUDE: keywordsToUse.join(', '),
             };
             const result = await geminiService.refineAchievementWithKeywords(context, prompt.content, debugCallbacks);
-            
+
             handleAccomplishmentChange(achievementId, result);
-            
+
             setMissingKeywords(prev => prev.filter(kw => !keywordsToUse.includes(kw.keyword)));
             setCustomKeywords(prev => prev.filter(kw => !keywordsToUse.includes(kw)));
             setSelectedKeywords([]);
@@ -212,13 +224,13 @@ export const TailorResumeStep = (props: TailorResumeStepProps) => {
     }, [selectedKeywords, finalResume, prompts, debugCallbacks, handleAccomplishmentChange, setMissingKeywords, setCustomKeywords]);
 
     const handleKeywordToggle = useCallback((keyword: string) => {
-        setSelectedKeywords(prev => 
+        setSelectedKeywords(prev =>
             prev.includes(keyword)
                 ? prev.filter(k => k !== keyword)
                 : [...prev, keyword]
         );
     }, []);
-    
+
     const handleAddCustomKeyword = () => {
         const newKeyword = newKeywordInput.trim();
         if (newKeyword && !customKeywords.includes(newKeyword) && !missingKeywords.some(kw => kw.keyword === newKeyword)) {
@@ -239,7 +251,7 @@ export const TailorResumeStep = (props: TailorResumeStepProps) => {
     };
 
     if (!finalResume) return <div className="text-center p-8">Loading resume data...</div>;
-    
+
     const selectedSkills = finalResume.skills[0]?.items || [];
 
     return (
@@ -254,7 +266,7 @@ export const TailorResumeStep = (props: TailorResumeStepProps) => {
                     <SectionCard title="Professional Summary" subtitle="Choose your preferred summary paragraph. Your original summary is selected by default.">
                         {summaryParagraphOptions.map((option, index) => (
                             <div key={index} className="flex items-start">
-                                <input id={`summary-${index}`} type="radio" name="summary-paragraph" value={option} checked={finalResume.summary.paragraph === option} onChange={(e) => handleSummaryParagraphChange(e.target.value)} className="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500 mt-1"/>
+                                <input id={`summary-${index}`} type="radio" name="summary-paragraph" value={option} checked={finalResume.summary.paragraph === option} onChange={(e) => handleSummaryParagraphChange(e.target.value)} className="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500 mt-1" />
                                 <label htmlFor={`summary-${index}`} className="ml-3 block text-sm text-slate-700 dark:text-slate-300">{option}</label>
                             </div>
                         ))}
@@ -267,21 +279,21 @@ export const TailorResumeStep = (props: TailorResumeStepProps) => {
                                 const isDisabled = selectedSkills.length >= 9 && !isChecked;
                                 return (
                                     <div key={skill} className="relative flex items-start">
-                                        <div className="flex h-6 items-center"><input id={`skill-${skill}`} type="checkbox" value={skill} checked={isChecked} onChange={(e) => handleSkillChange(skill, e.target.checked)} disabled={isDisabled} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"/></div>
+                                        <div className="flex h-6 items-center"><input id={`skill-${skill}`} type="checkbox" value={skill} checked={isChecked} onChange={(e) => handleSkillChange(skill, e.target.checked)} disabled={isDisabled} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50" /></div>
                                         <div className="ml-3 text-sm leading-6"><label htmlFor={`skill-${skill}`} className={`font-medium ${isDisabled ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-300'}`}>{skill}</label></div>
                                     </div>
                                 );
                             })}
                         </div>
                     </SectionCard>
-                    
+
                     <SectionCard title="Work Experience" subtitle="Review and edit the AI-tailored accomplishments.">
                         <div className="pr-2 space-y-4">
                             {finalResume.work_experience.map((job) => {
-                                const allAccomplishments = [...(job.accomplishments || [])].sort((a,b) => (a.order_index || 0) - (b.order_index || 0));
+                                const allAccomplishments = [...(job.accomplishments || [])].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
                                 const alwaysInclude = allAccomplishments.filter(a => a.always_include);
                                 const others = allAccomplishments.filter(a => !a.always_include);
-                                
+
                                 others.sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0));
 
                                 const countToShow = job.filter_accomplishment_count || 3;
@@ -294,10 +306,10 @@ export const TailorResumeStep = (props: TailorResumeStepProps) => {
                                 const hiddenAccomplishments = allAccomplishments
                                     .filter(a => !visibleIds.has(a.achievement_id))
                                     .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
-                                
+
                                 const renderAccomplishmentEditor = (acc: ResumeAccomplishment, isVisible: boolean) => (
                                     <div key={acc.achievement_id} className={`p-4 mb-4 border rounded-md transition-opacity ${isVisible ? 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/80' : 'border-dashed border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/40 opacity-70'}`}>
-                                        <AutoSizingTextarea value={acc.description} onChange={(e) => handleAccomplishmentChange(acc.achievement_id, e.target.value)} className="block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm resize-none overflow-hidden"/>
+                                        <AutoSizingTextarea value={acc.description} onChange={(e) => handleAccomplishmentChange(acc.achievement_id, e.target.value)} className="block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm resize-none overflow-hidden" />
                                         <div className="flex justify-between items-center mt-2">
                                             <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                                                 AI Relevance Score: {acc.relevance_score ? acc.relevance_score.toFixed(1) : 'N/A'}
@@ -313,6 +325,16 @@ export const TailorResumeStep = (props: TailorResumeStepProps) => {
                                 return (
                                     <div key={job.company_name} className="p-4 border-t border-slate-200 dark:border-slate-700 first:border-t-0">
                                         <h4 className="font-bold text-md text-slate-800 dark:text-slate-200 mb-3">{job.job_title} at {job.company_name}</h4>
+                                        <div className="mb-4">
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Role Context (1-line statement)</label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. Owned the end-to-end platform reliability strategy..."
+                                                value={job.role_context || ''}
+                                                onChange={(e) => handleRoleContextChange(job.company_name, e.target.value)}
+                                                className="block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                                            />
+                                        </div>
                                         {visibleAccomplishments.map(acc => renderAccomplishmentEditor(acc, true))}
                                         {hiddenAccomplishments.length > 0 && (
                                             <>
@@ -336,27 +358,27 @@ export const TailorResumeStep = (props: TailorResumeStepProps) => {
                     </SectionCard>
                 </div>
 
-                 <div className="lg:col-span-1">
+                <div className="lg:col-span-1">
                     <div className="sticky top-8 space-y-4">
-                        <AlignmentScore 
-                            score={resumeAlignmentScore} 
-                            onRecalculate={handleRecalculate} 
+                        <AlignmentScore
+                            score={resumeAlignmentScore}
+                            onRecalculate={handleRecalculate}
                             isLoading={isRecalculating}
                         />
-                         <SectionCard title="AI Co-pilot">
-                             <div className="space-y-3">
+                        <SectionCard title="AI Co-pilot">
+                            <div className="space-y-3">
                                 <h4 className="text-sm font-semibold">Missing Keywords</h4>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">Select keywords, then click "Refine with Keyword" on a relevant accomplishment.</p>
                                 <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
                                     {missingKeywords.map(kw => (
                                         <div key={kw.keyword} className="relative flex items-start">
-                                            <div className="flex h-5 items-center"><input id={`keyword-${kw.keyword}`} type="checkbox" checked={selectedKeywords.includes(kw.keyword)} onChange={() => handleKeywordToggle(kw.keyword)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/></div>
+                                            <div className="flex h-5 items-center"><input id={`keyword-${kw.keyword}`} type="checkbox" checked={selectedKeywords.includes(kw.keyword)} onChange={() => handleKeywordToggle(kw.keyword)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /></div>
                                             <div className="ml-3 text-sm"><label htmlFor={`keyword-${kw.keyword}`} className="font-medium text-slate-700 dark:text-slate-300">{kw.keyword}</label><p className="text-xs text-slate-500 dark:text-slate-400">{kw.reason}</p></div>
                                         </div>
                                     ))}
                                 </div>
-                             </div>
-                             <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                            </div>
+                            <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
                                 <h4 className="text-sm font-semibold">My Keywords</h4>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">Add and select your own keywords to weave into your resume.</p>
                                 <div className="mt-2 flex gap-2">
@@ -391,8 +413,8 @@ export const TailorResumeStep = (props: TailorResumeStepProps) => {
                                             <div className="ml-3 text-sm">
                                                 <label htmlFor={`custom-keyword-${kw}`} className="font-medium text-slate-700 dark:text-slate-300">{kw}</label>
                                             </div>
-                                            <button 
-                                                onClick={() => handleRemoveCustomKeyword(kw)} 
+                                            <button
+                                                onClick={() => handleRemoveCustomKeyword(kw)}
                                                 className="absolute right-0 top-0.5 p-0.5 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
                                             >
                                                 <XCircleIcon className="h-4 w-4" />
@@ -401,13 +423,13 @@ export const TailorResumeStep = (props: TailorResumeStepProps) => {
                                     ))}
                                 </div>
                             </div>
-                         </SectionCard>
+                        </SectionCard>
                     </div>
                 </div>
             </div>
 
             <div className="flex items-center justify-end space-x-4 pt-6 border-t border-slate-200 dark:border-slate-700">
-                 <button type="button" onClick={onNext} disabled={isLoading || selectedSkills.length !== 9} className="inline-flex items-center justify-center px-6 py-2 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors" title={selectedSkills.length !== 9 ? 'Please select exactly 9 skills to continue' : ''}>
+                <button type="button" onClick={onNext} disabled={isLoading || selectedSkills.length !== 9} className="inline-flex items-center justify-center px-6 py-2 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors" title={selectedSkills.length !== 9 ? 'Please select exactly 9 skills to continue' : ''}>
                     {isLoading ? <LoadingSpinner /> : 'Save & Continue'}
                     {!isLoading && <ArrowRightIcon />}
                 </button>

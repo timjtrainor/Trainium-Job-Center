@@ -1735,6 +1735,83 @@ export const getDocumentDetail = async (collectionName: string, documentId: stri
     };
 };
 
+export const getLatestDocumentByDimension = async (
+    dimension: string,
+    collectionName: string = 'career_brand',
+    encodeContent: boolean = false
+): Promise<DocumentDetail> => {
+    const params = new URLSearchParams({
+        dimension: dimension,
+        collection: collectionName,
+    });
+
+    if (encodeContent) {
+        params.set('encode_content', 'true');
+    }
+
+    const response = await fetch(buildFastApiUrl(`documents/by-dimension?${params.toString()}`));
+    const data = await handleResponse(response);
+    const metadata = parseMetadataObject(data?.metadata, data?.id || 'unknown');
+
+    // If content is base64 encoded, decode it
+    let content = data?.content ?? '';
+    if (data?.content_encoded && encodeContent) {
+        content = atob(content);
+    }
+
+    return {
+        id: data?.id ?? 'unknown',
+        title: data?.title ?? 'Untitled',
+        collection_name: (data?.collection_name ?? collectionName) as ContentType,
+        content: content,
+        chunk_count: data?.chunk_count ?? 0,
+        created_at: data?.created_at,
+        metadata,
+    };
+};
+
+export const getLatestProofPointsByCompany = async (
+    company: string,
+    encodeContent: boolean = false
+): Promise<DocumentDetail> => {
+    const params = new URLSearchParams({
+        company: company,
+    });
+
+    if (encodeContent) {
+        params.set('encode_content', 'true');
+    }
+
+    const response = await fetch(buildFastApiUrl(`documents/proof-points/by-company?${params.toString()}`));
+    const data = await handleResponse(response);
+    const metadata = parseMetadataObject(data?.metadata, data?.id || 'unknown');
+
+    // If content is base64 encoded, decode it
+    let content = data?.content ?? '';
+    if (data?.content_encoded && encodeContent) {
+        content = atob(content);
+    }
+
+    return {
+        id: data?.id ?? 'unknown',
+        title: data?.title ?? 'Untitled',
+        collection_name: 'proof_points' as ContentType,
+        content: content,
+        chunk_count: data?.chunk_count ?? 0,
+        created_at: data?.created_at,
+        metadata,
+    };
+};
+
+export const updateDocumentMetadata = async (collectionName: string, documentId: string, metadata: Record<string, unknown>): Promise<StandardResponse<{ document_id: string; collection_name: string; updated_metadata: Record<string, unknown> }>> => {
+    const response = await fetch(buildFastApiUrl(`documents/${collectionName}/${documentId}`), {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(metadata),
+    });
+    return handleResponse(response);
+};
+
 // --- Reviewed Jobs ---
 
 export interface ReviewedJobsFilters {

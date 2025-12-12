@@ -2,20 +2,20 @@ import type { Layout, Layouts } from 'react-grid-layout';
 
 // Represents the user's core, non-strategic information
 export interface UserProfile {
-    user_id: string; // uuid
-    email?: string;
-    name?: string;
-    first_name?: string;
-    last_name?: string;
-    phone_number?: string;
-    city?: string;
-    state?: string;
-    links: string[];
+  user_id: string; // uuid
+  email?: string;
+  name?: string;
+  first_name?: string;
+  last_name?: string;
+  phone_number?: string;
+  city?: string;
+  state?: string;
+  links: string[];
 }
 
 export interface Prompt {
   id: string;
-  name:string;
+  name: string;
   description: string;
   content: string;
 }
@@ -73,42 +73,42 @@ export interface GroundingChunk {
 }
 
 export interface ExtractedInitialDetails {
-    companyName: string;
-    jobTitle: string;
-    jobDescription: string;
-    salary?: string;
-    companyHomepageUrl?: string;
-    mission?: string;
-    values?: string;
-    location?: string;
-    remoteStatus?: 'Remote' | 'Hybrid' | 'On-site' | '';
-    error?: string;
+  companyName: string;
+  jobTitle: string;
+  jobDescription: string;
+  salary?: string;
+  companyHomepageUrl?: string;
+  mission?: string;
+  values?: string;
+  location?: string;
+  remoteStatus?: 'Remote' | 'Hybrid' | 'On-site' | '';
+  error?: string;
 }
 
 
 export interface JobSummaryResult {
-    key_responsibilities: string[];
-    key_qualifications: string[];
+  key_responsibilities: string[];
+  key_qualifications: string[];
 }
 
 export interface CoreProblemAnalysis {
-    business_context: string;
-    core_problem: string;
-    strategic_importance: string;
+  business_context: string;
+  core_problem: string;
+  strategic_importance: string;
 }
 
 export interface JobProblemAnalysisResult {
-    core_problem_analysis: CoreProblemAnalysis;
-    key_success_metrics: string[];
-    role_levers: string[];
-    potential_blockers: string[];
-    suggested_positioning: string;
-    tags: string[];
+  core_problem_analysis: CoreProblemAnalysis;
+  key_success_metrics: string[];
+  role_levers: string[];
+  potential_blockers: string[];
+  suggested_positioning: string;
+  tags: string[];
 }
 
 export interface InfoField {
-    text: string;
-    source: string;
+  text: string;
+  source: string;
 }
 
 // Result from the AI company research
@@ -151,76 +151,76 @@ export interface Status {
 }
 
 export interface KeywordDetail {
-    keyword: string;
-    frequency: number;
-    emphasis: boolean;
-    reason: string;
-    is_required: boolean;
-    match_strength: number;
-    resume_boost: boolean;
+  keyword: string;
+  frequency: number;
+  emphasis: boolean;
+  reason: string;
+  is_required: boolean;
+  match_strength: number;
+  resume_boost: boolean;
 }
 
 export interface KeywordsResult {
-    hard_keywords: KeywordDetail[];
-    soft_keywords: KeywordDetail[];
+  hard_keywords: KeywordDetail[];
+  soft_keywords: KeywordDetail[];
 }
 
 export interface GuidanceResult {
-    summary: string[];
-    bullets: string[];
-    keys: string[];
+  summary: string[];
+  bullets: string[];
+  keys: string[];
 }
 
 export interface ApplicationQuestion {
-    id: string; // Unique ID for React key prop
-    question: string;
-    answer: string;
-    user_thoughts?: string;
+  id: string; // Unique ID for React key prop
+  question: string;
+  answer: string;
+  user_thoughts?: string;
 }
 
 export interface ApplicationAnswersResult {
-    answers: {
-        question: string;
-        answer: string;
-    }[];
+  answers: {
+    question: string;
+    answer: string;
+  }[];
 }
 
 export interface NextStep {
-    step: number;
-    action: string;
-    details: string;
+  step: number;
+  action: string;
+  details: string;
 }
 
 export interface NinetyDayPlan {
-    title: string;
-    thirty_day_plan: { theme: string; goals: string[] };
-    sixty_day_plan: { theme: string; goals: string[] };
-    ninety_day_plan: { theme: string; goals: string[] };
+  title: string;
+  thirty_day_plan: { theme: string; goals: string[] };
+  sixty_day_plan: { theme: string; goals: string[] };
+  ninety_day_plan: { theme: string; goals: string[] };
 }
 
 export interface StrategicHypothesisDraft {
-    problem: string;
-    evidence: string;
-    angle: string;
-    outcome: string;
+  problem: string;
+  evidence: string;
+  angle: string;
+  outcome: string;
 }
 
 // New type for the Consultative Close feature
 export interface ConsultativeClosePlan {
-    thirty_day_plan: {
-        theme: string;
-        goals: string[];
-    };
-    sixty_day_plan: {
-        theme: string;
-        goals: string[];
-    };
-    ninety_day_plan: {
-        theme: string;
-        goals: string[];
-    };
-    key_talking_points: string[];
-    briefing_email_draft: string;
+  thirty_day_plan: {
+    theme: string;
+    goals: string[];
+  };
+  sixty_day_plan: {
+    theme: string;
+    goals: string[];
+  };
+  ninety_day_plan: {
+    theme: string;
+    goals: string[];
+  };
+  key_talking_points: string[];
+  briefing_email_draft: string;
 }
 
 
@@ -312,6 +312,7 @@ export interface WorkExperience {
   end_date: DateInfo;
   is_current: boolean;
   filter_accomplishment_count: number;
+  role_context?: string;
   accomplishments: ResumeAccomplishment[];
 }
 
@@ -365,38 +366,38 @@ export interface BaseResume {
 
 // New type for Contact Personas
 export type ContactPersona =
-    | 'Hiring Manager'
-    | 'Peer'
-    | 'Recruiter'
-    | 'Product Leader'
-    | 'Cross-Functional Stakeholder'
-    | 'Alumni Contact'
-    | 'Executive Contact';
+  | 'Hiring Manager'
+  | 'Peer'
+  | 'Recruiter'
+  | 'Product Leader'
+  | 'Cross-Functional Stakeholder'
+  | 'Alumni Contact'
+  | 'Executive Contact';
 
 
 // Represents a professional contact for networking
 export interface Contact {
-    contact_id: string; // uuid
-    first_name: string;
-    last_name: string;
-    job_title: string;
-    company_id?: string; // uuid, optional FK
-    company_name?: string; // from the view
-    company_url?: string; // from the view
-    job_application_id?: string; // uuid, optional FK
-    job_application?: Pick<JobApplication, 'job_application_id' | 'job_title'>; // for joined data
-    email?: string;
-    linkedin_url?: string;
-    linkedin_about?: string;
-    persona?: ContactPersona;
-    status: string; // 'To Contact', 'Initial Outreach', 'In Conversation', etc.
-    is_referral?: boolean;
-    date_contacted: string; // YYYY-MM-DD
-    notes?: string;
-    messages?: Message[];
-    strategic_alignment_score?: number;
-    narrative_ids?: string[]; // For UI state
-    strategic_narratives?: { narrative_id: string; narrative_name: string }[]; // For data from API
+  contact_id: string; // uuid
+  first_name: string;
+  last_name: string;
+  job_title: string;
+  company_id?: string; // uuid, optional FK
+  company_name?: string; // from the view
+  company_url?: string; // from the view
+  job_application_id?: string; // uuid, optional FK
+  job_application?: Pick<JobApplication, 'job_application_id' | 'job_title'>; // for joined data
+  email?: string;
+  linkedin_url?: string;
+  linkedin_about?: string;
+  persona?: ContactPersona;
+  status: string; // 'To Contact', 'Initial Outreach', 'In Conversation', etc.
+  is_referral?: boolean;
+  date_contacted: string; // YYYY-MM-DD
+  notes?: string;
+  messages?: Message[];
+  strategic_alignment_score?: number;
+  narrative_ids?: string[]; // For UI state
+  strategic_narratives?: { narrative_id: string; narrative_name: string }[]; // For data from API
 }
 
 // ----- New Relational Data Types -----
@@ -417,12 +418,12 @@ export interface Message {
 }
 
 export interface PostInterviewDebrief {
-    thank_you_note_draft: string;
-    performance_analysis: {
-        wins: string[];
-        areas_for_improvement: string[];
-    };
-    coaching_recommendations: string[];
+  thank_you_note_draft: string;
+  performance_analysis: {
+    wins: string[];
+    areas_for_improvement: string[];
+  };
+  coaching_recommendations: string[];
 }
 
 export interface InterviewPrepOutline {
@@ -484,90 +485,90 @@ export interface InterviewWidgetMetadataEntry {
 export type InterviewWidgetMetadataMap = Record<string, InterviewWidgetMetadataEntry>;
 
 export interface Offer {
-    offer_id: string; // uuid
-    job_application_id: string; // uuid
-    user_id: string; // uuid
-    company_name: string;
-    job_title: string;
-    base_salary?: number;
-    bonus_potential?: string;
-    equity_details?: string;
-    benefits_summary?: string;
-    deadline?: string; // YYYY-MM-DD
-    status: 'Received' | 'Negotiating' | 'Accepted' | 'Declined';
-    created_at: string;
+  offer_id: string; // uuid
+  job_application_id: string; // uuid
+  user_id: string; // uuid
+  company_name: string;
+  job_title: string;
+  base_salary?: number;
+  bonus_potential?: string;
+  equity_details?: string;
+  benefits_summary?: string;
+  deadline?: string; // YYYY-MM-DD
+  status: 'Received' | 'Negotiating' | 'Accepted' | 'Declined';
+  created_at: string;
 }
 
 
 export interface InterviewPrep {
-    keyFocusAreas: string[];
-    potentialQuestions: { question: string; strategy: string; }[];
-    questionsToAsk: string[];
-    redFlags: string[];
-    salaryNegotiation?: {
-        suggestion: string;
-        reasoning: string;
-    };
+  keyFocusAreas: string[];
+  potentialQuestions: { question: string; strategy: string; }[];
+  questionsToAsk: string[];
+  redFlags: string[];
+  salaryNegotiation?: {
+    suggestion: string;
+    reasoning: string;
+  };
 }
 
 export interface InterviewCoachingQuestion {
-    question: string;
-    answer: string;
-    feedback: string;
-    score: number;
-    clarifying_questions?: string;
-    clarifying_feedback?: string;
-    clarifying_score?: number;
-    reframe_suggestion?: string;
-    deconstructed_questions?: {
-        scope: string[];
-        metrics: string[];
-        constraints: string[];
-    };
+  question: string;
+  answer: string;
+  feedback: string;
+  score: number;
+  clarifying_questions?: string;
+  clarifying_feedback?: string;
+  clarifying_score?: number;
+  reframe_suggestion?: string;
+  deconstructed_questions?: {
+    scope: string[];
+    metrics: string[];
+    constraints: string[];
+  };
 }
 
 export interface LinkedInPost {
-    post_id: string; // uuid
-    user_id: string;
-    narrative_id: string | null;
-    theme: string;
-    content: string;
-    created_at: string;
-    tags?: string[];
-    engagements?: LinkedInEngagement[];
+  post_id: string; // uuid
+  user_id: string;
+  narrative_id: string | null;
+  theme: string;
+  content: string;
+  created_at: string;
+  tags?: string[];
+  engagements?: LinkedInEngagement[];
 }
 
 export interface LinkedInEngagement {
-    engagement_id: string; // uuid
-    post_id: string; // uuid
-    contact_id?: string | null;
-    contact_name: string;
-    contact_title: string;
-    contact_company_name?: string;
-    interaction_type: 'like' | 'comment' | 'share';
-    content?: string; // for comments
-    created_at: string;
-    post_theme: string; // From the original post
-    contact_linkedin_url?: string;
-    notes?: string;
-    strategic_score?: number;
-    contact?: Pick<Contact, 'contact_id' | 'first_name' | 'last_name' | 'job_title'> | null;
+  engagement_id: string; // uuid
+  post_id: string; // uuid
+  contact_id?: string | null;
+  contact_name: string;
+  contact_title: string;
+  contact_company_name?: string;
+  interaction_type: 'like' | 'comment' | 'share';
+  content?: string; // for comments
+  created_at: string;
+  post_theme: string; // From the original post
+  contact_linkedin_url?: string;
+  notes?: string;
+  strategic_score?: number;
+  contact?: Pick<Contact, 'contact_id' | 'first_name' | 'last_name' | 'job_title'> | null;
 }
 
 export interface PostResponseAiAnalysis {
-    tone: string;
-    depth: 'surface' | 'moderate' | 'deep';
-    strategic_relevance: 'low' | 'medium' | 'high';
+  tone: string;
+  depth: 'surface' | 'moderate' | 'deep';
+  strategic_relevance: 'low' | 'medium' | 'high';
 }
 
 export interface PostResponse {
-    comment_id: string; // uuid
-    user_id: string;
-    post_excerpt: string;
-    conversation: { author: 'user' | 'other', text: string }[];
-    created_at: string;
-    post_id?: string; // Optional link to a user's own post
-    ai_analysis?: PostResponseAiAnalysis | null;
+  comment_id: string; // uuid
+  user_id: string;
+  post_excerpt: string;
+  conversation: { author: 'user' | 'other', text: string }[];
+  created_at: string;
+  post_id?: string; // Optional link to a user's own post
+  ai_analysis?: PostResponseAiAnalysis | null;
 }
 
 // ----- New User Strategy Profile -----
@@ -628,12 +629,12 @@ export interface InterviewStoryDeckEntry {
 
 // New type for Interview Studio
 export interface CommonInterviewAnswer {
-    answer_id: string; // uuid
-    user_id: string; // uuid
-    narrative_id: string; // uuid
-    question: string;
-    answer: string;
-    speaker_notes?: string;
+  answer_id: string; // uuid
+  user_id: string; // uuid
+  narrative_id: string; // uuid
+  question: string;
+  answer: string;
+  speaker_notes?: string;
 }
 
 export interface StrategicNarrative {
@@ -666,10 +667,10 @@ export interface StrategicNarrative {
 }
 
 export interface StandardJobRole {
-    role_id: string; // uuid
-    narrative_id: string;
-    role_title: string;
-    role_description: string;
+  role_id: string; // uuid
+  narrative_id: string;
+  role_title: string;
+  role_description: string;
 }
 
 
@@ -680,107 +681,107 @@ export interface ResumeSuggestion {
 }
 
 export interface SkillOptions {
-    heading: string;
-    options: string[];
+  heading: string;
+  options: string[];
 }
 
 // ----- New AI Types -----
 export interface AchievementScore {
-    clarity: number;
-    drama: number;
-    alignment_with_mastery: number;
-    alignment_with_job?: number;
-    overall_score: number;
+  clarity: number;
+  drama: number;
+  alignment_with_mastery: number;
+  alignment_with_job?: number;
+  overall_score: number;
 }
 
 export interface InterviewAnswerScore {
-    clarity: number;
-    impact: number;
-    brand_alignment: number;
-    overall_score: number;
+  clarity: number;
+  impact: number;
+  brand_alignment: number;
+  overall_score: number;
 }
 
 export interface MessageAiAnalysis {
-    tone: string;
-    sentiment: 'positive' | 'neutral' | 'negative';
-    strategy_alignment_score: number;
+  tone: string;
+  sentiment: 'positive' | 'neutral' | 'negative';
+  strategy_alignment_score: number;
 }
 
 export interface CombinedAchievementSuggestion {
-    original_indices: number[];
-    suggestions: string[];
+  original_indices: number[];
+  suggestions: string[];
 }
 
 export interface CombineAchievementsResult {
-    combinations: CombinedAchievementSuggestion[];
+  combinations: CombinedAchievementSuggestion[];
 }
 
 // ----- New Combined AI Result Types for Cost Savings -----
 
 export interface InitialJobAnalysisResult {
-    job_problem_analysis: JobProblemAnalysisResult;
-    strategic_fit_score: number;
-    assumed_requirements: string[];
+  job_problem_analysis: JobProblemAnalysisResult;
+  strategic_fit_score: number;
+  assumed_requirements: string[];
 }
 
 export interface KeywordsAndGuidanceResult {
-    keywords: KeywordsResult;
-    guidance: GuidanceResult;
+  keywords: KeywordsResult;
+  guidance: GuidanceResult;
 }
 
 export interface ResumeTailoringData {
-    keywords: KeywordsResult;
-    guidance: GuidanceResult;
-    processed_work_experience: {
-        company_name: string;
-        job_title: string;
-        location: string;
-        start_date: DateInfo;
-        end_date: DateInfo;
-        is_current: boolean;
-        filter_accomplishment_count: number;
-        accomplishments: {
-            description: string;
-            keyword_suggestions?: string[];
-            relevance_score: number;
-            original_score: AchievementScore;
-        }[];
+  keywords: KeywordsResult;
+  guidance: GuidanceResult;
+  processed_work_experience: {
+    company_name: string;
+    job_title: string;
+    location: string;
+    start_date: DateInfo;
+    end_date: DateInfo;
+    is_current: boolean;
+    filter_accomplishment_count: number;
+    accomplishments: {
+      description: string;
+      keyword_suggestions?: string[];
+      relevance_score: number;
+      original_score: AchievementScore;
     }[];
-    summary_suggestions: string[];
-    comprehensive_skills: string[];
-    ai_selected_skills: string[];
-    missing_keywords: KeywordDetail[];
-    initial_alignment_score: number;
+  }[];
+  summary_suggestions: string[];
+  comprehensive_skills: string[];
+  ai_selected_skills: string[];
+  missing_keywords: KeywordDetail[];
+  initial_alignment_score: number;
 }
 
 
 export interface PostSubmissionPlan {
-    why_this_job: string;
-    next_steps_plan: NextStep[];
+  why_this_job: string;
+  next_steps_plan: NextStep[];
 }
 
 // ----- Dashboard & Engagement Hub AI Types -----
 
 // For AI-generated sprint plans (temporary, not saved to DB)
 export interface AiSprintAction {
-    action_type: 'application' | 'networking' | 'branding' | 'execution';
-    title: string;
-    details: string;
-    is_completed?: boolean;
+  action_type: 'application' | 'networking' | 'branding' | 'execution';
+  title: string;
+  details: string;
+  is_completed?: boolean;
 }
 
 export interface AiSprintPlan {
-    theme_of_the_week: string;
-    actions: AiSprintAction[];
+  theme_of_the_week: string;
+  actions: AiSprintAction[];
 }
 
 // For AI-Powered Dashboard Feed
 export interface AiFocusItem {
-    item_type: 'follow_up' | 'networking_goal' | 'application_goal' | 'branding_goal' | 'skill_gap' | 'congrats';
-    title: string;
-    suggestion: string;
-    related_id?: string; // e.g., contact_id, job_application_id, skill_name
-    cta?: string; // e.g., "Draft Message"
+  item_type: 'follow_up' | 'networking_goal' | 'application_goal' | 'branding_goal' | 'skill_gap' | 'congrats';
+  title: string;
+  suggestion: string;
+  related_id?: string; // e.g., contact_id, job_application_id, skill_name
+  cta?: string; // e.g., "Draft Message"
 }
 
 // New types for persistent, user-defined sprints
@@ -788,142 +789,142 @@ export const GOAL_TYPES = ['applications', 'contacts', 'posts', 'follow-ups'] as
 export type GoalType = typeof GOAL_TYPES[number];
 
 export interface SprintAction {
-    action_id: string; // uuid
-    sprint_id: string; // uuid
-    user_id: string; // uuid
-    title: string;
-    is_completed: boolean;
-    is_goal: boolean;
-    goal_type: GoalType | null;
-    goal_target: number | null;
-    order_index: number;
-    // New strategic fields
-    impact?: string | null;
-    effort_estimate?: string | null;
-    strategic_tags?: string[] | null;
-    measurable_value?: string | null;
+  action_id: string; // uuid
+  sprint_id: string; // uuid
+  user_id: string; // uuid
+  title: string;
+  is_completed: boolean;
+  is_goal: boolean;
+  goal_type: GoalType | null;
+  goal_target: number | null;
+  order_index: number;
+  // New strategic fields
+  impact?: string | null;
+  effort_estimate?: string | null;
+  strategic_tags?: string[] | null;
+  measurable_value?: string | null;
 }
 
 export interface Sprint {
-    sprint_id: string; // uuid
-    user_id: string; // uuid
-    start_date: string; // date
-    theme?: string;
-    created_at: string;
-    actions: SprintAction[];
-    // New fields for career mode
-    mode: 'search' | 'career';
-    learning_goal?: string;
-    cross_functional_collaboration?: string;
-    growth_alignment?: string;
-    promotion_readiness_notes?: string;
-    // New fields for strategic tracking
-    tags?: string[] | null;
-    strategic_score?: number | null;
+  sprint_id: string; // uuid
+  user_id: string; // uuid
+  start_date: string; // date
+  theme?: string;
+  created_at: string;
+  actions: SprintAction[];
+  // New fields for career mode
+  mode: 'search' | 'career';
+  learning_goal?: string;
+  cross_functional_collaboration?: string;
+  growth_alignment?: string;
+  promotion_readiness_notes?: string;
+  // New fields for strategic tracking
+  tags?: string[] | null;
+  strategic_score?: number | null;
 }
 
 
 // For Dashboard "Opportunity Scout"
 export interface ScoutedOpportunity {
-    job_title: string;
-    company_name: string;
-    job_url: string;
-    reasoning: string;
-    fit_score: number; // 0-10
-    source?: GroundingChunk;
+  job_title: string;
+  company_name: string;
+  job_url: string;
+  reasoning: string;
+  fit_score: number; // 0-10
+  source?: GroundingChunk;
 }
 
 // For Contact Modal "Brand Voice Analysis"
 export interface BrandVoiceAnalysis {
-    alignment_score: number; // 0-10
-    tone_feedback: string;
-    suggestion: string;
+  alignment_score: number; // 0-10
+  tone_feedback: string;
+  suggestion: string;
 }
 
 // For Application Detail "Intelligent Contact Suggestions"
 export interface SuggestedContact {
-    full_name: string;
-    job_title: string;
-    linkedin_url: string;
-    reasoning: string;
-    source?: GroundingChunk;
+  full_name: string;
+  job_title: string;
+  linkedin_url: string;
+  reasoning: string;
+  source?: GroundingChunk;
 }
 
 // For Skill Gap Analysis
 export interface SkillToDevelop {
-    skill: string;
-    suggestion: string;
+  skill: string;
+  suggestion: string;
 }
 
 export interface LearningResource {
-    title: string;
-    url: string;
-    type: 'Course' | 'Article';
-    summary: string;
+  title: string;
+  url: string;
+  type: 'Course' | 'Article';
+  summary: string;
 }
 
 export interface SkillGapAnalysisResult {
-    skills_to_amplify: SkillToDevelop[];
-    skills_to_acquire: SkillToDevelop[];
+  skills_to_amplify: SkillToDevelop[];
+  skills_to_acquire: SkillToDevelop[];
 }
 
 // For Narrative Synthesis
 export interface SuggestedPath {
-    suggested_title: string;
-    suggested_positioning_statement: string;
-    reasoning: string;
-    next_steps: string[];
+  suggested_title: string;
+  suggested_positioning_statement: string;
+  reasoning: string;
+  next_steps: string[];
 }
 
 export interface NarrativeSynthesisResult {
-    synthesis_summary: string;
-    suggested_paths: SuggestedPath[];
+  synthesis_summary: string;
+  suggested_paths: SuggestedPath[];
 }
 
 // New Brag Bank type
 export interface BragBankEntry {
-    entry_id: string; // uuid
-    user_id: string;
-    action_id: string | null;
-    title: string;
-    description: string | null;
-    tags: string[] | null;
-    source_context: string | null;
-    created_at: string;
+  entry_id: string; // uuid
+  user_id: string;
+  action_id: string | null;
+  title: string;
+  description: string | null;
+  tags: string[] | null;
+  source_context: string | null;
+  created_at: string;
 }
 
 // New Skill Trend type
 export interface SkillTrend {
-    skill_trend_id: string; // uuid
-    user_id: string;
-    narrative_id: string;
-    skill: string;
-    skill_type: 'amplify' | 'acquire';
-    suggestion: string;
-    created_at: string;
+  skill_trend_id: string; // uuid
+  user_id: string;
+  narrative_id: string;
+  skill: string;
+  skill_type: 'amplify' | 'acquire';
+  suggestion: string;
+  created_at: string;
 }
 
 // ----- NEW Dev Mode / Scheduler Types -----
 export interface SiteDetails {
-    site_name: string;
-    supports_remote?: boolean;
-    supports_salary_filter?: boolean;
-    requires?: string[];
-    optional?: string[];
-    conflicts?: string[];
-    notes?: string[];
+  site_name: string;
+  supports_remote?: boolean;
+  supports_salary_filter?: boolean;
+  requires?: string[];
+  optional?: string[];
+  conflicts?: string[];
+  notes?: string[];
 }
 
 export interface SiteSchedule {
-    id: string; // uuid
-    site_name: string;
-    enabled: boolean;
-    interval_minutes: number;
-    last_run_at?: string | null; // timestampz
-    next_run_at?: string | null; // timestampz
-    created_at: string; // timestampz
-    updated_at: string; // timestampz
-    payload?: { [key: string]: any } | null;
+  id: string; // uuid
+  site_name: string;
+  enabled: boolean;
+  interval_minutes: number;
+  last_run_at?: string | null; // timestampz
+  next_run_at?: string | null; // timestampz
+  created_at: string; // timestampz
+  updated_at: string; // timestampz
+  payload?: { [key: string]: any } | null;
 }
 
 export type SiteSchedulePayload = Partial<Omit<SiteSchedule, 'id' | 'created_at' | 'updated_at'>>;
@@ -953,7 +954,7 @@ export interface Toast {
 export type CompanyPayload = Partial<Omit<Company, 'company_id' | 'user_id'>>;
 
 export type JobApplicationPayload = Partial<Omit<JobApplication, 'job_application_id' | 'user_id' | 'status' | 'messages' | 'interviews' | 'offers' | 'created_at'>> & {
-    status_id?: string;
+  status_id?: string;
 };
 
 export type BaseResumePayload = Partial<Omit<BaseResume, 'resume_id' | 'user_id' | 'created_at' | 'updated_at'>> & {
@@ -965,7 +966,7 @@ export type ContactPayload = Partial<Omit<Contact, 'user_id' | 'job_application'
 export type MessagePayload = Partial<Omit<Message, 'message_id' | 'user_id' | 'created_at' | 'contact' | 'company'>>;
 
 export type InterviewPayload = Partial<Omit<Interview, 'interview_id' | 'interview_contacts'>> & {
-    contact_ids?: string[];
+  contact_ids?: string[];
 };
 
 export type OfferPayload = Omit<Offer, 'offer_id' | 'user_id' | 'created_at'>;
@@ -977,8 +978,8 @@ export type LinkedInEngagementPayload = Omit<LinkedInEngagement, 'engagement_id'
 export type PostResponsePayload = Partial<Omit<PostResponse, 'comment_id' | 'user_id' | 'created_at'>>;
 
 export type StrategicNarrativePayload = Partial<Omit<StrategicNarrative, 'narrative_id' | 'user_id' | 'created_at' | 'updated_at' | 'impact_stories' | 'common_interview_answers'>> & {
-    impact_stories?: Omit<ImpactStory, 'story_id'>[] | ImpactStory[];
-    common_interview_answers?: Omit<CommonInterviewAnswer, 'answer_id' | 'user_id' | 'narrative_id'>[];
+  impact_stories?: Omit<ImpactStory, 'story_id'>[] | ImpactStory[];
+  common_interview_answers?: Omit<CommonInterviewAnswer, 'answer_id' | 'user_id' | 'narrative_id'>[];
 };
 
 export type UserProfilePayload = Partial<Omit<UserProfile, 'user_id'>>;
@@ -988,7 +989,7 @@ export type StandardJobRolePayload = Omit<StandardJobRole, 'role_id' | 'narrativ
 export type SprintActionPayload = Partial<Omit<SprintAction, 'action_id' | 'sprint_id' | 'user_id'>>;
 
 export type CreateSprintPayload = Partial<Omit<Sprint, 'sprint_id' | 'user_id' | 'created_at' | 'start_date' | 'actions'>> & {
-    actions?: SprintActionPayload[];
+  actions?: SprintActionPayload[];
 };
 
 export type BragBankEntryPayload = Partial<Omit<BragBankEntry, 'entry_id' | 'user_id' | 'created_at'>>;
@@ -997,146 +998,146 @@ export type SkillTrendPayload = Omit<SkillTrend, 'skill_trend_id' | 'user_id' | 
 
 // --- Document Upload types ---
 export type ContentType =
-    | 'career_brand'
-    | 'career_brand_full'
-    | 'career_path'
-    | 'job_search_strategy'
-    | 'resume'
-    | 'resumes'
-    | 'proof_points'
-    | string;
+  | 'career_brand'
+  | 'career_brand_full'
+  | 'career_path'
+  | 'job_search_strategy'
+  | 'resume'
+  | 'resumes'
+  | 'proof_points'
+  | string;
 
 export interface DocumentMetadata {
-    status?: string | null;
-    is_latest?: boolean | null;
-    latest_version?: boolean | null;
-    job_target?: string | null;
-    role_title?: string | null;
-    company?: string | null;
-    selected_proof_points?: string[];
-    impact_tags?: string[];
-    approved_by?: string | null;
-    approved_at?: string | null;
-    approval_notes?: string | null;
-    skills?: string[];
-    collection_name?: string | null;
-    created_at?: string | null;
-    updated_at?: string | null;
-    uploaded_at?: string | null;
-    [key: string]: unknown;
+  status?: string | null;
+  is_latest?: boolean | null;
+  latest_version?: boolean | null;
+  job_target?: string | null;
+  role_title?: string | null;
+  company?: string | null;
+  selected_proof_points?: string[];
+  impact_tags?: string[];
+  approved_by?: string | null;
+  approved_at?: string | null;
+  approval_notes?: string | null;
+  skills?: string[];
+  collection_name?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  uploaded_at?: string | null;
+  [key: string]: unknown;
 }
 
 export interface UploadedDocument {
-    id: string; // uuid from backend
-    profile_id: string;
-    title: string;
-    section: string;
-    content_type: ContentType;
-    collection_name?: string;
-    created_at: string;
-    content_snippet?: string;
-    chunk_count?: number;
-    metadata?: DocumentMetadata;
+  id: string; // uuid from backend
+  profile_id: string;
+  title: string;
+  section: string;
+  content_type: ContentType;
+  collection_name?: string;
+  created_at: string;
+  content_snippet?: string;
+  chunk_count?: number;
+  metadata?: DocumentMetadata;
 }
 
 export interface DocumentDetail {
-    id: string;
-    title: string;
-    collection_name: ContentType;
-    content: string;
-    metadata: DocumentMetadata;
-    chunk_count?: number;
-    created_at?: string;
+  id: string;
+  title: string;
+  collection_name: ContentType;
+  content: string;
+  metadata: DocumentMetadata;
+  chunk_count?: number;
+  created_at?: string;
 }
 
 export interface UploadSuccessResponse {
-    success: boolean;
-    message: string;
-    document: UploadedDocument;
+  success: boolean;
+  message: string;
+  document: UploadedDocument;
 }
 
 export interface DocumentUploadPayload {
-    profile_id: string;
-    section: string;
-    title: string;
-    content: string;
-    metadata?: object;
+  profile_id: string;
+  section: string;
+  title: string;
+  content: string;
+  metadata?: object;
 }
 
 export interface StandardResponse<T> {
-    status: 'success' | 'error' | 'warning';
-    data?: T;
-    error?: string | null;
-    message?: string | null;
+  status: 'success' | 'error' | 'warning';
+  data?: T;
+  error?: string | null;
+  message?: string | null;
 }
 
 export interface ChromaUploadResponseData {
-    success: boolean;
-    message?: string | null;
-    collection_name: string;
-    document_id: string;
-    metadata?: DocumentMetadata;
+  success: boolean;
+  message?: string | null;
+  collection_name: string;
+  document_id: string;
+  metadata?: DocumentMetadata;
 }
 
 export interface ResumeDocumentResponseData {
-    document_id: string;
-    metadata: DocumentMetadata;
-    message?: string | null;
+  document_id: string;
+  metadata: DocumentMetadata;
+  message?: string | null;
 }
 
 export interface StatusTransitionPayload {
-    from?: string | null;
-    to: string;
-    changed_at?: string;
-    changed_by?: string | null;
-    notes?: string | null;
+  from?: string | null;
+  to: string;
+  changed_at?: string;
+  changed_by?: string | null;
+  notes?: string | null;
 }
 
 export interface ProofPointPayload {
-    profile_id: string;
-    role_title: string;
-    job_title?: string | null;
-    location?: string | null;
-    start_date?: string | null;
-    end_date?: string | null;
-    is_current?: boolean;
-    company: string;
-    title: string;
-    content: string;
-    status?: string;
-    job_metadata?: Record<string, unknown> | null;
-    impact_tags?: string[];
-    uploaded_at?: string;
-    status_transitions?: StatusTransitionPayload[];
-    additional_metadata?: Record<string, unknown> | null;
+  profile_id: string;
+  role_title: string;
+  job_title?: string | null;
+  location?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  is_current?: boolean;
+  company: string;
+  title: string;
+  content: string;
+  status?: string;
+  job_metadata?: Record<string, unknown> | null;
+  impact_tags?: string[];
+  uploaded_at?: string;
+  status_transitions?: StatusTransitionPayload[];
+  additional_metadata?: Record<string, unknown> | null;
 }
 
 export interface ResumeCreatePayload {
-    profile_id: string;
-    title: string;
-    content: string;
-    section?: string;
-    job_target?: string | null;
-    status?: string;
-    selected_proof_points?: string[];
-    status_transitions?: StatusTransitionPayload[];
-    approved_by?: string | null;
-    approved_at?: string | null;
-    approval_notes?: string | null;
-    version?: number | null;
-    is_latest?: boolean | null;
-    uploaded_at?: string;
-    additional_metadata?: Record<string, unknown> | null;
+  profile_id: string;
+  title: string;
+  content: string;
+  section?: string;
+  job_target?: string | null;
+  status?: string;
+  selected_proof_points?: string[];
+  status_transitions?: StatusTransitionPayload[];
+  approved_by?: string | null;
+  approved_at?: string | null;
+  approval_notes?: string | null;
+  version?: number | null;
+  is_latest?: boolean | null;
+  uploaded_at?: string;
+  additional_metadata?: Record<string, unknown> | null;
 }
 
 export interface ResumeUpdatePayload {
-    status?: string | null;
-    selected_proof_points?: string[] | null;
-    approved_by?: string | null;
-    approved_at?: string | null;
-    approval_notes?: string | null;
-    status_transitions?: StatusTransitionPayload[] | null;
-    is_latest?: boolean | null;
+  status?: string | null;
+  selected_proof_points?: string[] | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  approval_notes?: string | null;
+  status_transitions?: StatusTransitionPayload[] | null;
+  is_latest?: boolean | null;
 }
 
 // For Reviewed Jobs View
