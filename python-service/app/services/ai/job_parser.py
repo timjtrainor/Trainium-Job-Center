@@ -3,43 +3,37 @@ import re
 from typing import Optional
 from loguru import logger
 
-from ...core.config import get_settings
 from .llm_clients import LLMRouter
 from ...schemas.job_parsing import JobParseResponse
 
 class JobParser:
     def __init__(self):
-        settings = get_settings()
-        # Default to a capable model if not specified in settings, but LLMRouter handles preferences
-        self.router = LLMRouter(preferences=settings.llm_preference)
+        # Use fast, lightweight models for parsing task to ensure low latency
+        # prioritizing Gemini 1.5 Flash as requested for speed
+        self.router = LLMRouter(preferences="gemini:gemini-1.5-flash,openai:gpt-4o-mini,ollama:llama3")
 
     def parse_job_text(self, text: str) -> JobParseResponse:
         """
         Parse raw job text to extract structured data using LLM.
         """
-        prompt = f"""
-        You are an expert job market analyst. Your task is to extract structured information from the provided raw job posting text.
+        prompt = f"""Extract structured data from the job posting below into a valid JSON object.
 
-        Extract the following fields:
-        1. title: The specific job title.
-        2. company_name: The name of the hiring company.
-        3. location: The job location (City, State/Country).
-        4. salary_min: The minimum salary number (numeric only, no symbols). If hourly, convert to yearly if possible (assume 2000 hrs), otherwise keep as is.
-        5. salary_max: The maximum salary number (numeric only).
-        6. salary_currency: The currency code (e.g., USD, EUR, GBP). Default to USD if not specified but looks like dollars.
-        7. remote_status: One of "Remote", "Hybrid", "On-site". Infer from text if not explicit.
-        8. date_posted: The posting date in YYYY-MM-DD format if available.
-        9. cleaned_description: The core job description text, stripped of navigation menus, headers, footers, and irrelevant side-bar content.
+Fields:
+- title: Job title
+- company_name: Company name
+- location: Location (City, State)
+- salary_min: Min salary (number, annual)
+- salary_max: Max salary (number, annual)
+- salary_currency: Currency code (default "USD")
+- remote_status: "Remote", "Hybrid", "On-site", or null
+- date_posted: "YYYY-MM-DD" or null
+- cleaned_description: Core job description text (remove nav/headers/footers)
 
-        Return the result as a single valid JSON object. Do not include markdown formatting like ```json ... ```.
+Return ONLY JSON.
 
-        If a field cannot be found, set it to null.
-
-        RAW TEXT:
-        {text[:15000]}  # Truncate to avoid token limits if extremely long
-
-        JSON OUTPUT:
-        """
+TEXT:
+{text[:15000]}
+"""
 
         response_text = ""
         try:
