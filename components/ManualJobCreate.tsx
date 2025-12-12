@@ -51,7 +51,30 @@ export const ManualJobCreate = ({ onBack }: ManualJobCreateProps) => {
             addToast('Job details auto-filled! Please review before saving.', 'success');
         } catch (error: any) {
             console.error(error);
-            addToast('Failed to parse job description. Please fill details manually.', 'error');
+            // Provide more specific error feedback to the user
+            let userMessage = 'Failed to parse job description. Please fill details manually.';
+            if (error) {
+                // Check for common error types/messages
+                if (typeof error === 'string') {
+                    if (error.toLowerCase().includes('too short')) {
+                        userMessage = 'The text is too short to parse. Please provide more details.';
+                    } else if (error.toLowerCase().includes('unable to extract')) {
+                        userMessage = 'Unable to extract job details from the provided text.';
+                    } else if (error.toLowerCase().includes('service unavailable') || error.toLowerCase().includes('network')) {
+                        userMessage = 'AI service is temporarily unavailable. Please try again later.';
+                    }
+                } else if (error.message) {
+                    const msg = error.message.toLowerCase();
+                    if (msg.includes('too short')) {
+                        userMessage = 'The text is too short to parse. Please provide more details.';
+                    } else if (msg.includes('unable to extract')) {
+                        userMessage = 'Unable to extract job details from the provided text.';
+                    } else if (msg.includes('service unavailable') || msg.includes('network')) {
+                        userMessage = 'AI service is temporarily unavailable. Please try again later.';
+                    }
+                }
+            }
+            addToast(userMessage, 'error');
         } finally {
             setIsParsing(false);
         }
