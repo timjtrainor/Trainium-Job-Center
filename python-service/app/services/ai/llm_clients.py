@@ -219,9 +219,17 @@ class GeminiClient(BaseLLMClient):
             raise ValueError("Gemini client not properly configured")
 
         try:
+            # Map standard kwargs to Gemini config
+            config = {}
+            if "temperature" in kwargs:
+                config["temperature"] = kwargs["temperature"]
+            if "max_tokens" in kwargs:
+                config["max_output_tokens"] = kwargs["max_tokens"]
+
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=prompt,
+                config=config if config else None,
             )
             return response.text
         except Exception as e:

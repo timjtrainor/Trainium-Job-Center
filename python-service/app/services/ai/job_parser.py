@@ -37,7 +37,11 @@ TEXT:
 
         response_text = ""
         try:
-            response_text = self.router.generate(prompt)
+            response_text = self.router.generate(
+                prompt,
+                temperature=0.0,  # Deterministic for faster/consistent parsing
+                max_tokens=2048   # Limit output to prevent runaways
+            )
 
             # Clean up potential markdown formatting
             clean_text = self._clean_json_string(response_text)
