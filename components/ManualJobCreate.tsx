@@ -24,8 +24,38 @@ export const ManualJobCreate = ({ onBack }: ManualJobCreateProps) => {
     const [formData, setFormData] = useState({ ...initialFormData });
 
     const [isLoading, setIsLoading] = useState(false);
+    const [isParsing, setIsParsing] = useState(false);
+    const [rawText, setRawText] = useState('');
     const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'submitting' | 'complete'>('idle');
     const { addToast } = useToast();
+
+    const handleSmartFill = async () => {
+        if (!rawText.trim()) return;
+        setIsParsing(true);
+        try {
+            const parsed = await apiService.parseJobDescription(rawText, formData.url);
+
+            setFormData(prev => ({
+                ...prev,
+                title: parsed.title || prev.title,
+                company_name: parsed.company_name || prev.company_name,
+                description: parsed.description || prev.description,
+                location: parsed.location || prev.location,
+                salary_min: parsed.salary_min !== null && parsed.salary_min !== undefined ? String(parsed.salary_min) : prev.salary_min,
+                salary_max: parsed.salary_max !== null && parsed.salary_max !== undefined ? String(parsed.salary_max) : prev.salary_max,
+                salary_currency: parsed.salary_currency || prev.salary_currency,
+                remote_status: parsed.remote_status || prev.remote_status,
+                date_posted: parsed.date_posted || prev.date_posted,
+            }));
+
+            addToast('Job details auto-filled! Please review before saving.', 'success');
+        } catch (error: any) {
+            console.error(error);
+            addToast('Failed to parse job description. Please fill details manually.', 'error');
+        } finally {
+            setIsParsing(false);
+        }
+    };
 
     const handleInputChange = (field: string, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -150,6 +180,44 @@ export const ManualJobCreate = ({ onBack }: ManualJobCreateProps) => {
                             Enter job details to save a job directly into the jobs table for downstream processing
                         </p>
                     </div>
+                </div>
+
+                {/* Smart Fill Section */}
+                <div className="mb-8 p-5 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800/50">
+                     <div className="flex items-center gap-2 mb-3">
+                        <span className="text-lg">✨</span>
+                        <h3 className="text-base font-semibold text-indigo-900 dark:text-indigo-100">
+                            Smart Fill
+                        </h3>
+                     </div>
+                     <p className="text-sm text-indigo-700 dark:text-indigo-300 mb-4">
+                        Paste the full job description below and we'll automatically extract the details for you.
+                     </p>
+                     <textarea
+                        rows={6}
+                        className="w-full p-3 bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-800 rounded-lg text-sm text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-indigo-300 dark:placeholder-indigo-700"
+                        placeholder="Paste the raw job posting text here (e.g. CTRL+A, CTRL+C from the job page)..."
+                        value={rawText}
+                        onChange={(e) => setRawText(e.target.value)}
+                     />
+                     <div className="mt-4 flex justify-end">
+                        <button
+                            onClick={handleSmartFill}
+                            disabled={isParsing || !rawText.trim()}
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400 disabled:cursor-not-allowed transition-all"
+                        >
+                            {isParsing ? (
+                                <>
+                                    <LoadingSpinner className="mr-2 h-4 w-4" />
+                                    Analyzing Text...
+                                </>
+                            ) : (
+                                <>
+                                    Auto-Fill Details
+                                </>
+                            )}
+                        </button>
+                     </div>
                 </div>
 
                 {/* Status indicator */}
