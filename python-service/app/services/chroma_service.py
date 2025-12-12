@@ -569,6 +569,119 @@ class ChromaService:
             logger.error(f"Failed to update document metadata '{document_id}' in collection '{collection_name}': {e}")
             return False
 
+    def _serialize_metadata(self, metadata: Dict[str, Any]) -> Dict[str, str | int | float | bool]:
+        """Prepare metadata for ChromaDB storage by serializing complex types."""
+        serialized = {}
+        for key, value in metadata.items():
+            if value is None:
+                continue
+            if isinstance(value, (list, dict)):
+                serialized[key] = json.dumps(value)
+            else:
+                serialized[key] = value
+        return serialized
+
+    async def update_document(
+        self, 
+        collection_name: str, 
+        document_id: str, 
+        content: str, 
+        metadata_updates: Dict[str, Any]
+    ) -> bool:
+        """
+        Update a document's content and metadata in a transaction-like manner.
+        """
+        if not content or not content.strip():
+            logger.error(f"Cannot update document '{document_id}': content is empty")
+            return False
+
+        current_chunks_backup = None
+        
+        try:
+            client = self._get_client()
+            collection = client.get_collection(collection_name)
+            
+            # 1. Get existing data for backup
+            try:
+                where_clause = self._build_where_clause({"doc_id": document_id})
+                existing_data = collection.get(where=where_clause, include=["metadatas", "documents"])
+                if existing_data["ids"]:
+                    current_chunks_backup = existing_data
+            except Exception as e:
+                logger.warning(f"Failed to backup document '{document_id}' before update: {e}")
+                # We proceed, but risk data loss if update fails. 
+                # Ideally we might abort, but if the doc is corrupt/unreadable, maybe we want to overwrite it?
+                # For now, we assume if we can't read it, we can't back it up.
+
+            # 2. Prepare new data BEFORE deleting
+            # Get current/merged metadata
+            current_metadata = {}
+            if current_chunks_backup:
+                # Extract base metadata from first chunk (closest approximation)
+                if current_chunks_backup["metadatas"]:
+                    current_metadata = self._parse_metadata(current_chunks_backup["metadatas"][0])
+            
+            new_metadata = dict(current_metadata)
+            new_metadata.update(metadata_updates)
+            
+            # Ensure critical fields
+            new_metadata["doc_id"] = document_id
+            new_metadata["updated_at"] = datetime.now(timezone.utc).isoformat()
+            
+            # Serialize metadata for storage
+            storage_metadata = self._serialize_metadata(new_metadata)
+            
+            # Chunk content
+            chunks = self._chunk_text(content)
+            if not chunks:
+                logger.error("Chunking resulted in failure (empty chunks)")
+                return False
+
+            ids = [f"{document_id}::c{i}" for i in range(len(chunks))]
+            metadatas = []
+            
+            for i, chunk in enumerate(chunks):
+                chunk_meta = dict(storage_metadata)
+                chunk_meta["seq"] = i
+                chunk_meta["content_hash"] = self._sha1_hash(chunk)
+                metadatas.append(chunk_meta)
+
+            # 3. Delete existing
+            await self.delete_document(collection_name, document_id)
+            
+            # 4. Upload new chunks
+            try:
+                collection.add(
+                    ids=ids,
+                    documents=chunks,
+                    metadatas=metadatas,
+                )
+                logger.info(f"Successfully updated document '{document_id}' in collection '{collection_name}'")
+                return True
+                
+            except Exception as upload_error:
+                logger.error(f"Failed to upload new chunks for '{document_id}': {upload_error}")
+                
+                # 5. Rollback: Attempt to restore backup
+                if current_chunks_backup:
+                    logger.info(f"Attempting rollback for document '{document_id}'...")
+                    try:
+                        collection.add(
+                            ids=current_chunks_backup["ids"],
+                            documents=current_chunks_backup["documents"],
+                            metadatas=current_chunks_backup["metadatas"]
+                        )
+                        logger.info(f"Rollback successful for '{document_id}'")
+                    except Exception as rollback_error:
+                        logger.critical(f"Rollback FAILED for '{document_id}'! Data loss may have occurred. Error: {rollback_error}")
+                
+                return False
+
+        except Exception as e:
+            logger.error(f"Failed to update document '{document_id}' in '{collection_name}': {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return False
+
     async def get_latest_document_by_dimension(self, collection_name: str, dimension: str) -> Dict[str, Any]:
         """Get the latest document for a specific dimension."""
         client = self._get_client()

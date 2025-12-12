@@ -83,8 +83,10 @@ const DocumentViewer = ({
 
     const [editDocument, setEditDocument] = useState<UploadedDocument | null>(null);
     const [editMetadata, setEditMetadata] = useState<Record<string, unknown>>({});
+    const [editContent, setEditContent] = useState<string>('');
     const [isEditOpen, setIsEditOpen] = useState(false);
-    const [isUpdatingMetadata, setIsUpdatingMetadata] = useState(false);
+    const [isUpdatingDocument, setIsUpdatingDocument] = useState(false);
+    const [isLoadingEditData, setIsLoadingEditData] = useState(false);
 
     const { addToast } = useToast();
 
@@ -123,41 +125,56 @@ const DocumentViewer = ({
         }
     };
 
-    const handleEditMetadata = (doc: UploadedDocument) => {
+    const handleEditDocument = async (doc: UploadedDocument) => {
         setEditDocument(doc);
-        setEditMetadata(doc.metadata || {});
         setIsEditOpen(true);
+        setIsLoadingEditData(true);
+        try {
+            // Fetch full details including content
+            const detail = await apiService.getDocumentDetail(doc.collection_name || doc.content_type, doc.id);
+            setEditMetadata(detail.metadata || {});
+            setEditContent(detail.content || '');
+        } catch (error) {
+            console.error(error);
+            addToast('Failed to load document content', 'error');
+            setEditMetadata(doc.metadata || {});
+            setEditContent('');
+        } finally {
+            setIsLoadingEditData(false);
+        }
     };
 
     const closeEdit = () => {
         setIsEditOpen(false);
         setEditDocument(null);
         setEditMetadata({});
+        setEditContent('');
     };
 
-    const handleMetadataUpdate = async () => {
+    const handleDocumentUpdate = async () => {
         if (!editDocument) return;
 
-        setIsUpdatingMetadata(true);
+        setIsUpdatingDocument(true);
         try {
-            const result = await apiService.updateDocumentMetadata(
+            const result = await apiService.updateDocument(
                 editDocument.collection_name || editDocument.content_type,
                 editDocument.id,
+                editContent,
                 editMetadata
             );
 
             if (result.status === 'success') {
-                addToast('Metadata updated successfully!', 'success');
+                addToast('Document updated successfully!', 'success');
                 closeEdit();
                 onRefresh();
             } else {
-                addToast('Failed to update metadata', 'error');
+                addToast('Failed to update document', 'error');
             }
         } catch (error) {
             console.error(error);
-            addToast('Failed to update metadata', 'error');
+            addToast('Failed to update document', 'error');
         } finally {
-            setIsUpdatingMetadata(false);
+            setIsUpdatingDocument(false);
         }
     };
 
@@ -290,10 +307,10 @@ const DocumentViewer = ({
                                     View
                                 </button>
                                 <button
-                                    onClick={() => handleEditMetadata(doc)}
+                                    onClick={() => handleEditDocument(doc)}
                                     className="self-start md:self-auto px-3 py-2 text-sm font-semibold text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600"
                                 >
-                                    Edit Metadata
+                                    Edit
                                 </button>
                                 <button
                                     onClick={() => handleDelete(doc)}
@@ -377,7 +394,7 @@ const DocumentViewer = ({
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
                             <div>
                                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                                    Edit Metadata: {editDocument.title}
+                                    Edit Document: {editDocument.title}
                                 </h3>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
                                     {editDocument.collection_name || editDocument.content_type}
@@ -396,52 +413,70 @@ const DocumentViewer = ({
                                 Last updated: {editDocument.metadata?.updated_at ? new Date(editDocument.metadata.updated_at as string).toLocaleString() : 'Never'}
                             </div>
 
-                            {Object.entries(editMetadata).map(([key, value]) => (
-                                <div key={key}>
-                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                        {key}
-                                    </label>
-                                    {typeof value === 'boolean' ? (
-                                        <input
-                                            type="checkbox"
-                                            checked={value}
-                                            onChange={(e) => handleMetadataChange(key, e.target.checked)}
-                                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            {isLoadingEditData ? (
+                                <p className="text-sm text-slate-500">Loading content...</p>
+                            ) : (
+                                <>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                            Content
+                                        </label>
+                                        <textarea
+                                            value={editContent}
+                                            onChange={(e) => setEditContent(e.target.value)}
+                                            rows={10}
+                                            className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 font-mono text-sm"
                                         />
-                                    ) : Array.isArray(value) ? (
-                                        <input
-                                            type="text"
-                                            value={value.join(', ')}
-                                            onChange={(e) => handleMetadataChange(key, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                                            className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"
-                                            placeholder="Comma-separated values"
-                                        />
-                                    ) : (
-                                        <input
-                                            type="text"
-                                            value={String(value)}
-                                            onChange={(e) => handleMetadataChange(key, e.target.value)}
-                                            className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"
-                                        />
-                                    )}
-                                </div>
-                            ))}
+                                    </div>
 
-                            <div className="flex gap-3 pt-4">
-                                <button
-                                    onClick={handleMetadataUpdate}
-                                    disabled={isUpdatingMetadata}
-                                    className="flex-1 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 disabled:bg-blue-400"
-                                >
-                                    {isUpdatingMetadata ? 'Updating...' : 'Update Metadata'}
-                                </button>
-                                <button
-                                    onClick={closeEdit}
-                                    className="px-4 py-2 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
+                                    {Object.entries(editMetadata).map(([key, value]) => (
+                                        <div key={key}>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                                {key}
+                                            </label>
+                                            {typeof value === 'boolean' ? (
+                                                <input
+                                                    type="checkbox"
+                                                    checked={value}
+                                                    onChange={(e) => handleMetadataChange(key, e.target.checked)}
+                                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                            ) : Array.isArray(value) ? (
+                                                <input
+                                                    type="text"
+                                                    value={value.join(', ')}
+                                                    onChange={(e) => handleMetadataChange(key, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                                                    className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"
+                                                    placeholder="Comma-separated values"
+                                                />
+                                            ) : (
+                                                <input
+                                                    type="text"
+                                                    value={String(value)}
+                                                    onChange={(e) => handleMetadataChange(key, e.target.value)}
+                                                    className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"
+                                                />
+                                            )}
+                                        </div>
+                                    ))}
+
+                                    <div className="flex gap-3 pt-4">
+                                        <button
+                                            onClick={handleDocumentUpdate}
+                                            disabled={isUpdatingDocument || isLoadingEditData}
+                                            className="flex-1 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 disabled:bg-blue-400"
+                                        >
+                                            {isUpdatingDocument ? 'Updating...' : 'Update Document'}
+                                        </button>
+                                        <button
+                                            onClick={closeEdit}
+                                            className="px-4 py-2 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -860,11 +895,10 @@ export const ChromaUploadView = ({ strategicNarratives, activeNarrativeId }: Chr
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${
-                                activeTab === tab.id
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
-                            }`}
+                            className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${activeTab === tab.id
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
+                                }`}
                         >
                             {tab.label}
                         </button>

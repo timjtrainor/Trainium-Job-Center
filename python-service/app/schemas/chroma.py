@@ -27,7 +27,19 @@ class ChromaUploadResponse(BaseModel):
     document_id: str = Field(..., description="Generated document ID")
     chunks_created: int = Field(..., description="Number of text chunks created")
     error_type: Optional[str] = Field(None, description="Type of error if upload failed")
+    chunks_created: int = Field(..., description="Number of text chunks created")
+    error_type: Optional[str] = Field(None, description="Type of error if upload failed")
     suggestions: Optional[List[str]] = Field(None, description="Suggested actions to resolve errors")
+
+
+class ChromaUpdateRequest(BaseModel):
+    """Request schema for updating data in ChromaDB."""
+    
+    content: str = Field(..., description="The new text content for the document")
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Updated metadata",
+    )
 
 
 class ChromaCollectionInfo(BaseModel):

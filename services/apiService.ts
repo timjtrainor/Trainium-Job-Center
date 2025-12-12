@@ -1814,6 +1814,18 @@ export const updateDocumentMetadata = async (collectionName: string, documentId:
 
 // --- Reviewed Jobs ---
 
+export const updateDocument = async (collectionName: string, documentId: string, content: string, metadata: Record<string, unknown>): Promise<StandardResponse<{ document_id: string; collection_name: string; updated_at: string }>> => {
+    const payload = { content, metadata };
+    const response = await fetch(buildFastApiUrl(`documents/${collectionName}/${documentId}`), {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(payload),
+    });
+    return handleResponse(response);
+};
+
+// --- Reviewed Jobs ---
+
 export interface ReviewedJobsFilters {
   recommendation?: 'All' | 'Recommended' | 'Not Recommended';
   min_score?: number;

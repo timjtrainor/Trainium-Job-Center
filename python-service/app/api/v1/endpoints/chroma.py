@@ -1,6 +1,6 @@
 """ChromaDB management endpoints."""
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, Body
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict
 from loguru import logger
@@ -10,7 +10,10 @@ from ....schemas.chroma import (
     ChromaUploadRequest,
     ChromaUploadResponse,
     ChromaCollectionListResponse,
-    ChromaCollectionInfo
+    ChromaUploadResponse,
+    ChromaCollectionListResponse,
+    ChromaCollectionInfo,
+    ChromaUpdateRequest
 )
 from ....services.chroma_service import ChromaService
 from ....services.chroma_manager import get_chroma_manager
@@ -664,8 +667,62 @@ async def get_document_detail(
             f"Failed to fetch document '{document_id}' in collection '{collection_name}': {exc}"
         )
         raise HTTPException(
-            status_code=500,
             detail=f"Failed to get document detail: {str(exc)}",
+        )
+
+
+@router.put("/documents/{collection_name}/{document_id}")
+async def update_document(
+    collection_name: str,
+    document_id: str,
+    request: ChromaUpdateRequest = Body(...),
+    chroma_service: ChromaService = Depends(get_chroma_service)
+):
+    """
+    Update a document's content and metadata.
+    
+    This endpoint:
+    1. Validates the input
+    2. Deletes the existing chunks
+    3. Uploads new chunks with updated metadata
+    """
+    try:
+        await chroma_service.initialize()
+        
+        # Add automatic updated_at timestamp if not provided
+        if "updated_at" not in request.metadata:
+            from datetime import datetime, timezone
+            request.metadata["updated_at"] = datetime.now(timezone.utc).isoformat()
+            
+        success = await chroma_service.update_document(
+            collection_name, 
+            document_id, 
+            request.content, 
+            request.metadata
+        )
+        
+        if success:
+            return create_success_response(
+                message=f"Successfully updated document '{document_id}' in collection '{collection_name}'",
+                data={
+                    "document_id": document_id, 
+                    "collection_name": collection_name,
+                    "updated_at": request.metadata["updated_at"]
+                }
+            )
+            
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to update document '{document_id}'. It may not exist or the update operation failed."
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update document '{document_id}': {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update document: {str(e)}"
         )
 
 
