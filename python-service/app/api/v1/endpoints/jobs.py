@@ -3,6 +3,7 @@ Jobs API endpoints.
 
 Provides REST API for accessing jobs and job reviews.
 """
+import asyncio
 import base64
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends, Query
@@ -11,9 +12,11 @@ from loguru import logger
 from datetime import datetime
 
 from ....schemas.job_reviews import ReviewedJobsResponse, ReviewedJob, JobDetails, JobReviewData
+from ....schemas.job_parsing import JobParseRequest, JobParseResponse
 from ....schemas.jobspy import ScrapedJob
 from ....services.infrastructure.database import get_database_service, DatabaseService
 from ....services.infrastructure.job_persistence import persist_jobs
+from ....services.ai.job_parser import JobParser
 
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -331,4 +334,20 @@ async def ingest_jobs(request: JobIngestRequest):
         raise
     except Exception as e:
         logger.error(f"Failed to ingest jobs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/parse", response_model=JobParseResponse)
+async def parse_job_description(request: JobParseRequest):
+    """
+    Parse a raw job description using AI to extract structured data.
+    """
+    try:
+        parser = JobParser()
+        # Run blocking parser in a separate thread to avoid blocking the event loop
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, parser.parse_job_text, request.description)
+        return result
+    except Exception as e:
+        logger.error(f"Error in parse_job_description: {e}")
         raise HTTPException(status_code=500, detail=str(e))

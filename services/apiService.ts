@@ -2066,6 +2066,15 @@ export const overrideJobReview = async (
     return handleResponse(response);
 };
 
+export const parseJobDescription = async (text: string, url?: string): Promise<any> => {
+    const response = await fetch(buildFastApiUrl('jobs/parse'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ description: text, url }),
+    });
+    return handleResponse(response);
+};
+
 // --- LinkedIn Jobs ---
 
 export const fetchLinkedInJobByUrl = async (url: string): Promise<any> => {
