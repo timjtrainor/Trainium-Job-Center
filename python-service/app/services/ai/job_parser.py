@@ -7,6 +7,7 @@ from ...core.config import get_settings
 from .llm_clients import LLMRouter
 from ...schemas.job_parsing import JobParseResponse
 
+
 class JobParser:
     def __init__(self):
         settings = get_settings()
@@ -106,3 +107,15 @@ class JobParser:
         if "site" in value or "office" in value:
             return "On-site"
         return None
+
+
+# Global parser instance
+_job_parser: Optional[JobParser] = None
+
+
+def get_job_parser() -> JobParser:
+    """Get the global job parser instance."""
+    global _job_parser
+    if _job_parser is None:
+        _job_parser = JobParser()
+    return _job_parser
