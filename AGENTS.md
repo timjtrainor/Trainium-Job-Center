@@ -2,10 +2,11 @@
 
 ## General
 - Use descriptive commit messages.
-- Run `npm run build` after changing frontend code.
+- Run `cd frontend && npm run build` after changing frontend code.
 - Run `python -m py_compile $(git ls-files '*.py')` after changing Python code.
 
 ## Frontend
+- Frontend code is located in the `frontend/` directory.
 - Use TypeScript with React and Vite.
 - Prefer React Query for data fetching and caching.
 - Debounce search inputs and reflect filters in the URL.

@@ -109,7 +109,7 @@ sqitch deploy
 ```
 
 **Services will be available at:**
-- Frontend: http://localhost:3000
+- Frontend: http://localhost:5173
 - Python API: http://localhost:8000 (docs at /docs)
 - PostgREST API: http://localhost:3001
 - ChromaDB: http://localhost:8001
@@ -119,6 +119,7 @@ sqitch deploy
 
 ```bash
 # Frontend
+cd frontend
 npm install
 # Configure FastAPI host (optional if using default /api proxy)
 echo "VITE_FASTAPI_BASE_URL=http://localhost:8000" > .env.local
@@ -145,7 +146,7 @@ python poller_daemon.py     # Job polling
 
 ```bash
 # Test the build process
-npm run build
+cd frontend && npm run build
 python -m py_compile $(git ls-files '*.py')
 
 # Test MCP Gateway
