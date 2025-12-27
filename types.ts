@@ -106,6 +106,20 @@ export interface JobProblemAnalysisResult {
   tags: string[];
 }
 
+export interface StrategicAlignmentHook {
+  role: string;
+  company: string;
+  friction_hook: string;
+  mapped_pillar: string;
+  context_type: string;
+  secondary_alignments?: string[];
+  role_index?: number;
+}
+
+export interface AlignmentStrategy {
+  alignment_strategy: StrategicAlignmentHook[];
+}
+
 export interface InfoField {
   text: string;
   source: string;
@@ -142,6 +156,9 @@ export interface Company {
   competitors?: InfoField;
   industry?: InfoField;
   is_recruiting_firm?: boolean;
+  funding_status?: string;
+  culture_keywords?: string[];
+  known_tech_stack?: string[];
 }
 
 // Based on the 'statuses' table
@@ -247,6 +264,7 @@ export interface JobApplication {
   resume_summary?: string;
   resume_summary_bullets?: string;
   tailored_resume_json?: Resume;
+  tailored_resume_json_version?: number;
   application_questions?: ApplicationQuestion[];
   application_message?: string;
   cover_letter_draft?: string;
@@ -264,6 +282,8 @@ export interface JobApplication {
   keyword_coverage_score?: number;
   assumed_requirements?: string[];
   referral_target_suggestion?: string;
+  vocabulary_mirror?: string;
+  alignment_strategy?: AlignmentStrategy;
 }
 
 // ----- New Detailed Resume Structures -----
@@ -280,6 +300,7 @@ export interface ResumeHeader {
 }
 
 export interface Summary {
+  headline?: string;
   paragraph: string;
   bullets: string[];
 }
@@ -331,7 +352,7 @@ export interface Education {
 export interface Certification {
   name: string;
   organization: string;
-  link: string;
+  link?: string;
   issued_date: string; // YYYY-MM-DD
 }
 
@@ -1155,6 +1176,7 @@ export interface ReviewedJob {
   confidence: number; // 0.0 to 1.0
   overall_alignment_score: number; // 0.0 to 10.0
   is_eligible_for_application: boolean;
+  is_remote?: boolean | null;
   salary_min?: string | null;
   salary_max?: string | null;
   salary_currency?: string | null;
@@ -1171,6 +1193,26 @@ export interface ReviewedJob {
   override_comment?: string | null;
   override_by?: string | null;
   override_at?: string | null; // ISO date string
+}
+
+export interface CrewOutputSource {
+  dimension: string; // 'north_star' | 'trajectory_mastery' | 'values_compass' | 'lifestyle_alignment' | 'compensation_philosophy' | 'functional_match'
+  score: number;
+  summary: string;
+}
+
+export interface CrewOutputFinal {
+  rationale: string;
+  recommend: boolean;
+  confidence: string;
+}
+
+export interface CrewOutput {
+  sources: CrewOutputSource[];
+  final?: CrewOutputFinal;
+  tldr_summary?: string;
+  overall_alignment_score?: number;
+  [key: string]: any;
 }
 
 export interface PaginatedResponse<T> {

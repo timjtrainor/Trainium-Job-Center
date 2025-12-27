@@ -74,7 +74,6 @@ export const ResumePreviewForPdf = forwardRef<HTMLDivElement, ResumePreviewProps
                         <div key={index} className={index > 0 ? 'mt-3' : ''}>
                             <div className="flex justify-between items-baseline">
                                 <h3 className="text-base font-bold">{edu.school}</h3>
-                                <p className="text-sm font-medium">{edu.start_year} - {edu.end_year}</p>
                             </div>
                             <p className="text-sm">{edu.degree} in {edu.major.join(', ')}</p>
                         </div>

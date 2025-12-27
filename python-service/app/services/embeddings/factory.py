@@ -12,6 +12,9 @@ except ImportError:
 from ...core.config import get_settings, resolve_api_key
 
 
+# Global cache for embedding functions to avoid reloading models on every request
+_embedding_function_cache = {}
+
 def create_embedding_function(
     provider: str, model: str
 ) -> Union[
@@ -31,14 +34,23 @@ def create_embedding_function(
         ValueError: If provider is unsupported or configuration is missing
     """
     provider = provider.lower()
+    cache_key = f"{provider}:{model}"
+    
+    if cache_key in _embedding_function_cache:
+        logger.debug(f"Using cached embedding function for {cache_key}")
+        return _embedding_function_cache[cache_key]
+    
+    logger.info(f"Creating new embedding function for {cache_key}")
     
     if provider == "sentence_transformer":
         try:
-            return embedding_functions.SentenceTransformerEmbeddingFunction(
+            func = embedding_functions.SentenceTransformerEmbeddingFunction(
                 model_name=model,
                 normalize_embeddings=True,
                 device="cpu"  # Use CPU for compatibility
             )
+            _embedding_function_cache[cache_key] = func
+            return func
         except Exception as e:
             raise ValueError(
                 f"Failed to create SentenceTransformer embedding function with model '{model}'. "
@@ -58,10 +70,12 @@ def create_embedding_function(
             )
             
         try:
-            return embedding_functions.OpenAIEmbeddingFunction(
+            func = embedding_functions.OpenAIEmbeddingFunction(
                 api_key=api_key,
                 model_name=model
             )
+            _embedding_function_cache[cache_key] = func
+            return func
         except Exception as e:
             raise ValueError(
                 f"Failed to create OpenAI embedding function with model '{model}'. "
@@ -90,8 +104,6 @@ def get_embedding_function() -> Union[
     settings = get_settings()
     provider = settings.embedding_provider
     model = settings.embedding_model
-    
-    logger.info(f"Creating embedding function: {provider}:{model}")
     
     try:
         return create_embedding_function(provider, model)

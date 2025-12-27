@@ -20,10 +20,25 @@ export const AIGeneratedContentReview: React.FC<AIGeneratedContentReviewProps> =
         setTimeout(() => setCopiedField(null), 2000);
     };
 
-    const tailoringData = application.tailored_resume_json as any;
+    // Safe parsing for V2 data fields
+    const keywordsData = typeof application.keywords === 'string'
+        ? JSON.parse(application.keywords) as any
+        : application.keywords as any;
+
+    const guidanceData = typeof application.guidance === 'string'
+        ? JSON.parse(application.guidance) as any
+        : application.guidance as any;
+
+    // Robustly handle analysis data which might come as JSON strings or objects
+    const analysisRaw = typeof application.job_problem_analysis_result === 'string'
+        ? JSON.parse(application.job_problem_analysis_result)
+        : application.job_problem_analysis_result;
+
+    const strategicFitScore = application.strategic_fit_score ?? analysisRaw?.strategic_fit_score;
+
     const hasAIContent = application.application_message ||
-                        (application.application_questions && application.application_questions.length > 0) ||
-                        tailoringData;
+        (application.application_questions && application.application_questions.length > 0) ||
+        keywordsData || guidanceData || strategicFitScore;
 
     if (!hasAIContent) {
         return (
@@ -91,130 +106,122 @@ export const AIGeneratedContentReview: React.FC<AIGeneratedContentReviewProps> =
                 </div>
             )}
 
-            {/* Resume Tailoring Summary */}
-            {tailoringData && (
+            {/* Resume Tailoring Analysis (V2 Support) */}
+            {(keywordsData || guidanceData || strategicFitScore) && (
                 <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
                     <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
                         Resume Tailoring Analysis
                     </h3>
 
-                    {/* Alignment Score */}
-                    {tailoringData.initial_alignment_score && (
+                    {/* Strategic Fit Score */}
+                    {strategicFitScore !== undefined && (
                         <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                             <div className="flex items-center justify-between">
                                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                    Initial Alignment Score
+                                    Strategic Fit Score
                                 </span>
                                 <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                                    {tailoringData.initial_alignment_score.toFixed(1)}/10
+                                    {strategicFitScore.toFixed(1)}/100
                                 </span>
                             </div>
                         </div>
                     )}
 
-                    {/* Summary Suggestions */}
-                    {tailoringData.summary_suggestions && tailoringData.summary_suggestions.length > 0 && (
+                    {/* Summary Guidance */}
+                    {guidanceData?.summary && guidanceData.summary.length > 0 && (
                         <div className="mb-4">
                             <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                Suggested Summary Options
+                                Suggested Summary Focus
                             </h4>
-                            <div className="space-y-3">
-                                {tailoringData.summary_suggestions.map((summary: string, idx: number) => (
-                                    <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-md border border-slate-200 dark:border-slate-600">
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div className="flex-1">
-                                                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                                                    Option {idx + 1}
-                                                </span>
-                                                <p className="text-sm text-slate-700 dark:text-slate-300 mt-1">
-                                                    {summary}
-                                                </p>
-                                            </div>
+                            <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-md border border-slate-200 dark:border-slate-600">
+                                <ul className="list-disc pl-5 space-y-1">
+                                    {guidanceData.summary.map((item: string, idx: number) => (
+                                        <li key={idx} className="text-sm text-slate-700 dark:text-slate-300">{item}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Guidance Bullets */}
+                    {guidanceData?.bullets && guidanceData.bullets.length > 0 && (
+                        <div className="mb-4">
+                            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                Achievement Guidance
+                            </h4>
+                            <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-md border border-slate-200 dark:border-slate-600">
+                                <ul className="list-disc pl-5 space-y-1">
+                                    {guidanceData.bullets.map((item: string, idx: number) => (
+                                        <li key={idx} className="text-sm text-slate-700 dark:text-slate-300">{item}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Keywords Analysis */}
+                    {keywordsData && (keywordsData.hard_keywords?.length > 0 || keywordsData.soft_keywords?.length > 0) && (
+                        <div className="mb-4">
+                            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                Keyword Targeting
+                            </h4>
+                            <div className="flex flex-wrap gap-2">
+                                {keywordsData.hard_keywords?.slice(0, 10).map((k: any, idx: number) => (
+                                    <span key={`hard-${idx}`} className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 text-xs font-medium rounded-full">
+                                        {k.keyword}
+                                    </span>
+                                ))}
+                                {keywordsData.soft_keywords?.slice(0, 5).map((k: any, idx: number) => (
+                                    <span key={`soft-${idx}`} className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs font-medium rounded-full">
+                                        {k.keyword}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Strategic Alignment Hooks */}
+            {application.alignment_strategy && (
+                <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+                        Strategic Alignment Hooks
+                    </h3>
+                    <div className="space-y-4">
+                        {(application.alignment_strategy.alignment_strategy || []).map((item, idx) => (
+                            <div key={idx} className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="flex-1">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <p className="font-bold text-slate-900 dark:text-white">{item.role}</p>
                                             <button
-                                                onClick={() => handleCopy(summary, `summary-${idx}`)}
-                                                className="flex-shrink-0 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                                onClick={() => handleCopy(item.friction_hook, `hook-${idx}`)}
+                                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                                             >
-                                                {copiedField === `summary-${idx}` ? (
-                                                    <CheckIcon className="h-3 w-3" />
-                                                ) : (
-                                                    <ClipboardDocumentIcon className="h-3 w-3" />
-                                                )}
+                                                {copiedField === `hook-${idx}` ? 'Copied!' : 'Copy Hook'}
                                             </button>
                                         </div>
+                                        <p className="text-sm text-slate-500 dark:text-slate-400">{item.company}</p>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* AI Selected Skills */}
-                    {tailoringData.ai_selected_skills && tailoringData.ai_selected_skills.length > 0 && (
-                        <div className="mb-4">
-                            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                Top Skills for This Role
-                            </h4>
-                            <div className="flex flex-wrap gap-2">
-                                {tailoringData.ai_selected_skills.map((skill: string, idx: number) => (
-                                    <span
-                                        key={idx}
-                                        className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 text-xs font-medium rounded-full"
-                                    >
-                                        {skill}
+                                </div>
+                                <p className="text-sm italic text-slate-700 dark:text-slate-300 mb-3 bg-white dark:bg-slate-800 p-2 rounded border border-slate-100 dark:border-slate-700">
+                                    "{item.friction_hook}"
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                    <span className="text-xs px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 font-medium rounded">
+                                        Pillar: {item.mapped_pillar}
                                     </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Missing Keywords */}
-                    {tailoringData.missing_keywords && tailoringData.missing_keywords.length > 0 && (
-                        <div className="mb-4">
-                            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                Keywords to Add
-                            </h4>
-                            <div className="flex flex-wrap gap-2">
-                                {tailoringData.missing_keywords.map((keyword: string, idx: number) => (
-                                    <span
-                                        key={idx}
-                                        className="px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 text-xs font-medium rounded-full"
-                                    >
-                                        {keyword}
+                                    <span className={`text-xs px-2 py-1 rounded font-medium ${item.context_type?.includes('Direct')
+                                        ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                                        : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
+                                        }`}>
+                                        Type: {item.context_type}
                                     </span>
-                                ))}
+                                </div>
                             </div>
-                        </div>
-                    )}
-
-                    {/* Guidance */}
-                    {tailoringData.guidance && (
-                        <div>
-                            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                Strategic Guidance
-                            </h4>
-                            <div className="space-y-2 text-sm">
-                                {tailoringData.guidance.summary && tailoringData.guidance.summary.length > 0 && (
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-md">
-                                        <span className="font-medium text-slate-600 dark:text-slate-400">Summary:</span>
-                                        <ul className="list-disc pl-5 mt-1 space-y-1">
-                                            {tailoringData.guidance.summary.map((item: string, idx: number) => (
-                                                <li key={idx} className="text-slate-700 dark:text-slate-300">{item}</li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
-                                {tailoringData.guidance.bullets && tailoringData.guidance.bullets.length > 0 && (
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-md">
-                                        <span className="font-medium text-slate-600 dark:text-slate-400">Bullets:</span>
-                                        <ul className="list-disc pl-5 mt-1 space-y-1">
-                                            {tailoringData.guidance.bullets.map((item: string, idx: number) => (
-                                                <li key={idx} className="text-slate-700 dark:text-slate-300">{item}</li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
+                        ))}
+                    </div>
                 </div>
             )}
 

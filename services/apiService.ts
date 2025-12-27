@@ -307,7 +307,7 @@ const genericHealthCheck = async (url: string): Promise<{ status: number; status
     try {
         const response = await fetch(url);
         // Handle non-json responses gracefully
-        const data = await response.json().catch(() => response.text()); 
+        const data = await response.json().catch(() => response.text());
         return {
             status: response.status,
             statusText: response.statusText,
@@ -317,10 +317,10 @@ const genericHealthCheck = async (url: string): Promise<{ status: number; status
         let errorMessage = 'An unknown network error occurred.';
         let statusText = 'Network Error';
         if (error instanceof TypeError) {
-             errorMessage = 'Network request failed. Is the API server running and CORS configured?';
+            errorMessage = 'Network request failed. Is the API server running and CORS configured?';
         } else if (error instanceof SyntaxError) {
-             errorMessage = 'Failed to parse JSON response from server.';
-             statusText = 'JSON Parse Error';
+            errorMessage = 'Failed to parse JSON response from server.';
+            statusText = 'JSON Parse Error';
         } else if (error instanceof Error) {
             errorMessage = error.message;
         }
@@ -489,7 +489,7 @@ const APPLICATION_TABLE_FIELDS: (keyof JobApplicationPayload)[] = [
     'resume_summary_bullets', 'tailored_resume_json', 'application_questions',
     'application_message', 'cover_letter_draft', 'strategic_fit_score', 'initial_interview_prep', 'why_this_job', 'next_steps_plan',
     'first_90_day_plan', 'keyword_coverage_score', 'assumed_requirements',
-    'referral_target_suggestion'
+    'referral_target_suggestion', 'vocabulary_mirror', 'alignment_strategy'
 ];
 
 /**
@@ -544,10 +544,10 @@ export const updateApplication = async (appId: string, appData: JobApplicationPa
         headers: headers,
         body: JSON.stringify(payload),
     });
-    
+
     // Use handleResponse to check for API errors and handle empty responses (like a 204 No Content).
     await handleResponse(response);
-    
+
     // Always re-fetch the single, fully hydrated application after an update.
     // This is crucial to prevent the UI state from becoming corrupted with partial data,
     // which can happen if an update involves removing relational data (like interviews).
@@ -559,7 +559,7 @@ export const deleteApplication = async (appId: string): Promise<void> => {
     await handleResponse(await fetch(`${API_BASE_URL}/offers?job_application_id=eq.${appId}`, { method: 'DELETE', headers }));
     await handleResponse(await fetch(`${API_BASE_URL}/interviews?job_application_id=eq.${appId}`, { method: 'DELETE', headers }));
     await handleResponse(await fetch(`${API_BASE_URL}/messages?job_application_id=eq.${appId}`, { method: 'DELETE', headers }));
-    
+
     await handleResponse(await fetch(`${API_BASE_URL}/contacts?job_application_id=eq.${appId}`, {
         method: 'PATCH',
         headers,
@@ -576,7 +576,8 @@ export const deleteApplication = async (appId: string): Promise<void> => {
 const COMPANY_TABLE_FIELDS: (keyof CompanyPayload)[] = [
     'company_name', 'company_url', 'mission', 'values', 'news', 'goals', 'issues',
     'customer_segments', 'strategic_initiatives', 'market_position', 'competitors',
-    'industry', 'is_recruiting_firm'
+    'industry', 'is_recruiting_firm',
+    'funding_status', 'culture_keywords', 'known_tech_stack'
 ];
 
 /**
@@ -635,7 +636,7 @@ export const updateCompany = async (companyId: string, companyData: Partial<Comp
         body: JSON.stringify(payload),
     });
     await handleResponse(response);
-    
+
     // Re-fetch the full object for consistency
     return getCompany(companyId);
 };
@@ -703,17 +704,17 @@ export const getResumeContent = async (resumeId: string): Promise<Resume> => {
 
     const resumeData = await handleResponse(resumeResponse);
     const userData = await handleResponse(userResponse);
-    
+
     if (!resumeData || resumeData.length === 0) {
         throw new Error(`Resume content not found for ID: ${resumeId}.`);
     }
 
     const rawResume = resumeData[0];
     const userProfile = userData?.[0] || {};
-    
+
     // Resume-specific header and summary are assumed to be on the resumes table itself for simplicity now.
     // This aligns with the user's schema feedback.
-      const assembledContent: Resume = {
+    const assembledContent: Resume = {
         header: {
             first_name: userProfile.first_name || '',
             last_name: userProfile.last_name || '',
@@ -747,11 +748,11 @@ export const getResumeContent = async (resumeId: string): Promise<Resume> => {
             heading: sec.heading,
             items: (sec.resume_skill_items || []).map((item: any) => item.item_text)
         }))
-      };
+    };
 
-      const sanitized = ensureUniqueAchievementIds(assembledContent);
-      return JSON.parse(JSON.stringify(sanitized));
-  };
+    const sanitized = ensureUniqueAchievementIds(assembledContent);
+    return JSON.parse(JSON.stringify(sanitized));
+};
 
 export const saveResumeContent = async (resumeId: string, content: Resume): Promise<void> => {
     try {
@@ -798,7 +799,7 @@ export const saveResumeContent = async (resumeId: string, content: Resume): Prom
                     is_current: exp.is_current,
                     filter_accomplishment_count: exp.filter_accomplishment_count,
                 };
-                
+
                 const expResponse = await fetch(`${API_BASE_URL}/resume_work_experience`, {
                     method: 'POST',
                     headers: { ...headers, 'Prefer': 'return=representation' },
@@ -867,7 +868,7 @@ export const saveResumeContent = async (resumeId: string, content: Resume): Prom
                     const newSectionArray = await handleResponse(sectionResponse);
 
                     if (newSectionArray && newSectionArray.length > 0) {
-                         const newSectionId = newSectionArray[0].skill_section_id;
+                        const newSectionId = newSectionArray[0].skill_section_id;
                         if (newSectionId) {
                             const itemsPayload = skillSection.items.map(item => ({
                                 skill_section_id: newSectionId,
@@ -1231,10 +1232,10 @@ export const getLinkedInEngagements = async (): Promise<LinkedInEngagement[]> =>
 
 export const createLinkedInEngagement = async (payload: LinkedInEngagementPayload): Promise<LinkedInEngagement> => {
     const { interaction_type, ...rest } = payload;
-    const engagementPayload = { 
+    const engagementPayload = {
         ...rest,
         engagement_type: interaction_type,
-        user_id: USER_ID 
+        user_id: USER_ID
     };
     const response = await fetch(`${API_BASE_URL}/post_engagements`, {
         method: 'POST',
@@ -1257,7 +1258,7 @@ export const updateLinkedInEngagement = async (engagementId: string, payload: Pa
     if (interaction_type) {
         updatePayload.engagement_type = interaction_type;
     }
-    
+
     const response = await fetch(`${API_BASE_URL}/post_engagements?engagement_id=eq.${engagementId}&user_id=eq.${USER_ID}`, {
         method: 'PATCH',
         headers: { ...headers, 'Prefer': 'return=representation' },
@@ -1360,7 +1361,7 @@ export const saveStrategicNarrative = async (payload: StrategicNarrativePayload,
         body: JSON.stringify(finalPayload),
     });
     await handleResponse(response);
-    
+
     const finalResponse = await fetch(`${API_BASE_URL}/strategic_narratives?narrative_id=eq.${narrativeId}&user_id=eq.${USER_ID}&select=*,impact_stories`);
     const finalDataArray = await handleResponse(finalResponse);
     const finalData = finalDataArray[0];
@@ -1378,7 +1379,7 @@ export const getStandardJobRoles = async (): Promise<StandardJobRole[]> => {
 
 export const createStandardJobRole = async (payload: StandardJobRolePayload, narrativeId: string): Promise<StandardJobRole> => {
     const rolePayload = { ...payload, narrative_id: narrativeId };
-     const response = await fetch(`${API_BASE_URL}/standard_job_roles`, {
+    const response = await fetch(`${API_BASE_URL}/standard_job_roles`, {
         method: 'POST',
         headers: { ...headers, 'Prefer': 'return=representation' },
         body: JSON.stringify(rolePayload),
@@ -1501,7 +1502,7 @@ export const getActiveSprint = async (): Promise<Sprint | null> => {
             return latestSprint;
         }
     }
-    
+
     return null;
 };
 
@@ -1532,7 +1533,7 @@ export const createSprintWithActions = async (payload: CreateSprintPayload): Pro
     if (payload.actions && payload.actions.length > 0) {
         await addActionsToSprint(newSprint.sprint_id, payload.actions);
     }
-    
+
     const finalSprint = await getActiveSprint();
     if (!finalSprint) {
         throw new Error("Failed to retrieve new sprint after creation.");
@@ -1542,7 +1543,7 @@ export const createSprintWithActions = async (payload: CreateSprintPayload): Pro
 
 export const updateSprint = async (sprintId: string, payload: Partial<Sprint>): Promise<Sprint> => {
     const { sprint_id, user_id, created_at, actions, ...updatePayload } = payload;
-    
+
     const response = await fetch(`${API_BASE_URL}/weekly_sprints?sprint_id=eq.${sprintId}&user_id=eq.${USER_ID}`, {
         method: 'PATCH',
         headers: { ...headers, 'Prefer': 'return=representation' },
@@ -1553,8 +1554,8 @@ export const updateSprint = async (sprintId: string, payload: Partial<Sprint>): 
 };
 
 export const updateSprintAction = async (actionId: string, payload: SprintActionPayload): Promise<SprintAction> => {
-     const { action_id, sprint_id, user_id, ...updatePayload } = payload as any;
-     const response = await fetch(`${API_BASE_URL}/sprint_actions?action_id=eq.${actionId}&user_id=eq.${USER_ID}`, {
+    const { action_id, sprint_id, user_id, ...updatePayload } = payload as any;
+    const response = await fetch(`${API_BASE_URL}/sprint_actions?action_id=eq.${actionId}&user_id=eq.${USER_ID}`, {
         method: 'PATCH',
         headers: { ...headers, 'Prefer': 'return=representation' },
         body: JSON.stringify(updatePayload),
@@ -1569,7 +1570,7 @@ export const addActionsToSprint = async (sprintId: string, actions: Omit<SprintA
         sprint_id: sprintId,
         user_id: USER_ID,
     }));
-     const response = await fetch(`${API_BASE_URL}/sprint_actions`, {
+    const response = await fetch(`${API_BASE_URL}/sprint_actions`, {
         method: 'POST',
         headers: { ...headers, 'Prefer': 'return=representation' },
         body: JSON.stringify(payload),
@@ -1827,13 +1828,13 @@ export const updateDocument = async (collectionName: string, documentId: string,
 // --- Reviewed Jobs ---
 
 export interface ReviewedJobsFilters {
-  recommendation?: 'All' | 'Recommended' | 'Not Recommended';
-  min_score?: number;
+    recommendation?: 'All' | 'Recommended' | 'Not Recommended';
+    min_score?: number;
 }
 
 export interface ReviewedJobsSort {
-  by: 'date_posted' | 'overall_alignment_score' | 'review_date';
-  order: 'asc' | 'desc';
+    by: 'date_posted' | 'overall_alignment_score' | 'review_date';
+    order: 'asc' | 'desc';
 }
 
 export const buildReviewedJobsSearchParams = ({
@@ -1994,6 +1995,7 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
             confidence: confidenceLookup[String(review.confidence).toLowerCase()] ?? 0.3,
             overall_alignment_score: overallScore,
             is_eligible_for_application: Boolean(finalRecommendation),
+            is_remote: job.is_remote ?? null,
             salary_min: formatSalaryComponent(job.salary_min),
             salary_max: formatSalaryComponent(job.salary_max),
             salary_currency: job.salary_currency ?? null,
@@ -2054,7 +2056,7 @@ export interface JobReviewOverrideResponse {
 }
 
 export const overrideJobReview = async (
-    jobId: string, 
+    jobId: string,
     overrideData: JobReviewOverrideRequest
 ): Promise<JobReviewOverrideResponse> => {
     const response = await fetch(buildFastApiUrl(`jobs/reviews/${jobId}/override`), {

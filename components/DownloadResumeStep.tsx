@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Tab, TabStopType, TabStopPosition, UnderlineType, Table, TableCell, TableRow, WidthType, BorderStyle } from 'docx';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Tab, TabStopType, TabStopPosition, UnderlineType, Table, TableCell, TableRow, WidthType, BorderStyle, ExternalHyperlink } from 'docx';
 import jsPDF from 'jspdf';
 import { Resume, DateInfo, ResumeAccomplishment, WorkExperience, Education, SkillSection } from '../types';
 import { LoadingSpinner, DocumentTextIcon, LightBulbIcon, ArrowDownTrayIcon, ClipboardDocumentListIcon, ClipboardDocumentCheckIcon } from './IconComponents';
@@ -32,7 +32,10 @@ interface AiWorkflowResume {
     resume?: {
         header: Resume['header'];
         summary: Resume['summary'];
-        skills: {
+        skills: Array<{
+            items: string[];
+            heading: string;
+        }> | {
             items: string[];
             heading: string;
         };
@@ -75,7 +78,10 @@ interface AiWorkflowResume {
     // Support for direct format without wrapper (new AI workflow format)
     header?: Resume['header'];
     summary?: Resume['summary'];
-    skills?: {
+    skills?: Array<{
+        items: string[];
+        heading: string;
+    }> | {
         items: string[];
         heading: string;
     };
@@ -223,17 +229,16 @@ const transformAiWorkflowResume = (aiResume: AiWorkflowResume): Resume => {
         end_year: edu.end_year,
     }));
 
-    // Transform skills - handle AI workflow format (object with items array)
+    // Transform skills - handle AI workflow format (object or array)
     let skills: SkillSection[] = [];
-    if (resumeData.skills?.items) {
-        // AI workflow format: skills is an object with items array
+    const skillsSource = resumeData.skills;
+    if (Array.isArray(skillsSource)) {
+        skills = skillsSource;
+    } else if (skillsSource && 'items' in skillsSource) {
         skills = [{
-            heading: resumeData.skills.heading || 'Core Competencies',
-            items: resumeData.skills.items,
+            heading: skillsSource.heading || 'Skills',
+            items: skillsSource.items,
         }];
-    } else if (Array.isArray(resumeData.skills)) {
-        // Standard format: skills is already an array of SkillSection
-        skills = resumeData.skills;
     }
 
     // Extract certifications from AI workflow data if they exist
@@ -249,8 +254,9 @@ const transformAiWorkflowResume = (aiResume: AiWorkflowResume): Resume => {
     if (resumeData.summary) {
         const hasParagraph = resumeData.summary.paragraph?.trim();
         const hasBullets = Array.isArray(resumeData.summary.bullets) && resumeData.summary.bullets.length > 0;
-        if (hasParagraph || hasBullets) {
+        if (hasParagraph || hasBullets || resumeData.summary.headline) {
             summary = {
+                headline: resumeData.summary.headline || '',
                 paragraph: resumeData.summary.paragraph || '',
                 bullets: Array.isArray(resumeData.summary.bullets) ? resumeData.summary.bullets : [],
             };
@@ -659,8 +665,9 @@ const normalizeResume = (resume: Resume | AiWorkflowResume): Resume => {
     // Ensure education is always an array and properly structured
     if (normalized.education) {
         // Handle case where education is nested like { education: [] }
-        if (!Array.isArray(normalized.education) && 'education' in normalized.education && Array.isArray(normalized.education.education)) {
-            normalized.education = normalized.education.education;
+        const eduAsAny = normalized.education as any;
+        if (!Array.isArray(normalized.education) && eduAsAny && 'education' in eduAsAny && Array.isArray(eduAsAny.education)) {
+            normalized.education = eduAsAny.education;
         } else if (!Array.isArray(normalized.education)) {
             normalized.education = [];
         }
@@ -681,9 +688,10 @@ const normalizeResume = (resume: Resume | AiWorkflowResume): Resume => {
     }
 
     if (!normalized.summary) {
-        normalized.summary = { paragraph: '', bullets: [] };
+        normalized.summary = { headline: '', paragraph: '', bullets: [] };
     } else {
         normalized.summary = {
+            headline: normalized.summary.headline || '',
             paragraph: normalized.summary.paragraph || '',
             bullets: Array.isArray(normalized.summary.bullets) ? normalized.summary.bullets : [],
         };
@@ -737,14 +745,22 @@ const resumeToMarkdown = (resume: Resume | AiWorkflowResume): string => {
     }
 
     const summaryLines: string[] = [];
+    if (summary?.headline) {
+        summaryLines.push(`## ${summary.headline.toUpperCase()}`);
+    }
     if (summary?.paragraph) {
         summaryLines.push(summary.paragraph);
     }
     if (summary?.bullets && summary.bullets.length > 0) {
-        summaryLines.push(summary.bullets.map(bullet => `- ${bullet}`).join('\n'));
+        summaryLines.push(summary.bullets.join(' • '));
     }
     if (summaryLines.length > 0) {
-        sections.push(['## Summary', summaryLines.join('\n\n')].join('\n'));
+        // Remove '## Summary' and just use the billboard content if headline exists
+        if (summary?.headline) {
+            sections.push(summaryLines.join('\n\n'));
+        } else {
+            sections.push(['## Summary', summaryLines.join('\n\n')].join('\n'));
+        }
     }
 
     if (work_experience.length > 0) {
@@ -782,16 +798,12 @@ const resumeToMarkdown = (resume: Resume | AiWorkflowResume): string => {
         education.forEach(edu => {
             const titlePieces = [edu.degree, [...(edu.major || [])].join(', ')].filter(Boolean).join(' in ');
             const schoolLine = [edu.school, edu.location].filter(Boolean).join(' · ');
-            const timeline = [edu.start_year, edu.end_year].filter(Boolean).join(' - ');
 
             if (schoolLine) {
                 educationLines.push(`### ${schoolLine}`);
             }
             if (titlePieces) {
                 educationLines.push(titlePieces);
-            }
-            if (timeline) {
-                educationLines.push(`_${timeline}_`);
             }
             educationLines.push('');
         });
@@ -813,9 +825,9 @@ const resumeToMarkdown = (resume: Resume | AiWorkflowResume): string => {
         const skillLines: string[] = ['## Skills'];
         skills.forEach(section => {
             if (section.heading || (section.items && section.items.length > 0)) {
-                const heading = section.heading ? `${section.heading}: ` : '';
+                const heading = section.heading ? `**${section.heading}**: ` : '';
                 const itemsText = (section.items || []).join(', ');
-                skillLines.push(`- ${heading}${itemsText}`.trim());
+                skillLines.push(heading + itemsText);
             }
         });
         sections.push(skillLines.join('\n'));
@@ -833,90 +845,117 @@ const generateDocx = async (resume: Resume | AiWorkflowResume, companyName: stri
         new Paragraph({ style: "JobTitle", text: header.job_title || '' }),
         new Paragraph({
             style: "ContactInfo",
-            text: `${header.city || ''} | ${header.state || ''} | ${header.email || ''} | ${header.phone_number || ''}`,
+            children: [
+                new ExternalHyperlink({
+                    children: [new TextRun({ text: header.email || '', style: "ContactInfo" })],
+                    link: `mailto:${header.email}`,
+                }),
+                new TextRun({ text: " | ", style: "ContactInfo" }),
+                new ExternalHyperlink({
+                    children: [new TextRun({ text: header.phone_number || '', style: "ContactInfo" })],
+                    link: `tel:${header.phone_number}`,
+                }),
+                new TextRun({
+                    text: (header.city || header.state) ? ` | ${[header.city, header.state].filter(Boolean).join(', ')}` : '',
+                    style: "ContactInfo"
+                }),
+            ],
             spacing: { after: 0 }
         }),
-        new Paragraph({ style: "ContactInfo", text: (header.links || []).join(' | ') }),
+        new Paragraph({
+            style: "ContactInfo",
+            children: (header.links || []).flatMap((link, i) => {
+                const cleanLink = link.replace(/^https?:\/\//, '');
+                const parts: any[] = [
+                    new ExternalHyperlink({
+                        children: [new TextRun({ text: cleanLink, style: "ContactInfo" })],
+                        link: link.startsWith('http') ? link : `https://${link}`,
+                    })
+                ];
+                if (i < (header.links?.length || 0) - 1) {
+                    parts.push(new TextRun({ text: " | ", style: "ContactInfo" }));
+                }
+                return parts;
+            })
+        }),
     ];
 
-    if (summary.paragraph || (summary.bullets && summary.bullets.length > 0)) {
-        docChildren.push(new Paragraph({ style: "Section", text: "Executive Profile" }));
+    // --- BILLBOARD SUMMARY ---
+    if (summary.headline || summary.paragraph || (summary.bullets && summary.bullets.length > 0)) {
+        if (summary.headline) {
+            docChildren.push(new Paragraph({
+                style: "Section",
+                text: summary.headline.toUpperCase(),
+                alignment: AlignmentType.LEFT,
+                thematicBreak: true
+            }));
+        } else {
+            docChildren.push(new Paragraph({ style: "Section", text: "Executive Profile", thematicBreak: true }));
+        }
+
         if (summary.paragraph) {
             docChildren.push(new Paragraph({ text: summary.paragraph, style: "Normal" }));
         }
+
         if (summary.bullets && summary.bullets.length > 0) {
-            summary.bullets.forEach(bullet => docChildren.push(new Paragraph({ text: bullet, style: "ListParagraph", bullet: { level: 0 } })));
+            docChildren.push(new Paragraph({
+                text: summary.bullets.join('  •  '),
+                style: "Normal",
+                alignment: AlignmentType.CENTER
+            }));
         }
     }
 
-    if (skills && skills.length > 0) {
-        docChildren.push(new Paragraph({ style: "Section", text: "Core Competencies" }));
-        const allSkillItems = skills.flatMap(s => s.items);
-        const numItemsPerCol = Math.ceil(allSkillItems.length / 3);
-        const col1Items = allSkillItems.slice(0, numItemsPerCol);
-        const col2Items = allSkillItems.slice(numItemsPerCol, 2 * numItemsPerCol);
-        const col3Items = allSkillItems.slice(2 * numItemsPerCol);
-
-        const createCellParagraphs = (items: string[]) => {
-            return items.length > 0 ? items.map(item => new Paragraph({ text: item, bullet: { level: 0 }, style: "SkillCell" })) : [new Paragraph('')];
-        }
-
-        const skillsTable = new Table({
-            columnWidths: [3000, 3000, 3000],
-            width: { size: 9000, type: WidthType.DXA },
-            borders: {
-                top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-            },
-            rows: [
-                new TableRow({
-                    children: [
-                        new TableCell({ children: createCellParagraphs(col1Items), margins: { right: 100 } }),
-                        new TableCell({ children: createCellParagraphs(col2Items), margins: { right: 100, left: 100 } }),
-                        new TableCell({ children: createCellParagraphs(col3Items), margins: { left: 100 } }),
-                    ],
-                }),
-            ],
-        });
-        docChildren.push(skillsTable);
-    }
-
+    // --- PROFESSIONAL EXPERIENCE ---
     if (work_experience && work_experience.length > 0) {
-        docChildren.push(new Paragraph({ style: "Section", text: "Professional Experience" }));
+        docChildren.push(new Paragraph({ style: "Section", text: "Professional Experience", thematicBreak: true }));
         work_experience.forEach((exp, index) => {
-            const spacingBefore = index === 0 ? 0 : 100;
+            const spacingBefore = index === 0 ? 0 : 200;
 
             docChildren.push(
                 new Paragraph({
                     spacing: { before: spacingBefore, after: 0 },
+                    keepNext: true,
+                    keepLines: true,
                     children: [
                         new TextRun({ text: `${exp.company_name}, ${exp.location}`, bold: true, size: 24, font: "Calibri" }),
                         new TextRun({ children: [new Tab(), `${formatDate(exp.start_date)} - ${exp.is_current ? 'Present' : formatDate(exp.end_date)}`], size: 24, font: "Calibri" }),
                     ],
-                    tabStops: [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX }],
+                    tabStops: [{ type: TabStopType.RIGHT, position: 9600 }],
                 }),
-                new Paragraph({ style: "JobHeading2", text: exp.job_title })
+                new Paragraph({
+                    style: "JobHeading2",
+                    text: exp.job_title,
+                    keepNext: true,
+                    keepLines: true,
+                })
             );
 
             if (exp.role_context) {
-                docChildren.push(new Paragraph({ style: "JobHeading2", text: exp.role_context }));
+                docChildren.push(new Paragraph({
+                    style: "JobHeading2",
+                    text: exp.role_context,
+                    keepNext: true,
+                    keepLines: true,
+                }));
             }
 
-            exp.accomplishments.forEach(acc => docChildren.push(new Paragraph({ text: acc.description, style: "ListParagraph", bullet: { level: 0 } })));
-
-            // Add page break after second job
-            if (index === 1) {
-                docChildren.push(new Paragraph({ pageBreakBefore: true, text: "" }));
-            }
+            exp.accomplishments.forEach((acc, i) => {
+                const isLast = i === exp.accomplishments.length - 1;
+                docChildren.push(new Paragraph({
+                    text: acc.description,
+                    style: "ListParagraph",
+                    bullet: { level: 0 },
+                    keepNext: !isLast,
+                    keepLines: true,
+                    spacing: { after: isLast ? 100 : 0 }
+                }));
+            });
         });
     }
 
     if (education && education.length > 0 && education[0].school) {
-        docChildren.push(new Paragraph({ style: "Section", text: "Education" }));
+        docChildren.push(new Paragraph({ style: "Section", text: "Education", thematicBreak: true }));
         education.forEach(edu => {
             docChildren.push(
                 new Paragraph({
@@ -924,19 +963,22 @@ const generateDocx = async (resume: Resume | AiWorkflowResume, companyName: stri
                     spacing: { after: 40 },
                     children: [
                         new TextRun({ text: `${edu.degree} in ${edu.major.join(', ')}`, bold: true, size: 24, font: "Calibri" }),
-                        new TextRun({ children: [new Tab(), `${edu.start_year} - ${edu.end_year}`], size: 24, font: "Calibri" }),
                     ],
-                    tabStops: [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX }],
+                    tabStops: [{ type: TabStopType.RIGHT, position: 9600 }],
                 }),
-                new Paragraph({ style: "EduOther", text: `${edu.school}, ${edu.location}` })
+                new Paragraph({
+                    style: "EduOther",
+                    text: `${edu.school}, ${edu.location}`,
+                    spacing: { after: 100 }
+                })
             );
         });
     }
 
+    // --- CERTIFICATIONS ---
     if (certifications && certifications.length > 0) {
-        docChildren.push(new Paragraph({ style: "Section", text: "Certifications" }));
+        docChildren.push(new Paragraph({ style: "Section", text: "Certifications", thematicBreak: true }));
         certifications.forEach(cert => {
-            // Extract year from issued_date
             let year = "";
             if (cert.issued_date) {
                 const yearMatch = cert.issued_date.match(/\b(19|20)\d{2}\b/);
@@ -945,14 +987,29 @@ const generateDocx = async (resume: Resume | AiWorkflowResume, companyName: stri
 
             docChildren.push(
                 new Paragraph({
+                    spacing: { after: 0 },
                     children: [
                         new TextRun({ text: cert.name, bold: true, size: 24, font: "Calibri" }),
                         new TextRun({ text: ` - ${cert.organization}`, size: 24, font: "Calibri" }),
                         new TextRun({ children: [new Tab(), year], size: 24, font: "Calibri" }),
                     ],
-                    tabStops: [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX }],
+                    tabStops: [{ type: TabStopType.RIGHT, position: 9600 }],
                 })
             );
+        });
+    }
+
+    // --- SKILLS AT BOTTOM ---
+    if (skills && skills.length > 0) {
+        docChildren.push(new Paragraph({ style: "Section", text: "Skills", thematicBreak: true }));
+        skills.forEach((skillGroup, i) => {
+            docChildren.push(new Paragraph({
+                children: [
+                    new TextRun({ text: `${skillGroup.heading}: `, bold: true, size: 22, font: "Calibri" }),
+                    new TextRun({ text: skillGroup.items.join(', '), size: 22, font: "Calibri" }),
+                ],
+                spacing: { after: i === skills.length - 1 ? 200 : 0 }
+            }));
         });
     }
 
@@ -967,8 +1024,8 @@ const generateDocx = async (resume: Resume | AiWorkflowResume, companyName: stri
                 { id: "Normal", name: "Normal", run: { font: "Calibri", size: 22 }, paragraph: { spacing: { after: 120 } } },
                 { id: "ApplicantName", name: "Applicant Name", basedOn: "Normal", run: { font: "Calibri", size: 48, bold: true }, paragraph: { alignment: AlignmentType.CENTER, spacing: { after: 0 } } },
                 { id: "JobTitle", name: "Job Title", basedOn: "Normal", run: { font: "Calibri", size: 28 }, paragraph: { alignment: AlignmentType.CENTER, spacing: { after: 0 } } },
-                { id: "ContactInfo", name: "Contact Info", basedOn: "Normal", run: { font: "Calibri", size: 22 }, paragraph: { alignment: AlignmentType.CENTER, spacing: { after: 240 } } },
-                { id: "Section", name: "Section", basedOn: "Normal", run: { font: "Georgia", size: 24, bold: true, allCaps: true }, paragraph: { spacing: { before: 240, after: 120 }, border: { bottom: { color: "auto", space: 1, style: "single", size: 6 } } } },
+                { id: "ContactInfo", name: "Contact Info", basedOn: "Normal", run: { font: "Calibri", size: 22 }, paragraph: { alignment: AlignmentType.CENTER, spacing: { after: 120 } } },
+                { id: "Section", name: "Section", basedOn: "Normal", run: { font: "Calibri", size: 24, bold: true, allCaps: true }, paragraph: { spacing: { before: 240, after: 120 } } },
                 { id: "JobHeading2", name: "Job Heading 2", basedOn: "Normal", run: { font: "Calibri", size: 22, italics: true }, paragraph: { spacing: { after: 100 } } },
                 { id: "EduOther", name: "EduOther", basedOn: "Normal", run: { font: "Calibri", size: 22, italics: true } },
                 { id: "ListParagraph", name: "List Paragraph", basedOn: "Normal", paragraph: { indent: { left: 288 }, spacing: { after: 0 } } },
@@ -1009,24 +1066,24 @@ const generatePdf = (resume: Resume | AiWorkflowResume, companyName: string) => 
             divider: [148, 163, 184] as [number, number, number],
         },
         typography: {
-            name: { font: 'helvetica', size: 26, lineHeight: 32 },
-            title: { font: 'helvetica', size: 14, lineHeight: 20 },
-            contact: { font: 'helvetica', size: 11, lineHeight: 16 },
-            section: { font: 'times', size: 12, lineHeight: 18 },
-            body: { font: 'helvetica', size: 11, lineHeight: 16 },
+            name: { font: 'helvetica', size: 24, lineHeight: 30 },
+            title: { font: 'helvetica', size: 13, lineHeight: 18 },
+            contact: { font: 'helvetica', size: 10, lineHeight: 14 },
+            section: { font: 'helvetica', size: 11, lineHeight: 16 },
+            body: { font: 'helvetica', size: 10.5, lineHeight: 15 },
         },
         spacing: {
-            afterName: 24,
-            afterTitle: 16,
-            afterContact: 8,
-            afterLinks: 26,
-            sectionTop: 26,
-            sectionBottom: 12,
-            bulletIndent: 14,
+            afterName: 8,
+            afterTitle: 4,
+            afterContact: 2,
+            afterLinks: 12,
+            sectionTop: 14,
+            sectionBottom: 6,
+            bulletIndent: 12,
             bulletMarkerOffset: 4,
-            jobSpacing: 18,
-            jobMetaSpacing: 14,
-            betweenColumns: 18,
+            jobSpacing: 14,
+            jobMetaSpacing: 10,
+            betweenColumns: 16,
         },
     } as const;
 
@@ -1111,7 +1168,7 @@ const generatePdf = (resume: Resume | AiWorkflowResume, companyName: string) => 
     if (contactParts) {
         setFont(styles.typography.contact);
         doc.text(contactParts, pageWidth / 2, cursorY, { align: 'center' });
-        addSpacing(styles.spacing.afterContact);
+        addSpacing(12); // Explicit space before links
     }
 
     if (header?.links && header.links.length > 0) {
@@ -1124,10 +1181,16 @@ const generatePdf = (resume: Resume | AiWorkflowResume, companyName: string) => 
 
     setBodyFont();
 
+    const summaryHeadline = summary?.headline?.trim();
     const summaryParagraph = summary?.paragraph?.trim();
     const summaryBullets = summary?.bullets || [];
-    if (summaryParagraph || summaryBullets.length > 0) {
-        drawSectionHeading('Executive Profile');
+
+    if (summaryHeadline || summaryParagraph || summaryBullets.length > 0) {
+        if (summaryHeadline) {
+            drawSectionHeading(summaryHeadline.toUpperCase());
+        } else {
+            drawSectionHeading('Executive Profile');
+        }
 
         if (summaryParagraph) {
             const paragraphLines = doc.splitTextToSize(summaryParagraph, contentWidth);
@@ -1137,51 +1200,18 @@ const generatePdf = (resume: Resume | AiWorkflowResume, companyName: string) => 
             addSpacing(blockHeight);
         }
 
-        drawBulletedBlock(summaryBullets, contentWidth);
-    }
-
-    if (skills.length > 0) {
-        const allSkillItems = skills.flatMap(section => section.items).filter(Boolean);
-        if (allSkillItems.length > 0) {
-            drawSectionHeading('Core Competencies');
-
-            const columnCount = 3;
-            const columnGap = styles.spacing.betweenColumns;
-            const columnWidth = (contentWidth - columnGap * (columnCount - 1)) / columnCount;
-            const itemsPerColumn = Math.ceil(allSkillItems.length / columnCount);
-            const columns = Array.from({ length: columnCount }, (_, index) =>
-                allSkillItems.slice(index * itemsPerColumn, (index + 1) * itemsPerColumn)
-            );
-            const maxRows = columns.reduce((max, col) => Math.max(max, col.length), 0);
-
-            for (let row = 0; row < maxRows; row += 1) {
-                const rowLines = columns.map(col => {
-                    const value = col[row];
-                    if (!value) {
-                        return null;
-                    }
-                    return doc.splitTextToSize(value, columnWidth - bulletIndent);
-                });
-                const rowHeight = Math.max(
-                    ...rowLines.map(lines => (lines ? Math.max(lines.length, 1) * bodyLineHeight : 0)),
-                    bodyLineHeight
-                );
-
-                checkPageBreak(rowHeight);
-
-                rowLines.forEach((lines, columnIndex) => {
-                    if (!lines) {
-                        return;
-                    }
-                    const baseX = styles.margin + columnIndex * (columnWidth + columnGap);
-                    doc.text('•', baseX + bulletMarkerOffset, cursorY);
-                    doc.text(lines, baseX + bulletIndent, cursorY);
-                });
-
-                addSpacing(rowHeight);
-            }
+        if (summaryBullets.length > 0) {
+            const bulletText = summaryBullets.join('  •  ');
+            const bulletLines = doc.splitTextToSize(bulletText, contentWidth);
+            const blockHeight = Math.max(bulletLines.length, 1) * bodyLineHeight;
+            checkPageBreak(blockHeight);
+            setBodyFont();
+            doc.text(bulletLines, pageWidth / 2, cursorY, { align: 'center' });
+            addSpacing(blockHeight + 8);
         }
     }
+
+    // Move skills to after certifications (handled later)
 
     if (work_experience.length > 0) {
         drawSectionHeading('Professional Experience');
@@ -1192,7 +1222,17 @@ const generatePdf = (resume: Resume | AiWorkflowResume, companyName: string) => 
             const endText = job.is_current ? 'Present' : (job.end_date ? formatDate(job.end_date, 'short') : '');
             const dateRange = [startText, endText].filter(Boolean).join(' - ');
 
-            checkPageBreak(bodyLineHeight * 2);
+            // Calculate job block height for "keep together" logic
+            let jobBlockHeight = bodyLineHeight * 2; // Company line + title
+            if (job.role_context) jobBlockHeight += styles.spacing.jobMetaSpacing;
+
+            job.accomplishments.forEach(acc => {
+                const lines = doc.splitTextToSize(acc.description || '', contentWidth - bulletIndent);
+                jobBlockHeight += Math.max(lines.length, 1) * bodyLineHeight;
+            });
+            jobBlockHeight += styles.spacing.jobSpacing;
+
+            checkPageBreak(jobBlockHeight);
 
             setBodyFont('bold');
             if (companyLine) {
@@ -1211,8 +1251,9 @@ const generatePdf = (resume: Resume | AiWorkflowResume, companyName: string) => 
 
             if (job.role_context) {
                 setBodyFont('italic');
-                doc.text(job.role_context, styles.margin, cursorY);
-                addSpacing(styles.spacing.jobMetaSpacing);
+                const contextLines = doc.splitTextToSize(job.role_context, contentWidth);
+                doc.text(contextLines, styles.margin, cursorY);
+                addSpacing(contextLines.length * bodyLineHeight + 6); // Extra gap before bullets
             }
 
             setBodyFont();
@@ -1220,12 +1261,10 @@ const generatePdf = (resume: Resume | AiWorkflowResume, companyName: string) => 
             if (job.accomplishments && job.accomplishments.length > 0) {
                 job.accomplishments.forEach(acc => {
                     const description = acc.description?.trim();
-                    if (!description) {
-                        return;
-                    }
+                    if (!description) return;
                     const lines = doc.splitTextToSize(description, contentWidth - bulletIndent);
                     const blockHeight = Math.max(lines.length, 1) * bodyLineHeight;
-                    checkPageBreak(blockHeight);
+                    // No need for checkPageBreak here because we checked the whole job block
                     doc.text('•', styles.margin + bulletMarkerOffset, cursorY);
                     doc.text(lines, styles.margin + bulletIndent, cursorY);
                     addSpacing(blockHeight);
@@ -1237,14 +1276,6 @@ const generatePdf = (resume: Resume | AiWorkflowResume, companyName: string) => 
             if (index < work_experience.length - 1) {
                 addSpacing(styles.spacing.jobSpacing);
             }
-
-            if (index === 1 && work_experience.length > 2) {
-                doc.addPage();
-                cursorY = styles.margin;
-                doc.setTextColor(...styles.colors.text);
-                doc.setLineHeightFactor(1.4);
-                setBodyFont();
-            }
         });
     }
 
@@ -1255,18 +1286,13 @@ const generatePdf = (resume: Resume | AiWorkflowResume, companyName: string) => 
         education.forEach(edu => {
             const degreeText = [edu.degree, (edu.major || []).filter(Boolean).join(', ')].filter(Boolean).join(' in ');
             const schoolLine = [edu.school, edu.location].filter(Boolean).join(', ');
-            const timeline = [edu.start_year, edu.end_year].filter(Boolean).join(' - ');
-
-            const topHeight = degreeText || timeline ? bodyLineHeight : 0;
+            const topHeight = degreeText ? bodyLineHeight : 0;
             const bottomHeight = schoolLine ? bodyLineHeight : 0;
             checkPageBreak(topHeight + bottomHeight || bodyLineHeight);
 
-            if (degreeText || timeline) {
+            if (degreeText) {
                 setBodyFont('bold');
                 doc.text(degreeText || '', styles.margin, cursorY);
-                if (timeline) {
-                    doc.text(timeline, pageWidth - styles.margin, cursorY, { align: 'right' });
-                }
                 addSpacing(bodyLineHeight);
             }
 
@@ -1284,26 +1310,49 @@ const generatePdf = (resume: Resume | AiWorkflowResume, companyName: string) => 
         drawSectionHeading('Certifications');
 
         certifications.forEach(cert => {
-            const topHeight = cert.name || cert.issued_date ? bodyLineHeight : 0;
-            const bottomHeight = cert.organization ? bodyLineHeight : 0;
-            checkPageBreak(topHeight + bottomHeight || bodyLineHeight);
+            const certText = `${cert.name}${cert.organization ? ` - ${cert.organization}` : ''}`;
+            const dateText = cert.issued_date || '';
 
-            if (cert.name || cert.issued_date) {
-                setBodyFont('bold');
-                doc.text(cert.name || '', styles.margin, cursorY);
-                if (cert.issued_date) {
-                    doc.text(cert.issued_date, pageWidth - styles.margin, cursorY, { align: 'right' });
-                }
-                addSpacing(bodyLineHeight);
+            checkPageBreak(bodyLineHeight);
+
+            setBodyFont('bold');
+            doc.text(certText, styles.margin, cursorY);
+
+            if (dateText) {
+                setBodyFont('normal');
+                doc.text(dateText, pageWidth - styles.margin, cursorY, { align: 'right' });
             }
 
-            if (cert.organization) {
-                setBodyFont('italic');
-                doc.text(cert.organization, styles.margin, cursorY);
-                addSpacing(bodyLineHeight);
-            }
-
+            addSpacing(bodyLineHeight + 2);
             setBodyFont();
+        });
+    }
+
+    if (skills.length > 0) {
+        drawSectionHeading('Skills');
+
+        skills.forEach(skillGroup => {
+            const heading = skillGroup.heading ? `${skillGroup.heading}: ` : '';
+            const text = heading + (skillGroup.items || []).join(', ');
+            const lines = doc.splitTextToSize(text, contentWidth);
+            const blockHeight = Math.max(lines.length, 1) * bodyLineHeight;
+
+            checkPageBreak(blockHeight);
+
+            if (skillGroup.heading) {
+                setBodyFont('bold');
+                doc.text(`${skillGroup.heading}: `, styles.margin, cursorY);
+                const headingWidth = doc.getTextWidth(`${skillGroup.heading}: `);
+                setBodyFont('normal');
+                const remainingText = (skillGroup.items || []).join(', ');
+                const wrappedRemaining = doc.splitTextToSize(remainingText, contentWidth - headingWidth);
+                doc.text(wrappedRemaining, styles.margin + headingWidth, cursorY);
+                addSpacing(blockHeight + 4);
+            } else {
+                setBodyFont('normal');
+                doc.text(lines, styles.margin, cursorY);
+                addSpacing(blockHeight + 4);
+            }
         });
     }
 

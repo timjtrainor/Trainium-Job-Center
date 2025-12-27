@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ReviewedJob } from '../types';
 import { overrideJobReview, JobReviewOverrideRequest, JobReviewOverrideResponse } from '../services/apiService';
 import * as apiService from '../services/apiService';
-import { CheckIcon, XCircleIcon, ChevronLeftIcon, ChevronRightIcon, UsersIcon, ThumbUpIcon, ThumbDownIcon, InformationCircleIcon, SparklesIcon, DocumentTextIcon, XMarkIcon, MapPinIcon, CalendarIcon, CurrencyDollarIcon, GlobeAltIcon } from './IconComponents';
+import { CheckIcon, XCircleIcon, ChevronLeftIcon, ChevronRightIcon, UsersIcon, ThumbUpIcon, ThumbDownIcon, InformationCircleIcon, SparklesIcon, DocumentTextIcon, XMarkIcon, MapPinIcon, CalendarIcon, CurrencyDollarIcon, GlobeAltIcon, ChevronDownIcon, ChevronUpIcon } from './IconComponents';
 import { MarkdownPreview } from './MarkdownPreview';
 import { useToast } from '../hooks/useToast';
 
@@ -27,6 +27,7 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
     const [currentIndex, setCurrentIndex] = useState(0);
     const [showDetails, setShowDetails] = useState(false);
     const [showJDModal, setShowJDModal] = useState(false);
+    const [isSnapshotExpanded, setIsSnapshotExpanded] = useState(false);
     const [pendingAction, setPendingAction] = useState<null | 'reject' | 'fast-track' | 'full-ai'>(null);
     const navigate = useNavigate();
     const { addToast } = useToast();
@@ -307,242 +308,282 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
                 </button>
             </div>
 
-            {/* Job Card */}
-                <div className={`relative w-full max-w-2xl mx-auto rounded-xl shadow-lg overflow-hidden bg-gradient-to-br ${getConfidenceColor(currentJob.confidence_level)}`}>
-                    <div className="bg-white dark:bg-slate-800 p-6 min-h-[500px] relative">
-                        {/* Score Header */}
-                        <div className="flex items-center justify-between mb-6">
-                            <div className="flex items-center gap-4">
-                                {/* Animated Score Ring */}
-                                <div className="relative">
-                                    <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
-                                        <path
-                                            d="M18 2.0845
-                                              a 15.9155 15.9155 0 0 1 0 31.831
-                                              a 15.9155 15.9155 0 0 1 0 -31.831"
-                                            fill="none"
-                                            stroke="#e5e7eb"
-                                            strokeWidth="3"
-                                        />
-                                        <path
-                                            className="transition-all duration-1000 ease-out"
-                                            d="M18 2.0845
-                                              a 15.9155 15.9155 0 0 1 0 31.831
-                                              a 15.9155 15.9155 0 0 1 0 -31.831"
-                                            fill="none"
-                                            stroke={currentJob.overall_alignment_score >= 8.25 ? "#10b981" : currentJob.overall_alignment_score >= 7.6 ? "#f59e0b" : "#ef4444"}
-                                            strokeWidth="3"
-                                            strokeLinecap="round"
-                                            strokeDasharray={`${(currentJob.overall_alignment_score / 10) * 100}, 100`}
-                                            style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
-                                        />
-                                    </svg>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <span className="text-xl font-bold text-slate-900 dark:text-white">
-                                            {currentJob.overall_alignment_score.toFixed(0)}
-                                        </span>
-                                    </div>
-                                </div>
+            <div className={`relative w-full max-w-2xl mx-auto rounded-xl shadow-lg overflow-hidden bg-white dark:bg-slate-800`}>
+                {/* Header Gradient Stripe - Confidence Color */}
+                <div className={`h-2 w-full bg-gradient-to-r ${getConfidenceColor(currentJob.confidence_level)}`} />
 
-                                <div>
-                                    <div className="text-2xl font-bold text-slate-900 dark:text-white">
-                                        {currentJob.overall_alignment_score.toFixed(1)}/10
-                                    </div>
-                                    <div className={`text-sm font-medium ${getScoreColor(currentJob.overall_alignment_score)} dark:text-green-400`}>
-                                        <span className={currentJob.overall_alignment_score >= 8.5 ? 'text-green-600' :
-                                                       currentJob.overall_alignment_score >= 8.25 ? 'text-green-600' :
-                                                       currentJob.overall_alignment_score >= 7.9 ? 'text-yellow-600' :
-                                                       currentJob.overall_alignment_score >= 7.6 ? 'text-yellow-600' :
-                                                       currentJob.overall_alignment_score >= 7.0 ? 'text-red-600' : 'text-red-600'}>
-                                            {currentJob.overall_alignment_score >= 8.5 ? 'Exceptional Match' :
-                                             currentJob.overall_alignment_score >= 8.25 ? 'Strong Recommendation' :
-                                             currentJob.overall_alignment_score >= 7.9 ? 'Good Opportunity' :
-                                             currentJob.overall_alignment_score >= 7.6 ? 'Borderline - Consider Carefully' :
-                                             currentJob.overall_alignment_score >= 7.0 ? 'Potential Concerns - Research More' : 'Poor Match'}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Company Avatar */}
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-lg font-bold text-slate-700 dark:text-slate-300">
-                                    {(currentJob.company_name || 'U')[0].toUpperCase()}
-                                </div>
+                <div className="p-6 pb-2 min-h-[500px] relative">
+                    {/* Improved Header: Score Circle + Job Details */}
+                    <div className="flex items-start gap-5 mb-6">
+                        {/* Animated Score Ring */}
+                        <div className="relative flex-shrink-0">
+                            <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
+                                <path
+                                    d="M18 2.0845
+                                          a 15.9155 15.9155 0 0 1 0 31.831
+                                          a 15.9155 15.9155 0 0 1 0 -31.831"
+                                    fill="none"
+                                    stroke="#f1f5f9"
+                                    strokeWidth="3"
+                                    className="dark:stroke-slate-700"
+                                />
+                                <path
+                                    className="transition-all duration-1000 ease-out"
+                                    d="M18 2.0845
+                                          a 15.9155 15.9155 0 0 1 0 31.831
+                                          a 15.9155 15.9155 0 0 1 0 -31.831"
+                                    fill="none"
+                                    stroke={currentJob.overall_alignment_score >= 8.25 ? "#10b981" : currentJob.overall_alignment_score >= 7.6 ? "#f59e0b" : "#ef4444"}
+                                    strokeWidth="3"
+                                    strokeLinecap="round"
+                                    strokeDasharray={`${(currentJob.overall_alignment_score / 10) * 100}, 100`}
+                                    style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+                                />
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center flex-col">
+                                <span className="text-2xl font-bold text-slate-900 dark:text-white leading-none">
+                                    {currentJob.overall_alignment_score.toFixed(1)}
+                                </span>
                             </div>
                         </div>
 
-                        {/* Job Title and Company */}
-                        <div className="mb-4">
-                            <h2 className="text-xl font-bold text-slate-900 dark:text-white leading-tight">
+                        {/* Title & Company */}
+                        <div className="flex-1 pt-1">
+                            <h2 className="text-2xl font-bold text-slate-900 dark:text-white leading-tight mb-1">
                                 {currentJob.title || 'Untitled Position'}
                             </h2>
-                            <p className="text-lg text-slate-700 dark:text-slate-300 font-medium mt-1">
+                            <div className="flex items-center gap-2 text-lg text-slate-700 dark:text-slate-300 font-medium">
                                 {currentJob.company_name || 'Unknown Company'}
-                            </p>
-                        </div>
-
-                    {/* Match Percentage Visual */}
-                    <div className="mb-4">
-                        <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Match Strength</span>
-                            <span className="text-xs font-semibold text-slate-900 dark:text-white">{(currentJob.overall_alignment_score * 10).toFixed(0)}%</span>
-                        </div>
-                        <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                            <div
-                                className={`h-full transition-all duration-500 ${
-                                    currentJob.overall_alignment_score >= 8 ? 'bg-gradient-to-r from-green-500 to-emerald-600' :
-                                    currentJob.overall_alignment_score >= 6 ? 'bg-gradient-to-r from-blue-500 to-cyan-600' :
-                                    'bg-gradient-to-r from-yellow-500 to-orange-600'
-                                }`}
-                                style={{ width: `${(currentJob.overall_alignment_score / 10) * 100}%` }}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Quick Stats */}
-                    <div className="grid grid-cols-2 gap-3 mb-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-sm">
-                        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                            <MapPinIcon className="h-4 w-4 text-slate-500" />
-                            <span className="truncate">{currentJob.location || 'Remote'}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                            <CurrencyDollarIcon className="h-4 w-4 text-slate-500" />
-                            <span>{currentJob.salary_range || (currentJob.salary_min ? `$${currentJob.salary_min}` : currentJob.salary_max ? `$${currentJob.salary_max}` : 'Not listed')}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                            <CalendarIcon className="h-4 w-4 text-slate-500" />
-                            <span>{currentJob.date_posted ? new Date(currentJob.date_posted).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                            <GlobeAltIcon className="h-4 w-4 text-slate-500" />
-                            <span className="truncate">{jobSourceInfo.label || 'Unknown source'}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getConfidenceTextColor(currentJob.confidence_level)} bg-opacity-20 ${
-                                currentJob.confidence_level === 'high' ? 'bg-green-500' :
-                                currentJob.confidence_level === 'medium' ? 'bg-yellow-500' :
-                                'bg-red-500'
-                            }`}>
-                                {currentJob.confidence_level?.toUpperCase() || 'UNKNOWN'}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* TL;DR Section - Always Visible */}
-                    {(currentJob.tldr_summary || currentJob.rationale) && (
-                        <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-500">
-                            <div className="flex items-start gap-2">
-                                <DocumentTextIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                                <div className="flex-1">
-                                    <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">Job TL;DR</p>
-                                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                                        {currentJob.tldr_summary || currentJob.rationale}
-                                    </p>
-                                </div>
                             </div>
                         </div>
-                    )}
-
-                    {/* Agent Breakdown Section */}
-                    <div className="mb-6 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
-                        <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-100 mb-3 flex items-center gap-2">
-                            <InformationCircleIcon className="h-4 w-4" />
-                            Career Fit Analysis
-                        </h4>
-                        <div className="grid grid-cols-1 gap-3">
-                            {(() => {
-                                const dimensionConfig: Array<{ key: string; name: string; defaultSummary: string }> = [
-                                    { key: 'north_star', name: 'North Star Alignment', defaultSummary: 'Evaluating long-term career vision alignment...' },
-                                    { key: 'trajectory_mastery', name: 'Trajectory Mastery', defaultSummary: 'Evaluating skill development and growth trajectory...' },
-                                    { key: 'values_compass', name: 'Values Alignment', defaultSummary: 'Evaluating culture and values alignment...' },
-                                    { key: 'lifestyle_alignment', name: 'Lifestyle Fit', defaultSummary: 'Evaluating work-life balance and lifestyle compatibility...' },
-                                    { key: 'compensation_philosophy', name: 'Compensation Match', defaultSummary: 'Evaluating compensation package alignment...' },
-                                ];
-
-                                const crewOutput = (currentJob.crew_output ?? {}) as Record<string, { score?: number; summary?: string }>;
-
-                                const realDimensions = dimensionConfig.reduce<Array<{ name: string; score: number; summary: string }>>((acc, config) => {
-                                    const dimensionData = crewOutput[config.key];
-                                    if (dimensionData && typeof dimensionData.score === 'number') {
-                                        acc.push({
-                                            name: config.name,
-                                            score: dimensionData.score,
-                                            summary: dimensionData.summary || config.defaultSummary,
-                                        });
-                                    }
-                                    return acc;
-                                }, []);
-
-                                const dimensions = realDimensions.length > 0
-                                    ? realDimensions
-                                    : [
-                                        { name: 'North Star Alignment', score: currentJob.confidence_level === 'high' ? 4.2 : currentJob.confidence_level === 'medium' ? 3.8 : 3.2, summary: 'Placeholder: Long-term vision and purpose alignment' },
-                                        { name: 'Trajectory Mastery', score: currentJob.overall_alignment_score >= 8 ? 4.5 : currentJob.overall_alignment_score >= 6 ? 4.0 : 3.5, summary: 'Placeholder: Skill development and career progression' },
-                                        { name: 'Values Alignment', score: currentJob.overall_alignment_score >= 7 ? 4.3 : currentJob.overall_alignment_score >= 5 ? 3.9 : 3.4, summary: 'Placeholder: Company values and leadership style' },
-                                        { name: 'Lifestyle Fit', score: 4.7, summary: 'Placeholder: Work-life balance and lifestyle preferences' },
-                                        ...((currentJob.salary_range || currentJob.salary_min || currentJob.salary_max) ? [{ name: 'Compensation Match', score: 4.3, summary: 'Placeholder: Salary and benefits alignment' }] : []),
-                                    ];
-
-                                return dimensions.map((dimension, index) => {
-                                    const getProgressWidth = (score: number) => `${(score / 5) * 100}%`;
-                                    const getProgressColor = (score: number) => {
-                                        if (score >= 4) return 'bg-green-500';
-                                        if (score >= 3) return 'bg-yellow-500';
-                                        return 'bg-red-500';
-                                    };
-
-                                    return (
-                                        <div key={dimension.name} className={`flex items-center justify-between text-xs ${index === dimensions.length - 1 ? 'border-t border-purple-200 dark:border-purple-700 pt-2 mt-1' : ''}`}>
-                                            <div className="flex items-center gap-2 flex-1">
-                                                <span className="font-medium text-slate-700 dark:text-slate-300">{dimension.name}</span>
-                                                <button
-                                                    className="text-purple-500 hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-300 p-0.5 rounded"
-                                                    title={`Click to view details: ${dimension.summary}`}
-                                                    onClick={() => {
-                                                        // For now, just alert - could be improved to show a proper modal
-                                                        window.alert(`${dimension.name}\n\n${dimension.summary}`);
-                                                    }}
-                                                >
-                                                    <InformationCircleIcon className="h-3 w-3" />
-                                                </button>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-16 h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
-                                                    <div
-                                                        className={`h-full rounded-full transition-all ${getProgressColor(dimension.score)}`}
-                                                        style={{ width: getProgressWidth(dimension.score) }}
-                                                    />
-                                                </div>
-                                                <span className="text-slate-600 dark:text-slate-400 font-mono">
-                                                    {dimension.score}/5
-                                                </span>
-                                            </div>
-                                        </div>
-                                    );
-                                });
-                            })()}
-                        </div>
-                        <button
-                            onClick={() => setShowDetails(!showDetails)}
-                            className="mt-3 w-full text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-medium"
-                        >
-                            {showDetails ? 'Hide Full Reasoning' : 'Show Full AI Analysis'}
-                        </button>
                     </div>
 
-                    {/* Expanded Full AI Analysis */}
-                    {showDetails && currentJob.rationale && (
-                        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                            <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center gap-2">
-                                <SparklesIcon className="h-4 w-4" />
-                                Complete AI Recommendation
-                            </h4>
-                            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-                                {currentJob.rationale}
-                            </p>
+                    {/* Metadata Grid - Clean & Scannable */}
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                        {/* Remote Status */}
+                        <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                            <div className={`p-2 rounded-full ${(currentJob.is_remote ?? currentJob.location?.toLowerCase().includes('remote') ?? (currentJob.crew_output as any)?.job_intake?.is_remote)
+                                ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
+                                : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400'
+                                }`}>
+                                <GlobeAltIcon className="h-5 w-5" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-xs text-slate-500 uppercase font-semibold">Workspace</span>
+                                <span className="text-sm font-medium text-slate-900 dark:text-white">
+                                    {(currentJob.is_remote ?? (currentJob.crew_output as any)?.job_intake?.is_remote) ? 'Remote' : currentJob.location || 'On-site'}
+                                </span>
+                            </div>
                         </div>
-                    )}
+
+                        {/* Salary */}
+                        <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                            <div className="p-2 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                                <CurrencyDollarIcon className="h-5 w-5" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-xs text-slate-500 uppercase font-semibold">Compensation</span>
+                                <span className="text-sm font-medium text-slate-900 dark:text-white">
+                                    {(() => {
+                                        const jobIntake = (currentJob.crew_output as any)?.job_intake;
+                                        const min = jobIntake?.salary?.min_amount || currentJob.salary_min;
+                                        const max = jobIntake?.salary?.max_amount || currentJob.salary_max;
+
+                                        if (!min && !max) return currentJob.salary_range || 'Not listed';
+
+                                        const formatK = (n: number) => (n / 1000).toFixed(0) + 'k';
+                                        if (min && max && min === max) return `$${formatK(Number(min))}`;
+                                        if (min && max) return `$${formatK(Number(min))} - $${formatK(Number(max))}`;
+                                        if (min) return `$${formatK(Number(min))}+`;
+                                        if (max) return `Up to $${formatK(Number(max))}`;
+                                        return 'Not listed';
+                                    })()}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Location */}
+                        <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                            <div className="p-2 rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
+                                <MapPinIcon className="h-5 w-5" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-xs text-slate-500 uppercase font-semibold">Location</span>
+                                <span className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[150px]" title={currentJob.location || ''}>
+                                    {currentJob.location || 'See Description'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Confidence Level */}
+                        <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                            <div className={`p-2 rounded-full ${(currentJob.confidence_level || 'low').toLowerCase() === 'high' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
+                                (currentJob.confidence_level || 'low').toLowerCase() === 'medium' ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                                    'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                                }`}>
+                                <SparklesIcon className="h-5 w-5" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-xs text-slate-500 uppercase font-semibold">Confidence</span>
+                                <span className="text-sm font-medium text-slate-900 dark:text-white capitalize">
+                                    {(currentJob.confidence_level || 'Low')}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Rationale & TL;DR - Always Visible */}
+                    <div className="mb-6 space-y-3">
+                        {/* Final Analysis */}
+                        {(currentJob.crew_output as any)?.final?.rationale && (
+                            <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-800">
+                                <div className="flex gap-3">
+                                    <SparklesIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                                    <div>
+                                        <h4 className="text-sm font-bold text-blue-900 dark:text-blue-200 mb-1">Analysis Verdict</h4>
+                                        <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                                            {(currentJob.crew_output as any)?.final?.rationale}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TL;DR Summary - Collapsible Accordion */}
+                        {(currentJob.tldr_summary || (currentJob.crew_output as any)?.tldr_summary) && (
+                            <div className="bg-slate-50 dark:bg-slate-700/30 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden transition-all duration-300">
+                                <button
+                                    onClick={() => setIsSnapshotExpanded(!isSnapshotExpanded)}
+                                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                                >
+                                    <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                                        job snapshot
+                                    </h4>
+                                    {isSnapshotExpanded ? (
+                                        <ChevronUpIcon className="h-4 w-4 text-slate-400" />
+                                    ) : (
+                                        <ChevronDownIcon className="h-4 w-4 text-slate-400" />
+                                    )}
+                                </button>
+
+                                {isSnapshotExpanded && (
+                                    <div className="px-4 pb-4">
+                                        <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed animate-fadeIn">
+                                            {currentJob.tldr_summary || (currentJob.crew_output as any)?.tldr_summary}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Career Fit Analysis Dimensions */}
+                    <div className="mb-6">
+                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Fit Analysis</h4>
+                        <div className="space-y-2">
+                            {(() => {
+                                const dimensionMap: Record<string, string> = {
+                                    'north_star': 'North Star Alignment',
+                                    'trajectory_mastery': 'Trajectory Mastery',
+                                    'values_compass': 'Values Compass',
+                                    'lifestyle_alignment': 'Lifestyle Alignment',
+                                    'compensation_philosophy': 'Compensation',
+                                    'functional_match': 'Functional Match'
+                                };
+
+                                const crewOutput = (currentJob.crew_output ?? {}) as any;
+                                const sources = crewOutput.sources || [];
+
+                                // Clean parse of dimensions from the new sources array
+                                let dimensions: any[] = [];
+
+                                if (Array.isArray(sources)) {
+                                    dimensions = sources.map((source: any) => ({
+                                        key: source.dimension,
+                                        name: dimensionMap[source.dimension] || source.dimension.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+                                        score: source.score,
+                                        summary: source.summary
+                                    }));
+                                } else if (typeof sources === 'object' && sources !== null) {
+                                    // Handle case where sources is a dictionary (intermediate format)
+                                    Object.keys(sources).forEach((key: string) => {
+                                        const source = sources[key];
+                                        if (source && typeof source.score === 'number') {
+                                            dimensions.push({
+                                                key,
+                                                name: dimensionMap[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+                                                score: source.score,
+                                                summary: source.summary
+                                            });
+                                        }
+                                    });
+                                }
+
+                                // Fallback for old data format if sources array is empty but we have keys directly on crewOutput
+                                if (dimensions.length === 0) {
+                                    // Attempt to read old format structure if sources missing
+                                    Object.keys(dimensionMap).forEach(key => {
+                                        if (crewOutput[key] && typeof crewOutput[key].score === 'number') {
+                                            dimensions.push({
+                                                key,
+                                                name: dimensionMap[key],
+                                                score: crewOutput[key].score,
+                                                summary: crewOutput[key].summary
+                                            });
+                                        }
+                                    });
+                                }
+
+                                // Sort dimensions according to user preference
+                                const order = [
+                                    'functional_match',
+                                    'compensation_philosophy',
+                                    'north_star',
+                                    'trajectory_mastery',
+                                    'lifestyle_alignment',
+                                    'values_compass'
+                                ];
+
+                                dimensions.sort((a, b) => {
+                                    const indexA = order.indexOf(a.key);
+                                    const indexB = order.indexOf(b.key);
+                                    // If both found in order list, sort by index
+                                    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                                    // If only one found, put it first
+                                    if (indexA !== -1) return -1;
+                                    if (indexB !== -1) return 1;
+                                    // Otherwise sort alphabetically
+                                    return a.name.localeCompare(b.name);
+                                });
+
+                                return dimensions.map((dim: any) => (
+                                    <div key={dim.key} className="group relative">
+                                        <div className="flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-help">
+                                            <div className="w-32 flex-shrink-0 text-xs font-medium text-slate-600 dark:text-slate-400">
+                                                {dim.name}
+                                            </div>
+                                            <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full ${dim.score >= 4 ? 'bg-green-500' :
+                                                        dim.score >= 3 ? 'bg-yellow-500' : 'bg-red-500'
+                                                        }`}
+                                                    style={{ width: `${(dim.score / 5) * 100}%` }}
+                                                />
+                                            </div>
+                                            <div className="w-8 text-right text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                {dim.score}/5
+                                            </div>
+                                        </div>
+                                        {/* Tooltip */}
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-slate-900 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                            {dim.summary?.replace(/\\"/g, '"').replace(/^"|"$/g, '')}
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900"></div>
+                                        </div>
+                                    </div>
+                                ));
+                            })()}
+                        </div>
+                    </div>
 
                     {/* Quick Actions Row */}
                     <div className="flex gap-2 mb-6">
@@ -570,12 +611,11 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
                         </div>
                     )}
 
-
                     {/* Action Buttons - Three Options */}
                     <div className="grid grid-cols-3 gap-2 mt-auto">
                         <button
                             onClick={handleReject}
-                            className="flex flex-col items-center justify-center gap-1 bg-red-500 hover:bg-red-600 text-white px-3 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 active:scale-95"
+                            className="flex flex-col items-center justify-center gap-1 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 px-3 py-3 rounded-lg font-semibold transition-all duration-200 active:scale-95 border border-red-200 dark:border-red-800"
                         >
                             <ThumbDownIcon className="h-5 w-5" />
                             <span className="text-xs">Reject</span>
@@ -584,24 +624,25 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
 
                         <button
                             onClick={handleFastTrack}
-                            className="flex flex-col items-center justify-center gap-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 active:scale-95"
+                            className="flex flex-col items-center justify-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 px-3 py-3 rounded-lg font-semibold transition-all duration-200 active:scale-95 border border-blue-200 dark:border-blue-800"
                         >
                             <ThumbUpIcon className="h-5 w-5" />
-                            <span className="text-xs">Approve – Fast Track</span>
+                            <span className="text-xs">Fast Track</span>
                             <span className="text-[10px] opacity-75">↑ or F</span>
                         </button>
 
                         <button
                             onClick={handleFullAI}
-                            className="flex flex-col items-center justify-center gap-1 bg-green-500 hover:bg-green-600 text-white px-3 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 active:scale-95"
+                            className="flex flex-col items-center justify-center gap-1 bg-green-500 hover:bg-green-600 text-white px-3 py-3 rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 border border-transparent"
                         >
                             <SparklesIcon className="h-5 w-5" />
-                            <span className="text-xs">Approve – Full AI</span>
+                            <span className="text-xs">Full AI</span>
                             <span className="text-[10px] opacity-75">→ or A</span>
                         </button>
                     </div>
                 </div>
             </div>
+
 
             {/* Keyboard Shortcuts Help */}
             <div className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
@@ -615,117 +656,119 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
             </div>
 
             {/* Job Description Modal */}
-            {showJDModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-end">
-                    {/* Backdrop */}
-                    <div
-                        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-                        onClick={() => setShowJDModal(false)}
-                    />
+            {
+                showJDModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-end">
+                        {/* Backdrop */}
+                        <div
+                            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                            onClick={() => setShowJDModal(false)}
+                        />
 
-                    {/* Drawer */}
-                    <div className="relative h-full w-full sm:w-4/5 bg-white dark:bg-slate-800 shadow-2xl overflow-y-auto transition-transform duration-300 ease-out">
-                        {/* Header */}
-                        <div className="sticky top-0 z-10 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4">
-                            <div className="flex items-start justify-between">
-                                <div className="flex-1 pr-4">
-                                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                                        {currentJob.title}
-                                    </h2>
-                                    <p className="text-lg text-slate-600 dark:text-slate-400 mt-1">
-                                        {currentJob.company_name}
-                                    </p>
+                        {/* Drawer */}
+                        <div className="relative h-full w-full sm:w-4/5 bg-white dark:bg-slate-800 shadow-2xl overflow-y-auto transition-transform duration-300 ease-out">
+                            {/* Header */}
+                            <div className="sticky top-0 z-10 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4">
+                                <div className="flex items-start justify-between">
+                                    <div className="flex-1 pr-4">
+                                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                                            {currentJob.title}
+                                        </h2>
+                                        <p className="text-lg text-slate-600 dark:text-slate-400 mt-1">
+                                            {currentJob.company_name}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowJDModal(false)}
+                                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors flex-shrink-0"
+                                        aria-label="Close"
+                                    >
+                                        <XMarkIcon className="h-6 w-6" />
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => setShowJDModal(false)}
-                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors flex-shrink-0"
-                                    aria-label="Close"
-                                >
-                                    <XMarkIcon className="h-6 w-6" />
-                                </button>
+
+                                {/* Quick Stats Bar */}
+                                <div className="flex flex-wrap gap-4 mt-3 text-sm text-slate-600 dark:text-slate-400">
+                                    <span className="flex items-center gap-1">
+                                        <MapPinIcon className="h-4 w-4" />
+                                        {currentJob.location || 'Remote'}
+                                    </span>
+                                    {(currentJob.salary_range || currentJob.salary_min || currentJob.salary_max) && (
+                                        <span className="flex items-center gap-1">
+                                            <CurrencyDollarIcon className="h-4 w-4" />
+                                            {currentJob.salary_range || (currentJob.salary_min ? `$${currentJob.salary_min}` : `$${currentJob.salary_max}`)}
+                                        </span>
+                                    )}
+                                    <span className="flex items-center gap-1">
+                                        <CalendarIcon className="h-4 w-4" />
+                                        Posted {currentJob.date_posted ? new Date(currentJob.date_posted).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently'}
+                                    </span>
+                                    {jobSourceInfo.label && (
+                                        <span className="flex items-center gap-1">
+                                            <GlobeAltIcon className="h-4 w-4" />
+                                            {jobSourceInfo.label}
+                                        </span>
+                                    )}
+                                    {currentJob.url && (
+                                        <a
+                                            href={currentJob.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
+                                        >
+                                            View on {jobSourceInfo.label || 'job site'} →
+                                        </a>
+                                    )}
+                                </div>
                             </div>
 
-                            {/* Quick Stats Bar */}
-                            <div className="flex flex-wrap gap-4 mt-3 text-sm text-slate-600 dark:text-slate-400">
-                                <span className="flex items-center gap-1">
-                                    <MapPinIcon className="h-4 w-4" />
-                                    {currentJob.location || 'Remote'}
-                                </span>
-                                {(currentJob.salary_range || currentJob.salary_min || currentJob.salary_max) && (
-                                    <span className="flex items-center gap-1">
-                                        <CurrencyDollarIcon className="h-4 w-4" />
-                                        {currentJob.salary_range || (currentJob.salary_min ? `$${currentJob.salary_min}` : `$${currentJob.salary_max}`)}
-                                    </span>
+                            {/* Body: Full JD */}
+                            <div className="px-6 py-6">
+                                {currentJob.description ? (
+                                    <div className="prose dark:prose-invert max-w-none">
+                                        <MarkdownPreview markdown={currentJob.description || ''} />
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-12">
+                                        <DocumentTextIcon className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                                        <p className="text-slate-600 dark:text-slate-400">
+                                            Job description not available. <a href={currentJob.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">View on {jobSourceInfo.label || 'job site'}</a>
+                                        </p>
+                                    </div>
                                 )}
-                            <span className="flex items-center gap-1">
-                                <CalendarIcon className="h-4 w-4" />
-                                Posted {currentJob.date_posted ? new Date(currentJob.date_posted).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently'}
-                            </span>
-                            {jobSourceInfo.label && (
-                                <span className="flex items-center gap-1">
-                                    <GlobeAltIcon className="h-4 w-4" />
-                                    {jobSourceInfo.label}
-                                </span>
-                            )}
-                            {currentJob.url && (
-                                <a
-                                    href={currentJob.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
-                                >
-                                    View on {jobSourceInfo.label || 'job site'} →
-                                </a>
-                            )}
-                        </div>
-                        </div>
+                            </div>
 
-                        {/* Body: Full JD */}
-                        <div className="px-6 py-6">
-                            {currentJob.description ? (
-                                <div className="prose dark:prose-invert max-w-none">
-                                    <MarkdownPreview markdown={currentJob.description || ''} />
+                            {/* Footer: Sticky Actions */}
+                            <div className="sticky bottom-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-6 py-4 shadow-lg">
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => { setShowJDModal(false); handleReject(); }}
+                                        className="flex-1 flex flex-col items-center justify-center gap-1 bg-red-500 hover:bg-red-600 text-white px-3 py-3 rounded-lg font-semibold transition-all"
+                                    >
+                                        <ThumbDownIcon className="h-5 w-5" />
+                                        <span className="text-xs">Reject</span>
+                                    </button>
+                                    <button
+                                        onClick={() => { setShowJDModal(false); handleFastTrack(); }}
+                                        className="flex-1 flex flex-col items-center justify-center gap-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-3 rounded-lg font-semibold transition-all"
+                                    >
+                                        <ThumbUpIcon className="h-5 w-5" />
+                                        <span className="text-xs">Fast Track</span>
+                                    </button>
+                                    <button
+                                        onClick={() => { setShowJDModal(false); handleFullAI(); }}
+                                        className="flex-1 flex flex-col items-center justify-center gap-1 bg-green-500 hover:bg-green-600 text-white px-3 py-3 rounded-lg font-semibold transition-all"
+                                    >
+                                        <SparklesIcon className="h-5 w-5" />
+                                        <span className="text-xs">Full AI</span>
+                                    </button>
                                 </div>
-                            ) : (
-                                <div className="text-center py-12">
-                                    <DocumentTextIcon className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                                    <p className="text-slate-600 dark:text-slate-400">
-                                        Job description not available. <a href={currentJob.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">View on {jobSourceInfo.label || 'job site'}</a>
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Footer: Sticky Actions */}
-                        <div className="sticky bottom-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-6 py-4 shadow-lg">
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => { setShowJDModal(false); handleReject(); }}
-                                    className="flex-1 flex flex-col items-center justify-center gap-1 bg-red-500 hover:bg-red-600 text-white px-3 py-3 rounded-lg font-semibold transition-all"
-                                >
-                                    <ThumbDownIcon className="h-5 w-5" />
-                                    <span className="text-xs">Reject</span>
-                                </button>
-                                <button
-                                    onClick={() => { setShowJDModal(false); handleFastTrack(); }}
-                                    className="flex-1 flex flex-col items-center justify-center gap-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-3 rounded-lg font-semibold transition-all"
-                                >
-                                    <ThumbUpIcon className="h-5 w-5" />
-                                    <span className="text-xs">Fast Track</span>
-                                </button>
-                                <button
-                                    onClick={() => { setShowJDModal(false); handleFullAI(); }}
-                                    className="flex-1 flex flex-col items-center justify-center gap-1 bg-green-500 hover:bg-green-600 text-white px-3 py-3 rounded-lg font-semibold transition-all"
-                                >
-                                    <SparklesIcon className="h-5 w-5" />
-                                    <span className="text-xs">Full AI</span>
-                                </button>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

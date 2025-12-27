@@ -38,7 +38,14 @@ def format_job_salary(job: Dict[str, Any]) -> Optional[str]:
     """Format job salary range from min/max amounts."""
     min_amount = job.get('salary_min')
     max_amount = job.get('salary_max')
-    currency = job.get('currency', 'USD')
+    
+    # Fallback to crew_output if top-level salary is missing
+    if min_amount is None and max_amount is None:
+        crew_output = job.get('crew_output')
+        if isinstance(crew_output, dict):
+            salary_data = crew_output.get('job_intake', {}).get('salary', {})
+            min_amount = salary_data.get('min_amount')
+            max_amount = salary_data.get('max_amount')
 
     if min_amount is not None or max_amount is not None:
         min_str = f"{min_amount:,}" if min_amount else ""
@@ -236,7 +243,7 @@ async def generate_application_from_job(job_id: str, narrative_id: str = None):
                 job.get('title', 'Untitled Position'),
                 job.get('description', ''),
                 job.get('job_url') or job.get('url', ''),  # Use consistent field naming
-                format_job_salary(job),
+                format_job_salary({**job, 'crew_output': review.get('crew_output') if review else None}),
                 format_job_location(job),
                 narrative['narrative_id'],
                 narrative['user_id'],
@@ -394,6 +401,9 @@ async def create_application_from_job(job_id: str, mode: str = "fast_track", nar
 
         await _ensure_job_company(job, job_id, db_service)
 
+        # Get job review to access AI-extracted salary info
+        review = await db_service.get_job_review(job_id)
+
         # Get narrative
         async with db_service.pool.acquire() as conn:
             # Use provided narrative_id or fallback to most recent
@@ -457,7 +467,7 @@ async def create_application_from_job(job_id: str, mode: str = "fast_track", nar
                 job.get('title', 'Untitled Position'),
                 job.get('description', ''),
                 job.get('job_url') or job.get('url', ''),  # Use consistent field naming
-                format_job_salary(job),
+                format_job_salary({**job, 'crew_output': review.get('crew_output') if review else None}),
                 format_job_location(job),
                 narrative['narrative_id'],
                 narrative['user_id'],

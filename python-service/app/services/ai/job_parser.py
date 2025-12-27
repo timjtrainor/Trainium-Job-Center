@@ -27,7 +27,7 @@ Fields:
 - salary_currency: Currency code (default "USD")
 - remote_status: "Remote", "Hybrid", "On-site", or null
 - date_posted: "YYYY-MM-DD" or null
-- cleaned_description: Core job description text (remove nav/headers/footers)
+- cleaned_description: The EXACT copy of the job description text provided, but with UI noise (navigation menus, headers, footers, cookie notices, "apply now" buttons, etc.) removed. DO NOT summarize, rewrite, or shorten the description text itself. Keep all bullet points, formatting, and sections exactly as they are.
 
 Return ONLY JSON.
 

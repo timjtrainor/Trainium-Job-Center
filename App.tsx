@@ -54,14 +54,14 @@ import { ManualJobCreate } from './components/ManualJobCreate';
 
 
 type JobDetailsPayload = {
-  companyName: string;
-  isRecruitingFirm: boolean;
-  jobTitle: string;
-  jobLink: string;
-  salary: string;
-  location: string;
-  remoteStatus: 'Remote' | 'Hybrid' | 'On-site' | '';
-  jobDescription: string;
+    companyName: string;
+    isRecruitingFirm: boolean;
+    jobTitle: string;
+    jobLink: string;
+    salary: string;
+    location: string;
+    remoteStatus: 'Remote' | 'Hybrid' | 'On-site' | '';
+    jobDescription: string;
 }
 
 const AppContent = () => {
@@ -124,7 +124,7 @@ const AppContent = () => {
     const [applicationQuestions, setApplicationQuestions] = useState<ApplicationQuestion[]>([]);
     const [postSubmissionPlan, setPostSubmissionPlan] = useState<PostSubmissionPlan | null>(null);
     const [coverLetterDraft, setCoverLetterDraft] = useState<string>('');
-    
+
     // --- UI/Modal State ---
     const [isReanalyzing, setIsReanalyzing] = useState(false);
     const [isContactModalOpen, setIsContactModalOpen] = useState(false);
@@ -162,7 +162,7 @@ const AppContent = () => {
     const [isDebugMode, setIsDebugMode] = useState(false);
     const [modelName, setModelName] = useState('gemini-2.5-flash');
     const [debugModalState, setDebugModalState] = useState<{ isOpen: boolean; stage: 'request' | 'response'; prompt: string; response: string | null; resolve?: (value: unknown) => void }>({ isOpen: false, stage: 'request', prompt: '', response: null });
-    
+
     // --- Computed State ---
     const activeNarrative = useMemo(() => strategicNarratives.find(n => n.narrative_id === activeNarrativeId), [strategicNarratives, activeNarrativeId]);
 
@@ -171,7 +171,7 @@ const AppContent = () => {
         addToast(`${messagePrefix}: ${errorMessage}`, 'error');
         console.error(err);
     };
-    
+
     // --- Data Fetching ---
     const fetchInitialData = useCallback(async () => {
         setIsAppLoading(true);
@@ -230,9 +230,9 @@ const AppContent = () => {
         setInitialAppForStudio(app);
         navigate('/interview-studio');
     };
-    
+
     // --- New App Flow Handlers ---
-    
+
     const currentApplication = currentApplicationId
         ? applications.find(a => a.job_application_id === currentApplicationId) || null
         : null;
@@ -241,7 +241,7 @@ const AppContent = () => {
         resetNewAppFlow();
         navigate('/new-application');
     };
-    
+
     const handleStepClick = (step: NewAppStep) => {
         // This simple implementation allows navigating back to completed steps.
         // The StepTracker component's own logic prevents jumping forward.
@@ -332,7 +332,7 @@ const AppContent = () => {
         setActiveNarrativeId(narrativeId);
         setNewAppStep(NewAppStep.COMPANY_CONFIRMATION);
     };
-    
+
     const handleCompanySelectionAndAnalyze = async (companyId: string) => {
         setNewAppLoadingState('analyzing');
         try {
@@ -356,7 +356,7 @@ const AppContent = () => {
             } else {
                 app = await apiService.createApplication(payload);
             }
-            
+
             setCurrentApplicationId(app.job_application_id);
             setApplications(prev => {
                 const existing = prev.find(p => p.job_application_id === app.job_application_id);
@@ -376,7 +376,7 @@ const AppContent = () => {
             setNewAppLoadingState('idle');
         }
     };
-    
+
     const handleAnalyzeJob = async (appToAnalyze: JobApplication) => {
         try {
             const analysisPrompt = PROMPTS.find(p => p.id === 'INITIAL_JOB_ANALYSIS');
@@ -400,7 +400,7 @@ const AppContent = () => {
             setStrategicFitScore(strategic_fit_score);
             setAssumedRequirements(assumed_requirements);
 
-            const payload = { 
+            const payload = {
                 job_problem_analysis_result: job_problem_analysis,
                 strategic_fit_score: strategic_fit_score === null ? null : Math.round(strategic_fit_score),
                 assumed_requirements: assumed_requirements,
@@ -411,7 +411,7 @@ const AppContent = () => {
             handleError(err, 'Failed job analysis');
         }
     };
-    
+
     const handleConfirmFit = async (isInterested: boolean) => {
         if (!currentApplicationId) return;
         if (!isInterested) {
@@ -419,7 +419,7 @@ const AppContent = () => {
             navigate('/applications');
             return;
         }
-        
+
         setNewAppLoadingState('keywords');
         try {
             const keywordsPrompt = PROMPTS.find(p => p.id === 'GENERATE_KEYWORDS_AND_GUIDANCE');
@@ -437,8 +437,8 @@ const AppContent = () => {
 
             setKeywords(keywordsResult);
             setGuidance(guidanceResult);
-            await handleUpdateApplication(currentApplicationId, { 
-                keywords: keywordsResult, 
+            await handleUpdateApplication(currentApplicationId, {
+                keywords: keywordsResult,
                 guidance: guidanceResult,
                 status_id: approvedStatusId,
             });
@@ -456,10 +456,10 @@ const AppContent = () => {
         setBaseResume(sanitizedResume);
 
         if (isMessageOnlyApp) {
-             try {
+            try {
                 const prompt = PROMPTS.find(p => p.id === 'GENERATE_APPLICATION_MESSAGE');
                 if (!prompt || !jobProblemAnalysisResult || !activeNarrative) throw new Error("Message generation prompt or context missing.");
-                
+
                 const context = {
                     COMPANY_NAME: jobDetails.companyName,
                     JOB_TITLE: jobDetails.jobTitle,
@@ -474,57 +474,57 @@ const AppContent = () => {
                 setApplicationMessageDrafts(drafts);
                 setFinalApplicationMessage(drafts[0] || '');
                 setNewAppStep(NewAppStep.CRAFT_MESSAGE);
-             } catch (err) {
+            } catch (err) {
                 handleError(err, 'Failed to generate application message drafts');
-             } finally {
+            } finally {
                 setNewAppLoadingState('idle');
-             }
+            }
         } else {
             try {
                 const prompt = PROMPTS.find(p => p.id === 'GENERATE_RESUME_TAILORING_DATA');
                 if (!prompt || !jobProblemAnalysisResult || !activeNarrative) throw new Error("Resume tailoring prompt or context missing.");
-                
-                  const context: PromptContext = {
-                      JOB_DESCRIPTION: jobDetails.jobDescription,
-                      CORE_PROBLEM_ANALYSIS: JSON.stringify(jobProblemAnalysisResult.core_problem_analysis),
-                      KEY_SUCCESS_METRICS: jobProblemAnalysisResult.key_success_metrics.join(', '),
-                      FULL_RESUME_JSON: JSON.stringify(sanitizedResume),
-                      RESUME_SUMMARY: sanitizedResume.summary.paragraph,
-                      POSITIONING_STATEMENT: activeNarrative.positioning_statement,
-                      MASTERY: activeNarrative.signature_capability,
-                      JOB_CONTEXT_JSON: JSON.stringify({ title: jobDetails.jobTitle, company: jobDetails.companyName, keywords }),
-                      MISSION: jobDetails.mission || '',
-                      VALUES: jobDetails.values || '',
-                  };
+
+                const context: PromptContext = {
+                    JOB_DESCRIPTION: jobDetails.jobDescription,
+                    CORE_PROBLEM_ANALYSIS: JSON.stringify(jobProblemAnalysisResult.core_problem_analysis),
+                    KEY_SUCCESS_METRICS: jobProblemAnalysisResult.key_success_metrics.join(', '),
+                    FULL_RESUME_JSON: JSON.stringify(sanitizedResume),
+                    RESUME_SUMMARY: sanitizedResume.summary.paragraph,
+                    POSITIONING_STATEMENT: activeNarrative.positioning_statement,
+                    MASTERY: activeNarrative.signature_capability,
+                    JOB_CONTEXT_JSON: JSON.stringify({ title: jobDetails.jobTitle, company: jobDetails.companyName, keywords }),
+                    MISSION: jobDetails.mission || '',
+                    VALUES: jobDetails.values || '',
+                };
 
                 const result = await geminiService.generateResumeTailoringData(context, prompt.content);
-                
+
                 setKeywords(result.keywords || null);
                 setGuidance(result.guidance || null);
-                
-                  const uniqueSummaries = new Set([sanitizedResume.summary.paragraph, ...(result.summary_suggestions || [])]);
+
+                const uniqueSummaries = new Set([sanitizedResume.summary.paragraph, ...(result.summary_suggestions || [])]);
                 setSummaryParagraphOptions(Array.from(uniqueSummaries));
-                
+
                 setAllSkillOptions(result.comprehensive_skills || []);
                 setMissingKeywords(result.missing_keywords || []);
                 setResumeAlignmentScore(result.initial_alignment_score || null);
 
-                  const tailoredResume: Resume = ensureUniqueAchievementIds({
-                      ...sanitizedResume,
-                      summary: { paragraph: sanitizedResume.summary.paragraph, bullets: [] },
-                      skills: [{ heading: 'Core Competencies', items: result.ai_selected_skills || [] }],
-                      work_experience: (result.processed_work_experience || []).map((exp, expIndex) => ({
-                          ...sanitizedResume.work_experience[expIndex],
-                          accomplishments: (exp.accomplishments || []).map((acc, accIndex) => ({
-                              ...(sanitizedResume.work_experience[expIndex].accomplishments[accIndex] || { achievement_id: uuidv4(), description: '', always_include: false, order_index: 0 }),
-                              description: acc.description,
-                              keyword_suggestions: acc.keyword_suggestions,
-                              relevance_score: acc.relevance_score,
-                              original_score: acc.original_score,
-                          }))
-                      }))
-                  });
-                  setFinalResume(tailoredResume);
+                const tailoredResume: Resume = ensureUniqueAchievementIds({
+                    ...sanitizedResume,
+                    summary: { paragraph: sanitizedResume.summary.paragraph, bullets: [] },
+                    skills: [{ heading: 'Core Competencies', items: result.ai_selected_skills || [] }],
+                    work_experience: (result.processed_work_experience || []).map((exp, expIndex) => ({
+                        ...sanitizedResume.work_experience[expIndex],
+                        accomplishments: (exp.accomplishments || []).map((acc, accIndex) => ({
+                            ...(sanitizedResume.work_experience[expIndex].accomplishments[accIndex] || { achievement_id: uuidv4(), description: '', always_include: false, order_index: 0 }),
+                            description: acc.description,
+                            keyword_suggestions: acc.keyword_suggestions,
+                            relevance_score: acc.relevance_score,
+                            original_score: acc.original_score,
+                        }))
+                    }))
+                });
+                setFinalResume(tailoredResume);
                 setNewAppStep(NewAppStep.TAILOR_RESUME);
 
             } catch (err) {
@@ -534,14 +534,14 @@ const AppContent = () => {
             }
         }
     };
-    
+
     const handleRecalculateScore = async () => {
         if (!finalResume || !jobProblemAnalysisResult) return;
         setNewAppLoadingState('saving');
         try {
             const prompt = PROMPTS.find(p => p.id === 'SCORE_RESUME_ALIGNMENT');
             if (!prompt) throw new Error("Score resume prompt not found.");
-            
+
             const context: PromptContext = {
                 FULL_RESUME_JSON: JSON.stringify(finalResume),
                 JOB_DESCRIPTION: jobDetails.jobDescription,
@@ -556,26 +556,26 @@ const AppContent = () => {
             setNewAppLoadingState('idle');
         }
     };
-    
+
     const handleSaveTailoredResume = async () => {
         if (!currentApplicationId || !finalResume) return;
         setNewAppLoadingState('saving');
-    
+
         const resumeToSave = { ...finalResume };
         resumeToSave.work_experience = resumeToSave.work_experience.map(job => {
             const visibleAccomplishments = (job.accomplishments || []).filter(acc => {
                 // This logic is simplified; in a real app, we'd check against a visibility flag
                 // For now, we assume all are visible
-                return true; 
+                return true;
             });
             return { ...job, accomplishments: visibleAccomplishments };
         });
-    
+
         try {
             const resumeCreatedStatusId = statuses.find(s => s.status_name === 'Step-3: Resume created')?.status_id;
-            await handleUpdateApplication(currentApplicationId, { 
-                tailored_resume_json: resumeToSave, 
-                resume_summary: resumeToSave.summary.paragraph, 
+            await handleUpdateApplication(currentApplicationId, {
+                tailored_resume_json: resumeToSave,
+                resume_summary: resumeToSave.summary.paragraph,
                 resume_summary_bullets: JSON.stringify(resumeToSave.summary.bullets),
                 status_id: resumeCreatedStatusId,
             });
@@ -593,20 +593,20 @@ const AppContent = () => {
         setNewAppLoadingState('saving');
         try {
             const messageCreatedStatusId = statuses.find(s => s.status_name === 'Step-3: Message created')?.status_id;
-            await handleUpdateApplication(currentApplicationId, { 
+            await handleUpdateApplication(currentApplicationId, {
                 application_message: finalApplicationMessage,
                 status_id: messageCreatedStatusId
             });
             // Here, we can decide if we want to ask supplemental questions or go to plan.
             // For now, let's go straight to the plan.
-             await handleSaveAnswersAndGeneratePlan();
+            await handleSaveAnswersAndGeneratePlan();
         } catch (err) {
             handleError(err, 'Failed to save application message');
         } finally {
             setNewAppLoadingState('idle');
         }
     };
-    
+
     const handleGenerateCoverLetter = async ({ tone, hook, includeHumor }: { tone: 'confident' | 'warm' | 'bold'; hook?: string; includeHumor?: boolean }) => {
         if (!currentApplicationId) {
             addToast('No application selected.', 'error');
@@ -754,7 +754,58 @@ const AppContent = () => {
             handleError(err, 'Failed to save cover letter');
         }
     };
-    
+
+    const handleExportForAi = (includeCoverLetter: boolean) => {
+        if (!currentApplicationId) return;
+        const app = applications.find(a => a.job_application_id === currentApplicationId);
+        if (!app) return;
+        const company = companies.find(c => c.company_id === app.company_id);
+
+        const formatList = (val: any) => {
+            if (Array.isArray(val)) return val.join(', ');
+            if (typeof val === 'string') return val;
+            return 'Unknown';
+        };
+
+        const xml = [
+            '<company_intelligence>',
+            `  <company_name>${company?.company_name || jobDetails.companyName || 'Unknown'}</company_name>`,
+            `  <company_mission>${company?.mission?.text || jobDetails.mission || 'Unknown'}</company_mission>`,
+            `  <company_values>${company?.values?.text || jobDetails.values || 'Unknown'}</company_values>`,
+            `  <company_issues>${company?.issues?.text || 'Unknown'}</company_issues>`,
+            `  <company_funding_status>${company?.funding_status || 'Unknown'}</company_funding_status>`,
+            `  <company_culture_keywords>${formatList(company?.culture_keywords)}</company_culture_keywords>`,
+            `  <company_tech_stack>${formatList(company?.known_tech_stack)}</company_tech_stack>`,
+            '</company_intelligence>',
+            '',
+            '<role_intelligence>',
+            `  <job_title>${app.job_title || 'Unknown'}</job_title>`,
+            `  <job_ai_summary>${app.ai_summary || 'Unknown'}</job_ai_summary>`,
+            `  <job_problem_analysis_result>${JSON.stringify(app.job_problem_analysis_result) || 'Unknown'}</job_problem_analysis_result>`,
+            `  <job_keywords>${JSON.stringify(app.keywords) || 'Unknown'}</job_keywords>`,
+            `  <job_resume_summary>${app.resume_summary || 'Unknown'}</job_resume_summary>`,
+            `  <job_vocabulary_mirror>${app.vocabulary_mirror || 'Unknown'}</job_vocabulary_mirror>`,
+            '</role_intelligence>',
+            '',
+            '<questions_to_answer>',
+            ...(applicationQuestions.map((q, i) => [
+                '  <text>',
+                `    Question: ${q.question}`,
+                `    Context: ${q.user_thoughts || 'No extra context provided.'}`,
+                '  </text>'
+            ]).flat()),
+            '</questions_to_answer>',
+            '',
+            `<include_cover_letter_request>${includeCoverLetter}</include_cover_letter_request>`
+        ].join('\n');
+
+        navigator.clipboard.writeText(xml).then(() => {
+            addToast('Application data exported to clipboard!', 'success');
+        }).catch(err => {
+            handleError(err, 'Failed to copy to clipboard');
+        });
+    };
+
     const handleSaveAnswersAndGeneratePlan = async () => {
         if (!currentApplicationId) return;
         setNewAppLoadingState('planning');
@@ -765,10 +816,17 @@ const AppContent = () => {
             const app = applications.find(a => a.job_application_id === currentApplicationId);
             if (!prompt || !app || !activeNarrative) throw new Error("Missing context for plan generation.");
 
+            // Defensive parsing for analysis result
+            const analysisRaw = typeof app.job_problem_analysis_result === 'string'
+                ? JSON.parse(app.job_problem_analysis_result)
+                : app.job_problem_analysis_result;
+
+            const analysis = analysisRaw?.job_problem_analysis || analysisRaw;
+
             const context = {
                 COMPANY_NAME: companies.find(c => c.company_id === app.company_id)?.company_name || '',
                 JOB_TITLE: app.job_title,
-                AI_SUMMARY: app.job_problem_analysis_result?.core_problem_analysis.core_problem,
+                AI_SUMMARY: analysis?.core_problem_analysis?.core_problem || '',
                 NORTH_STAR: activeNarrative.positioning_statement,
                 MASTERY: activeNarrative.signature_capability,
                 REFERRAL_TARGET: app.referral_target_suggestion || 'Hiring Manager or Peer',
@@ -781,10 +839,25 @@ const AppContent = () => {
                 why_this_job: plan?.why_this_job || '',
                 next_steps_plan: plan?.next_steps_plan || [],
             });
-            
+
             setNewAppStep(NewAppStep.POST_SUBMIT_PLAN);
         } catch (err) {
             handleError(err, 'Failed to generate post-submission plan');
+        } finally {
+            setNewAppLoadingState('idle');
+        }
+    };
+
+
+
+    const handleSaveAnswersAndFinish = async () => {
+        if (!currentApplicationId) return;
+        setNewAppLoadingState('saving');
+        try {
+            await handleUpdateApplication(currentApplicationId, { application_questions: applicationQuestions });
+            await handleFinishApplication();
+        } catch (err) {
+            handleError(err, 'Failed to save application');
         } finally {
             setNewAppLoadingState('idle');
         }
@@ -882,7 +955,7 @@ const AppContent = () => {
             throw err;
         }
     };
-    
+
     // --- Generic Handlers ---
 
     const handleUpdateApplication = async (appId: string, payload: JobApplicationPayload): Promise<JobApplication> => {
@@ -906,7 +979,7 @@ const AppContent = () => {
             handleError(err, 'Failed to delete application');
         }
     };
-    
+
     const handleDeleteResume = async (resumeId: string) => {
         try {
             await apiService.deleteBaseResume(resumeId);
@@ -949,7 +1022,7 @@ const AppContent = () => {
                 savedContact = await apiService.createContact(contactData);
                 setContacts(prev => [...prev, savedContact].sort((a, b) => (a.last_name || '').localeCompare(b.last_name || '')));
             }
-            
+
             if (contactData.narrative_ids) {
                 await apiService.setContactNarratives(savedContact.contact_id, contactData.narrative_ids);
                 savedContact = await apiService.getSingleContact(savedContact.contact_id);
@@ -969,10 +1042,10 @@ const AppContent = () => {
             const newMessage = await apiService.createMessage(messageData);
             setMessages(prev => [newMessage, ...prev]);
             if (newMessage.contact_id) {
-                setContacts(prev => prev.map(c => 
-                    c.contact_id === newMessage.contact_id 
-                    ? { ...c, messages: [newMessage, ...(c.messages || [])] } 
-                    : c
+                setContacts(prev => prev.map(c =>
+                    c.contact_id === newMessage.contact_id
+                        ? { ...c, messages: [newMessage, ...(c.messages || [])] }
+                        : c
                 ));
             }
             addToast('Message saved!', 'success');
@@ -990,7 +1063,7 @@ const AppContent = () => {
             handleError(err, "Failed to delete contact");
         }
     };
-    
+
     const handleSaveNarrative = async (payload: StrategicNarrativePayload, narrativeId: string) => {
         try {
             const savedNarrative = await apiService.saveStrategicNarrative(payload, narrativeId);
@@ -1000,7 +1073,7 @@ const AppContent = () => {
             handleError(err, 'Failed to save narrative');
         }
     };
-    
+
     const handleUpdateNarrative = (updatedNarrative: StrategicNarrative) => {
         setStrategicNarratives(prev => prev.map(n => n.narrative_id === updatedNarrative.narrative_id ? updatedNarrative : n));
     };
@@ -1036,7 +1109,7 @@ const AppContent = () => {
             const newPost = await apiService.createLinkedInPost(payload);
             setLinkedInPosts(prev => [newPost, ...prev]);
             addToast('Post saved to history!', 'success');
-        } catch(err) {
+        } catch (err) {
             handleError(err, 'Failed to save post');
         }
     };
@@ -1044,15 +1117,15 @@ const AppContent = () => {
     const handleCreateLinkedInEngagement = async (payload: LinkedInEngagementPayload) => {
         try {
             const contactName = payload.contact_name;
-            let contactToLink: Contact | undefined = contacts.find(c => 
+            let contactToLink: Contact | undefined = contacts.find(c =>
                 `${c.first_name} ${c.last_name}`.trim().toLowerCase() === contactName.trim().toLowerCase()
             );
-    
+
             // If contact doesn't exist, create it first.
             if (!contactToLink) {
                 const [firstName, ...lastNameParts] = contactName.split(' ');
                 const lastName = lastNameParts.join(' ');
-    
+
                 const newContactPayload: Partial<Contact> = {
                     first_name: firstName,
                     last_name: lastName,
@@ -1062,31 +1135,31 @@ const AppContent = () => {
                     notes: `Created from engagement on a post.`,
                     date_contacted: new Date().toISOString().split('T')[0],
                 };
-                
+
                 contactToLink = await handleSaveContact(newContactPayload);
             }
-            
+
             if (!contactToLink) {
                 throw new Error("Could not find or create contact to link engagement.");
             }
-            
+
             // Now create the engagement with the contact_id
             const engagementPayload: LinkedInEngagementPayload = {
                 ...payload,
                 contact_id: contactToLink.contact_id
             };
-    
+
             const newEngagement = await apiService.createLinkedInEngagement(engagementPayload);
-            
-            setEngagements(prev => [newEngagement, ...prev].sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-            
+
+            setEngagements(prev => [newEngagement, ...prev].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+
             addToast('Engagement tracked and linked to contact!', 'success');
-            
+
         } catch (err) {
             handleError(err, 'Failed to track engagement');
         }
     };
-    
+
     const handleCreateSynthesizedNarrative = async (payload: StrategicNarrativePayload): Promise<void> => {
         try {
             const newNarrative = await apiService.createNarrative(payload);
@@ -1199,7 +1272,7 @@ const AppContent = () => {
         setNewAppStep(resumeStep);
         navigate('/new-application');
     };
-    
+
     const handleReanalyzeApplication = async (appToReanalyze: JobApplication) => {
         setIsReanalyzing(true);
         addToast('Rerunning full AI analysis...', 'info');
@@ -1208,7 +1281,7 @@ const AppContent = () => {
             const analysisPrompt = PROMPTS.find(p => p.id === 'INITIAL_JOB_ANALYSIS');
             const narrative = strategicNarratives.find(n => n.narrative_id === appToReanalyze.narrative_id);
             if (!analysisPrompt || !narrative) throw new Error("Analysis prompt or narrative not found for re-analysis.");
-    
+
             const analysisContext = {
                 NORTH_STAR: narrative.positioning_statement,
                 MASTERY: narrative.signature_capability,
@@ -1222,17 +1295,17 @@ const AppContent = () => {
             if (!coreProblem) {
                 throw new Error("Failed to extract core problem from the new analysis.");
             }
-    
+
             // Step 2: Re-run Keywords & Guidance
             const keywordsPrompt = PROMPTS.find(p => p.id === 'GENERATE_KEYWORDS_AND_GUIDANCE');
             if (!keywordsPrompt) throw new Error("Keywords prompt missing.");
-    
+
             const keywordsContext = {
                 JOB_DESCRIPTION: appToReanalyze.job_description,
                 AI_SUMMARY: coreProblem
             };
             const keywordsResult = await geminiService.generateKeywordsAndGuidance(keywordsContext, keywordsPrompt.content);
-    
+
             // Step 3: Update application with all new data
             const payload: JobApplicationPayload = {
                 job_problem_analysis_result: analysisResult.job_problem_analysis,
@@ -1241,10 +1314,10 @@ const AppContent = () => {
                 keywords: keywordsResult.keywords,
                 guidance: keywordsResult.guidance,
             };
-    
+
             await handleUpdateApplication(appToReanalyze.job_application_id, payload);
             addToast('AI analysis complete!', 'success');
-    
+
         } catch (err) {
             handleError(err, 'Failed to re-run AI analysis');
         } finally {
@@ -1268,7 +1341,7 @@ const AppContent = () => {
                     title: c.job_title,
                     profile: c.linkedin_about || ''
                 }));
-                
+
             const context = {
                 FULL_RESUME_JSON: JSON.stringify(app.tailored_resume_json || {}),
                 JOB_DESCRIPTION: app.job_description,
@@ -1285,7 +1358,7 @@ const AppContent = () => {
             handleError(err, 'Failed to generate interview prep');
         }
     };
-    
+
     const handleGenerateRecruiterScreenPrep = async (app: JobApplication, interview: Interview) => {
         const prepPrompt = PROMPTS.find(p => p.id === 'GENERATE_RECRUITER_SCREEN_PREP');
         if (!prepPrompt || !activeNarrative) {
@@ -1311,7 +1384,7 @@ const AppContent = () => {
             handleError(err, 'Failed to generate recruiter prep');
         }
     };
-    
+
     const handleGeneratePostInterviewDebrief = async (interview: Interview, notes: { wins: string, fumbles: string, new_intelligence: string }) => {
         setIsGeneratingDebrief(true);
         const debriefPrompt = PROMPTS.find(p => p.id === 'GENERATE_POST_INTERVIEW_COUNTER');
@@ -1335,7 +1408,7 @@ const AppContent = () => {
             };
 
             const debriefData = await geminiService.generatePostInterviewCounter(context, debriefPrompt.content, debugModalState.isOpen ? undefined : undefined);
-            
+
             await handleSaveInterview({ post_interview_debrief: debriefData }, interview.interview_id);
             addToast("AI interview debrief generated!", 'success');
 
@@ -1352,7 +1425,7 @@ const AppContent = () => {
             handleError(new Error("Reframe suggestion prompt not found."), 'AI Studio Error');
             return "";
         }
-        
+
         try {
             const context = {
                 INTERVIEW_QUESTION: question,
@@ -1374,7 +1447,7 @@ const AppContent = () => {
             handleError(new Error("Deconstruct question prompt not found."), 'AI Studio Error');
             return { scope: [], metrics: [], constraints: [] };
         }
-        
+
         try {
             const context = {
                 INTERVIEW_QUESTION: question,
@@ -1398,7 +1471,7 @@ const AppContent = () => {
         const { appId } = useParams();
         const location = useLocation();
         const navigate = useNavigate();
-        
+
         const searchParams = new URLSearchParams(location.search);
         const initialTab = (searchParams.get('tab') as ApplicationDetailTab) || 'overview';
 
@@ -1408,11 +1481,11 @@ const AppContent = () => {
 
         const app = applications.find(a => a.job_application_id === appId);
         const company = companies.find(c => c.company_id === app?.company_id);
-        
+
         if (!app || !company) return <div className="p-8">Loading application...</div>;
-        
-        return <ApplicationDetailView 
-            application={app} 
+
+        return <ApplicationDetailView
+            application={app}
             company={company}
             allCompanies={companies}
             contacts={contacts}
@@ -1431,9 +1504,9 @@ const AppContent = () => {
             onGenerateInterviewPrep={handleGenerateInterviewPrep}
             onGenerateRecruiterScreenPrep={handleGenerateRecruiterScreenPrep}
             onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }}
-            onOpenOfferModal={(app, offer) => {}}
-            onGenerate90DayPlan={(app) => {}}
-            onAddQuestionToCommonPrep={(q) => {}}
+            onOpenOfferModal={(app, offer) => { }}
+            onGenerate90DayPlan={(app) => { }}
+            onAddQuestionToCommonPrep={(q) => { }}
             onOpenStrategyStudio={(interview) => handleNavigateToInterviewStudio(app)}
             onNavigateToStudio={handleNavigateToInterviewStudio}
             handleLaunchCopilot={(app, interview) => navigate(`/interview-copilot/${interview.interview_id}`)}
@@ -1443,7 +1516,7 @@ const AppContent = () => {
             onTabChange={handleTabChange}
         />;
     };
-    
+
     const CompanyDetailWrapper = () => {
         const { companyId } = useParams();
         const company = companies.find(c => c.company_id === companyId);
@@ -1471,8 +1544,8 @@ const AppContent = () => {
     const ResumeEditorWrapper = () => {
         const { resumeId } = useParams();
         const resume = baseResumes.find(r => r.resume_id === resumeId);
-        if(!resume) return <div className="p-8">Loading Resume...</div>
-        return <ResumeEditorView 
+        if (!resume) return <div className="p-8">Loading Resume...</div>
+        return <ResumeEditorView
             resume={resume}
             activeNarrative={activeNarrative}
             onSave={async (res) => {
@@ -1481,7 +1554,7 @@ const AppContent = () => {
                 fetchInitialData();
             }}
             onCancel={() => navigate('/applications')}
-            onAutoSave={async (res) => {}}
+            onAutoSave={async (res) => { }}
             isLoading={isAppLoading}
             prompts={PROMPTS}
             commonKeywords={[]}
@@ -1492,7 +1565,7 @@ const AppContent = () => {
     const InterviewCopilotWrapper = () => {
         const { interviewId } = useParams();
         const navigate = useNavigate();
-    
+
         const { app, interview, company } = useMemo(() => {
             if (!applications || !companies) return { app: null, interview: null, company: null };
             for (const app of applications) {
@@ -1504,7 +1577,7 @@ const AppContent = () => {
             }
             return { app: null, interview: null, company: null };
         }, [applications, interviewId, companies]);
-    
+
         const fallbackNarrative = useMemo<StrategicNarrative>(() => ({
             narrative_id: 'fallback',
             user_id: userProfile?.user_id ?? '',
@@ -1569,8 +1642,8 @@ const AppContent = () => {
 
     const NewApplicationWrapper = () => (
         <div className="flex flex-col h-full">
-             <header className="flex-shrink-0 bg-white dark:bg-slate-800/80 p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <StepTracker 
+            <header className="flex-shrink-0 bg-white dark:bg-slate-800/80 p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <StepTracker
                     currentStep={newAppStep}
                     onStepClick={handleStepClick}
                     isMessageOnlyApp={isMessageOnlyApp}
@@ -1586,13 +1659,13 @@ const AppContent = () => {
             </header>
             <div className="flex-grow p-6 sm:p-8 overflow-y-auto bg-slate-100 dark:bg-slate-900">
                 <div className="max-w-4xl mx-auto bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 sm:p-8 border border-slate-200 dark:border-slate-700">
-                    {newAppStep === NewAppStep.INITIAL_INPUT && <InitialInputStep 
-                        onNext={handleInitialSubmit} 
+                    {newAppStep === NewAppStep.INITIAL_INPUT && <InitialInputStep
+                        onNext={handleInitialSubmit}
                         isLoading={newAppLoadingState === 'extracting'}
                         jobLink={jobDetails.jobLink}
-                        onJobLinkChange={(value) => setJobDetails(prev => ({...prev, jobLink: value}))}
+                        onJobLinkChange={(value) => setJobDetails(prev => ({ ...prev, jobLink: value }))}
                         jobDescription={jobDetails.jobDescription}
-                        onJobDescriptionChange={(value) => setJobDetails(prev => ({...prev, jobDescription: value}))}
+                        onJobDescriptionChange={(value) => setJobDetails(prev => ({ ...prev, jobDescription: value }))}
                         isMessageOnlyApp={isMessageOnlyApp}
                         onIsMessageOnlyChange={setIsMessageOnlyApp}
                     />}
@@ -1699,17 +1772,11 @@ const AppContent = () => {
                         <AnswerQuestionsStep
                             questions={applicationQuestions}
                             setQuestions={setApplicationQuestions}
-                            onGenerateAllAnswers={handleGenerateApplicationAnswers}
+                            onExportForAi={handleExportForAi}
                             onSaveApplication={handleSaveAnswersAndGeneratePlan}
+                            onFinishApplication={handleSaveAnswersAndFinish}
                             onBack={() => setNewAppStep(NewAppStep.DOWNLOAD_RESUME)}
                             isLoading={newAppLoadingState === 'planning'}
-                            onOpenJobDetailsModal={() => setIsJdModalOpen(true)}
-                            onOpenAiAnalysisModal={() => setIsGuidanceModalOpen(true)}
-                            coverLetterDraft={coverLetterDraft}
-                            onCoverLetterChange={setCoverLetterDraft}
-                            onGenerateCoverLetter={handleGenerateCoverLetter}
-                            onSaveCoverLetter={handleSaveCoverLetter}
-                            isGeneratingCoverLetter={isGeneratingCoverLetter}
                         />
                     )}
                     {newAppStep === NewAppStep.POST_SUBMIT_PLAN && postSubmissionPlan && (
@@ -1729,10 +1796,10 @@ const AppContent = () => {
             </div>
         </div>
     );
-    
+
     return (
         <div className="flex h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans">
-             <SideNav 
+            <SideNav
                 narratives={strategicNarratives}
                 activeNarrativeId={activeNarrativeId}
                 onSetNarrative={setActiveNarrativeId}
@@ -1741,20 +1808,20 @@ const AppContent = () => {
             />
             <main className="flex-1 flex flex-col overflow-hidden">
                 {isAppLoading ? (
-                     <div className="flex-1 flex items-center justify-center">
+                    <div className="flex-1 flex items-center justify-center">
                         <LoadingSpinner />
-                     </div>
+                    </div>
                 ) : (
                     <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
                         <Routes>
-                            <Route path="/" element={<DashboardView applications={applications} contacts={contacts} messages={messages} linkedInPosts={linkedInPosts} engagements={engagements} pendingFollowUps={messages.filter(m => m.follow_up_due_date)} userProfile={userProfile} activeNarrative={activeNarrative || null} strategicNarratives={strategicNarratives} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onScoutForOpportunities={() => {}} onUpdateContactStatus={(contactId, status) => handleSaveContact({ contact_id: contactId, status })} prompts={PROMPTS} baseResumes={baseResumes} onCreateSynthesizedNarrative={handleCreateSynthesizedNarrative} onSaveSkillTrends={handleSaveSkillTrends} sprint={sprint} skillTrends={skillTrends} companies={companies} weeklyProgress={""} onAddActions={async () => {}} />} />
-                            <Route path="/applications" element={<ApplicationsView applications={applications} companies={companies} statuses={statuses} offers={offers} onViewApplication={(appId) => navigate(`/application/${appId}`)} onViewCompany={(companyId) => navigate(`/company/${companyId}`)} onResumeApplication={handleResumeApplication} onAddNew={handleStartNewApplication} onDeleteApplication={handleDeleteApplication} onUpdateApplicationStatus={handleUpdateApplicationStatusInline} onDeleteOffer={async (id) => { await apiService.deleteOffer(id); fetchInitialData(); }} resumes={baseResumes} userProfile={userProfile} onAddNewResume={() => navigate('/resume/new')} onEditResume={(res) => navigate(`/resume/${res.resume_id}`)} onDeleteResume={handleDeleteResume} onCopyResume={async (res) => {}} onSetDefaultResume={(id) => handleSaveNarrative({ default_resume_id: id }, activeNarrativeId!)} onToggleLock={async ()=>{}} isLoading={isAppLoading} activeNarrative={activeNarrative} strategicNarratives={strategicNarratives} />} />
+                            <Route path="/" element={<DashboardView applications={applications} contacts={contacts} messages={messages} linkedInPosts={linkedInPosts} engagements={engagements} pendingFollowUps={messages.filter(m => m.follow_up_due_date)} userProfile={userProfile} activeNarrative={activeNarrative || null} strategicNarratives={strategicNarratives} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onScoutForOpportunities={() => { }} onUpdateContactStatus={(contactId, status) => handleSaveContact({ contact_id: contactId, status })} prompts={PROMPTS} baseResumes={baseResumes} onCreateSynthesizedNarrative={handleCreateSynthesizedNarrative} onSaveSkillTrends={handleSaveSkillTrends} sprint={sprint} skillTrends={skillTrends} companies={companies} weeklyProgress={""} onAddActions={async () => { }} />} />
+                            <Route path="/applications" element={<ApplicationsView applications={applications} companies={companies} statuses={statuses} offers={offers} onViewApplication={(appId) => navigate(`/application/${appId}`)} onViewCompany={(companyId) => navigate(`/company/${companyId}`)} onResumeApplication={handleResumeApplication} onAddNew={handleStartNewApplication} onDeleteApplication={handleDeleteApplication} onUpdateApplicationStatus={handleUpdateApplicationStatusInline} onDeleteOffer={async (id) => { await apiService.deleteOffer(id); fetchInitialData(); }} resumes={baseResumes} userProfile={userProfile} onAddNewResume={() => navigate('/resume/new')} onEditResume={(res) => navigate(`/resume/${res.resume_id}`)} onDeleteResume={handleDeleteResume} onCopyResume={async (res) => { }} onSetDefaultResume={(id) => handleSaveNarrative({ default_resume_id: id }, activeNarrativeId!)} onToggleLock={async () => { }} isLoading={isAppLoading} activeNarrative={activeNarrative} strategicNarratives={strategicNarratives} />} />
                             <Route path="/reviewed-jobs" element={<ReviewedJobsView />} />
                             <Route path="/add-linkedin-job" element={<QuickAddLinkedInJob />} />
                             <Route path="/add-manual-job" element={<ManualJobCreate />} />
 
                             <Route path="/positioning" element={<PositioningHub narratives={strategicNarratives} activeNarrative={activeNarrative} activeNarrativeId={activeNarrativeId} onSetNarrative={setActiveNarrativeId} onSaveNarrative={handleSaveNarrative} onUpdateNarrative={handleUpdateNarrative} prompts={PROMPTS} standardRoles={standardRoles} onCreateStandardRole={async (payload, narrativeId) => { await apiService.createStandardJobRole(payload, narrativeId); fetchInitialData(); }} onUpdateStandardRole={async (roleId, payload) => { await apiService.updateStandardJobRole(roleId, payload); fetchInitialData(); }} onDeleteStandardRole={async (roleId) => { await apiService.deleteStandardJobRole(roleId); fetchInitialData(); }} baseResumes={baseResumes} />} />
-                            <Route path="/engagement" element={<EngagementHub contacts={contacts} posts={linkedInPosts} engagements={engagements} postResponses={postResponses} applications={applications} allMessages={messages} userProfile={userProfile} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onCreatePostResponse={async ()=>{}} onUpdatePostResponse={handleUpdatePostResponse} onCreateLinkedInEngagement={handleCreateLinkedInEngagement} onCreatePost={handleCreatePost} onImportContacts={async ()=>{}} prompts={PROMPTS} onDeleteContact={handleDeleteContact} companies={companies} onViewCompany={(id)=>navigate(`/company/${id}`)} onAddNewCompany={()=>setIsCompanyModalOpen(true)} baseResumes={baseResumes} strategicNarratives={strategicNarratives} activeNarrative={activeNarrative} onScoreEngagement={()=>{}} />} />
+                            <Route path="/engagement" element={<EngagementHub contacts={contacts} posts={linkedInPosts} engagements={engagements} postResponses={postResponses} applications={applications} allMessages={messages} userProfile={userProfile} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onCreatePostResponse={async () => { }} onUpdatePostResponse={handleUpdatePostResponse} onCreateLinkedInEngagement={handleCreateLinkedInEngagement} onCreatePost={handleCreatePost} onImportContacts={async () => { }} prompts={PROMPTS} onDeleteContact={handleDeleteContact} companies={companies} onViewCompany={(id) => navigate(`/company/${id}`)} onAddNewCompany={() => setIsCompanyModalOpen(true)} baseResumes={baseResumes} strategicNarratives={strategicNarratives} activeNarrative={activeNarrative} onScoreEngagement={() => { }} />} />
                             {/* FIX: `onSaveNarrative` was passed instead of `handleSaveNarrative` */}
                             <Route
                                 path="/interview-studio"
@@ -1775,18 +1842,18 @@ const AppContent = () => {
                                     />
                                 )}
                             />
-                            <Route path="/brag-bank" element={<BragDocumentView items={bragBankItems} onSave={async (item, id) => { if(id) { await apiService.updateBragBankEntry(id, item); } else { await apiService.createBragBankEntry(item); } fetchInitialData(); }} onDelete={async (id) => { await apiService.deleteBragBankEntry(id); fetchInitialData(); }} strategicNarratives={strategicNarratives} prompts={PROMPTS} />} />
+                            <Route path="/brag-bank" element={<BragDocumentView items={bragBankItems} onSave={async (item, id) => { if (id) { await apiService.updateBragBankEntry(id, item); } else { await apiService.createBragBankEntry(item); } fetchInitialData(); }} onDelete={async (id) => { await apiService.deleteBragBankEntry(id); fetchInitialData(); }} strategicNarratives={strategicNarratives} prompts={PROMPTS} />} />
                             <Route path="/schedule-management" element={<ScheduleManagementView />} />
                             <Route path="/chroma-upload" element={<ChromaUploadView strategicNarratives={strategicNarratives} activeNarrativeId={activeNarrativeId} />} />
                             <Route path="/health-checks" element={<PromptEditorView />} />
-                            
+
                             <Route path="/new-application" element={<NewApplicationWrapper />} />
                             <Route path="/application/:appId" element={<ApplicationDetailWrapper />} />
                             <Route path="/company/:companyId" element={<CompanyDetailWrapper />} />
                             <Route path="/resume/:resumeId" element={<ResumeEditorWrapper />} />
                             <Route path="/interview-copilot/:interviewId" element={<InterviewCopilotWrapper />} />
                             <Route path="/post-interview-debrief/:interviewId" element={<PostInterviewDebriefWrapper />} />
-                            
+
                             {/* Modals are rendered outside Routes */}
                         </Routes>
                     </div>
@@ -1811,9 +1878,9 @@ const AppContent = () => {
 
 
 
-             {isContactModalOpen && <ContactModal isOpen={isContactModalOpen} onClose={() => setIsContactModalOpen(false)} onSaveContact={handleSaveContact} onCreateMessage={handleCreateMessage} onAddNewCompany={() => setIsCompanyModalOpen(true)} contact={selectedContact} companies={companies} applications={applications} baseResumes={baseResumes} linkedInPosts={linkedInPosts} userProfile={userProfile} strategicNarratives={strategicNarratives} activeNarrativeId={activeNarrativeId} prompts={PROMPTS} onDeleteContact={handleDeleteContact} />}
-             {isCompanyModalOpen && <CreateCompanyModal isOpen={isCompanyModalOpen} onClose={() => setIsCompanyModalOpen(false)} onCreate={isCompanyModalForNewApp ? handleCreateCompanyForNewApp : handleCreateCompany} initialData={initialCompanyData} prompts={PROMPTS} />}
-             {isCompanyDetailModalOpen && selectedCompanyForModal && (
+            {isContactModalOpen && <ContactModal isOpen={isContactModalOpen} onClose={() => setIsContactModalOpen(false)} onSaveContact={handleSaveContact} onCreateMessage={handleCreateMessage} onAddNewCompany={() => setIsCompanyModalOpen(true)} contact={selectedContact} companies={companies} applications={applications} baseResumes={baseResumes} linkedInPosts={linkedInPosts} userProfile={userProfile} strategicNarratives={strategicNarratives} activeNarrativeId={activeNarrativeId} prompts={PROMPTS} onDeleteContact={handleDeleteContact} />}
+            {isCompanyModalOpen && <CreateCompanyModal isOpen={isCompanyModalOpen} onClose={() => setIsCompanyModalOpen(false)} onCreate={isCompanyModalForNewApp ? handleCreateCompanyForNewApp : handleCreateCompany} initialData={initialCompanyData} prompts={PROMPTS} />}
+            {isCompanyDetailModalOpen && selectedCompanyForModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white dark:bg-slate-800 rounded-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-hidden">
                         <div className="flex justify-between items-center p-6 border-b border-slate-200 dark:border-slate-700">
@@ -1915,7 +1982,7 @@ const AppContent = () => {
                         </div>
                     </div>
                 </div>
-             )}
+            )}
         </div>
     );
 };
