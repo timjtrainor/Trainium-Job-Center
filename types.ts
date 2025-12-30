@@ -592,6 +592,66 @@ export interface PostResponse {
   ai_analysis?: PostResponseAiAnalysis | null;
 }
 
+// ----- Career Brand Framework -----
+export type CareerBrandSection =
+  | "north_star"
+  | "trajectory_mastery"
+  | "values_compass"
+  | "lifestyle_alignment"
+  | "compensation_philosophy"
+  | "purpose_impact"
+  | "career_story"
+  | "narratives_proof_points"
+  | "full_document";
+
+export const CAREER_BRAND_SECTIONS: { id: CareerBrandSection; name: string; description: string }[] = [
+  {
+    id: "full_document",
+    name: "Career Brand (Full Document)",
+    description: "The complete source material for your brand, such as your full resume or an exhaustive professional profile."
+  },
+  {
+    id: "north_star",
+    name: "North Star & Vision",
+    description: "Your long-term career destination, core ambition, and the 'why' behind your journey."
+  },
+  {
+    id: "trajectory_mastery",
+    name: "Trajectory & Mastery",
+    description: "Your professional expertise, signature capabilities, and the unique skills you've mastered."
+  },
+  {
+    id: "values_compass",
+    name: "Values Compass",
+    description: "The core principles, work style preferences, and professional values that guide your decisions."
+  },
+  {
+    id: "purpose_impact",
+    name: "Purpose & Impact",
+    description: "The measurable difference you make, your contribution to the world, and your core 'why'."
+  },
+  {
+    id: "lifestyle_alignment",
+    name: "Lifestyle Alignment",
+    description: "How your work integrates with your broader lifestyle goals, boundaries, and well-being."
+  },
+  {
+    id: "compensation_philosophy",
+    name: "Compensation Philosophy",
+    description: "Your value-based approach to earnings, negotiation philosophy, and financial goals."
+  },
+  {
+    id: "career_story",
+    name: "Career Story (Past → Present → Future)",
+    description: "The coherent narrative of your journey: where you've been, where you are, and where you're going."
+  },
+  {
+    id: "narratives_proof_points",
+    name: "Narratives & Proof Points",
+    description: "Specific evidence, data points, and stories that validate your brand and capabilities."
+  },
+];
+
 // ----- New User Strategy Profile -----
 export type StorytellingFormat = 'STAR' | 'SCOPE' | 'WINS' | 'SPOTLIGHT';
 
@@ -663,9 +723,6 @@ export interface StrategicNarrative {
   user_id: string; // uuid
   narrative_name: string;
   // Strategic info
-  desired_title: string;
-  desired_industry?: string;
-  desired_company_stage?: 'early-stage' | 'growth' | 'enterprise';
   mission_alignment?: string;
   long_term_legacy?: string;
   positioning_statement?: string;
@@ -687,12 +744,6 @@ export interface StrategicNarrative {
   default_resume_id?: string;
 }
 
-export interface StandardJobRole {
-  role_id: string; // uuid
-  narrative_id: string;
-  role_title: string;
-  role_description: string;
-}
 
 
 // Represents the AI-generated suggestions for a single accomplishment
@@ -735,6 +786,23 @@ export interface CombinedAchievementSuggestion {
 
 export interface CombineAchievementsResult {
   combinations: CombinedAchievementSuggestion[];
+}
+
+// ----- Engagement Agent Types -----
+
+export type AgentActionType = 'CREATE_CONTACT' | 'LOG_ENGAGEMENT' | 'DRAFT_MESSAGE' | 'UPDATE_STRATEGY';
+
+export interface AgentAction {
+  type: AgentActionType;
+  data: any; // Flexible payload depending on action type
+}
+
+export interface AgentMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  action?: AgentAction;
+  timestamp: Date;
 }
 
 // ----- New Combined AI Result Types for Cost Savings -----
@@ -1005,7 +1073,6 @@ export type StrategicNarrativePayload = Partial<Omit<StrategicNarrative, 'narrat
 
 export type UserProfilePayload = Partial<Omit<UserProfile, 'user_id'>>;
 
-export type StandardJobRolePayload = Omit<StandardJobRole, 'role_id' | 'narrative_id'>;
 
 export type SprintActionPayload = Partial<Omit<SprintAction, 'action_id' | 'sprint_id' | 'user_id'>>;
 

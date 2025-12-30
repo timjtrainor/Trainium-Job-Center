@@ -136,6 +136,7 @@ export const ManualJobCreate = ({ onBack }: ManualJobCreateProps) => {
 
             // Reset form for quick entry of another job
             setFormData({ ...initialFormData });
+            setRawText('');
             setIsLoading(false);
             setSubmissionStatus('complete');
 
@@ -184,23 +185,23 @@ export const ManualJobCreate = ({ onBack }: ManualJobCreateProps) => {
 
                 {/* Smart Fill Section */}
                 <div className="mb-8 p-5 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800/50">
-                     <div className="flex items-center gap-2 mb-3">
+                    <div className="flex items-center gap-2 mb-3">
                         <span className="text-lg">✨</span>
                         <h3 className="text-base font-semibold text-indigo-900 dark:text-indigo-100">
                             Smart Fill
                         </h3>
-                     </div>
-                     <p className="text-sm text-indigo-700 dark:text-indigo-300 mb-4">
+                    </div>
+                    <p className="text-sm text-indigo-700 dark:text-indigo-300 mb-4">
                         Paste the full job description below and we'll automatically extract the details for you.
-                     </p>
-                     <textarea
+                    </p>
+                    <textarea
                         rows={6}
                         className="w-full p-3 bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-800 rounded-lg text-sm text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-indigo-300 dark:placeholder-indigo-700"
                         placeholder="Paste the raw job posting text here (e.g. CTRL+A, CTRL+C from the job page)..."
                         value={rawText}
                         onChange={(e) => setRawText(e.target.value)}
-                     />
-                     <div className="mt-4 flex justify-end">
+                    />
+                    <div className="mt-4 flex justify-end">
                         <button
                             onClick={handleSmartFill}
                             disabled={isParsing || !rawText.trim()}
@@ -217,7 +218,7 @@ export const ManualJobCreate = ({ onBack }: ManualJobCreateProps) => {
                                 </>
                             )}
                         </button>
-                     </div>
+                    </div>
                 </div>
 
                 {/* Status indicator */}

@@ -54,7 +54,23 @@ def scrape_jobs_worker(site_schedule_id: Optional[str] = None,
     
     logger.info(f"Worker started for run_id: {run_id}, site_schedule_id: {site_schedule_id}")
     
+    site_name = payload.get("site_name", "unknown") if payload else "unknown"
+    site_name_clean = site_name.strip().lower()
+    lock_key = f"site_active_job:{site_name_clean}"
+    lock_value = None
+    
     try:
+        # Check if we own a lock for this run
+        from .queue import get_queue_service
+        queue_service = get_queue_service()
+        queue_service.initialize()
+        
+        existing_lock = queue_service.check_redis_lock(lock_key)
+        if existing_lock:
+            val = existing_lock.decode('utf-8') if isinstance(existing_lock, bytes) else str(existing_lock)
+            if val.startswith(f"{run_id}:"):
+                lock_value = val
+                logger.info(f"Run {run_id}: Identified own site lock for {site_name_clean}")
         # Update run status to 'running'
         loop = None
         try:
@@ -169,6 +185,19 @@ def scrape_jobs_worker(site_schedule_id: Optional[str] = None,
             "completed_pages": 0,
             "errors_count": 1
         }
+    finally:
+        # Always release the site lock if we own it
+        if lock_value:
+            try:
+                from .queue import get_queue_service
+                queue_service = get_queue_service()
+                if queue_service.initialize():
+                    if queue_service.release_redis_lock(lock_key, lock_value):
+                        logger.info(f"Run {run_id}: Released site lock for {site_name_clean}")
+                    else:
+                        logger.warning(f"Run {run_id}: Failed to release site lock for {site_name_clean} (may have expired or been cleared)")
+            except Exception as le:
+                logger.error(f"Run {run_id}: Error while releasing lock: {le}")
 
 
 def process_job_review(job_id: str, max_retries: int = 3) -> Dict[str, Any]:

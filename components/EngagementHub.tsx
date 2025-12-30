@@ -6,7 +6,8 @@ import { ContentReactorTab } from './ContentReactorTab';
 import { ConversationCatalystTab } from './ConversationCatalystTab';
 import { MessageInsightsTab } from './MessageInsightsTab';
 import { MessageDetailModal } from './MessageDetailModal';
-import { UsersIcon, LinkedInIcon, ChatBubbleLeftRightIcon, ArrowTrendingUpIcon, CompanyIcon } from './IconComponents';
+import { UsersIcon, LinkedInIcon, ChatBubbleLeftRightIcon, ArrowTrendingUpIcon, CompanyIcon, SparklesIcon } from './IconComponents';
+import { EngagementAgentTab } from './EngagementAgentTab';
 
 interface EngagementHubProps {
     contacts: Contact[];
@@ -31,11 +32,13 @@ interface EngagementHubProps {
     strategicNarratives: StrategicNarrative[];
     activeNarrative: StrategicNarrative | null;
     onScoreEngagement: (engagement: LinkedInEngagement) => void;
+    onSaveContact: (contact: Partial<Contact>) => Promise<any>;
 }
 
-type Tab = 'insights' | 'companies' | 'contacts' | 'content' | 'conversations';
+type Tab = 'agent' | 'insights' | 'companies' | 'contacts' | 'content' | 'conversations';
 
 const tabs: { id: Tab; name: string; icon: React.ElementType }[] = [
+    { id: 'agent', name: 'Engagement Agent', icon: SparklesIcon },
     { id: 'insights', name: 'Message Insights', icon: ArrowTrendingUpIcon },
     { id: 'companies', name: 'Companies', icon: CompanyIcon },
     { id: 'contacts', name: 'Targeted Contacts', icon: UsersIcon },
@@ -44,7 +47,7 @@ const tabs: { id: Tab; name: string; icon: React.ElementType }[] = [
 ];
 
 export const EngagementHub = (props: EngagementHubProps) => {
-    const [activeTab, setActiveTab] = useState<Tab>('insights');
+    const [activeTab, setActiveTab] = useState<Tab>('agent');
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
 
     const handleViewMessage = (message: Message) => {
@@ -56,7 +59,7 @@ export const EngagementHub = (props: EngagementHubProps) => {
         (activeTab === tabName
             ? 'border-blue-500 text-blue-600 dark:text-blue-400'
             : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:border-slate-600');
-            
+
     const iconClass = (tabName: Tab) =>
         `mr-2 h-5 w-5 ` +
         (activeTab === tabName
@@ -80,17 +83,39 @@ export const EngagementHub = (props: EngagementHubProps) => {
                     ))}
                 </nav>
             </div>
-            
+
             <div className="mt-6">
+                {activeTab === 'agent' && (
+                    <EngagementAgentTab
+                        onSaveContact={async (c) => { await props.onSaveContact(c); }}
+                        userProfile={props.userProfile}
+                        strategicNarratives={props.strategicNarratives}
+                        activeNarrative={props.activeNarrative}
+                        prompts={props.prompts}
+                        onCreateDraftMessage={(draft) => {
+                            // Try to find the contact and open the modal
+                            // This is a "best effort" link for now
+                            const contactName = draft.contact_name?.toLowerCase();
+                            const contact = props.contacts.find(c =>
+                                (c.first_name + ' ' + c.last_name).toLowerCase().includes(contactName)
+                            );
+                            if (contact) {
+                                props.onOpenContactModal(contact);
+                            } else {
+                                alert("Draft created: " + draft.draft_text + "\n(Could not auto-open contact modal)");
+                            }
+                        }}
+                    />
+                )}
                 {activeTab === 'insights' && (
-                    <MessageInsightsTab 
-                        messages={props.allMessages} 
+                    <MessageInsightsTab
+                        messages={props.allMessages}
                         contacts={props.contacts}
                         onViewMessage={handleViewMessage}
                     />
                 )}
-                 {activeTab === 'companies' && (
-                    <CompaniesView 
+                {activeTab === 'companies' && (
+                    <CompaniesView
                         companies={props.companies}
                         applications={props.applications}
                         onViewCompany={props.onViewCompany}
@@ -98,10 +123,10 @@ export const EngagementHub = (props: EngagementHubProps) => {
                     />
                 )}
                 {activeTab === 'contacts' && (
-                    <TargetedContactsTab 
-                        contacts={props.contacts} 
-                        activeNarrative={props.activeNarrative} 
-                        onOpenContactModal={props.onOpenContactModal} 
+                    <TargetedContactsTab
+                        contacts={props.contacts}
+                        activeNarrative={props.activeNarrative}
+                        onOpenContactModal={props.onOpenContactModal}
                         onImportContacts={props.onImportContacts}
                         onDeleteContact={props.onDeleteContact}
                     />
@@ -124,7 +149,7 @@ export const EngagementHub = (props: EngagementHubProps) => {
                     />
                 )}
                 {activeTab === 'conversations' && (
-                    <ConversationCatalystTab 
+                    <ConversationCatalystTab
                         postResponses={props.postResponses}
                         onCreatePostResponse={props.onCreatePostResponse}
                         onUpdatePostResponse={props.onUpdatePostResponse}

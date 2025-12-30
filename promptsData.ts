@@ -1,11 +1,11 @@
 import { Prompt } from './types';
 
 export const PROMPTS: Prompt[] = [
-    {
-      id: 'EXTRACT_DETAILS_FROM_PASTE',
-      name: 'Extract Details from Paste',
-      description: 'Cleans and standardizes pasted job descriptions while extracting key fields for reuse.',
-      content: `
+  {
+    id: 'EXTRACT_DETAILS_FROM_PASTE',
+    name: 'Extract Details from Paste',
+    description: 'Cleans and standardizes pasted job descriptions while extracting key fields for reuse.',
+    content: `
     You are a structured job description parser. Your task is to analyze raw, pasted job description text and extract a clean, structured representation of its key fields.
 
     The job description may include broken formatting, legal disclaimers, or inconsistent structure. Your job is to:
@@ -45,12 +45,12 @@ export const PROMPTS: Prompt[] = [
     - Do not summarize or paraphrase the job description
     - Do not alter field names or structure
     `
-    },
-    {
-  id: "COMPANY_GOAL_ANALYSIS",
-  name: "Analyze Company Goals & Issues",
-  description: "Researches a company to find its strategic goals and any publicly discussed challenges.",
-  content: `
+  },
+  {
+    id: "COMPANY_GOAL_ANALYSIS",
+    name: "Analyze Company Goals & Issues",
+    description: "Researches a company to find its strategic goals and any publicly discussed challenges.",
+    content: `
 You are a corporate strategy researcher. Your job is to gather public information about "{{COMPANY_NAME}}" and return it as a valid JSON object.
 
 SYSTEM INSTRUCTION: You MUST return a single, valid JSON object inside a \`\`\`json code block. Do not include any other text, comments, or headers. All ten fields must be present. If a field cannot be found, set its "text" and "source" to empty strings.
@@ -85,27 +85,25 @@ Your primary source of truth is the company's official website ({{COMPANY_HOMEPA
 }
 \`\`\`
 `
-},
-    {
-        id: 'INITIAL_JOB_ANALYSIS',
-        name: 'Perform Initial Job Analysis (Combined)',
-        description: 'Analyzes a job to determine core problem, fit score, and assumed requirements in a single call.',
-        content: `
+  },
+  {
+    id: 'INITIAL_JOB_ANALYSIS',
+    name: 'Perform Initial Job Analysis (Combined)',
+    description: 'Analyzes a job to determine core problem, fit score, and assumed requirements in a single call.',
+    content: `
 You are a strategic career analyst. Your task is to perform a multi-faceted analysis of a job opportunity for a senior professional and return a single, structured JSON object.
 
 CONTEXT:
 - Candidate's North Star (Positioning): "{{NORTH_STAR}}"
 - Candidate's Mastery (Signature Capability): "{{MASTERY}}"
-- Candidate's Desired Title: "{{DESIRED_TITLE}}"
 - Target Job Title: "{{JOB_TITLE}}"
 - Target Job Description: {{JOB_DESCRIPTION}}
-- Standard Job Roles for comparison: {{STANDARD_ROLES_JSON}}
 
 Based on the context, perform the following analysis:
 
 1.  **Job Problem Analysis**: Deconstruct the role to its core business problem.
 2.  **Strategic Fit Score**: Score the alignment between the role and the candidate's profile.
-3.  **Assumed Requirements**: Infer 3-4 unstated but likely requirements by comparing the target job to the provided list of standard roles. The target job may be a hybrid of multiple standard roles; synthesize expectations from all relevant roles to form your list.
+3.  **Assumed Requirements**: Infer 3-4 unstated but likely requirements by analyzing the job description in the context of typical industry expectations for such a role.
 
 The output must be a single, valid JSON object in the following format. Do not include any other text, comments, or headers.
 
@@ -142,19 +140,19 @@ The output must be a single, valid JSON object in the following format. Do not i
   },
   "strategic_fit_score": "A score from 0.0 to 10.0 indicating how well the role aligns with the candidate's North Star and Mastery. Provide a float.",
   "assumed_requirements": [
-    "A list of 3-4 unstated but likely requirements inferred from standard roles.",
+    "A list of 3-4 unstated but likely requirements inferred from the role context.",
     "Example: 'Experience presenting product strategy to C-level executives.'",
     "Example: 'Ability to mentor and guide junior product managers.'"
   ]
 }
 \`\`\`
 `
-    },
-    {
-      id: 'GENERATE_KEYWORDS_AND_GUIDANCE',
-      name: 'Generate Keywords and Guidance (Combined)',
-      description: 'Generates keywords and resume guidance in a single call.',
-      content: `
+  },
+  {
+    id: 'GENERATE_KEYWORDS_AND_GUIDANCE',
+    name: 'Generate Keywords and Guidance (Combined)',
+    description: 'Generates keywords and resume guidance in a single call.',
+    content: `
 You are an expert career coach providing resume tailoring advice for a job application. Analyze the provided job description and AI summary of the core business problem.
 
 Your task is to return a single, valid JSON object with two main keys: "keywords" and "guidance".
@@ -233,12 +231,12 @@ Return ONLY a valid JSON object. Do not add any extra text or comments.
 }
 \`\`\`
 `
-    },
-    {
-      id: 'GENERATE_RESUME_TAILORING_DATA',
-      name: 'Generate Resume Tailoring Data',
-      description: 'Processes work experience and generates summary/skill suggestions for the Tailor Resume step.',
-      content: `
+  },
+  {
+    id: 'GENERATE_RESUME_TAILORING_DATA',
+    name: 'Generate Resume Tailoring Data',
+    description: 'Processes work experience and generates summary/skill suggestions for the Tailor Resume step.',
+    content: `
 You are an expert resume optimization engine. Your task is to analyze a candidate's full resume against a specific job description and its strategic context. You will return a single, valid JSON object that includes keywords, guidance, and resume tailoring suggestions.
 
 **CONTEXT:**
@@ -336,12 +334,12 @@ Return ONLY a single, valid JSON object with all the following top-level keys.
 }
 \`\`\`
 `
-    },
-    {
-      id: 'SCORE_RESUME_ALIGNMENT',
-      name: 'Score Resume Alignment',
-      description: 'Scores a resume against a job description and provides a single alignment score.',
-      content: `
+  },
+  {
+    id: 'SCORE_RESUME_ALIGNMENT',
+    name: 'Score Resume Alignment',
+    description: 'Scores a resume against a job description and provides a single alignment score.',
+    content: `
 You are an expert resume analyzer. Your task is to score a resume's alignment with a specific job description and its core business problem.
 
 **CONTEXT:**
@@ -361,12 +359,12 @@ You are an expert resume analyzer. Your task is to score a resume's alignment wi
 }
 \`\`\`
 `
-    },
-    {
-      id: 'GENERATE_HIGHLIGHT_BULLETS',
-      name: 'Generate Highlight Bullets',
-      description: 'Selects the most impactful accomplishments to be used as highlights under the summary.',
-      content: `
+  },
+  {
+    id: 'GENERATE_HIGHLIGHT_BULLETS',
+    name: 'Generate Highlight Bullets',
+    description: 'Selects the most impactful accomplishments to be used as highlights under the summary.',
+    content: `
 You are an executive career coach working with high-performing product leaders. Your task is to analyze a candidate's work history and select the most impactful achievements to be used as summary highlights for a specific job application.
 
 **CONTEXT:**
@@ -400,12 +398,12 @@ Return ONLY a valid JSON object. Do not add any extra text or comments.
 }
 \`\`\`
 `
-    },
-    {
-      id: 'GENERATE_APPLICATION_ANSWERS',
-      name: 'Generate Application Answers',
-      description: 'Drafts answers to common application questions based on company and resume context.',
-      content: `
+  },
+  {
+    id: 'GENERATE_APPLICATION_ANSWERS',
+    name: 'Generate Application Answers',
+    description: 'Drafts answers to common application questions based on company and resume context.',
+    content: `
 You are a career strategist helping a candidate answer supplemental application questions. Your tone should be professional, confident, and authentic.
 
 **CONTEXT:**
@@ -446,12 +444,12 @@ Return ONLY a valid JSON object. Do not add any extra text or comments.
 }
 \`\`\`
 `
-    },
-    {
-      id: 'GENERATE_ADVANCED_COVER_LETTER',
-      name: 'Generate Advanced Cover Letter',
-      description: 'Writes an ultra-concise, witty, brand-aligned cover letter for quick applications.',
-      content: `
+  },
+  {
+    id: 'GENERATE_ADVANCED_COVER_LETTER',
+    name: 'Generate Advanced Cover Letter',
+    description: 'Writes an ultra-concise, witty, brand-aligned cover letter for quick applications.',
+    content: `
 Prompt: AI-Generated Ultra-Concise Professional Cover Letter with Wit
 
 System Role:
@@ -516,12 +514,12 @@ Return ONLY a valid JSON object with this structure:
 
 Do not include any additional commentary.
 `
-    },
-    {
-        id: 'GENERATE_APPLICATION_MESSAGE',
-        name: 'Generate Application Message',
-        description: 'Drafts a compelling message to the hiring team for profile-based applications (e.g., Wellfound).',
-        content: `
+  },
+  {
+    id: 'GENERATE_APPLICATION_MESSAGE',
+    name: 'Generate Application Message',
+    description: 'Drafts a compelling message to the hiring team for profile-based applications (e.g., Wellfound).',
+    content: `
 You are a career strategist and expert copywriter. Your task is to write a compelling, concise message to the hiring team for a job application where a custom resume is not allowed. The candidate is relying on their pre-existing profile and this message to stand out.
 
 The tone must be professional, confident, and direct. The message must be short (under 150 words).
@@ -555,12 +553,12 @@ The tone must be professional, confident, and direct. The message must be short 
 }
 \`\`\`
 `
-    },
-    {
-      id: 'GENERATE_POST_SUBMISSION_PLAN',
-      name: 'Generate Post-Submission Plan',
-      description: 'Creates an immediate action plan after an application is submitted.',
-      content: `
+  },
+  {
+    id: 'GENERATE_POST_SUBMISSION_PLAN',
+    name: 'Generate Post-Submission Plan',
+    description: 'Creates an immediate action plan after an application is submitted.',
+    content: `
 You are a career strategist creating an immediate action plan for a candidate who just submitted an application. The goal is to shift from a passive "apply and pray" mindset to an active, engagement-focused strategy.
 
 **CONTEXT:**
@@ -603,12 +601,12 @@ Return ONLY a valid JSON object. Do not add any extra text or comments.
 }
 \`\`\`
 `
-    },
-    {
-      id: "GENERATE_INTERVIEW_PREP",
-      name: "Generate Interview Prep",
-      description: "Creates a tailored preparation guide for a specific interview type.",
-      content: `
+  },
+  {
+    id: "GENERATE_INTERVIEW_PREP",
+    name: "Generate Interview Prep",
+    description: "Creates a tailored preparation guide for a specific interview type.",
+    content: `
 You are a world-class interview coach for senior product leaders. Your task is to create a hyper-personalized interview preparation guide. Synthesize all available context: the user's resume, the job description, the specific interview type, and the professional profiles of the people conducting the interview.
 
 **CONTEXT:**
@@ -623,12 +621,12 @@ Based on ALL the provided context, generate the interview prep data. The content
 - For **potentialQuestions**, ensure they are questions interviewers would ask the USER, based on the USER'S resume and the JOB DESCRIPTION. Use the interviewer profiles to anticipate the *angle* of their questions. For example, an engineering leader might ask about technical trade-offs on a user's past project.
 - For **questionsToAsk**, generate questions the user should ask the interviewers, demonstrating deep research.
 `
-    },
-    {
-      id: "GENERATE_RECRUITER_SCREEN_PREP",
-      name: "Generate Recruiter Screen Quick Prep",
-      description: "Creates a fast, focused prep guide for an initial recruiter screen.",
-      content: `
+  },
+  {
+    id: "GENERATE_RECRUITER_SCREEN_PREP",
+    name: "Generate Recruiter Screen Quick Prep",
+    description: "Creates a fast, focused prep guide for an initial recruiter screen.",
+    content: `
 You are an expert career coach creating a quick and scannable prep sheet for a candidate's initial recruiter screen. The goal is speed and focus on the most critical talking points.
 
 CONTEXT:
@@ -676,12 +674,12 @@ Return a single, valid JSON object in the InterviewPrep format.
 }
 \`\`\`
 `
-    },
-    {
-        id: 'GENERATE_STRATEGIC_HYPOTHESIS_DRAFT',
-        name: 'Generate Strategic Hypothesis Draft',
-        description: "Generates a first draft for the user's strategic hypothesis in the Interview Strategy Studio.",
-        content: `
+  },
+  {
+    id: 'GENERATE_STRATEGIC_HYPOTHESIS_DRAFT',
+    name: 'Generate Strategic Hypothesis Draft',
+    description: "Generates a first draft for the user's strategic hypothesis in the Interview Strategy Studio.",
+    content: `
 You are an expert career strategist acting as a co-pilot for a senior executive. Your task is to analyze all available intelligence about a job opportunity and the candidate's personal brand to generate a DRAFT strategic hypothesis for their interview. This hypothesis will be used to generate a full 30-60-90 day plan.
 
 **INTELLIGENCE DOSSIER:**
@@ -709,12 +707,12 @@ Return ONLY a single, valid JSON object with the following structure.
 }
 \`\`\`
 `
-    },
-    {
-        id: 'GENERATE_CONSULTATIVE_CLOSE_PLAN',
-        name: 'Generate Consultative Close Plan',
-        description: 'Generates a 30-60-90 day plan and briefing email for a high-stakes interview.',
-        content: `
+  },
+  {
+    id: 'GENERATE_CONSULTATIVE_CLOSE_PLAN',
+    name: 'Generate Consultative Close Plan',
+    description: 'Generates a 30-60-90 day plan and briefing email for a high-stakes interview.',
+    content: `
 You are a world-class interview strategist for a senior executive. Your task is to synthesize all available intelligence into a compelling "Consultative Close" plan for an upcoming interview. This includes a 30-60-90 day plan, key talking points, and a pre-interview briefing email.
 
 **INTELLIGENCE DOSSIER:**
@@ -741,12 +739,12 @@ You are a world-class interview strategist for a senior executive. Your task is 
     -   Frame the upcoming conversation as a collaborative, problem-solving session.
     -   Maintain a confident, peer-to-peer tone.
 `
-    },
-    {
-      id: "GENERATE_STRATEGIC_QUESTIONS_FOR_INTERVIEW",
-      name: "Generate Strategic Questions for Interview",
-      description: "Generates strategic questions for the user to ask during an interview.",
-      content: `
+  },
+  {
+    id: "GENERATE_STRATEGIC_QUESTIONS_FOR_INTERVIEW",
+    name: "Generate Strategic Questions for Interview",
+    description: "Generates strategic questions for the user to ask during an interview.",
+    content: `
 You are an expert interview coach for a senior executive. Your task is to generate an "arsenal" of insightful, strategic questions for the candidate to ask their interviewers. These questions should demonstrate their deep thinking and position them as a consultant, not just a candidate.
 
 **CONTEXT:**
@@ -774,12 +772,12 @@ You are an expert interview coach for a senior executive. Your task is to genera
 }
 \`\`\`
 `
-    },
-    {
-      id: "ANALYZE_REFINING_QUESTIONS",
-      name: "Analyze Refining Questions",
-      description: "Scores and provides feedback on a user's refining questions in an interview.",
-      content: `
+  },
+  {
+    id: "ANALYZE_REFINING_QUESTIONS",
+    name: "Analyze Refining Questions",
+    description: "Scores and provides feedback on a user's refining questions in an interview.",
+    content: `
 You are a constructive and insightful interview coach. You are helping a user practice asking clarifying questions BEFORE they answer an interviewer's question. Your goal is to help them demonstrate active listening and strategic thinking.
 
 **CONTEXT:**
@@ -800,12 +798,12 @@ You are a constructive and insightful interview coach. You are helping a user pr
 }
 \`\`\`
 `
-    },
-    {
-      id: "GENERATE_JOB_SPECIFIC_INTERVIEW_QUESTIONS",
-      name: "Generate Job-Specific Interview Questions",
-      description: "Generates relevant interview questions based on a job description.",
-      content: `
+  },
+  {
+    id: "GENERATE_JOB_SPECIFIC_INTERVIEW_QUESTIONS",
+    name: "Generate Job-Specific Interview Questions",
+    description: "Generates relevant interview questions based on a job description.",
+    content: `
 You are an expert hiring manager and interview coach for senior product roles. Your task is to generate a list of challenging and relevant interview questions based on the provided context. The questions should be designed to probe the candidate's strategic thinking without assuming you have seen any of their pre-prepared plans.
 
 **CONTEXT:**
@@ -839,12 +837,12 @@ You are an expert hiring manager and interview coach for senior product roles. Y
 }
 \`\`\`
 `
-    },
-    {
-      id: "ANALYZE_JOB_SPECIFIC_INTERVIEW_ANSWER",
-      name: "Analyze Job-Specific Interview Answer",
-      description: "Scores and provides feedback on a user's answer to an interview question.",
-      content: `
+  },
+  {
+    id: "ANALYZE_JOB_SPECIFIC_INTERVIEW_ANSWER",
+    name: "Analyze Job-Specific Interview Answer",
+    description: "Scores and provides feedback on a user's answer to an interview question.",
+    content: `
 You are a constructive and insightful interview coach. You provide direct, actionable feedback to help the user improve their interview answers. Your goal is to be helpful, not just critical.
 
 **CONTEXT:**
@@ -872,12 +870,12 @@ Return ONLY a valid JSON object. Do not add any extra text or comments.
 }
 \`\`\`
 `
-    },
-    {
-      id: "GENERATE_GENERIC_INTERVIEW_QUESTIONS",
-      name: "Generate Generic Interview Questions",
-      description: "Generates generic interview questions based on user's positioning.",
-      content: `
+  },
+  {
+    id: "GENERATE_GENERIC_INTERVIEW_QUESTIONS",
+    name: "Generate Generic Interview Questions",
+    description: "Generates generic interview questions based on user's positioning.",
+    content: `
 You are an expert career and interview coach. Your task is to generate a list of challenging and relevant interview questions based on the user's personal brand and positioning. The questions should help them practice articulating their value.
 
 **USER'S BRAND CONTEXT:**
@@ -898,7 +896,7 @@ You are an expert career and interview coach. Your task is to generate a list of
   "questions": [
     "So, tell me about yourself.",
     "Walk me through your resume.",
-    "What makes you the right person for a {{DESIRED_TITLE}} role?",
+    "What makes you the right person for this role?",
     "Your positioning statement says you are '{{POSITIONING_STATEMENT}}'. Can you give me an example that demonstrates this?",
     "Your signature capability is '{{MASTERY}}'. Tell me about a time this was critical to a project's success.",
     "Tell me more about the time you '{{IMPACT_STORY_TITLE}}'. What was the key challenge?",
@@ -908,12 +906,12 @@ You are an expert career and interview coach. Your task is to generate a list of
 }
 \`\`\`
 `
-    },
-    {
-      id: "ANALYZE_GENERIC_INTERVIEW_ANSWER",
-      name: "Analyze Generic Interview Answer",
-      description: "Scores and provides feedback on an answer based on user's positioning.",
-      content: `
+  },
+  {
+    id: "ANALYZE_GENERIC_INTERVIEW_ANSWER",
+    name: "Analyze Generic Interview Answer",
+    description: "Scores and provides feedback on an answer based on user's positioning.",
+    content: `
 You are a constructive and insightful interview coach. You provide direct, actionable feedback to help the user improve their interview answers, focusing on how well they articulate their personal brand.
 
 **CONTEXT:**
@@ -940,12 +938,12 @@ You are a constructive and insightful interview coach. You provide direct, actio
 }
 \`\`\`
 `
-    },
-    {
-      id: "REFINE_INTERVIEW_ANSWER_CHAT",
-      name: "Refine Interview Answer via Chat",
-      description: "Rewrites an interview answer based on user feedback.",
-      content: `
+  },
+  {
+    id: "REFINE_INTERVIEW_ANSWER_CHAT",
+    name: "Refine Interview Answer via Chat",
+    description: "Rewrites an interview answer based on user feedback.",
+    content: `
 You are an expert interview coach acting as a collaborative co-author. Your task is to rewrite the provided DRAFT answer to an interview question based on the user's specific feedback and the conversation history. Maintain a professional, confident, and authentic tone that aligns with the user's brand.
 
 **BRAND CONTEXT:**
@@ -972,20 +970,19 @@ You are an expert interview coach acting as a collaborative co-author. Your task
 3.  Ensure the rewritten answer is clear, concise, and powerfully addresses the question.
 4.  Return ONLY the text of the newly rewritten answer. Do not include any headers, comments, or JSON formatting.
 `
-    },
-    {
-        id: 'GENERATE_STRATEGIC_MESSAGE',
-        name: 'Generate Strategic Networking Message',
-        description: 'Generates concise, high-impact networking messages for various scenarios.',
-        content: `
+  },
+  {
+    id: 'GENERATE_STRATEGIC_MESSAGE',
+    name: 'Generate Strategic Networking Message',
+    description: 'Generates concise, high-impact networking messages for various scenarios.',
+    content: `
 You are an expert career strategist specializing in high-impact, ultra-concise networking messages. The tone must be human, concise, confident, respectful, and peer-to-peer. Avoid corporate jargon. The goal is to start a real conversation.
 
 **CONTEXT:**
 - Goal: {{GOAL}}
-- My Professional Summary: {{MY_SUMMARY}}
-- My North Star: {{NORTH_STAR}}
-- My Mastery: {{MASTERY}}
-- My Narrative: {{NARRATIVE}}
+### User Profile Summary:
+- North Star: {{NORTH_STAR}}
+- Signature Mastery: {{MASTERY}}
 - Target Company: {{COMPANY_NAME}}
 - Contact's First Name: {{CONTACT_FIRST_NAME}}
 - Contact's Persona: {{CONTACT_PERSONA}}
@@ -1024,12 +1021,12 @@ You are an expert career strategist specializing in high-impact, ultra-concise n
 }
 \`\`\`
 `
-    },
-    {
-      id: "GENERATE_STRATEGIC_COMMENT",
-      name: "Generate Strategic LinkedIn Comment",
-      description: "Drafts several insightful comments for a LinkedIn post, aligned with the user's brand.",
-      content: `
+  },
+  {
+    id: "GENERATE_STRATEGIC_COMMENT",
+    name: "Generate Strategic LinkedIn Comment",
+    description: "Drafts several insightful comments for a LinkedIn post, aligned with the user's brand.",
+    content: `
 You are a strategic communications assistant. Your task is to draft several insightful comments for a LinkedIn post that align with the user's professional brand and invite dialogue. The tone should be human, curious, and peer-to-peer.
 
 **USER'S BRAND CONTEXT:**
@@ -1059,12 +1056,12 @@ You are a strategic communications assistant. Your task is to draft several insi
 }
 \`\`\`
 `
-    },
-    {
-      id: "GENERATE_EXPERT_COMMENT",
-      name: "Generate Expertise-Driven Comment",
-      description: "Crafts a concise, confident comment to position the user as an expert.",
-      content: `
+  },
+  {
+    id: "GENERATE_EXPERT_COMMENT",
+    name: "Generate Expertise-Driven Comment",
+    description: "Crafts a concise, confident comment to position the user as an expert.",
+    content: `
 You are a world-class ghostwriter for a senior executive, crafting a concise, confident comment to position them as an expert in response to a LinkedIn post.
 
 **USER'S BRAND CONTEXT:**
@@ -1095,12 +1092,12 @@ Return a single, valid JSON object with one key: "comments", containing an array
 }
 \`\`\`
 `
-    },
-    {
-      id: "DEFINE_MISSION_ALIGNMENT",
-      name: "Define Mission Alignment",
-      description: "Helps user articulate their personal mission and what energizes them.",
-      content: `You are a career coach helping a senior professional articulate their personal mission. Based on their notes, synthesize a concise, powerful statement.
+  },
+  {
+    id: "DEFINE_MISSION_ALIGNMENT",
+    name: "Define Mission Alignment",
+    description: "Helps user articulate their personal mission and what energizes them.",
+    content: `You are a career coach helping a senior professional articulate their personal mission. Based on their notes, synthesize a concise, powerful statement.
 
 **USER NOTES:**
 {{USER_NOTES}}
@@ -1116,12 +1113,12 @@ Return a single, valid JSON object with one key: "comments", containing an array
   "suggestion": "To build products that empower developers to create more efficiently and collaboratively."
 }
 \`\`\``
-    },
-    {
-      id: "DEFINE_LONG_TERM_LEGACY",
-      name: "Define Long-Term Legacy",
-      description: "Helps user define the long-term impact they want to have.",
-      content: `You are a career coach helping a senior professional define their desired legacy. Based on their notes, synthesize a concise, powerful statement about the impact they want to be known for.
+  },
+  {
+    id: "DEFINE_LONG_TERM_LEGACY",
+    name: "Define Long-Term Legacy",
+    description: "Helps user define the long-term impact they want to have.",
+    content: `You are a career coach helping a senior professional define their desired legacy. Based on their notes, synthesize a concise, powerful statement about the impact they want to be known for.
 
 **USER NOTES:**
 {{USER_NOTES}}
@@ -1137,12 +1134,12 @@ Return a single, valid JSON object with one key: "comments", containing an array
   "suggestion": "To be the leader who transformed the company's product culture from reactive to visionary."
 }
 \`\`\``
-    },
-    {
-      id: "DEFINE_POSITIONING_STATEMENT",
-      name: "Define Positioning Statement",
-      description: "Crafts a 'who you are and what you do' statement.",
-      content: `You are a branding expert helping a senior professional craft their positioning statement. Based on their notes, write a compelling "who I am and what I do" statement.
+  },
+  {
+    id: "DEFINE_POSITIONING_STATEMENT",
+    name: "Define Positioning Statement",
+    description: "Crafts a 'who you are and what you do' statement.",
+    content: `You are a branding expert helping a senior professional craft their positioning statement. Based on their notes, write a compelling "who I am and what I do" statement.
 
 **USER NOTES:**
 {{USER_NOTES}}
@@ -1158,12 +1155,12 @@ Return a single, valid JSON object with one key: "comments", containing an array
   "suggestion": "A product leader who excels at translating complex technical capabilities into clear customer value, especially in early-stage data and AI products."
 }
 \`\`\``
-    },
-    {
-      id: "SUGGEST_KEY_STRENGTHS",
-      name: "Suggest Key Strengths",
-      description: "Identifies and phrases key strengths from user notes.",
-      content: `You are a career coach helping a senior professional identify their key strengths. Based on their notes, extract and refine 3-5 core strengths as concise phrases.
+  },
+  {
+    id: "SUGGEST_KEY_STRENGTHS",
+    name: "Suggest Key Strengths",
+    description: "Identifies and phrases key strengths from user notes.",
+    content: `You are a career coach helping a senior professional identify their key strengths. Based on their notes, extract and refine 3-5 core strengths as concise phrases.
 
 **USER NOTES:**
 {{USER_NOTES}}
@@ -1185,12 +1182,12 @@ Return a single, valid JSON object with one key: "comments", containing an array
   ]
 }
 \`\`\``
-    },
-    {
-      id: "DEFINE_SIGNATURE_CAPABILITY",
-      name: "Define Signature Capability",
-      description: "Crafts a memorable, one-sentence 'superpower'.",
-      content: `You are a branding expert helping a senior professional define their 'signature capability' or 'superpower'. Based on their notes, craft a short, memorable, and intriguing statement.
+  },
+  {
+    id: "DEFINE_SIGNATURE_CAPABILITY",
+    name: "Define Signature Capability",
+    description: "Crafts a memorable, one-sentence 'superpower'.",
+    content: `You are a branding expert helping a senior professional define their 'signature capability' or 'superpower'. Based on their notes, craft a short, memorable, and intriguing statement.
 
 **USER NOTES:**
 {{USER_NOTES}}
@@ -1206,12 +1203,12 @@ Return a single, valid JSON object with one key: "comments", containing an array
   "suggestion": "I make ambiguity actionable."
 }
 \`\`\``
-    },
-    {
-      id: "GENERATE_IMPACT_STORY",
-      name: "Generate Impact Story",
-      description: "Rewrites a user's story draft into a powerful narrative.",
-      content: `You are an expert storyteller and career coach. Your task is to rewrite a user's impact story to be more compelling and structured, using the STAR (Situation, Task, Action, Result) method. You will also give it a memorable title.
+  },
+  {
+    id: "GENERATE_IMPACT_STORY",
+    name: "Generate Impact Story",
+    description: "Rewrites a user's story draft into a powerful narrative.",
+    content: `You are an expert storyteller and career coach. Your task is to rewrite a user's impact story to be more compelling and structured, using the STAR (Situation, Task, Action, Result) method. You will also give it a memorable title.
 
 **USER'S STORY DRAFT:**
 {{STORY_DRAFT}}
@@ -1237,12 +1234,12 @@ Return a single, valid JSON object with one key: "comments", containing an array
   "impact_story_body": "**Situation:** I joined a team where a critical new feature had just launched to our top enterprise customers but was plagued by bugs and poor adoption, leading to a 20% spike in support tickets.\\n\\n**Task:** My goal was to stabilize the feature, restore customer confidence, and increase adoption by 50% within the quarter.\\n\\n**Action:** I immediately established a war room with engineering, support, and sales, triaging bugs and communicating daily updates to customers. I personally interviewed ten key users to understand the core usability issues and reprioritized the roadmap to focus on the top three blockers. I then worked with marketing to launch a re-engagement campaign highlighting the improvements.\\n\\n**Result:** Within six weeks, we resolved all critical bugs, reduced related support tickets by 80%, and exceeded our goal by increasing adoption by 75%. This not only saved three major accounts from churning but also rebuilt trust with our most valuable customer segment."
 }
 \`\`\``
-    },
-    {
-      id: "POLISH_IMPACT_STORY_PART",
-      name: "Polish Impact Story Part",
-      description: "Rewrites a single part of a structured impact story based on its format and context.",
-      content: `You are an expert career storyteller and coach for a senior executive. Your task is to rewrite a specific part of an interview story to make it more compelling, concise, and impactful.
+  },
+  {
+    id: "POLISH_IMPACT_STORY_PART",
+    name: "Polish Impact Story Part",
+    description: "Rewrites a single part of a structured impact story based on its format and context.",
+    content: `You are an expert career storyteller and coach for a senior executive. Your task is to rewrite a specific part of an interview story to make it more compelling, concise, and impactful.
 
 **STORYTELLING FORMAT:** {{STORY_FORMAT}}
 **FULL STORY CONTEXT (JSON):** {{FULL_STORY_CONTEXT}}
@@ -1285,12 +1282,12 @@ Return a single, valid JSON object with one key: "comments", containing an array
     *   **options_tradeoffs**: Clearly lay out the viable options and the pros/cons of each. Emphasize the difficult choice.
     -   **decision_rationale**: State the final decision and provide a clear, compelling rationale for why it was the best choice despite the trade-offs.
 `
-    },
-    {
-        id: "GENERATE_STRUCTURED_SPEAKER_NOTES",
-        name: "Generate Structured Speaker Notes from Impact Story",
-        description: "Distills a detailed impact story into concise, structured speaker notes for the Interview Co-pilot.",
-        content: `
+  },
+  {
+    id: "GENERATE_STRUCTURED_SPEAKER_NOTES",
+    name: "Generate Structured Speaker Notes from Impact Story",
+    description: "Distills a detailed impact story into concise, structured speaker notes for the Interview Co-pilot.",
+    content: `
 You are a world-class executive interview coach. Your task is to distill a detailed story into a set of concise, powerful, and glanceable speaker notes. The notes must be structured as a JSON object where the keys match the fields of the story's format.
 
 **STORYTELLING FORMAT:** {{STORY_FORMAT}}
@@ -1315,24 +1312,24 @@ You are a world-class executive interview coach. Your task is to distill a detai
 }
 \`\`\`
 `
-    },
-    {
-      id: "SUGGEST_TARGET_QUESTIONS",
-      name: "Suggest Target Questions for Impact Story",
-      description: "Analyzes an impact story and suggests common interview questions it would be a good answer for.",
-      content: "You are a world-class interview coach. Your task is to analyze the following impact story and suggest common behavioral interview questions that this story could be a perfect answer for.\n\n**IMPACT STORY:**\n{{IMPACT_STORY_BODY}}\n\n**INSTRUCTIONS:**\n1. Analyze the themes, skills, and outcomes demonstrated in the story.\n2. Generate a list of 3-5 distinct, common interview questions.\n3. The questions should be phrased as an interviewer would ask them.\n4. Return a single, valid JSON object with one key: \"questions\", containing an array of strings.\n\n**OUTPUT FORMAT:**\n```json\n{\n  \"questions\": [\n    \"Tell me about a time you had to influence without authority.\",\n    \"Describe a situation where a project you were on was failing. How did you turn it around?\",\n    \"Walk me through a time you used data to make a critical product decision.\"\n  ]\n}\n```"
-    },
-    {
-      id: "GENERATE_SPEAKER_NOTES_FROM_STORY",
-      name: "Generate Speaker Notes from Impact Story",
-      description: "Summarizes a full impact story into concise bullet points for the Interview Co-pilot.",
-      content: "You are an expert communications coach. Your task is to distill a detailed impact story into a set of concise, powerful speaker notes. These notes will be used in an interview co-pilot view, so they must be glanceable.\n\n**FULL IMPACT STORY:**\n{{IMPACT_STORY_BODY}}\n\n**INSTRUCTIONS:**\n1. Read the full story and identify the most critical points from the Situation, Action, and Result.\n2. Create 3-5 bullet points that capture the essence of the story.\n3. Each bullet point should be very short and start with an action verb or key metric where possible.\n4. Return a single, valid JSON object with one key: \"speaker_notes\", containing a single string with bullet points formatted using hyphens.\n\n**OUTPUT FORMAT:**\n```json\n{\n  \"speaker_notes\": \"- Situation: Failing launch, high customer churn\\n- Action: Led war room, interviewed users, reprioritized roadmap\\n- Result: 80% bug reduction, 75% adoption increase, saved 3 major accounts\"\n}\n```"
-    },
-    {
-      id: "GENERATE_INITIAL_ACHIEVEMENT_SUGGESTIONS",
-      name: "Generate Initial Achievement Suggestions",
-      description: "Rewrites a raw text block into several impactful resume bullet points.",
-      content: `
+  },
+  {
+    id: "SUGGEST_TARGET_QUESTIONS",
+    name: "Suggest Target Questions for Impact Story",
+    description: "Analyzes an impact story and suggests common interview questions it would be a good answer for.",
+    content: "You are a world-class interview coach. Your task is to analyze the following impact story and suggest common behavioral interview questions that this story could be a perfect answer for.\n\n**IMPACT STORY:**\n{{IMPACT_STORY_BODY}}\n\n**INSTRUCTIONS:**\n1. Analyze the themes, skills, and outcomes demonstrated in the story.\n2. Generate a list of 3-5 distinct, common interview questions.\n3. The questions should be phrased as an interviewer would ask them.\n4. Return a single, valid JSON object with one key: \"questions\", containing an array of strings.\n\n**OUTPUT FORMAT:**\n```json\n{\n  \"questions\": [\n    \"Tell me about a time you had to influence without authority.\",\n    \"Describe a situation where a project you were on was failing. How did you turn it around?\",\n    \"Walk me through a time you used data to make a critical product decision.\"\n  ]\n}\n```"
+  },
+  {
+    id: "GENERATE_SPEAKER_NOTES_FROM_STORY",
+    name: "Generate Speaker Notes from Impact Story",
+    description: "Summarizes a full impact story into concise bullet points for the Interview Co-pilot.",
+    content: "You are an expert communications coach. Your task is to distill a detailed impact story into a set of concise, powerful speaker notes. These notes will be used in an interview co-pilot view, so they must be glanceable.\n\n**FULL IMPACT STORY:**\n{{IMPACT_STORY_BODY}}\n\n**INSTRUCTIONS:**\n1. Read the full story and identify the most critical points from the Situation, Action, and Result.\n2. Create 3-5 bullet points that capture the essence of the story.\n3. Each bullet point should be very short and start with an action verb or key metric where possible.\n4. Return a single, valid JSON object with one key: \"speaker_notes\", containing a single string with bullet points formatted using hyphens.\n\n**OUTPUT FORMAT:**\n```json\n{\n  \"speaker_notes\": \"- Situation: Failing launch, high customer churn\\n- Action: Led war room, interviewed users, reprioritized roadmap\\n- Result: 80% bug reduction, 75% adoption increase, saved 3 major accounts\"\n}\n```"
+  },
+  {
+    id: "GENERATE_INITIAL_ACHIEVEMENT_SUGGESTIONS",
+    name: "Generate Initial Achievement Suggestions",
+    description: "Rewrites a raw text block into several impactful resume bullet points.",
+    content: `
 You are an expert resume writer for senior product leaders. Your task is to take a user's raw, unpolished text about an accomplishment and transform it into several distinct, high-impact, metric-driven bullet points suitable for a resume. Each rewrite must follow the Problem-Action-Result (PAR) framework to create a compelling, dramatic, and engaging narrative.
 
 **USER'S RAW TEXT:**
@@ -1365,24 +1362,24 @@ You are an expert resume writer for senior product leaders. Your task is to take
 }
 \`\`\`
 `
-    },
-    {
-      id: "REWRITE_ACHIEVEMENT_WITH_INSTRUCTION",
-      name: "Rewrite Achievement with Instruction",
-      description: "Rewrites an achievement based on a specific user instruction.",
-      content: `You are a resume co-author. Rewrite the following achievement based on the user's instruction. Return only the rewritten text.
+  },
+  {
+    id: "REWRITE_ACHIEVEMENT_WITH_INSTRUCTION",
+    name: "Rewrite Achievement with Instruction",
+    description: "Rewrites an achievement based on a specific user instruction.",
+    content: `You are a resume co-author. Rewrite the following achievement based on the user's instruction. Return only the rewritten text.
 
 **ACHIEVEMENT TO REFINE:**
 {{ACHIEVEMENT_TO_REFINE}}
 
 **USER INSTRUCTION:**
 {{INSTRUCTION}}`
-    },
-    {
-      id: "REFINE_ACHIEVEMENT_WITH_KEYWORDS",
-      name: "Refine Achievement with Keywords",
-      description: "Rewrites an achievement to naturally include specific keywords.",
-      content: `You are a resume co-author. Your task is to rewrite the provided achievement to naturally incorporate the given keywords. Do not simply list the keywords; weave them into the narrative of the accomplishment.
+  },
+  {
+    id: "REFINE_ACHIEVEMENT_WITH_KEYWORDS",
+    name: "Refine Achievement with Keywords",
+    description: "Rewrites an achievement to naturally include specific keywords.",
+    content: `You are a resume co-author. Your task is to rewrite the provided achievement to naturally incorporate the given keywords. Do not simply list the keywords; weave them into the narrative of the accomplishment.
 
 **CURRENT DRAFT:**
 {{ACHIEVEMENT_TO_REFINE}}
@@ -1394,12 +1391,12 @@ You are an expert resume writer for senior product leaders. Your task is to take
 - Rewrite the 'CURRENT DRAFT' to seamlessly include the keywords.
 - The result should still be a powerful, metric-driven accomplishment.
 - Return only the rewritten text.`
-    },
-    {
-      id: "REFINE_ACHIEVEMENT_CHAT",
-      name: "Refine Achievement via Chat",
-      description: "Rewrites an achievement based on conversational user feedback.",
-      content: `
+  },
+  {
+    id: "REFINE_ACHIEVEMENT_CHAT",
+    name: "Refine Achievement via Chat",
+    description: "Rewrites an achievement based on conversational user feedback.",
+    content: `
 You are a collaborative co-author and executive resume coach. Your task is to rewrite the provided DRAFT achievement based on the user's specific feedback and the conversation history.
 
 **Style Guide:**
@@ -1428,12 +1425,12 @@ You are a collaborative co-author and executive resume coach. Your task is to re
 2.  Rewrite the ENTIRE draft, incorporating the feedback while adhering to the Style Guide and the selected {{BULLET_FRAMEWORK}}.
 3.  Return ONLY the text of the newly rewritten achievement. Do not include any headers, comments, or JSON formatting.
 `
-    },
-     {
-      id: "SCORE_ACHIEVEMENT_STORY",
-      name: "Score an Achievement Story",
-      description: "Scores a single accomplishment on multiple vectors.",
-      content: `You are an AI-powered career coach. Your task is to score a resume accomplishment on four dimensions and provide an overall score. All scores must be a float from 0.0 to 10.0.
+  },
+  {
+    id: "SCORE_ACHIEVEMENT_STORY",
+    name: "Score an Achievement Story",
+    description: "Scores a single accomplishment on multiple vectors.",
+    content: `You are an AI-powered career coach. Your task is to score a resume accomplishment on four dimensions and provide an overall score. All scores must be a float from 0.0 to 10.0.
 
 **CONTEXT FOR SCORING:**
 - Candidate's Positioning: {{POSITIONING_STATEMENT}}
@@ -1462,12 +1459,12 @@ Return ONLY a valid JSON object. Do not add any other text or comments.
   "overall_score": 8.8
 }
 \`\`\``
-    },
-    {
-        id: 'SCORE_DUAL_ACHIEVEMENTS',
-        name: 'Score Dual Accomplishments',
-        description: 'Scores an original and edited accomplishment side-by-side.',
-        content: `
+  },
+  {
+    id: 'SCORE_DUAL_ACHIEVEMENTS',
+    name: 'Score Dual Accomplishments',
+    description: 'Scores an original and edited accomplishment side-by-side.',
+    content: `
 You are an AI-powered career coach. Your task is to score two versions of a resume accomplishment: the original and an edited version. You will score both on four dimensions and provide an overall score. All scores must be a float from 0.0 to 10.0.
 
 **CONTEXT FOR SCORING:**
@@ -1508,12 +1505,12 @@ Return ONLY a valid JSON object with two keys: "original_score" and "edited_scor
 }
 \`\`\`
 `
-    },
-    {
-      id: 'SCORE_CONTACT_FIT',
-      name: 'Score Contact Strategic Fit',
-      description: "Scores how strategically important a contact is to the user's career narrative.",
-      content: `
+  },
+  {
+    id: 'SCORE_CONTACT_FIT',
+    name: 'Score Contact Strategic Fit',
+    description: "Scores how strategically important a contact is to the user's career narrative.",
+    content: `
 You are a strategic networking analyst. Your task is to score the strategic importance of a professional contact for a user based on their career goals and the contact's role. A high score (8-10) means the contact is highly relevant and could be a key advocate, influencer, or hiring manager. A low score (0-3) means the contact is likely irrelevant.
 
 **USER'S CAREER NARRATIVE:**
@@ -1539,12 +1536,12 @@ You are a strategic networking analyst. Your task is to score the strategic impo
 }
 \`\`\`
 `
-    },
-    {
-      id: "COMBINE_SIMILAR_ACHIEVEMENTS",
-      name: "Combine Similar Achievements",
-      description: "Finds and suggests combinations for redundant resume accomplishments.",
-      content: `You are an expert resume editor. Your task is to analyze a list of accomplishments for a single job role, identify redundancies or thematic overlaps, and suggest concise, combined alternatives.
+  },
+  {
+    id: "COMBINE_SIMILAR_ACHIEVEMENTS",
+    name: "Combine Similar Achievements",
+    description: "Finds and suggests combinations for redundant resume accomplishments.",
+    content: `You are an expert resume editor. Your task is to analyze a list of accomplishments for a single job role, identify redundancies or thematic overlaps, and suggest concise, combined alternatives.
 
 **LIST OF ACCOMPLISHMENTS (JSON ARRAY):**
 {{ACCOMPLISHMENT_LIST}}
@@ -1578,12 +1575,12 @@ You are a strategic networking analyst. Your task is to score the strategic impo
   ]
 }
 \`\`\``
-    },
-    {
-      id: 'GENERATE_LINKEDIN_THEMES',
-      name: 'Generate LinkedIn Post Themes',
-      description: 'Synthesizes user activity and positioning into themes for a LinkedIn post.',
-      content: `
+  },
+  {
+    id: 'GENERATE_LINKEDIN_THEMES',
+    name: 'Generate LinkedIn Post Themes',
+    description: 'Synthesizes user activity and positioning into themes for a LinkedIn post.',
+    content: `
 You are a career strategist and content expert for senior leaders. Your task is to analyze a user's strategic positioning and their recent job applications to suggest insightful themes for a LinkedIn post.
 
 **USER'S STRATEGIC POSITIONING:**
@@ -1610,12 +1607,12 @@ Applied for roles like: {{RECENT_APPLICATIONS}}
 }
 \`\`\`
 `
-    },
-    {
-      id: 'GENERATE_JOURNEY_POST',
-      name: 'Generate LinkedIn Journey Post',
-      description: 'Creates a reflective post about the user\'s career journey, potentially comparing two narratives.',
-      content: `
+  },
+  {
+    id: 'GENERATE_JOURNEY_POST',
+    name: 'Generate LinkedIn Journey Post',
+    description: 'Creates a reflective post about the user\'s career journey, potentially comparing two narratives.',
+    content: `
 You are an expert LinkedIn ghostwriter and career storyteller for senior executives. Your task is to write a reflective, engaging post that synthesizes two of the user's career narratives into a single, powerful story.
 
 The key is to frame this duality as a unique strength and a source of versatile expertise. Avoid language that sounds lost, confused, or indecisive. Instead, position the user as a valuable leader who can bridge different worlds or solve problems from multiple perspectives.
@@ -1645,12 +1642,12 @@ What's an unexpected connection you've found between different parts of your car
 
 #CareerGrowth #Leadership #Innovation #ProductManagement #Strategy"
 `
-    },
-    {
-      id: 'GENERATE_POSITIONED_LINKEDIN_POST',
-      name: 'Generate Positioned LinkedIn Post',
-      description: 'Writes a full LinkedIn post based on a theme and the user\'s narrative.',
-      content: `
+  },
+  {
+    id: 'GENERATE_POSITIONED_LINKEDIN_POST',
+    name: 'Generate Positioned LinkedIn Post',
+    description: 'Writes a full LinkedIn post based on a theme and the user\'s narrative.',
+    content: `
 You are an expert ghostwriter for a senior executive. Your goal is to draft a LinkedIn post that is human, conversational, and authoritative, based on their personal brand and a selected theme.
 
 **USER'S BRAND CONTEXT:**
@@ -1670,12 +1667,12 @@ You are an expert ghostwriter for a senior executive. Your goal is to draft a Li
 6.  Include 3-5 relevant hashtags.
 7.  Return ONLY the text of the post. Do not include any other text or formatting.
 `
-    },
-    {
-      id: 'GENERATE_DASHBOARD_FEED',
-      name: 'Generate Dashboard Focus Feed',
-      description: 'Creates a list of actionable focus items for the dashboard.',
-      content: `
+  },
+  {
+    id: 'GENERATE_DASHBOARD_FEED',
+    name: 'Generate Dashboard Focus Feed',
+    description: 'Creates a list of actionable focus items for the dashboard.',
+    content: `
 You are a career coach creating a personalized, actionable to-do list. The goal is to keep the user on track with their weekly goals and address any pending tasks.
 
 **USER'S WEEKLY GOALS:**
@@ -1728,12 +1725,12 @@ You are a career coach creating a personalized, actionable to-do list. The goal 
 }
 \`\`\`
 `
-    },
-    {
-      id: 'GENERATE_DAILY_SPRINT',
-      name: 'Generate Daily Sprint',
-      description: 'Creates a daily to-do list based on weekly goals and pending tasks.',
-      content: `
+  },
+  {
+    id: 'GENERATE_DAILY_SPRINT',
+    name: 'Generate Daily Sprint',
+    description: 'Creates a daily to-do list based on weekly goals and pending tasks.',
+    content: `
 You are a career coach creating a personalized, actionable to-do list for a user's daily sprint. The goal is to keep them on track with their weekly goals and address any pending tasks.
 
 **USER'S WEEKLY GOALS:**
@@ -1789,12 +1786,12 @@ You are a career coach creating a personalized, actionable to-do list for a user
 }
 \`\`\`
 `
-    },
-    {
-        id: 'GENERATE_POST_INTERVIEW_COUNTER',
-        name: 'Generate Post-Interview Counter-Punch',
-        description: 'Analyzes interview notes to generate a thank-you note and performance feedback.',
-        content: `
+  },
+  {
+    id: 'GENERATE_POST_INTERVIEW_COUNTER',
+    name: 'Generate Post-Interview Counter-Punch',
+    description: 'Analyzes interview notes to generate a thank-you note and performance feedback.',
+    content: `
 You are a world-class executive career coach. Your task is to analyze a candidate's post-interview notes to generate a strategic follow-up plan. This includes a thank-you note draft, performance analysis, and coaching recommendations.
 
 **CONTEXT:**
@@ -1845,12 +1842,12 @@ Based on the candidate's notes and brand context, generate a single, valid JSON 
 }
 \`\`\`
 `
-    },
-    {
-        id: 'GENERATE_QUESTION_REFRAME_SUGGESTION',
-        name: 'Generate Question Re-frame Suggestion',
-        description: 'Suggests how to answer a behavioral question by using a core story.',
-        content: `
+  },
+  {
+    id: 'GENERATE_QUESTION_REFRAME_SUGGESTION',
+    name: 'Generate Question Re-frame Suggestion',
+    description: 'Suggests how to answer a behavioral question by using a core story.',
+    content: `
 You are an expert interview coach providing a "coach in the ear" suggestion. Your task is to analyze an interview question and suggest which of the candidate's core stories is the best fit, and how to frame the answer strategically.
 
 **INTERVIEW QUESTION:**
@@ -1874,12 +1871,12 @@ You are an expert interview coach providing a "coach in the ear" suggestion. You
 }
 \`\`\`
 `
-    },
-    {
-        id: 'DECONSTRUCT_INTERVIEW_QUESTION',
-        name: 'Deconstruct Interview Question',
-        description: 'Generates an arsenal of clarifying questions for a given interview question.',
-        content: `
+  },
+  {
+    id: 'DECONSTRUCT_INTERVIEW_QUESTION',
+    name: 'Deconstruct Interview Question',
+    description: 'Generates an arsenal of clarifying questions for a given interview question.',
+    content: `
 You are a world-class interview coach. Your task is to analyze an interview question and generate an arsenal of strategic clarifying questions. These questions help the candidate deconstruct the "problem behind the problem" before they answer, demonstrating active listening and diagnostic thinking.
 
 **INTERVIEW QUESTION TO DECONSTRUCT:**
@@ -1911,5 +1908,5 @@ You are a world-class interview coach. Your task is to analyze an interview ques
 }
 \`\`\`
 `
-    }
+  }
 ];

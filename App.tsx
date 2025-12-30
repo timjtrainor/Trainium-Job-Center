@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { HashRouter, Routes, Route, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
-import { AppView, NewAppStep, Resume, JobApplication, BaseResume, Status, Company, CompanyInfoResult, KeywordsResult, GuidanceResult, Prompt, CompanyPayload, JobApplicationPayload, BaseResumePayload, SkillOptions, ExtractedInitialDetails, Contact, ContactPayload, ApplicationQuestion, WorkExperience, Interview, InterviewPayload, InterviewPrep, MessagePayload, Message, LinkedInPost, LinkedInPostPayload, PromptContext, JobProblemAnalysisResult, UserProfile, StrategicNarrative, StrategicNarrativePayload, UserProfilePayload, LinkedInEngagement, PostResponse, PostResponsePayload, LinkedInEngagementPayload, StandardJobRole, StandardJobRolePayload, ResumeTailoringData, PostSubmissionPlan, InfoField, ResumeHeader, ScoutedOpportunity, Offer, OfferPayload, NinetyDayPlan, Sprint, BragBankEntry, SkillTrend, SkillTrendPayload, BragBankEntryPayload, CreateSprintPayload, SprintAction, AiSprintPlan, AiSprintAction, KeywordDetail, SprintActionPayload, SkillSection, ConsultativeClosePlan, StrategicHypothesisDraft, PostInterviewDebrief, ImpactStory, ApplicationDetailTab, ResumeTemplate, BaseResumePayload as ResumePayload, InterviewStoryDeckEntry } from './types';
+import { AppView, NewAppStep, Resume, JobApplication, BaseResume, Status, Company, CompanyInfoResult, KeywordsResult, GuidanceResult, Prompt, CompanyPayload, JobApplicationPayload, BaseResumePayload, SkillOptions, ExtractedInitialDetails, Contact, ContactPayload, ApplicationQuestion, WorkExperience, Interview, InterviewPayload, InterviewPrep, MessagePayload, Message, LinkedInPost, LinkedInPostPayload, PromptContext, JobProblemAnalysisResult, UserProfile, StrategicNarrative, StrategicNarrativePayload, UserProfilePayload, LinkedInEngagement, PostResponse, PostResponsePayload, LinkedInEngagementPayload, ResumeTailoringData, PostSubmissionPlan, InfoField, ResumeHeader, ScoutedOpportunity, Offer, OfferPayload, NinetyDayPlan, Sprint, BragBankEntry, SkillTrend, SkillTrendPayload, BragBankEntryPayload, CreateSprintPayload, SprintAction, AiSprintPlan, AiSprintAction, KeywordDetail, SprintActionPayload, SkillSection, ConsultativeClosePlan, StrategicHypothesisDraft, PostInterviewDebrief, ImpactStory, ApplicationDetailTab, ResumeTemplate, BaseResumePayload as ResumePayload, InterviewStoryDeckEntry } from './types';
 import * as apiService from './services/apiService';
 import * as geminiService from './services/geminiService';
 import { PROMPTS } from './promptsData';
@@ -84,7 +84,6 @@ const AppContent = () => {
     const [linkedInPosts, setLinkedInPosts] = useState<LinkedInPost[]>([]);
     const [engagements, setEngagements] = useState<LinkedInEngagement[]>([]);
     const [postResponses, setPostResponses] = useState<PostResponse[]>([]);
-    const [standardRoles, setStandardRoles] = useState<StandardJobRole[]>([]);
     const [offers, setOffers] = useState<Offer[]>([]);
     const [bragBankItems, setBragBankItems] = useState<BragBankEntry[]>([]);
     const [skillTrends, setSkillTrends] = useState<SkillTrend[]>([]);
@@ -177,7 +176,7 @@ const AppContent = () => {
         setIsAppLoading(true);
         try {
             const [
-                profile, narratives, apps, comps, stats, resumes, conts, msgs, posts, engs, postRes, roles, offers, bragItems, trends, activeSprint
+                profile, narratives, apps, comps, stats, resumes, conts, msgs, posts, engs, postRes, offers, bragItems, trends, activeSprint
             ] = await Promise.all([
                 apiService.getUserProfile(),
                 apiService.getStrategicNarratives(),
@@ -190,7 +189,6 @@ const AppContent = () => {
                 apiService.getLinkedInPosts(),
                 apiService.getLinkedInEngagements(),
                 apiService.getPostResponses(),
-                apiService.getStandardJobRoles(),
                 apiService.getOffers(),
                 apiService.getBragBankEntries(),
                 apiService.getSkillTrends(),
@@ -209,7 +207,6 @@ const AppContent = () => {
             setLinkedInPosts(posts || []);
             setEngagements(engs || []);
             setPostResponses(postRes || []);
-            setStandardRoles(roles || []);
             setOffers(offers || []);
             setBragBankItems(bragItems || []);
             setSkillTrends(trends || []);
@@ -385,10 +382,8 @@ const AppContent = () => {
             const context = {
                 NORTH_STAR: activeNarrative.positioning_statement,
                 MASTERY: activeNarrative.signature_capability,
-                DESIRED_TITLE: activeNarrative.desired_title,
                 JOB_TITLE: appToAnalyze.job_title,
                 JOB_DESCRIPTION: appToAnalyze.job_description,
-                STANDARD_ROLES_JSON: JSON.stringify(standardRoles.filter(r => r.narrative_id === activeNarrativeId))
             };
             const result = await geminiService.performInitialJobAnalysis(context, analysisPrompt.content);
 
@@ -1288,7 +1283,6 @@ const AppContent = () => {
                 DESIRED_TITLE: narrative.desired_title,
                 JOB_TITLE: appToReanalyze.job_title,
                 JOB_DESCRIPTION: appToReanalyze.job_description,
-                STANDARD_ROLES_JSON: JSON.stringify(standardRoles.filter(r => r.narrative_id === narrative.narrative_id))
             };
             const analysisResult = await geminiService.performInitialJobAnalysis(analysisContext, analysisPrompt.content);
             const coreProblem = analysisResult.job_problem_analysis?.core_problem_analysis?.core_problem;
@@ -1800,9 +1794,7 @@ const AppContent = () => {
     return (
         <div className="flex h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans">
             <SideNav
-                narratives={strategicNarratives}
-                activeNarrativeId={activeNarrativeId}
-                onSetNarrative={setActiveNarrativeId}
+                activeNarrativeName={activeNarrative?.narrative_name || 'Standard'}
                 onOpenProfileModal={() => setIsProfileModalOpen(true)}
                 onOpenSprintModal={() => setIsSprintModalOpen(true)}
             />
@@ -1820,8 +1812,8 @@ const AppContent = () => {
                             <Route path="/add-linkedin-job" element={<QuickAddLinkedInJob />} />
                             <Route path="/add-manual-job" element={<ManualJobCreate />} />
 
-                            <Route path="/positioning" element={<PositioningHub narratives={strategicNarratives} activeNarrative={activeNarrative} activeNarrativeId={activeNarrativeId} onSetNarrative={setActiveNarrativeId} onSaveNarrative={handleSaveNarrative} onUpdateNarrative={handleUpdateNarrative} prompts={PROMPTS} standardRoles={standardRoles} onCreateStandardRole={async (payload, narrativeId) => { await apiService.createStandardJobRole(payload, narrativeId); fetchInitialData(); }} onUpdateStandardRole={async (roleId, payload) => { await apiService.updateStandardJobRole(roleId, payload); fetchInitialData(); }} onDeleteStandardRole={async (roleId) => { await apiService.deleteStandardJobRole(roleId); fetchInitialData(); }} baseResumes={baseResumes} />} />
-                            <Route path="/engagement" element={<EngagementHub contacts={contacts} posts={linkedInPosts} engagements={engagements} postResponses={postResponses} applications={applications} allMessages={messages} userProfile={userProfile} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onCreatePostResponse={async () => { }} onUpdatePostResponse={handleUpdatePostResponse} onCreateLinkedInEngagement={handleCreateLinkedInEngagement} onCreatePost={handleCreatePost} onImportContacts={async () => { }} prompts={PROMPTS} onDeleteContact={handleDeleteContact} companies={companies} onViewCompany={(id) => navigate(`/company/${id}`)} onAddNewCompany={() => setIsCompanyModalOpen(true)} baseResumes={baseResumes} strategicNarratives={strategicNarratives} activeNarrative={activeNarrative} onScoreEngagement={() => { }} />} />
+                            <Route path="/positioning" element={<PositioningHub activeNarrative={activeNarrative} activeNarrativeId={activeNarrativeId} onSaveNarrative={handleSaveNarrative} onUpdateNarrative={handleUpdateNarrative} prompts={PROMPTS} baseResumes={baseResumes} />} />
+                            <Route path="/engagement" element={<EngagementHub contacts={contacts} posts={linkedInPosts} engagements={engagements} postResponses={postResponses} applications={applications} allMessages={messages} userProfile={userProfile} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onCreatePostResponse={async () => { }} onUpdatePostResponse={handleUpdatePostResponse} onCreateLinkedInEngagement={handleCreateLinkedInEngagement} onCreatePost={handleCreatePost} onImportContacts={async () => { }} prompts={PROMPTS} onDeleteContact={handleDeleteContact} companies={companies} onViewCompany={(id) => navigate(`/company/${id}`)} onAddNewCompany={() => setIsCompanyModalOpen(true)} baseResumes={baseResumes} strategicNarratives={strategicNarratives} activeNarrative={activeNarrative} onScoreEngagement={() => { }} onSaveContact={handleSaveContact} />} />
                             {/* FIX: `onSaveNarrative` was passed instead of `handleSaveNarrative` */}
                             <Route
                                 path="/interview-studio"

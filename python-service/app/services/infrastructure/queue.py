@@ -347,13 +347,15 @@ class QueueService:
             logger.warning("Queue service not initialized, cannot enqueue with site lock")
             return None
 
-        lock_key = f"site_active_job:{site_name}"
+        site_name_clean = site_name.strip().lower()
+        lock_key = f"site_active_job:{site_name_clean}"
 
         try:
             # Check if site already has an active job
             existing_active_job = self.check_redis_lock(lock_key)
             if existing_active_job:
-                logger.info(f"Site {site_name} already has active job, queuing denied: {existing_active_job.decode('utf-8')}")
+                decoded_job = existing_active_job.decode('utf-8') if isinstance(existing_active_job, bytes) else str(existing_active_job)
+                logger.info(f"Site {site_name_clean} already has active job, queuing denied: {decoded_job}")
                 return None  # Site busy, don't queue
 
             # Generate run_id if not provided
@@ -363,7 +365,7 @@ class QueueService:
             # Acquire site-level lock
             lock_value = f"{run_id}:{datetime.now().isoformat()}"
             if not self.acquire_redis_lock(lock_key, lock_value, timeout=3600):  # 1 hour timeout
-                logger.warning(f"Failed to acquire site lock for {site_name}")
+                logger.warning(f"Failed to acquire site lock for {site_name_clean}")
                 return None
 
             # Lock acquired, now enqueue the job
@@ -377,10 +379,10 @@ class QueueService:
             if not job_info:
                 # Failed to enqueue, release the lock
                 self.release_redis_lock(lock_key, lock_value)
-                logger.error(f"Failed to enqueue job after acquiring lock for {site_name}")
+                logger.error(f"Failed to enqueue job after acquiring lock for {site_name_clean}")
                 return None
 
-            logger.info(f"Successfully enqueued locked job for {site_name} - run_id: {run_id}")
+            logger.info(f"Successfully enqueued locked job for {site_name_clean} - run_id: {run_id}")
             return job_info
 
         except Exception as e:

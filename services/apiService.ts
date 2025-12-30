@@ -3,7 +3,7 @@ import {
     BaseResumePayload, Contact, ContactPayload, Message, MessagePayload, Interview,
     InterviewPayload, InterviewStoryDeckEntry, LinkedInPost, LinkedInPostPayload, UserProfile,
     UserProfilePayload, LinkedInEngagement, PostResponse, PostResponsePayload,
-    LinkedInEngagementPayload, StandardJobRole, StandardJobRolePayload, Resume, ResumeHeader, DateInfo, Education, Certification,
+    LinkedInEngagementPayload, Resume, ResumeHeader, DateInfo, Education, Certification,
     StrategicNarrative, StrategicNarrativePayload, Offer, OfferPayload,
     BragBankEntry, BragBankEntryPayload, SkillTrend, SkillTrendPayload,
     Sprint, SprintAction, CreateSprintPayload, SprintActionPayload, ApplicationQuestion,
@@ -1372,36 +1372,6 @@ export const saveStrategicNarrative = async (payload: StrategicNarrativePayload,
     };
 };
 
-export const getStandardJobRoles = async (): Promise<StandardJobRole[]> => {
-    const response = await fetch(`${API_BASE_URL}/standard_job_roles?order=role_title.asc`);
-    return handleResponse(response);
-};
-
-export const createStandardJobRole = async (payload: StandardJobRolePayload, narrativeId: string): Promise<StandardJobRole> => {
-    const rolePayload = { ...payload, narrative_id: narrativeId };
-    const response = await fetch(`${API_BASE_URL}/standard_job_roles`, {
-        method: 'POST',
-        headers: { ...headers, 'Prefer': 'return=representation' },
-        body: JSON.stringify(rolePayload),
-    });
-    const data = await handleResponse(response);
-    return data[0];
-};
-
-export const updateStandardJobRole = async (roleId: string, payload: StandardJobRolePayload): Promise<StandardJobRole> => {
-    const response = await fetch(`${API_BASE_URL}/standard_job_roles?role_id=eq.${roleId}`, {
-        method: 'PATCH',
-        headers: { ...headers, 'Prefer': 'return=representation' },
-        body: JSON.stringify(payload),
-    });
-    const data = await handleResponse(response);
-    return data[0];
-};
-
-export const deleteStandardJobRole = async (roleId: string): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/standard_job_roles?role_id=eq.${roleId}`, { method: 'DELETE', headers });
-    await handleResponse(response);
-};
 
 // --- Offers ---
 

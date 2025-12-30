@@ -798,6 +798,93 @@ export async function generatePostInterviewCounter(context: PromptContext, promp
     return cleanAndParseJson(response.text);
 }
 
+export async function extractContactFromText(context: PromptContext, promptContent: string, debugCallbacks?: DebugCallbacks): Promise<Partial<import("../types").Contact>> {
+    const aiClient = getAiClient();
+    const prompt = replacePlaceholders(promptContent, context);
+    if (debugCallbacks?.before) await debugCallbacks.before(prompt);
+
+    const response = await aiClient.models.generateContent({
+        model: currentModel,
+        contents: prompt,
+        config: {
+            systemInstruction: "You are a smart data parser extracting contact details from raw text.",
+            responseMimeType: "application/json",
+            temperature: 0.1,
+        },
+    });
+
+    if (debugCallbacks?.after) await debugCallbacks.after(response.text);
+    return cleanAndParseJson(response.text);
+}
+
+export async function runEngagementAgent(
+    systemPrompt: string,
+    history: import("../types").AgentMessage[],
+    userMessage: string,
+    userContext: PromptContext,
+    debugCallbacks?: DebugCallbacks
+): Promise<{ content: string; action?: import("../types").AgentAction }> {
+    const aiClient = getAiClient();
+
+    // Construct the full prompt with history
+    // We are simulating a chat manually for now to keep it stateless/simple,
+    // or we could use the chatSession API. To allow "system instructions" via our prompt object,
+    // we'll format it as a single generation call with history context.
+
+    // Replace placeholders in the system prompt
+    const finalSystemPrompt = replacePlaceholders(systemPrompt, userContext);
+
+    // Format history for the model
+    // Note: Gemini 1.5 APIs often prefer "model" and "user" roles.
+    const chatHistory = history.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content + (msg.action ? `\n[System Note: Action ${msg.action.type} was suggested]` : '') }]
+    }));
+
+    // Add the new user message
+    const contents = [
+        ...chatHistory,
+        { role: 'user', parts: [{ text: userMessage }] }
+    ];
+
+    if (debugCallbacks?.before) await debugCallbacks.before(userMessage);
+
+    const response = await aiClient.models.generateContent({
+        model: currentModel,
+        contents: contents, // Use the proper chat history structure
+        config: {
+            systemInstruction: finalSystemPrompt,
+            temperature: 0.7, // Higher temp for conversational creativity
+        },
+    });
+
+    if (debugCallbacks?.after) await debugCallbacks.after(response.text);
+
+    // The model might return a plain string or a string with a JSON block at the end.
+    // We need to parse this mixed content.
+    const text = response.text;
+
+    // Check for JSON block for action
+    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+    let action: import("../types").AgentAction | undefined;
+    let content = text;
+
+    if (jsonMatch) {
+        try {
+            const parsed = JSON.parse(jsonMatch[1]);
+            if (parsed.action) {
+                action = parsed.action;
+                // Remove the JSON block from the visible content to keep the chat clean
+                content = text.replace(jsonMatch[0], '').trim();
+            }
+        } catch (e) {
+            console.warn("Failed to parse action JSON from agent response:", e);
+        }
+    }
+
+    return { content, action };
+}
+
 export async function generateQuestionReframeSuggestion(context: PromptContext, promptContent: string, debugCallbacks?: DebugCallbacks): Promise<{ suggestion: string }> {
     const aiClient = getAiClient();
     const prompt = replacePlaceholders(promptContent, context);

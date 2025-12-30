@@ -55,6 +55,14 @@ class SchedulerService:
             jobs_enqueued = 0
 
             logger.info(f"Found {len(schedules)} site schedules to process")
+            
+            # Periodic cleanup: Clear orphaned site_active_job locks (older than 1 hour)
+            try:
+                cleanup_result = self.queue_service.clear_orphaned_locks(pattern="site_active_job:*", max_age_hours=1)
+                if cleanup_result.get("locks_cleared", 0) > 0:
+                    logger.info(f"Cleanup: Cleared {cleanup_result['locks_cleared']} orphaned site locks")
+            except Exception as ce:
+                logger.error(f"Failed to clear orphaned locks: {ce}")
 
             for schedule in schedules:
                 lock_key: Optional[str] = None

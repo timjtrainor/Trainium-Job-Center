@@ -252,6 +252,14 @@ def scrape_jobs_sync(payload: Dict[str, Any], min_pause: int = 2, max_pause: int
             if payload.get("hours_old"):
                 parts.append(f"posted last {int(payload['hours_old'])} hours")
             google_q = " ".join(parts).strip() or "software engineer jobs"
+        
+        # Support dynamic date replacement (e.g., {{yesterday}})
+        if "{{yesterday}}" in google_q:
+            from datetime import datetime, timedelta
+            yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            google_q = google_q.replace("{{yesterday}}", yesterday)
+            logger.info(f"Resolved {{yesterday}} in Google query: {google_q}")
+            
         kwargs["google_search_term"] = google_q
         
         # Remove incompatible parameters for Google
