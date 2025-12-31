@@ -1878,6 +1878,27 @@ export const buildReviewedJobsUiSearchParams = ({
     return params;
 };
 
+export const getReviewedJob = async (jobId: string): Promise<ReviewedJob> => {
+    const response = await fetch(`${buildFastApiUrl(`jobs/reviews/${jobId}`)}`);
+    const data = await handleResponse(response);
+
+    // Transform formatting logic similar to getReviewedJobs if needed
+    // But since the API now returns the schema directly, we just need to adapt.
+    // getReviewedJob in jobs.py returns ReviewedJob which has {job, review}
+
+    return {
+        ...data.job,
+        job_id: data.job.job_id,
+        recommendation: data.review.recommendation ? 'Recommended' : 'Not Recommended',
+        confidence: data.review.confidence === 'high' ? 0.9 : data.review.confidence === 'medium' ? 0.6 : 0.3,
+        overall_alignment_score: data.review.overall_alignment_score || 0,
+        is_eligible_for_application: data.review.override_recommend !== null ? data.review.override_recommend : data.review.recommendation,
+        crew_output: data.review.crew_output,
+        rationale: data.review.rationale,
+        tldr_summary: data.review.tldr_summary
+    };
+};
+
 export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort = { by: 'date_posted', order: 'desc' } }: {
     page?: number;
     size?: number;

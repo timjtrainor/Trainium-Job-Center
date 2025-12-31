@@ -606,7 +606,7 @@ class DatabaseService:
 
         query = """
         SELECT id, job_id, recommend, confidence, rationale, personas, tradeoffs,
-               actions, sources, crew_output, processing_time_seconds, crew_version,
+               actions, sources, overall_alignment_score, crew_output, processing_time_seconds, crew_version,
                model_used, error_message, retry_count, created_at, updated_at,
                override_recommend, override_comment, override_by, override_at
         FROM public.job_reviews 
@@ -658,7 +658,7 @@ class DatabaseService:
             updated_at = NOW()
         WHERE job_id = $1
         RETURNING id, job_id, recommend, confidence, rationale, personas, tradeoffs,
-                  actions, sources, crew_output, processing_time_seconds, crew_version,
+                  actions, sources, overall_alignment_score, crew_output, processing_time_seconds, crew_version,
                   model_used, error_message, retry_count, created_at, updated_at,
                   override_recommend, override_comment, override_by, override_at
         """

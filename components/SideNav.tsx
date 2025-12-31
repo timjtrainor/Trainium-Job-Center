@@ -1,11 +1,8 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { StrategicNarrative } from '../types';
 import { LogoIcon, DashboardIcon, ApplicationsIcon, AtomGearIcon, ChatBubbleLeftRightIcon, StrategyIcon, MicrophoneIcon, UsersIcon, ClipboardDocumentListIcon, ClipboardDocumentCheckIcon, CircleStackIcon, ClockIcon } from './IconComponents';
-import { GlobalNarrativeSwitcher } from './GlobalNarrativeSwitcher';
 
 interface SideNavProps {
-    activeNarrativeName: string;
     onOpenProfileModal: () => void;
     onOpenSprintModal: () => void;
 }
@@ -30,13 +27,11 @@ const navItems: NavItem[] = [
 ];
 
 const secondaryNavItems = [
-    { path: '/add-linkedin-job', label: 'Add LinkedIn Job', icon: ClipboardDocumentCheckIcon },
     { path: '/health-checks', label: 'Health Checks', icon: AtomGearIcon },
     { path: '/schedule-management', label: 'Job Scheduler', icon: ClockIcon },
-    { path: '/chroma-upload', label: 'ChromaDB Upload', icon: CircleStackIcon },
 ]
 
-export const SideNav = ({ activeNarrativeName, onOpenProfileModal, onOpenSprintModal }: SideNavProps): React.ReactNode => {
+export const SideNav = ({ onOpenProfileModal, onOpenSprintModal }: SideNavProps): React.ReactNode => {
 
     const baseClass = "group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors";
     const activeClass = "bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-semibold";
@@ -85,16 +80,7 @@ export const SideNav = ({ activeNarrativeName, onOpenProfileModal, onOpenSprintM
                 <span className="font-bold text-slate-800 dark:text-slate-200 text-lg">Trainium</span>
             </div>
             <div className="flex-1 flex flex-col overflow-y-auto">
-                <div className="px-4 py-6 border-b border-slate-200 dark:border-slate-700">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1 mb-2 block">Active Narrative</label>
-                    <div className="px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.3)] animate-pulse" />
-                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">
-                            {activeNarrativeName}
-                        </span>
-                    </div>
-                </div>
-                <nav className="flex-1 px-2 py-4 space-y-1 border-t border-slate-200 dark:border-slate-800">
+                <nav className="flex-1 px-2 py-4 space-y-1">
                     {navItems.map(renderNavLink)}
                 </nav>
                 <div className="px-2 py-4 border-t border-slate-200 dark:border-slate-800">

@@ -198,8 +198,81 @@ async def get_job_reviews(
         raise
     except Exception as e:
         logger.error(f"Failed to get job reviews: {e}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/reviews/{job_id}", response_model=ReviewedJob)
+async def get_job_review(
+    job_id: str,
+    db: DatabaseService = Depends(get_database)
+):
+    """
+    Get detailed review for a specific job by ID.
+    Includes both job details and AI/human review data.
+    """
+    try:
+        # Get review data
+        review_data = await db.get_job_review(job_id)
+        if not review_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Job review not found for job_id: {job_id}"
+            )
+        
+        # Get job details
+        job_data = await db.get_job_by_id(job_id)
+        if not job_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Job details not found for job_id: {job_id}"
+            )
+        
+        # Transform to response models
+        # Map database fields to schema fields if they differ
+        # db.get_job_by_id returns keys like 'max_amount', schema expects 'salary_max'? 
+        # Actually schemas in jobs.py line 184-185 show:
+        # job_details = JobDetails(**job_data["job"])
+        # review_data = JobReviewData(**job_data["review"])
+        # Wait, db.get_reviewed_jobs returns a transformed structure.
+        
+        # Let's see how db.get_reviewed_jobs transforms it.
+        # In database.py around line 800 (not shown in previous view)
+        
+        # I'll just manually construct it to be safe or use the same logic if I can find it.
+        # Actually database.py get_job_by_id returns:
+        # id, site, job_url, title, company, company_url, location_country, ...
+        
+        # Schema JobDetails expects:
+        # job_id, title, company, location, url, date_posted, source, description, salary_min, salary_max, ...
+        
+        formatted_job = {
+            "job_id": str(job_data["id"]),
+            "title": job_data["title"],
+            "company": job_data["company"],
+            "location": job_data["location_city"] or job_data["location_state"] or job_data["location_country"] or "Remote" if job_data["is_remote"] else "N/A",
+            "url": job_data["job_url"],
+            "date_posted": job_data["date_posted"],
+            "source": job_data["site"],
+            "description": job_data["description"],
+            "salary_min": job_data["min_amount"],
+            "salary_max": job_data["max_amount"],
+            "salary_currency": job_data["currency"],
+            "is_remote": job_data["is_remote"]
+        }
+        
+        # review_date in schema matches created_at in db?
+        formatted_review = {
+            **review_data,
+            "review_date": review_data["created_at"],
+            "reviewer": review_data.get("crew_version")
+        }
+        
+        return ReviewedJob(job=JobDetails(**formatted_job), review=JobReviewData(**formatted_review))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get job review: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

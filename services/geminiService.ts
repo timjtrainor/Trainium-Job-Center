@@ -951,3 +951,20 @@ export async function quantifyImpact(context: PromptContext, promptContent: stri
 export async function generateSpeakerNotesFromStory(context: PromptContext, promptContent: string, debugCallbacks?: DebugCallbacks): Promise<{ speaker_notes: string; }> { return cleanAndParseJson((await (await getAiClient().models.generateContent({ model: currentModel, contents: replacePlaceholders(promptContent, context), config: { responseMimeType: "application/json" } })).text)); }
 export async function suggestTargetQuestions(context: PromptContext, promptContent: string, debugCallbacks?: DebugCallbacks): Promise<{ questions: string[]; }> { return cleanAndParseJson((await (await getAiClient().models.generateContent({ model: currentModel, contents: replacePlaceholders(promptContent, context), config: { responseMimeType: "application/json" } })).text)); }
 export async function chatToRefineAnswer(context: PromptContext, promptContent: string, debugCallbacks?: DebugCallbacks): Promise<string> { return (await (await getAiClient().models.generateContent({ model: currentModel, contents: replacePlaceholders(promptContent, context) })).text); }
+
+export async function generateContent(context: PromptContext, promptContent: string, debugCallbacks?: DebugCallbacks): Promise<string> {
+    const aiClient = getAiClient();
+    const prompt = replacePlaceholders(promptContent, context);
+    if (debugCallbacks?.before) await debugCallbacks.before(prompt);
+
+    const response = await aiClient.models.generateContent({
+        model: currentModel,
+        contents: prompt,
+        config: {
+            temperature: 0.7,
+        },
+    });
+
+    if (debugCallbacks?.after) await debugCallbacks.after(response.text);
+    return response.text;
+}

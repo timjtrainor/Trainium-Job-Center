@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { BaseResume, Resume, WorkExperience, Education, Certification, SkillSection, ResumeAccomplishment, DateInfo, StrategicNarrative, Prompt, CombinedAchievementSuggestion, KeywordDetail, PromptContext, ResumeTailoringData, SkillOptions } from '../types';
-import { LoadingSpinner, PlusCircleIcon, TrashIcon, SparklesIcon, GripVerticalIcon, ArrowDownTrayIcon, CheckIcon } from './IconComponents';
+import { LoadingSpinner, PlusCircleIcon, TrashIcon, SparklesIcon, GripVerticalIcon, ArrowDownTrayIcon, CheckIcon, DocumentTextIcon } from './IconComponents';
 import { AchievementRefinementPanel } from './AchievementRefinementPanel';
 import { SummaryRefinementPanel } from './SummaryRefinementPanel';
 import { CombineAchievementsModal } from './CombineAchievementsModal';
 import * as geminiService from '../services/geminiService';
 import { ensureUniqueAchievementIds } from '../utils/resume';
-import { DownloadResumeStep } from './DownloadResumeStep';
+import * as resumeExport from '../utils/resumeExport';
 
 interface ResumeEditorViewProps {
     resume: BaseResume | null;
@@ -546,13 +546,46 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                     <div className="fixed inset-0 z-10 w-screen overflow-y-auto">
                         <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
                             <div className="relative transform overflow-hidden rounded-lg bg-white dark:bg-slate-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-4xl">
-                                <div className="p-4 sm:p-6">
-                                    <DownloadResumeStep
-                                        finalResume={previewResume}
-                                        companyName={previewCompanyName}
-                                        isLoading={false}
-                                        onClose={() => setIsPreviewReady(false)}
-                                    />
+                                <div className="p-6">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h3 className="text-xl font-bold text-slate-900 dark:text-white">Download Resume</h3>
+                                        <button onClick={() => setIsPreviewReady(false)} className="text-slate-400 hover:text-slate-500">
+                                            <span className="sr-only">Close</span>
+                                            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg mb-6 border border-slate-200 dark:border-slate-700">
+                                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-2"><strong>Previewing release for:</strong> {previewCompanyName}</p>
+                                        <p className="text-sm text-slate-600 dark:text-slate-300"><strong>Job Title:</strong> {previewJobTitle}</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <button
+                                            onClick={() => resumeExport.generatePdf(previewResume, previewCompanyName)}
+                                            className="flex flex-col items-center justify-center p-6 border-2 border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group"
+                                        >
+                                            <DocumentTextIcon className="w-10 h-10 text-slate-400 group-hover:text-blue-500 mb-3" />
+                                            <span className="font-semibold text-slate-900 dark:text-white">Download PDF</span>
+                                            <span className="text-xs text-slate-500 mt-1">Best for applications</span>
+                                        </button>
+                                        <button
+                                            onClick={() => resumeExport.generateDocx(previewResume, previewCompanyName)}
+                                            className="flex flex-col items-center justify-center p-6 border-2 border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group"
+                                        >
+                                            <DocumentTextIcon className="w-10 h-10 text-slate-400 group-hover:text-blue-500 mb-3" />
+                                            <span className="font-semibold text-slate-900 dark:text-white">Download DOCX</span>
+                                            <span className="text-xs text-slate-500 mt-1">Best for editing</span>
+                                        </button>
+                                    </div>
+                                    <div className="mt-6 flex justify-end">
+                                        <button
+                                            onClick={() => setIsPreviewReady(false)}
+                                            className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 font-medium"
+                                        >
+                                            Close
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -40,28 +40,10 @@ export enum AppView {
   POST_INTERVIEW_DEBRIEF,
 }
 
-export type ApplicationDetailTab = 'overview' | 'analysis' | 'resume' | 'interviews' | 'ai-content';
+export type ApplicationDetailTab = 'overview' | 'analysis' | 'resume' | 'interviews' | 'ai-content' | 'questions' | 'apply';
 export type ApplicationLabTab = 'lab' | 'formulas' | 'offers';
 
-// Represents the steps in the new application flow
-export enum NewAppStep {
-  INITIAL_INPUT,
-  JOB_DETAILS,
-  COMPANY_CONFIRMATION,
-  AI_PROBLEM_ANALYSIS,
-  RESUME_SELECT,
-  TAILOR_RESUME,
-  CRAFT_MESSAGE,
-  DOWNLOAD_RESUME,
-  ANSWER_QUESTIONS,
-  POST_SUBMIT_PLAN,
-}
 
-export enum StrategyStep {
-  CAREER_DIRECTION = 1,
-  KNOWN_FOR = 2,
-  IMPACT_STORY = 3,
-}
 
 
 // From groundingMetadata.groundingChunks
@@ -97,7 +79,7 @@ export interface CoreProblemAnalysis {
   strategic_importance: string;
 }
 
-export interface JobProblemAnalysisResult {
+export interface JobProblemAnalysisResultV1 {
   core_problem_analysis: CoreProblemAnalysis;
   key_success_metrics: string[];
   role_levers: string[];
@@ -105,6 +87,42 @@ export interface JobProblemAnalysisResult {
   suggested_positioning: string;
   tags: string[];
 }
+
+export interface DiagnosticIntel {
+  failure_state_portfolio: string[];
+  composite_antidote_persona: string;
+  experience_anchoring: {
+    anchor_role_title: string;
+    alignment_type: string;
+    fidelity_logic: string;
+  };
+  mandate_quadrant: {
+    solve: string;
+    improve: string;
+    deliver: string;
+    maintain: string;
+  };
+  functional_gravity_stack: string[];
+  strategic_friction_hooks: string[];
+}
+
+export interface EconomicLogicGates {
+  primary_value_driver: string;
+  metric_hierarchy: string[];
+}
+
+export interface ContentIntelligence {
+  vocabulary_mirror: string[];
+  must_have_tech_signals: string[];
+}
+
+export interface JobProblemAnalysisResultV2 {
+  diagnostic_intel: DiagnosticIntel;
+  economic_logic_gates: EconomicLogicGates;
+  content_intelligence: ContentIntelligence;
+}
+
+export type JobProblemAnalysisResult = JobProblemAnalysisResultV1 | JobProblemAnalysisResultV2;
 
 export interface StrategicAlignmentHook {
   role: string;
@@ -137,6 +155,8 @@ export interface CompanyInfoResult {
   market_position: InfoField;
   competitors: InfoField;
   industry?: InfoField;
+  success_metrics?: InfoField;
+  talent_expectations?: InfoField;
 }
 
 // Based on the 'companies' table
@@ -155,6 +175,8 @@ export interface Company {
   market_position?: InfoField;
   competitors?: InfoField;
   industry?: InfoField;
+  success_metrics?: InfoField;
+  talent_expectations?: InfoField;
   is_recruiting_firm?: boolean;
   funding_status?: string;
   culture_keywords?: string[];
@@ -296,6 +318,7 @@ export interface ResumeHeader {
   phone_number: string;
   city: string;
   state: string;
+  location?: string;
   links: string[];
 }
 
@@ -603,6 +626,7 @@ export type CareerBrandSection =
   | "career_story"
   | "narratives_proof_points"
   | "full_document";
+
 
 export const CAREER_BRAND_SECTIONS: { id: CareerBrandSection; name: string; description: string }[] = [
   {

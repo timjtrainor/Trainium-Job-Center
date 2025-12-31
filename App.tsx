@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { HashRouter, Routes, Route, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
-import { AppView, NewAppStep, Resume, JobApplication, BaseResume, Status, Company, CompanyInfoResult, KeywordsResult, GuidanceResult, Prompt, CompanyPayload, JobApplicationPayload, BaseResumePayload, SkillOptions, ExtractedInitialDetails, Contact, ContactPayload, ApplicationQuestion, WorkExperience, Interview, InterviewPayload, InterviewPrep, MessagePayload, Message, LinkedInPost, LinkedInPostPayload, PromptContext, JobProblemAnalysisResult, UserProfile, StrategicNarrative, StrategicNarrativePayload, UserProfilePayload, LinkedInEngagement, PostResponse, PostResponsePayload, LinkedInEngagementPayload, ResumeTailoringData, PostSubmissionPlan, InfoField, ResumeHeader, ScoutedOpportunity, Offer, OfferPayload, NinetyDayPlan, Sprint, BragBankEntry, SkillTrend, SkillTrendPayload, BragBankEntryPayload, CreateSprintPayload, SprintAction, AiSprintPlan, AiSprintAction, KeywordDetail, SprintActionPayload, SkillSection, ConsultativeClosePlan, StrategicHypothesisDraft, PostInterviewDebrief, ImpactStory, ApplicationDetailTab, ResumeTemplate, BaseResumePayload as ResumePayload, InterviewStoryDeckEntry } from './types';
+import { AppView, Resume, JobApplication, BaseResume, Status, Company, CompanyInfoResult, KeywordsResult, GuidanceResult, Prompt, CompanyPayload, JobApplicationPayload, BaseResumePayload, SkillOptions, ExtractedInitialDetails, Contact, ContactPayload, ApplicationQuestion, WorkExperience, Interview, InterviewPayload, InterviewPrep, MessagePayload, Message, LinkedInPost, LinkedInPostPayload, PromptContext, JobProblemAnalysisResult, UserProfile, StrategicNarrative, StrategicNarrativePayload, UserProfilePayload, LinkedInEngagement, PostResponse, PostResponsePayload, LinkedInEngagementPayload, ResumeTailoringData, PostSubmissionPlan, InfoField, ResumeHeader, ScoutedOpportunity, Offer, OfferPayload, NinetyDayPlan, Sprint, BragBankEntry, SkillTrend, SkillTrendPayload, BragBankEntryPayload, CreateSprintPayload, SprintAction, AiSprintPlan, AiSprintAction, KeywordDetail, SprintActionPayload, SkillSection, ConsultativeClosePlan, StrategicHypothesisDraft, PostInterviewDebrief, ImpactStory, ApplicationDetailTab, ResumeTemplate, BaseResumePayload as ResumePayload, InterviewStoryDeckEntry } from './types';
 import * as apiService from './services/apiService';
 import * as geminiService from './services/geminiService';
 import { PROMPTS } from './promptsData';
@@ -21,15 +21,7 @@ import { ResumeEditorView } from './components/ResumeEditorView';
 import { InterviewStrategyStudio } from './components/InterviewStrategyStudio';
 import { PostInterviewDebriefStudio } from './components/PostInterviewDebriefStudio';
 import { BragDocumentView } from './components/BragDocumentView';
-import { InitialInputStep } from './components/InitialInputStep';
-import { JobDetailsStep } from './components/JobDetailsStep';
-import { CompanyConfirmationStep } from './components/CompanyConfirmationStep';
-import { ProblemAnalysisStep } from './components/ProblemAnalysisStep';
-import { SelectResumeStep } from './components/ResumeInputStep';
-import { TailorResumeStep } from './components/TailorResumeStep';
-import { DownloadResumeStep } from './components/DownloadResumeStep';
-import { AnswerQuestionsStep } from './components/AnswerQuestionsStep';
-import { PostSubmitPlan } from './components/PostSubmitPlan';
+
 import { ContactModal } from './components/ContactModal';
 import { CreateCompanyModal } from './components/CreateCompanyModal';
 import { MyProfileModal } from './components/MyProfileModal';
@@ -44,11 +36,8 @@ import { InterviewStudioView } from './components/InterviewStudioView';
 import { InterviewCopilotView } from './components/InterviewCopilotView';
 import { PromptEditorView } from './components/PromptEditorView';
 import { ScheduleManagementView } from './components/ScheduleManagementView';
-import { StepTracker } from './components/StepTracker';
-import { CraftMessageStep } from './components/CraftMessageStep';
-import { ChromaUploadView } from './components/ChromaUploadView';
+
 import { ReviewedJobsView } from './components/ReviewedJobsView';
-import { QuickAddLinkedInJob } from './components/QuickAddLinkedInJob';
 import { ManualJobCreate } from './components/ManualJobCreate';
 
 
@@ -90,39 +79,8 @@ const AppContent = () => {
     const [sprint, setSprint] = useState<Sprint | null>(null);
 
     // --- New Application Flow State ---
-    const [newAppLoadingState, setNewAppLoadingState] = useState<'idle' | 'extracting' | 'analyzing' | 'keywords' | 'tailoring' | 'saving' | 'planning'>('idle');
-    const [newAppStep, setNewAppStep] = useState<NewAppStep>(NewAppStep.INITIAL_INPUT);
-    const [currentApplicationId, setCurrentApplicationId] = useState<string | null>(null);
-    const [isMessageOnlyApp, setIsMessageOnlyApp] = useState(false);
-    const [jobDetails, setJobDetails] = useState({
-        companyName: '',
-        jobTitle: '',
-        jobDescription: '',
-        jobLink: '',
-        salary: '',
-        location: '',
-        remoteStatus: '' as 'Remote' | 'Hybrid' | 'On-site' | '',
-        isRecruitingFirm: false,
-        mission: '',
-        values: '',
-    });
-    const [jobUrlSources, setJobUrlSources] = useState<any[]>([]);
-    const [jobProblemAnalysisResult, setJobProblemAnalysisResult] = useState<JobProblemAnalysisResult | null>(null);
-    const [strategicFitScore, setStrategicFitScore] = useState<number | null>(null);
-    const [assumedRequirements, setAssumedRequirements] = useState<string[]>([]);
-    const [keywords, setKeywords] = useState<KeywordsResult | null>(null);
-    const [guidance, setGuidance] = useState<GuidanceResult | null>(null);
-    const [baseResume, setBaseResume] = useState<Resume | null>(null);
-    const [finalResume, setFinalResume] = useState<Resume | null>(null);
-    const [applicationMessageDrafts, setApplicationMessageDrafts] = useState<string[]>([]);
-    const [finalApplicationMessage, setFinalApplicationMessage] = useState<string>('');
-    const [summaryParagraphOptions, setSummaryParagraphOptions] = useState<string[]>([]);
-    const [allSkillOptions, setAllSkillOptions] = useState<string[]>([]);
-    const [missingKeywords, setMissingKeywords] = useState<KeywordDetail[]>([]);
-    const [resumeAlignmentScore, setResumeAlignmentScore] = useState<number | null>(null);
-    const [applicationQuestions, setApplicationQuestions] = useState<ApplicationQuestion[]>([]);
-    const [postSubmissionPlan, setPostSubmissionPlan] = useState<PostSubmissionPlan | null>(null);
-    const [coverLetterDraft, setCoverLetterDraft] = useState<string>('');
+    // Removed legacy wizard state
+
 
     // --- UI/Modal State ---
     const [isReanalyzing, setIsReanalyzing] = useState(false);
@@ -130,7 +88,7 @@ const AppContent = () => {
     const [selectedContact, setSelectedContact] = useState<Partial<Contact> | null>(null);
     const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
     const [initialCompanyData, setInitialCompanyData] = useState<Partial<CompanyPayload> | null>(null);
-    const [isCompanyModalForNewApp, setIsCompanyModalForNewApp] = useState(false);
+
     type CompanyDetailModalOptions = {
         autoResearch?: boolean;
         homepageUrl?: string;
@@ -230,651 +188,21 @@ const AppContent = () => {
 
     // --- New App Flow Handlers ---
 
-    const currentApplication = currentApplicationId
-        ? applications.find(a => a.job_application_id === currentApplicationId) || null
-        : null;
-
-    const handleStartNewApplication = () => {
-        resetNewAppFlow();
-        navigate('/new-application');
-    };
-
-    const handleStepClick = (step: NewAppStep) => {
-        // This simple implementation allows navigating back to completed steps.
-        // The StepTracker component's own logic prevents jumping forward.
-        setNewAppStep(step);
-    };
-
-    const resetNewAppFlow = () => {
-        setNewAppStep(NewAppStep.INITIAL_INPUT);
-        setCurrentApplicationId(null);
-        setJobDetails({ companyName: '', jobTitle: '', jobDescription: '', jobLink: '', salary: '', location: '', remoteStatus: '', isRecruitingFirm: false, mission: '', values: '' });
-        setJobUrlSources([]);
-        setJobProblemAnalysisResult(null);
-        setStrategicFitScore(null);
-        setAssumedRequirements([]);
-        setKeywords(null);
-        setGuidance(null);
-        setBaseResume(null);
-        setFinalResume(null);
-        setSummaryParagraphOptions([]);
-        setAllSkillOptions([]);
-        setMissingKeywords([]);
-        setResumeAlignmentScore(null);
-        setApplicationQuestions([]);
-        setPostSubmissionPlan(null);
-        setIsMessageOnlyApp(false);
-        setApplicationMessageDrafts([]);
-        setFinalApplicationMessage('');
-        setCoverLetterDraft('');
-    };
-
-    const resumeToPlainText = (resume?: Resume | null): string => {
-        if (!resume) return '';
-        const lines: string[] = [];
-        if (resume.summary?.paragraph) {
-            lines.push(resume.summary.paragraph);
-        }
-        if (Array.isArray(resume.summary?.bullets)) {
-            lines.push(...resume.summary.bullets);
-        }
-        if (Array.isArray(resume.work_experience)) {
-            resume.work_experience.forEach(exp => {
-                if (exp.job_title || exp.company_name) {
-                    lines.push([exp.job_title, exp.company_name].filter(Boolean).join(' at '));
-                }
-                if (Array.isArray(exp.accomplishments)) {
-                    exp.accomplishments.forEach(acc => {
-                        if (acc.description) {
-                            lines.push(acc.description);
-                        }
-                    });
-                }
-            });
-        }
-        return lines.join('\n');
-    };
-
-    const normalizeQuestions = (qs: ApplicationQuestion[] | null | undefined): ApplicationQuestion[] => {
-        if (!qs) return [];
-        return qs.map(q => q.id ? q : { ...q, id: uuidv4() });
-    };
-
-    const handleInitialSubmit = async () => {
-        setNewAppLoadingState('extracting');
+    const handleStartNewApplication = async () => {
         try {
-            const prompt = PROMPTS.find(p => p.id === 'EXTRACT_DETAILS_FROM_PASTE');
-            if (!prompt) throw new Error("Extraction prompt not found.");
-
-            const context = { JOB_DESCRIPTION: jobDetails.jobDescription };
-            const result = await geminiService.extractInitialDetailsFromPaste(context, prompt.content);
-
-            // Update state with AI extracted details, preserving original link
-            setJobDetails(prev => ({
-                ...prev,
-                ...result,
-                jobLink: prev.jobLink,
-            }));
-            setNewAppStep(NewAppStep.JOB_DETAILS);
-        } catch (err) {
-            handleError(err, 'Failed to extract details');
-        } finally {
-            setNewAppLoadingState('idle');
-        }
-    };
-
-    const handleJobDetailsSubmit = (payload: JobDetailsPayload & { narrativeId: string }) => {
-        const { narrativeId, ...jobDetailsPayload } = payload;
-        setJobDetails(prev => ({ ...prev, ...jobDetailsPayload }));
-        setActiveNarrativeId(narrativeId);
-        setNewAppStep(NewAppStep.COMPANY_CONFIRMATION);
-    };
-
-    const handleCompanySelectionAndAnalyze = async (companyId: string) => {
-        setNewAppLoadingState('analyzing');
-        try {
-            const jobLoadedStatusId = statuses.find(s => s.status_name === 'Step-1: Job loaded')?.status_id;
-            const payload: JobApplicationPayload = {
-                company_id: companyId,
-                job_title: jobDetails.jobTitle,
-                job_description: jobDetails.jobDescription,
-                job_link: jobDetails.jobLink,
-                salary: jobDetails.salary,
-                location: jobDetails.location,
-                remote_status: jobDetails.remoteStatus as any,
+            // Create a placeholder application to start
+            const newApp = await apiService.createApplication({
+                job_title: 'New Application',
                 date_applied: new Date().toISOString().split('T')[0],
-                narrative_id: activeNarrativeId || undefined,
-                status_id: jobLoadedStatusId,
-            };
-
-            let app: JobApplication;
-            if (currentApplicationId) {
-                app = await apiService.updateApplication(currentApplicationId, payload);
-            } else {
-                app = await apiService.createApplication(payload);
-            }
-
-            setCurrentApplicationId(app.job_application_id);
-            setApplications(prev => {
-                const existing = prev.find(p => p.job_application_id === app.job_application_id);
-                if (existing) {
-                    return prev.map(p => p.job_application_id === app.job_application_id ? app : p);
-                }
-                return [...prev, app];
             });
-
-            setNewAppStep(NewAppStep.AI_PROBLEM_ANALYSIS);
-            await handleAnalyzeJob(app);
-
+            await fetchInitialData();
+            navigate(`/application/${newApp.job_application_id}`);
         } catch (err) {
-            handleError(err, 'Failed to save application or start analysis');
-            setNewAppStep(NewAppStep.COMPANY_CONFIRMATION); // Go back on error
-        } finally {
-            setNewAppLoadingState('idle');
-        }
-    };
-
-    const handleAnalyzeJob = async (appToAnalyze: JobApplication) => {
-        try {
-            const analysisPrompt = PROMPTS.find(p => p.id === 'INITIAL_JOB_ANALYSIS');
-            if (!analysisPrompt || !activeNarrative) throw new Error("Analysis prompt or active narrative not found.");
-
-            const context = {
-                NORTH_STAR: activeNarrative.positioning_statement,
-                MASTERY: activeNarrative.signature_capability,
-                JOB_TITLE: appToAnalyze.job_title,
-                JOB_DESCRIPTION: appToAnalyze.job_description,
-            };
-            const result = await geminiService.performInitialJobAnalysis(context, analysisPrompt.content);
-
-            const job_problem_analysis = result.job_problem_analysis || null;
-            const strategic_fit_score = result.strategic_fit_score || null;
-            const assumed_requirements = result.assumed_requirements || [];
-
-            setJobProblemAnalysisResult(job_problem_analysis);
-            setStrategicFitScore(strategic_fit_score);
-            setAssumedRequirements(assumed_requirements);
-
-            const payload = {
-                job_problem_analysis_result: job_problem_analysis,
-                strategic_fit_score: strategic_fit_score === null ? null : Math.round(strategic_fit_score),
-                assumed_requirements: assumed_requirements,
-            };
-            await handleUpdateApplication(appToAnalyze.job_application_id, payload);
-
-        } catch (err) {
-            handleError(err, 'Failed job analysis');
-        }
-    };
-
-    const handleConfirmFit = async (isInterested: boolean) => {
-        if (!currentApplicationId) return;
-        if (!isInterested) {
-            await handleUpdateApplication(currentApplicationId, { status_id: statuses.find(s => s.status_name === 'Bad Fit')?.status_id });
-            navigate('/applications');
-            return;
-        }
-
-        setNewAppLoadingState('keywords');
-        try {
-            const keywordsPrompt = PROMPTS.find(p => p.id === 'GENERATE_KEYWORDS_AND_GUIDANCE');
-            if (!keywordsPrompt || !jobProblemAnalysisResult) throw new Error("Keywords prompt or analysis data missing.");
-
-            const context = {
-                JOB_DESCRIPTION: jobDetails.jobDescription,
-                AI_SUMMARY: jobProblemAnalysisResult.core_problem_analysis.core_problem
-            };
-            const result = await geminiService.generateKeywordsAndGuidance(context, keywordsPrompt.content);
-
-            const keywordsResult = result.keywords || null;
-            const guidanceResult = result.guidance || null;
-            const approvedStatusId = statuses.find(s => s.status_name === 'Step-2: Approved by Applicant')?.status_id;
-
-            setKeywords(keywordsResult);
-            setGuidance(guidanceResult);
-            await handleUpdateApplication(currentApplicationId, {
-                keywords: keywordsResult,
-                guidance: guidanceResult,
-                status_id: approvedStatusId,
-            });
-            setNewAppStep(NewAppStep.RESUME_SELECT);
-        } catch (err) {
-            handleError(err, 'Failed to get keywords/guidance');
-        } finally {
-            setNewAppLoadingState('idle');
-        }
-    };
-
-    const handleResumeSelect = async (selectedResume: Resume) => {
-        setNewAppLoadingState('tailoring');
-        const sanitizedResume = ensureUniqueAchievementIds(selectedResume);
-        setBaseResume(sanitizedResume);
-
-        if (isMessageOnlyApp) {
-            try {
-                const prompt = PROMPTS.find(p => p.id === 'GENERATE_APPLICATION_MESSAGE');
-                if (!prompt || !jobProblemAnalysisResult || !activeNarrative) throw new Error("Message generation prompt or context missing.");
-
-                const context = {
-                    COMPANY_NAME: jobDetails.companyName,
-                    JOB_TITLE: jobDetails.jobTitle,
-                    CORE_PROBLEM_ANALYSIS: jobProblemAnalysisResult.core_problem_analysis.core_problem,
-                    KEYWORDS_STRING: (keywords?.hard_keywords || []).map(k => k.keyword).join(', '),
-                    POSITIONING_STATEMENT: activeNarrative.positioning_statement,
-                    MASTERY: activeNarrative.signature_capability,
-                    IMPACT_STORY: activeNarrative.impact_story_body,
-                };
-
-                const drafts = await geminiService.generateApplicationMessage(context, prompt.content);
-                setApplicationMessageDrafts(drafts);
-                setFinalApplicationMessage(drafts[0] || '');
-                setNewAppStep(NewAppStep.CRAFT_MESSAGE);
-            } catch (err) {
-                handleError(err, 'Failed to generate application message drafts');
-            } finally {
-                setNewAppLoadingState('idle');
-            }
-        } else {
-            try {
-                const prompt = PROMPTS.find(p => p.id === 'GENERATE_RESUME_TAILORING_DATA');
-                if (!prompt || !jobProblemAnalysisResult || !activeNarrative) throw new Error("Resume tailoring prompt or context missing.");
-
-                const context: PromptContext = {
-                    JOB_DESCRIPTION: jobDetails.jobDescription,
-                    CORE_PROBLEM_ANALYSIS: JSON.stringify(jobProblemAnalysisResult.core_problem_analysis),
-                    KEY_SUCCESS_METRICS: jobProblemAnalysisResult.key_success_metrics.join(', '),
-                    FULL_RESUME_JSON: JSON.stringify(sanitizedResume),
-                    RESUME_SUMMARY: sanitizedResume.summary.paragraph,
-                    POSITIONING_STATEMENT: activeNarrative.positioning_statement,
-                    MASTERY: activeNarrative.signature_capability,
-                    JOB_CONTEXT_JSON: JSON.stringify({ title: jobDetails.jobTitle, company: jobDetails.companyName, keywords }),
-                    MISSION: jobDetails.mission || '',
-                    VALUES: jobDetails.values || '',
-                };
-
-                const result = await geminiService.generateResumeTailoringData(context, prompt.content);
-
-                setKeywords(result.keywords || null);
-                setGuidance(result.guidance || null);
-
-                const uniqueSummaries = new Set([sanitizedResume.summary.paragraph, ...(result.summary_suggestions || [])]);
-                setSummaryParagraphOptions(Array.from(uniqueSummaries));
-
-                setAllSkillOptions(result.comprehensive_skills || []);
-                setMissingKeywords(result.missing_keywords || []);
-                setResumeAlignmentScore(result.initial_alignment_score || null);
-
-                const tailoredResume: Resume = ensureUniqueAchievementIds({
-                    ...sanitizedResume,
-                    summary: { paragraph: sanitizedResume.summary.paragraph, bullets: [] },
-                    skills: [{ heading: 'Core Competencies', items: result.ai_selected_skills || [] }],
-                    work_experience: (result.processed_work_experience || []).map((exp, expIndex) => ({
-                        ...sanitizedResume.work_experience[expIndex],
-                        accomplishments: (exp.accomplishments || []).map((acc, accIndex) => ({
-                            ...(sanitizedResume.work_experience[expIndex].accomplishments[accIndex] || { achievement_id: uuidv4(), description: '', always_include: false, order_index: 0 }),
-                            description: acc.description,
-                            keyword_suggestions: acc.keyword_suggestions,
-                            relevance_score: acc.relevance_score,
-                            original_score: acc.original_score,
-                        }))
-                    }))
-                });
-                setFinalResume(tailoredResume);
-                setNewAppStep(NewAppStep.TAILOR_RESUME);
-
-            } catch (err) {
-                handleError(err, 'Failed to tailor resume');
-            } finally {
-                setNewAppLoadingState('idle');
-            }
-        }
-    };
-
-    const handleRecalculateScore = async () => {
-        if (!finalResume || !jobProblemAnalysisResult) return;
-        setNewAppLoadingState('saving');
-        try {
-            const prompt = PROMPTS.find(p => p.id === 'SCORE_RESUME_ALIGNMENT');
-            if (!prompt) throw new Error("Score resume prompt not found.");
-
-            const context: PromptContext = {
-                FULL_RESUME_JSON: JSON.stringify(finalResume),
-                JOB_DESCRIPTION: jobDetails.jobDescription,
-                CORE_PROBLEM_ANALYSIS: JSON.stringify(jobProblemAnalysisResult.core_problem_analysis),
-            };
-            const result = await geminiService.scoreResumeAlignment(context, prompt.content);
-            setResumeAlignmentScore(result.alignment_score);
-            addToast('Score recalculated!', 'success');
-        } catch (err) {
-            handleError(err, 'Failed to recalculate score');
-        } finally {
-            setNewAppLoadingState('idle');
-        }
-    };
-
-    const handleSaveTailoredResume = async () => {
-        if (!currentApplicationId || !finalResume) return;
-        setNewAppLoadingState('saving');
-
-        const resumeToSave = { ...finalResume };
-        resumeToSave.work_experience = resumeToSave.work_experience.map(job => {
-            const visibleAccomplishments = (job.accomplishments || []).filter(acc => {
-                // This logic is simplified; in a real app, we'd check against a visibility flag
-                // For now, we assume all are visible
-                return true;
-            });
-            return { ...job, accomplishments: visibleAccomplishments };
-        });
-
-        try {
-            const resumeCreatedStatusId = statuses.find(s => s.status_name === 'Step-3: Resume created')?.status_id;
-            await handleUpdateApplication(currentApplicationId, {
-                tailored_resume_json: resumeToSave,
-                resume_summary: resumeToSave.summary.paragraph,
-                resume_summary_bullets: JSON.stringify(resumeToSave.summary.bullets),
-                status_id: resumeCreatedStatusId,
-            });
-            setFinalResume(resumeToSave);
-            setNewAppStep(NewAppStep.DOWNLOAD_RESUME);
-        } catch (err) {
-            handleError(err, 'Failed to save resume');
-        } finally {
-            setNewAppLoadingState('idle');
-        }
-    };
-
-    const handleSaveMessage = async () => {
-        if (!currentApplicationId || !finalApplicationMessage) return;
-        setNewAppLoadingState('saving');
-        try {
-            const messageCreatedStatusId = statuses.find(s => s.status_name === 'Step-3: Message created')?.status_id;
-            await handleUpdateApplication(currentApplicationId, {
-                application_message: finalApplicationMessage,
-                status_id: messageCreatedStatusId
-            });
-            // Here, we can decide if we want to ask supplemental questions or go to plan.
-            // For now, let's go straight to the plan.
-            await handleSaveAnswersAndGeneratePlan();
-        } catch (err) {
-            handleError(err, 'Failed to save application message');
-        } finally {
-            setNewAppLoadingState('idle');
-        }
-    };
-
-    const handleGenerateCoverLetter = async ({ tone, hook, includeHumor }: { tone: 'confident' | 'warm' | 'bold'; hook?: string; includeHumor?: boolean }) => {
-        if (!currentApplicationId) {
-            addToast('No application selected.', 'error');
-            return;
-        }
-
-        const prompt = PROMPTS.find(p => p.id === 'GENERATE_ADVANCED_COVER_LETTER');
-        if (!prompt) {
-            addToast('Cover letter prompt is missing.', 'error');
-            return;
-        }
-
-        const app = currentApplication || applications.find(a => a.job_application_id === currentApplicationId);
-        if (!app) {
-            addToast('Unable to load application context.', 'error');
-            return;
-        }
-
-        const company = companies.find(c => c.company_id === app.company_id);
-        const resumeSource = finalResume || app.tailored_resume_json || baseResume;
-        if (!resumeSource) {
-            addToast('Select or generate a tailored resume before creating a cover letter.', 'info');
-            return;
-        }
-
-        const mission = jobDetails.mission || company?.mission?.text || '';
-        const values = jobDetails.values || company?.values?.text || '';
-        const jobDescriptionSummary = (jobDetails.jobDescription || app.job_description || '').trim().slice(0, 1200);
-
-        const coreProblems: string[] = [];
-        const analysis = app.job_problem_analysis_result?.core_problem_analysis;
-        if (analysis?.core_problem) coreProblems.push(analysis.core_problem);
-        if (Array.isArray(analysis?.problem_statements)) coreProblems.push(...analysis.problem_statements);
-        if (Array.isArray(app.job_problem_analysis_result?.role_levers)) coreProblems.push(...app.job_problem_analysis_result.role_levers);
-        if (Array.isArray(app.job_problem_analysis_result?.key_success_metrics)) {
-            coreProblems.push(...app.job_problem_analysis_result.key_success_metrics.map(metric => `Success metric: ${metric}`));
-        }
-
-        const context = {
-            JOB_DESCRIPTION_SUMMARY: jobDescriptionSummary || 'No job summary provided.',
-            JOB_CORE_PROBLEMS: JSON.stringify(coreProblems.slice(0, 6)),
-            COMPANY_MISSION: mission,
-            COMPANY_VALUES: values,
-            RESUME_PROOF_POINTS: JSON.stringify(resumeSource.work_experience || []),
-            CANDIDATE_POSITIONING: activeNarrative?.positioning_statement || 'Product leader focused on trust, adoption, and scale.',
-            USER_HOOK: hook || '',
-            TONE: includeHumor ? tone : `${tone} with minimal humor`,
-        };
-
-        setIsGeneratingCoverLetter(true);
-        try {
-            const coverLetter = await geminiService.generateAdvancedCoverLetter(context, prompt.content);
-            if (!coverLetter) {
-                throw new Error('No cover letter returned.');
-            }
-            setCoverLetterDraft(coverLetter);
-            await handleUpdateApplication(currentApplicationId, { cover_letter_draft: coverLetter });
-            addToast('Cover letter generated!', 'success');
-        } catch (err) {
-            handleError(err, 'Failed to generate cover letter');
-        } finally {
-            setIsGeneratingCoverLetter(false);
-        }
-    };
-
-    const handleGenerateApplicationAnswers = async () => {
-        if (!currentApplicationId) {
-            addToast('No application selected.', 'error');
-            return;
-        }
-
-        const prompt = PROMPTS.find(p => p.id === 'GENERATE_APPLICATION_ANSWERS');
-        if (!prompt) {
-            addToast('AI prompt for application answers is missing.', 'error');
-            return;
-        }
-
-        const questionsForPrompt = applicationQuestions
-            .map(q => q.question.trim())
-            .filter(Boolean);
-
-        if (questionsForPrompt.length === 0) {
-            addToast('Add questions before generating answers.', 'info');
-            return;
-        }
-
-        const app = applications.find(a => a.job_application_id === currentApplicationId);
-        if (!app) {
-            addToast('Unable to load application context.', 'error');
-            return;
-        }
-
-        const company = companies.find(c => c.company_id === app.company_id);
-        const resumeSource = finalResume || app.tailored_resume_json || baseResume;
-        const resumeText = resumeToPlainText(resumeSource);
-
-        setNewAppLoadingState('planning');
-        try {
-            const context = {
-                COMPANY_NAME: jobDetails.companyName || company?.company_name || '',
-                JOB_TITLE: jobDetails.jobTitle || app.job_title,
-                JOB_DESCRIPTION: jobDetails.jobDescription || app.job_description || '',
-                MISSION: jobDetails.mission || company?.mission?.text || '',
-                VALUES: jobDetails.values || company?.values?.text || '',
-                GOALS: company?.goals?.text || '',
-                ISSUES: company?.issues?.text || '',
-                RESUME_TEXT: resumeText,
-                QUESTIONS: JSON.stringify(questionsForPrompt),
-                USER_THOUGHTS: JSON.stringify(applicationQuestions.map(q => (q.user_thoughts || '').trim())),
-            };
-
-            const aiResponses = await geminiService.generateApplicationAnswers(context, prompt.content);
-            if (!Array.isArray(aiResponses) || aiResponses.length === 0) {
-                throw new Error('AI did not return any answers.');
-            }
-
-            const updatedQuestions = applicationQuestions.map((q, index) => {
-                const response = aiResponses[index] || aiResponses.find(ans => ans.question?.trim?.().toLowerCase() === q.question.trim().toLowerCase());
-                const aiAnswer = response?.answer?.trim?.();
-                return {
-                    ...q,
-                    answer: aiAnswer && aiAnswer.length > 0 ? aiAnswer : q.answer,
-                };
-            });
-
-            setApplicationQuestions(normalizeQuestions(updatedQuestions));
-            addToast('AI answers generated!', 'success');
-        } catch (err) {
-            handleError(err, 'Failed to generate application answers');
-        } finally {
-            setNewAppLoadingState('idle');
-        }
-    };
-
-    const handleSaveCoverLetter = async (draft: string) => {
-        setCoverLetterDraft(draft);
-        if (!currentApplicationId) {
-            addToast('Cover letter saved locally.', 'info');
-            return;
-        }
-        try {
-            await handleUpdateApplication(currentApplicationId, { cover_letter_draft: draft });
-            addToast('Cover letter saved.', 'success');
-        } catch (err) {
-            handleError(err, 'Failed to save cover letter');
-        }
-    };
-
-    const handleExportForAi = (includeCoverLetter: boolean) => {
-        if (!currentApplicationId) return;
-        const app = applications.find(a => a.job_application_id === currentApplicationId);
-        if (!app) return;
-        const company = companies.find(c => c.company_id === app.company_id);
-
-        const formatList = (val: any) => {
-            if (Array.isArray(val)) return val.join(', ');
-            if (typeof val === 'string') return val;
-            return 'Unknown';
-        };
-
-        const xml = [
-            '<company_intelligence>',
-            `  <company_name>${company?.company_name || jobDetails.companyName || 'Unknown'}</company_name>`,
-            `  <company_mission>${company?.mission?.text || jobDetails.mission || 'Unknown'}</company_mission>`,
-            `  <company_values>${company?.values?.text || jobDetails.values || 'Unknown'}</company_values>`,
-            `  <company_issues>${company?.issues?.text || 'Unknown'}</company_issues>`,
-            `  <company_funding_status>${company?.funding_status || 'Unknown'}</company_funding_status>`,
-            `  <company_culture_keywords>${formatList(company?.culture_keywords)}</company_culture_keywords>`,
-            `  <company_tech_stack>${formatList(company?.known_tech_stack)}</company_tech_stack>`,
-            '</company_intelligence>',
-            '',
-            '<role_intelligence>',
-            `  <job_title>${app.job_title || 'Unknown'}</job_title>`,
-            `  <job_ai_summary>${app.ai_summary || 'Unknown'}</job_ai_summary>`,
-            `  <job_problem_analysis_result>${JSON.stringify(app.job_problem_analysis_result) || 'Unknown'}</job_problem_analysis_result>`,
-            `  <job_keywords>${JSON.stringify(app.keywords) || 'Unknown'}</job_keywords>`,
-            `  <job_resume_summary>${app.resume_summary || 'Unknown'}</job_resume_summary>`,
-            `  <job_vocabulary_mirror>${app.vocabulary_mirror || 'Unknown'}</job_vocabulary_mirror>`,
-            '</role_intelligence>',
-            '',
-            '<questions_to_answer>',
-            ...(applicationQuestions.map((q, i) => [
-                '  <text>',
-                `    Question: ${q.question}`,
-                `    Context: ${q.user_thoughts || 'No extra context provided.'}`,
-                '  </text>'
-            ]).flat()),
-            '</questions_to_answer>',
-            '',
-            `<include_cover_letter_request>${includeCoverLetter}</include_cover_letter_request>`
-        ].join('\n');
-
-        navigator.clipboard.writeText(xml).then(() => {
-            addToast('Application data exported to clipboard!', 'success');
-        }).catch(err => {
-            handleError(err, 'Failed to copy to clipboard');
-        });
-    };
-
-    const handleSaveAnswersAndGeneratePlan = async () => {
-        if (!currentApplicationId) return;
-        setNewAppLoadingState('planning');
-        try {
-            await handleUpdateApplication(currentApplicationId, { application_questions: applicationQuestions });
-
-            const prompt = PROMPTS.find(p => p.id === 'GENERATE_POST_SUBMISSION_PLAN');
-            const app = applications.find(a => a.job_application_id === currentApplicationId);
-            if (!prompt || !app || !activeNarrative) throw new Error("Missing context for plan generation.");
-
-            // Defensive parsing for analysis result
-            const analysisRaw = typeof app.job_problem_analysis_result === 'string'
-                ? JSON.parse(app.job_problem_analysis_result)
-                : app.job_problem_analysis_result;
-
-            const analysis = analysisRaw?.job_problem_analysis || analysisRaw;
-
-            const context = {
-                COMPANY_NAME: companies.find(c => c.company_id === app.company_id)?.company_name || '',
-                JOB_TITLE: app.job_title,
-                AI_SUMMARY: analysis?.core_problem_analysis?.core_problem || '',
-                NORTH_STAR: activeNarrative.positioning_statement,
-                MASTERY: activeNarrative.signature_capability,
-                REFERRAL_TARGET: app.referral_target_suggestion || 'Hiring Manager or Peer',
-            };
-
-            const plan = await geminiService.generatePostSubmissionPlan(context, prompt.content);
-            setPostSubmissionPlan(plan);
-
-            await handleUpdateApplication(currentApplicationId, {
-                why_this_job: plan?.why_this_job || '',
-                next_steps_plan: plan?.next_steps_plan || [],
-            });
-
-            setNewAppStep(NewAppStep.POST_SUBMIT_PLAN);
-        } catch (err) {
-            handleError(err, 'Failed to generate post-submission plan');
-        } finally {
-            setNewAppLoadingState('idle');
+            handleError(err, 'Failed to start new application');
         }
     };
 
 
-
-    const handleSaveAnswersAndFinish = async () => {
-        if (!currentApplicationId) return;
-        setNewAppLoadingState('saving');
-        try {
-            await handleUpdateApplication(currentApplicationId, { application_questions: applicationQuestions });
-            await handleFinishApplication();
-        } catch (err) {
-            handleError(err, 'Failed to save application');
-        } finally {
-            setNewAppLoadingState('idle');
-        }
-    };
-
-    const handleFinishApplication = async () => {
-        if (currentApplicationId) {
-            const appliedStatusId = statuses.find(s => s.status_name === 'Step-4: Applied')?.status_id;
-            const today = new Date().toISOString().split('T')[0];
-            const payload: JobApplicationPayload = {
-                date_applied: today,
-            };
-            if (appliedStatusId) {
-                payload.status_id = appliedStatusId;
-            }
-            await handleUpdateApplication(currentApplicationId, payload);
-            addToast('Marked as applied.', 'success');
-        }
-        resetNewAppFlow();
-        fetchInitialData();
-        navigate('/applications');
-    };
 
     const handleCreateSprint = async (payload: CreateSprintPayload): Promise<void> => {
         try {
@@ -997,13 +325,7 @@ const AppContent = () => {
         }
     };
 
-    const handleCreateCompanyForNewApp = async (payload: CompanyPayload): Promise<Company> => {
-        const newCompany = await handleCreateCompany(payload);
-        setIsCompanyModalOpen(false);
-        setIsCompanyModalForNewApp(false);
-        await handleCompanySelectionAndAnalyze(newCompany.company_id);
-        return newCompany;
-    };
+
 
     const handleSaveContact = async (contactData: Partial<Contact>): Promise<Contact> => {
         try {
@@ -1183,89 +505,7 @@ const AppContent = () => {
     };
 
     const handleResumeApplication = (appToResume: JobApplication) => {
-        resetNewAppFlow();
-
-        setCurrentApplicationId(appToResume.job_application_id);
-        setActiveNarrativeId(appToResume.narrative_id);
-
-        const company = companies.find(c => c.company_id === appToResume.company_id);
-        setJobDetails({
-            companyName: company?.company_name || '',
-            isRecruitingFirm: company?.is_recruiting_firm || false,
-            jobTitle: appToResume.job_title,
-            jobDescription: appToResume.job_description,
-            jobLink: appToResume.job_link || '',
-            salary: appToResume.salary || '',
-            location: appToResume.location || '',
-            remoteStatus: appToResume.remote_status || '',
-            mission: company?.mission?.text || '',
-            values: company?.values?.text || '',
-        });
-
-        setJobProblemAnalysisResult(appToResume.job_problem_analysis_result || null);
-        setStrategicFitScore(appToResume.strategic_fit_score || null);
-        setAssumedRequirements(appToResume.assumed_requirements || []);
-
-        const parsedKeywords = typeof appToResume.keywords === 'string' ? JSON.parse(appToResume.keywords) : appToResume.keywords;
-        const parsedGuidance = typeof appToResume.guidance === 'string' ? JSON.parse(appToResume.guidance) : appToResume.guidance;
-        setKeywords(parsedKeywords || null);
-        setGuidance(parsedGuidance || null);
-
-        const wasMessageOnly = !!appToResume.application_message && !appToResume.tailored_resume_json;
-        setIsMessageOnlyApp(wasMessageOnly);
-
-        setFinalResume(appToResume.tailored_resume_json || null);
-        setApplicationQuestions(normalizeQuestions(appToResume.application_questions));
-        setFinalApplicationMessage(appToResume.application_message || '');
-        setCoverLetterDraft(appToResume.cover_letter_draft || '');
-
-        if (appToResume.why_this_job && appToResume.next_steps_plan) {
-            setPostSubmissionPlan({
-                why_this_job: appToResume.why_this_job,
-                next_steps_plan: appToResume.next_steps_plan,
-            });
-        }
-
-        // ENHANCEMENT: Applications from AI Jobs Board always start at "Paste JD" to allow JDS review/editing
-        // ENHANCEMENT: Applications in "Step-3: Resume created" status open directly to download
-        let resumeStep: NewAppStep;
-        const isFromJobsBoard = appToResume.source_job_id !== null;
-        const resumeCreatedStatus = statuses.find(s => s.status_name.toLowerCase() === 'step-3: resume created');
-        const statusName = appToResume.status?.status_name?.toLowerCase() || '';
-        const statusId = appToResume.status?.status_id || null;
-        const isResumeCreatedStatus =
-            statusName === 'step-3: resume created' ||
-            statusName === 'step-3 resume created' ||
-            statusName.includes('resume created') ||
-            (!!resumeCreatedStatus && statusId === resumeCreatedStatus.status_id);
-
-        if (isResumeCreatedStatus) {
-            // Applications in "Step-3: Resume created" status open directly to download
-            resumeStep = NewAppStep.DOWNLOAD_RESUME;
-        } else if (isFromJobsBoard) {
-            // Jobs board applications start at Paste JD (editable) regardless of completion status
-            resumeStep = NewAppStep.INITIAL_INPUT;
-        } else {
-            // Regular applications resume from their last completed step
-            if (appToResume.why_this_job) {
-                resumeStep = NewAppStep.POST_SUBMIT_PLAN;
-            } else if (appToResume.application_message) {
-                resumeStep = NewAppStep.CRAFT_MESSAGE;
-            } else if (appToResume.application_questions && appToResume.application_questions.length > 0) {
-                resumeStep = NewAppStep.ANSWER_QUESTIONS;
-            } else if (appToResume.tailored_resume_json) {
-                resumeStep = NewAppStep.DOWNLOAD_RESUME;
-            } else if (appToResume.keywords) {
-                resumeStep = NewAppStep.RESUME_SELECT;
-            } else if (appToResume.job_problem_analysis_result) {
-                resumeStep = NewAppStep.AI_PROBLEM_ANALYSIS;
-            } else {
-                resumeStep = NewAppStep.AI_PROBLEM_ANALYSIS;
-            }
-        }
-
-        setNewAppStep(resumeStep);
-        navigate('/new-application');
+        navigate(`/application/${appToResume.job_application_id}`);
     };
 
     const handleReanalyzeApplication = async (appToReanalyze: JobApplication) => {
@@ -1285,7 +525,7 @@ const AppContent = () => {
                 JOB_DESCRIPTION: appToReanalyze.job_description,
             };
             const analysisResult = await geminiService.performInitialJobAnalysis(analysisContext, analysisPrompt.content);
-            const coreProblem = analysisResult.job_problem_analysis?.core_problem_analysis?.core_problem;
+            const coreProblem = (analysisResult.job_problem_analysis as any).core_problem_analysis?.core_problem || (analysisResult.job_problem_analysis as any).diagnostic_intel?.composite_antidote_persona;
             if (!coreProblem) {
                 throw new Error("Failed to extract core problem from the new analysis.");
             }
@@ -1365,7 +605,7 @@ const AppContent = () => {
                 POSITIONING_STATEMENT: activeNarrative.positioning_statement,
                 MASTERY: activeNarrative.signature_capability,
                 JOB_TITLE: app.job_title,
-                CORE_PROBLEM_ANALYSIS: app.job_problem_analysis_result?.core_problem_analysis.core_problem,
+                CORE_PROBLEM_ANALYSIS: (app.job_problem_analysis_result as any)?.core_problem_analysis?.core_problem || (app.job_problem_analysis_result as any)?.diagnostic_intel?.composite_antidote_persona,
                 COMPENSATION_EXPECTATION: activeNarrative.compensation_expectation,
             };
 
@@ -1467,7 +707,7 @@ const AppContent = () => {
         const navigate = useNavigate();
 
         const searchParams = new URLSearchParams(location.search);
-        const initialTab = (searchParams.get('tab') as ApplicationDetailTab) || 'overview';
+        const initialTab = (searchParams.get('tab') as ApplicationDetailTab) || undefined;
 
         const handleTabChange = (newTab: ApplicationDetailTab) => {
             navigate({ pathname: location.pathname, search: `?tab=${newTab}` }, { replace: true });
@@ -1634,167 +874,11 @@ const AppContent = () => {
         );
     };
 
-    const NewApplicationWrapper = () => (
-        <div className="flex flex-col h-full">
-            <header className="flex-shrink-0 bg-white dark:bg-slate-800/80 p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <StepTracker
-                    currentStep={newAppStep}
-                    onStepClick={handleStepClick}
-                    isMessageOnlyApp={isMessageOnlyApp}
-                    progressData={{
-                        jobProblemAnalysisResult,
-                        keywords,
-                        finalResume,
-                        applicationQuestions,
-                        postSubmissionPlan,
-                        applicationMessage: finalApplicationMessage
-                    }}
-                />
-            </header>
-            <div className="flex-grow p-6 sm:p-8 overflow-y-auto bg-slate-100 dark:bg-slate-900">
-                <div className="max-w-4xl mx-auto bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 sm:p-8 border border-slate-200 dark:border-slate-700">
-                    {newAppStep === NewAppStep.INITIAL_INPUT && <InitialInputStep
-                        onNext={handleInitialSubmit}
-                        isLoading={newAppLoadingState === 'extracting'}
-                        jobLink={jobDetails.jobLink}
-                        onJobLinkChange={(value) => setJobDetails(prev => ({ ...prev, jobLink: value }))}
-                        jobDescription={jobDetails.jobDescription}
-                        onJobDescriptionChange={(value) => setJobDetails(prev => ({ ...prev, jobDescription: value }))}
-                        isMessageOnlyApp={isMessageOnlyApp}
-                        onIsMessageOnlyChange={setIsMessageOnlyApp}
-                    />}
-                    {newAppStep === NewAppStep.JOB_DETAILS && <JobDetailsStep onNext={handleJobDetailsSubmit} isLoading={false} initialJobDetails={jobDetails} narratives={strategicNarratives} selectedNarrativeId={activeNarrativeId!} />}
-                    {newAppStep === NewAppStep.COMPANY_CONFIRMATION && <CompanyConfirmationStep initialCompanyName={jobDetails.companyName} allCompanies={companies} onConfirm={handleCompanySelectionAndAnalyze} onOpenCreateCompanyModal={() => { setIsCompanyModalForNewApp(true); setInitialCompanyData({ company_name: jobDetails.companyName, company_url: jobDetails.jobLink, is_recruiting_firm: jobDetails.isRecruitingFirm }); setIsCompanyModalOpen(true); }} onOpenCompanyDetailModal={(companyId, options) => {
-                        const company = companies.find(c => c.company_id === companyId);
-                        if (!company) return;
 
-                        const companyForModal: Company = {
-                            ...company,
-                            company_url: options?.homepageUrl ?? company.company_url,
-                        };
-
-                        setSelectedCompanyForModal(companyForModal);
-                        setCompanyDetailAutoResearch(!!options?.autoResearch);
-                        if (options?.onResearchComplete) {
-                            const callback = options.onResearchComplete;
-                            setCompanyDetailResearchCallback(() => (status: 'completed' | 'failed') => callback(status));
-                        } else {
-                            setCompanyDetailResearchCallback(null);
-                        }
-                        setIsCompanyDetailModalOpen(true);
-                    }} isLoading={newAppLoadingState === 'analyzing'} />}
-                    {newAppStep === NewAppStep.AI_PROBLEM_ANALYSIS && <ProblemAnalysisStep jobProblemAnalysisResult={jobProblemAnalysisResult} strategicFitScore={strategicFitScore} assumedRequirements={assumedRequirements} onConfirm={handleConfirmFit} companyName={jobDetails.companyName} isLoadingAnalysis={!jobProblemAnalysisResult} isConfirming={newAppLoadingState === 'keywords'} />}
-                    {newAppStep === NewAppStep.RESUME_SELECT && baseResumes && userProfile && <SelectResumeStep baseResumes={baseResumes} onNext={handleResumeSelect} isLoading={newAppLoadingState === 'tailoring'} prompts={PROMPTS} keywords={keywords} userProfile={userProfile} applicationNarrative={activeNarrative} application={currentApplicationId ? applications.find(a => a.job_application_id === currentApplicationId) : null} onSkipToAnswerQuestions={() => setNewAppStep(NewAppStep.ANSWER_QUESTIONS)} />}
-                    {newAppStep === NewAppStep.TAILOR_RESUME && finalResume && <TailorResumeStep finalResume={finalResume} setFinalResume={setFinalResume} summaryParagraphOptions={summaryParagraphOptions} allSkillOptions={allSkillOptions} keywords={keywords} missingKeywords={missingKeywords} setMissingKeywords={setMissingKeywords} onNext={handleSaveTailoredResume} isLoading={newAppLoadingState === 'saving'} prompts={PROMPTS} userProfile={userProfile} activeNarrative={activeNarrative} jobTitle={jobDetails.jobTitle} companyName={jobDetails.companyName} resumeAlignmentScore={resumeAlignmentScore} onRecalculateScore={handleRecalculateScore} />}
-                    {newAppStep === NewAppStep.CRAFT_MESSAGE && <CraftMessageStep drafts={applicationMessageDrafts} onSelectDraft={setFinalApplicationMessage} finalMessage={finalApplicationMessage} setFinalMessage={setFinalApplicationMessage} onNext={handleSaveMessage} isLoading={newAppLoadingState === 'saving'} />}
-                    {newAppStep === NewAppStep.DOWNLOAD_RESUME && finalResume && (
-                        <DownloadResumeStep
-                            finalResume={finalResume}
-                            companyName={jobDetails.companyName}
-                            onNext={() => setNewAppStep(NewAppStep.ANSWER_QUESTIONS)}
-                            isLoading={false}
-                            jobApplicationId={currentApplicationId}
-                            currentJobLink={jobDetails.jobLink}
-                            onUpdateJobLink={async (appId, jobLink) => {
-                                await handleUpdateApplication(appId, { job_link: jobLink });
-                                setJobDetails(prev => ({ ...prev, jobLink }));
-                                addToast('Job link updated!', 'success');
-                            }}
-                            onUpdateSalary={async (appId, salary) => {
-                                await handleUpdateApplication(appId, { salary });
-                                setJobDetails(prev => ({ ...prev, salary }));
-                                addToast('Salary updated!', 'success');
-                            }}
-                            jobTitle={jobDetails.jobTitle}
-                            salary={jobDetails.salary}
-                            jobDescription={jobDetails.jobDescription}
-                            isMessageOnlyApp={isMessageOnlyApp}
-                            workflowMode={currentApplicationId ? applications.find(a => a.job_application_id === currentApplicationId)?.workflow_mode : undefined}
-                            onResetToDraft={async ({ workflowMode: nextWorkflowMode, jobTitle: updatedJobTitle, jobLink: updatedJobLink, jobDescription: updatedJobDescription, isMessageOnlyApp: nextMessageOnly }) => {
-                                if (!currentApplicationId) {
-                                    return;
-                                }
-                                await handleUpdateApplication(currentApplicationId, {
-                                    status_id: 'd45cb421-3c30-4c0d-82b1-9fbec532a720',
-                                    workflow_mode: nextWorkflowMode,
-                                    job_title: updatedJobTitle,
-                                    job_link: updatedJobLink,
-                                    job_description: updatedJobDescription,
-                                    tailored_resume_json: null,
-                                    application_message: null,
-                                    keywords: null,
-                                    guidance: null,
-                                    job_problem_analysis_result: null,
-                                    strategic_fit_score: null,
-                                });
-                                setJobDetails(prev => ({
-                                    ...prev,
-                                    jobTitle: updatedJobTitle,
-                                    jobLink: updatedJobLink,
-                                    jobDescription: updatedJobDescription,
-                                }));
-                                setIsMessageOnlyApp(nextMessageOnly);
-                                setJobUrlSources([]);
-                                setJobProblemAnalysisResult(null);
-                                setStrategicFitScore(null);
-                                setAssumedRequirements([]);
-                                setKeywords(null);
-                                setGuidance(null);
-                                setBaseResume(null);
-                                setFinalResume(null);
-                                setSummaryParagraphOptions([]);
-                                setAllSkillOptions([]);
-                                setMissingKeywords([]);
-                                setResumeAlignmentScore(null);
-                                setApplicationQuestions([]);
-                                setPostSubmissionPlan(null);
-                                setApplicationMessageDrafts([]);
-                                setFinalApplicationMessage('');
-                                setNewAppStep(NewAppStep.INITIAL_INPUT);
-                                addToast('Application reset with new targeting. AI workflow restarting!', 'success');
-                            }}
-                            onMarkBadFit={async () => {
-                                if (currentApplicationId) {
-                                    await handleUpdateApplication(currentApplicationId, { status_id: 'a1b2c3d4-0012-4012-8012-cccccccccccc' });
-                                    addToast('Marked as Bad Fit.', 'info');
-                                    navigate('/applications');
-                                }
-                            }}
-                        />
-                    )}
-                    {newAppStep === NewAppStep.ANSWER_QUESTIONS && (
-                        <AnswerQuestionsStep
-                            questions={applicationQuestions}
-                            setQuestions={setApplicationQuestions}
-                            onExportForAi={handleExportForAi}
-                            onSaveApplication={handleSaveAnswersAndGeneratePlan}
-                            onFinishApplication={handleSaveAnswersAndFinish}
-                            onBack={() => setNewAppStep(NewAppStep.DOWNLOAD_RESUME)}
-                            isLoading={newAppLoadingState === 'planning'}
-                        />
-                    )}
-                    {newAppStep === NewAppStep.POST_SUBMIT_PLAN && postSubmissionPlan && (
-                        <PostSubmitPlan
-                            summary={postSubmissionPlan.why_this_job}
-                            plan={postSubmissionPlan.next_steps_plan || []}
-                            onFinish={handleFinishApplication}
-                            sprint={sprint}
-                            onAddActions={handleAddSprintActions}
-                            companyName={jobDetails.companyName}
-                            jobTitle={jobDetails.jobTitle || currentApplication?.job_title}
-                            companyId={currentApplication?.company_id || null}
-                            jobApplicationId={currentApplicationId}
-                        />
-                    )}
-                </div>
-            </div>
-        </div>
-    );
 
     return (
         <div className="flex h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans">
             <SideNav
-                activeNarrativeName={activeNarrative?.narrative_name || 'Standard'}
                 onOpenProfileModal={() => setIsProfileModalOpen(true)}
                 onOpenSprintModal={() => setIsSprintModalOpen(true)}
             />
@@ -1806,10 +890,9 @@ const AppContent = () => {
                 ) : (
                     <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
                         <Routes>
-                            <Route path="/" element={<DashboardView applications={applications} contacts={contacts} messages={messages} linkedInPosts={linkedInPosts} engagements={engagements} pendingFollowUps={messages.filter(m => m.follow_up_due_date)} userProfile={userProfile} activeNarrative={activeNarrative || null} strategicNarratives={strategicNarratives} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onScoutForOpportunities={() => { }} onUpdateContactStatus={(contactId, status) => handleSaveContact({ contact_id: contactId, status })} prompts={PROMPTS} baseResumes={baseResumes} onCreateSynthesizedNarrative={handleCreateSynthesizedNarrative} onSaveSkillTrends={handleSaveSkillTrends} sprint={sprint} skillTrends={skillTrends} companies={companies} weeklyProgress={""} onAddActions={async () => { }} />} />
+                            <Route path="/" element={<DashboardView applications={applications} contacts={contacts} messages={messages} linkedInPosts={linkedInPosts} engagements={engagements} pendingFollowUps={messages.filter(m => m.follow_up_due_date)} userProfile={userProfile} prompts={PROMPTS} onCreateSynthesizedNarrative={handleCreateSynthesizedNarrative} sprint={sprint} weeklyProgress={""} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onUpdateContactStatus={(contactId, status) => handleSaveContact({ contact_id: contactId, status })} />} />
                             <Route path="/applications" element={<ApplicationsView applications={applications} companies={companies} statuses={statuses} offers={offers} onViewApplication={(appId) => navigate(`/application/${appId}`)} onViewCompany={(companyId) => navigate(`/company/${companyId}`)} onResumeApplication={handleResumeApplication} onAddNew={handleStartNewApplication} onDeleteApplication={handleDeleteApplication} onUpdateApplicationStatus={handleUpdateApplicationStatusInline} onDeleteOffer={async (id) => { await apiService.deleteOffer(id); fetchInitialData(); }} resumes={baseResumes} userProfile={userProfile} onAddNewResume={() => navigate('/resume/new')} onEditResume={(res) => navigate(`/resume/${res.resume_id}`)} onDeleteResume={handleDeleteResume} onCopyResume={async (res) => { }} onSetDefaultResume={(id) => handleSaveNarrative({ default_resume_id: id }, activeNarrativeId!)} onToggleLock={async () => { }} isLoading={isAppLoading} activeNarrative={activeNarrative} strategicNarratives={strategicNarratives} />} />
                             <Route path="/reviewed-jobs" element={<ReviewedJobsView />} />
-                            <Route path="/add-linkedin-job" element={<QuickAddLinkedInJob />} />
                             <Route path="/add-manual-job" element={<ManualJobCreate />} />
 
                             <Route path="/positioning" element={<PositioningHub activeNarrative={activeNarrative} activeNarrativeId={activeNarrativeId} onSaveNarrative={handleSaveNarrative} onUpdateNarrative={handleUpdateNarrative} prompts={PROMPTS} baseResumes={baseResumes} />} />
@@ -1836,10 +919,9 @@ const AppContent = () => {
                             />
                             <Route path="/brag-bank" element={<BragDocumentView items={bragBankItems} onSave={async (item, id) => { if (id) { await apiService.updateBragBankEntry(id, item); } else { await apiService.createBragBankEntry(item); } fetchInitialData(); }} onDelete={async (id) => { await apiService.deleteBragBankEntry(id); fetchInitialData(); }} strategicNarratives={strategicNarratives} prompts={PROMPTS} />} />
                             <Route path="/schedule-management" element={<ScheduleManagementView />} />
-                            <Route path="/chroma-upload" element={<ChromaUploadView strategicNarratives={strategicNarratives} activeNarrativeId={activeNarrativeId} />} />
                             <Route path="/health-checks" element={<PromptEditorView />} />
 
-                            <Route path="/new-application" element={<NewApplicationWrapper />} />
+
                             <Route path="/application/:appId" element={<ApplicationDetailWrapper />} />
                             <Route path="/company/:companyId" element={<CompanyDetailWrapper />} />
                             <Route path="/resume/:resumeId" element={<ResumeEditorWrapper />} />
@@ -1871,7 +953,7 @@ const AppContent = () => {
 
 
             {isContactModalOpen && <ContactModal isOpen={isContactModalOpen} onClose={() => setIsContactModalOpen(false)} onSaveContact={handleSaveContact} onCreateMessage={handleCreateMessage} onAddNewCompany={() => setIsCompanyModalOpen(true)} contact={selectedContact} companies={companies} applications={applications} baseResumes={baseResumes} linkedInPosts={linkedInPosts} userProfile={userProfile} strategicNarratives={strategicNarratives} activeNarrativeId={activeNarrativeId} prompts={PROMPTS} onDeleteContact={handleDeleteContact} />}
-            {isCompanyModalOpen && <CreateCompanyModal isOpen={isCompanyModalOpen} onClose={() => setIsCompanyModalOpen(false)} onCreate={isCompanyModalForNewApp ? handleCreateCompanyForNewApp : handleCreateCompany} initialData={initialCompanyData} prompts={PROMPTS} />}
+            {isCompanyModalOpen && <CreateCompanyModal isOpen={isCompanyModalOpen} onClose={() => setIsCompanyModalOpen(false)} onCreate={handleCreateCompany} initialData={initialCompanyData} prompts={PROMPTS} />}
             {isCompanyDetailModalOpen && selectedCompanyForModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white dark:bg-slate-800 rounded-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-hidden">
