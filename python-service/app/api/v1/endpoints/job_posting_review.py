@@ -1,13 +1,16 @@
 """
 API endpoints for job posting review CrewAI functionality.
 """
+import uuid
 from typing import Dict, Any, Optional, Union
 from fastapi import APIRouter, HTTPException, Depends
 from loguru import logger
 from pydantic import BaseModel, Field
 
 from ....schemas.responses import StandardResponse, create_success_response, create_error_response
-from ....services.crewai.job_posting_review.crew import get_job_posting_review_crew, run_crew
+from ....services.fit_review.workflows.job_review_graph import run_job_review_workflow
+from ....services.infrastructure.job_persistence import get_job_persistence_service
+from ....services.infrastructure.database import get_database_service
 
 router = APIRouter(prefix="/job-posting-review", tags=["Job Posting Review"])
 
@@ -44,41 +47,66 @@ class JobPostingInput(BaseModel):
 @router.post("/analyze", response_model=StandardResponse)
 async def analyze_job_posting(job_input: JobPostingInput):
     """
-    Analyze a job posting using the CrewAI job posting review system.
-    
-    This endpoint runs the orchestrated crew that performs:
-    1. **Job intake and parsing** - Extract structured data from raw job posting
-    2. **Pre-filtering** - Apply hard rejection rules (salary, seniority, location)
-    3. **Quick fit analysis** - Score career growth, compensation, lifestyle, purpose alignment  
-    4. **Brand framework matching** - Compare against career brand framework in ChromaDB
-    5. **Final orchestration** - Managing agent provides final recommendation
-    
-    The crew uses a hierarchical process where the managing agent controls the workflow
-    and only proceeds to deeper analysis if the job passes initial filters.
-    
-    Args:
-        job_input: JobPostingInput containing job posting data and optional configuration
-    
-    Returns:
-        Structured analysis results with recommendation, reasoning, and scores
+    Analyze a job posting using the LangGraph job posting review system.
     """
     try:
-        # Convert job posting to dictionary format for processing
+        # Convert job posting to standardized format
         if isinstance(job_input.job_posting, str):
-            job_data = {"raw_text": job_input.job_posting}
+            job_data = {
+                "title": "Manual Analysis",
+                "company": "Unknown",
+                "description": job_input.job_posting,
+                "job_url": f"https://manual-analysis.job/{uuid.uuid4().hex[:8]}"
+            }
         else:
             job_data = job_input.job_posting
+            if "job_url" not in job_data:
+                job_data["job_url"] = f"https://manual-analysis.job/{uuid.uuid4().hex[:8]}"
             
-        # Run the crew using the existing run_crew function for compatibility
-        result = run_crew(
-            job_posting_data=job_data,
-            options=job_input.options or {},
-            correlation_id=None  # Could generate UUID here if needed
-        )
+        # 1. Persist the job first (Standard requirement for our stateful graph)
+        persistence_service = get_job_persistence_service()
+        result = await persistence_service.persist_jobs([job_data], site_name="manual_upload")
+        
+        job_id = None
+        if "inserted_job_ids" in result and result["inserted_job_ids"]:
+            job_id = result["inserted_job_ids"][0]
+        else:
+            # Maybe it already exists? Try to find it by URL
+            db_service = get_database_service()
+            async with db_service.pool.acquire() as conn:
+                job_id = await conn.fetchval(
+                    "SELECT id FROM jobs WHERE job_url = $1 LIMIT 1",
+                    job_data["job_url"]
+                )
+        
+        if not job_id:
+            raise HTTPException(status_code=500, detail="Failed to persist job for analysis")
+
+        # 2. Check for Langflow Test Mode
+        import os
+        if os.getenv("LANGFLOW_TEST_MODE", "false").lower() == "true":
+            logger.info(f"LANGFLOW_TEST_MODE enabled for API request. Job {job_id} redirected.")
+            return create_success_response(
+                data={"status": "testing", "job_id": str(job_id)},
+                message="LANGFLOW_TEST_MODE detected. Job has been sent to Langflow for visual testing."
+            )
+
+        # 3. Run the graph workflow
+        await run_job_review_workflow(job_id=str(job_id), user_id="api_request")
+
+        # 3. Fetch the results from the DB
+        db_service = get_database_service()
+        review_result = await db_service.get_job_review(str(job_id))
+        
+        if not review_result:
+             return create_success_response(
+                data={"status": "processing", "job_id": str(job_id)},
+                message="Analysis started. Please check back later."
+            )
         
         return create_success_response(
-            data=result,
-            message="Job posting analysis completed successfully"
+            data=review_result,
+            message="Job posting analysis completed successfully via LangGraph"
         )
     
     except Exception as e:
@@ -92,126 +120,18 @@ async def analyze_job_posting(job_input: JobPostingInput):
 @router.post("/analyze/simple", response_model=StandardResponse)
 async def analyze_job_posting_simple(job_posting: Union[str, Dict[str, Any]]):
     """
-    Simplified endpoint for job posting analysis with just the job posting data.
-    
-    Args:
-        job_posting: Job posting as string or dictionary
-    
-    Returns:
-        Analysis results from the CrewAI crew
+    Simplified endpoint for job posting analysis.
     """
-    try:
-        job_data = {"raw_text": job_posting} if isinstance(job_posting, str) else job_posting
-
-        result = run_crew(
-            job_posting_data=job_data,
-            options={},
-            correlation_id=None,
-        )
-
-        return create_success_response(
-            data=result,
-            message="Job posting analysis completed successfully"
-        )
-    
-    except Exception as e:
-        logger.error(f"Failed to analyze job posting: {str(e)}")
-        return create_error_response(
-            error="Job posting analysis failed",
-            message=str(e)
-        )
+    job_input = JobPostingInput(job_posting=job_posting)
+    return await analyze_job_posting(job_input)
 
 
 @router.get("/health", response_model=StandardResponse) 
 async def health_check():
     """
-    Health check for the job posting review CrewAI service.
-    
-    Returns:
-        Service health status and crew configuration details
+    Health check for the job posting review service.
     """
-    try:
-        crew = get_job_posting_review_crew()
-        
-        # Get agent and task details
-        agent_info = []
-        for agent in crew.agents:
-            agent_info.append({
-                "role": getattr(agent, 'role', 'Unknown'),
-                "goal": getattr(agent, 'goal', 'Unknown'),
-                "tools_count": len(getattr(agent, 'tools', []))
-            })
-        
-        task_info = []
-        for task in crew.tasks:
-            task_info.append({
-                "description": getattr(task, 'description', 'Unknown')[:100] + "...",
-                "agent_role": getattr(task.agent, 'role', 'Unknown') if hasattr(task, 'agent') else 'Unknown'
-            })
-        
-        health_status = {
-            "service": "JobPostingReviewCrew",
-            "agents_count": len(crew.agents),
-            "tasks_count": len(crew.tasks),
-            "process": str(crew.process),
-            "agents": agent_info,
-            "tasks": task_info,
-            "status": "healthy"
-        }
-        
-        return create_success_response(
-            data=health_status,
-            message="Job posting review service is healthy"
-        )
-    
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        return create_error_response(
-            error="Health check failed", 
-            message=str(e)
-        )
-
-
-@router.get("/config", response_model=StandardResponse)
-async def get_crew_config():
-    """
-    Get the configuration details of the job posting review crew.
-    
-    Returns:
-        Crew configuration including agents, tasks, and process details
-    """
-    try:
-        crew = get_job_posting_review_crew()
-        
-        config_info = {
-            "crew_type": "JobPostingReviewCrew",
-            "process_type": str(crew.process),
-            "agent_roles": [getattr(agent, 'role', 'Unknown') for agent in crew.agents],
-            "task_flow": [
-                {
-                    "task_id": i,
-                    "description": getattr(task, 'description', 'Unknown')[:200] + "...",
-                    "agent": getattr(task.agent, 'role', 'Unknown') if hasattr(task, 'agent') else 'Unknown'
-                }
-                for i, task in enumerate(crew.tasks)
-            ],
-            "workflow_description": """
-            1. Job Intake Agent: Parse job posting into structured JSON
-            2. Pre-Filter Agent: Apply hard rejection rules (salary, seniority, location)  
-            3. Quick Fit Analyst: Score career growth, compensation, lifestyle, purpose
-            4. Brand Framework Matcher: Compare against career brand framework
-            5. Managing Agent: Orchestrate workflow and provide final recommendation
-            """
-        }
-        
-        return create_success_response(
-            data=config_info,
-            message="Crew configuration retrieved successfully"
-        )
-    
-    except Exception as e:
-        logger.error(f"Failed to get crew config: {str(e)}")
-        return create_error_response(
-            error="Failed to retrieve crew configuration",
-            message=str(e)
-        )
+    return create_success_response(
+        data={"status": "healthy", "engine": "LangGraph"},
+        message="Job posting review service is healthy"
+    )

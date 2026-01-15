@@ -54,10 +54,24 @@ class Settings:
         # PostgREST Configuration (for future integration)
         self.postgrest_url: str = os.getenv("POSTGREST_URL", "http://postgrest:3000")
 
+        # Environment-based configuration
+        self.environment: str = os.getenv("ENVIRONMENT", "development")
+
+        # MCP (Model Context Protocol) Configuration
+        self.mcp_enabled: bool = os.getenv("MCP_ENABLED", "false").lower() == "true"
+        self.mcp_transport_type: str = os.getenv("MCP_TRANSPORT_TYPE", "stdio")  # stdio or streaming
+        self.mcp_gateway_url: str = os.getenv("MCP_GATEWAY_URL", "http://mcp-gateway:8811")
+        self.mcp_protocol_version: str = os.getenv("MCP_PROTOCOL_VERSION", "2025-03-26")
+        self.mcp_client_name: str = os.getenv("MCP_CLIENT_NAME", "trainium-job-center")
+        self.mcp_client_version: str = os.getenv("MCP_CLIENT_VERSION", "1.0.0")
+        self.mcp_log_level: str = os.getenv("MCP_LOG_LEVEL", "INFO")
+        self.mcp_connection_timeout: int = int(os.getenv("MCP_CONNECTION_TIMEOUT", "30"))  # seconds
+
         # Database Configuration for direct access
         self.database_url: str = os.getenv("DATABASE_URL", "")
         if not self.database_url:
-            raise ValueError("DATABASE_URL is not set")
+            logger.warning("DATABASE_URL is not set. Database features will be unavailable.")
+            return
 
         parsed_db = urlparse(self.database_url)
         if parsed_db.hostname in {"localhost", "127.0.0.1"} or (
@@ -91,18 +105,6 @@ class Settings:
         self.disable_job_posting_review: bool = os.getenv("DISABLE_JOB_POSTING_REVIEW", "false").lower() == "true"
         self.job_review_enabled: bool = os.getenv("JOB_REVIEW_ENABLED", "true").lower() == "true"
 
-        # Environment-based configuration
-        self.environment: str = os.getenv("ENVIRONMENT", "development")
-
-        # MCP (Model Context Protocol) Configuration
-        self.mcp_enabled: bool = os.getenv("MCP_ENABLED", "false").lower() == "true"
-        self.mcp_transport_type: str = os.getenv("MCP_TRANSPORT_TYPE", "stdio")  # stdio or streaming
-        self.mcp_gateway_url: str = os.getenv("MCP_GATEWAY_URL", "http://mcp-gateway:8811")
-        self.mcp_protocol_version: str = os.getenv("MCP_PROTOCOL_VERSION", "2025-03-26")
-        self.mcp_client_name: str = os.getenv("MCP_CLIENT_NAME", "trainium-job-center")
-        self.mcp_client_version: str = os.getenv("MCP_CLIENT_VERSION", "1.0.0")
-        self.mcp_log_level: str = os.getenv("MCP_LOG_LEVEL", "INFO")
-        self.mcp_connection_timeout: int = int(os.getenv("MCP_CONNECTION_TIMEOUT", "30"))  # seconds
 
     def create_chroma_client(self) -> Union[chromadb.HttpClient, chromadb.PersistentClient]:
         """Create and return a ChromaDB client using configured settings.

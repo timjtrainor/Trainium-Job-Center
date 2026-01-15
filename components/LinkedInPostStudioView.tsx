@@ -5,7 +5,7 @@ import { LoadingSpinner, PlusCircleIcon, LinkedInIcon, SparklesIcon } from './Ic
 
 interface LinkedInPostStudioViewProps {
     posts: LinkedInPost[];
-    prompts: Prompt[];
+    // prompts prop removed
     onCreatePost: (payload: LinkedInPostPayload) => Promise<void>;
     strategicNarratives: StrategicNarrative[];
     applications: JobApplication[];
@@ -15,7 +15,7 @@ interface LinkedInPostStudioViewProps {
 type PostType = 'narrative' | 'journey';
 type Step = 'idle' | 'themes' | 'post';
 
-export const LinkedInPostStudioView = ({ posts, prompts, onCreatePost, strategicNarratives, applications, debugCallbacks }: LinkedInPostStudioViewProps): React.ReactNode => {
+export const LinkedInPostStudioView = ({ posts, onCreatePost, strategicNarratives, applications, debugCallbacks }: LinkedInPostStudioViewProps): React.ReactNode => {
     // State for AI generator
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -38,7 +38,7 @@ export const LinkedInPostStudioView = ({ posts, prompts, onCreatePost, strategic
         setIsLoading(true);
         setError(null);
         setGeneratedThemes([]);
-        
+
         const selectedNarrative = strategicNarratives.find(n => n.narrative_id === selectedNarrativeId);
         if (!selectedNarrative) {
             setError("Please select a valid narrative.");
@@ -48,9 +48,6 @@ export const LinkedInPostStudioView = ({ posts, prompts, onCreatePost, strategic
 
         try {
             if (postType === 'narrative') {
-                const themesPrompt = prompts.find(p => p.id === 'GENERATE_LINKEDIN_THEMES');
-                if (!themesPrompt) throw new Error("LinkedIn themes prompt not found.");
-
                 const narrativeApps = applications.filter(app => app.narrative_id === selectedNarrativeId).slice(0, 5);
                 const appSummaries = narrativeApps.map(app => `Applied for ${app.job_title}`).join(', ');
 
@@ -59,8 +56,8 @@ export const LinkedInPostStudioView = ({ posts, prompts, onCreatePost, strategic
                     MASTERY: selectedNarrative.signature_capability,
                     RECENT_APPLICATIONS: appSummaries || "various senior product roles",
                 };
-                
-                const themes = await geminiService.generateLinkedInThemes(context, themesPrompt.content, debugCallbacks);
+
+                const themes = await geminiService.generateLinkedInThemes(context, 'GENERATE_LINKEDIN_THEMES', debugCallbacks);
                 setGeneratedThemes(themes);
                 setStep('themes');
             } else if (postType === 'journey') {
@@ -73,12 +70,12 @@ export const LinkedInPostStudioView = ({ posts, prompts, onCreatePost, strategic
             setIsLoading(false);
         }
     };
-    
+
     const handleGeneratePostFromTheme = async (theme: string) => {
         setIsLoading(true);
         setError(null);
         setSelectedTheme(theme);
-        
+
         const selectedNarrative = strategicNarratives.find(n => n.narrative_id === selectedNarrativeId);
         if (!selectedNarrative) {
             setError("Selected narrative not found.");
@@ -87,21 +84,18 @@ export const LinkedInPostStudioView = ({ posts, prompts, onCreatePost, strategic
         }
 
         try {
-            const postPrompt = prompts.find(p => p.id === 'GENERATE_POSITIONED_LINKEDIN_POST');
-            if (!postPrompt) throw new Error("LinkedIn post prompt not found.");
-            
             const context: PromptContext = {
                 THEME: theme,
                 POSITIONING_STATEMENT: selectedNarrative.positioning_statement,
                 NORTH_STAR: selectedNarrative.long_term_legacy,
                 MASTERY: selectedNarrative.signature_capability,
             };
-            
-            const postContent = await geminiService.generatePositionedLinkedInPost(context, postPrompt.content, debugCallbacks);
+
+            const postContent = await geminiService.generatePositionedLinkedInPost(context, 'GENERATE_POSITIONED_LINKEDIN_POST', debugCallbacks);
             setGeneratedPost(postContent);
             setStep('post');
 
-        } catch(e) {
+        } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to generate post.");
         } finally {
             setIsLoading(false);
@@ -118,27 +112,24 @@ export const LinkedInPostStudioView = ({ posts, prompts, onCreatePost, strategic
             setIsLoading(false);
             return;
         }
-        
+
         try {
-            const journeyPrompt = prompts.find(p => p.id === 'GENERATE_JOURNEY_POST');
-            if (!journeyPrompt) throw new Error("Journey post prompt not found.");
-            
             const context: PromptContext = {
-                NARRATIVE_A_SUMMARY: `Title: ${narrativeA.desired_title}, Positioning: ${narrativeA.positioning_statement}`,
-                NARRATIVE_B_SUMMARY: `Title: ${narrativeB.desired_title}, Positioning: ${narrativeB.positioning_statement}`,
+                NARRATIVE_A_SUMMARY: `Title: ${narrativeA.narrative_name}, Positioning: ${narrativeA.positioning_statement}`,
+                NARRATIVE_B_SUMMARY: `Title: ${narrativeB.narrative_name}, Positioning: ${narrativeB.positioning_statement}`,
             };
-            
-            const postContent = await geminiService.generatePositionedLinkedInPost(context, journeyPrompt.content, debugCallbacks);
+
+            const postContent = await geminiService.generatePositionedLinkedInPost(context, 'GENERATE_JOURNEY_POST', debugCallbacks);
             setGeneratedPost(postContent);
             setSelectedTheme("My Professional Journey");
             setStep('post');
-        } catch(e) {
+        } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to generate journey post.");
         } finally {
             setIsLoading(false);
         }
     };
-    
+
     const handleSavePost = async () => {
         setIsSaving(true);
         setError(null);
@@ -217,7 +208,7 @@ export const LinkedInPostStudioView = ({ posts, prompts, onCreatePost, strategic
                                 )}
                             </div>
                             <button onClick={handleGenerateThemes} disabled={isLoading} className="mt-4 inline-flex items-center justify-center px-5 py-2 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400">
-                                {isLoading ? <LoadingSpinner/> : 'Generate Content Ideas'}
+                                {isLoading ? <LoadingSpinner /> : 'Generate Content Ideas'}
                             </button>
                         </div>
                     )}
@@ -247,7 +238,7 @@ export const LinkedInPostStudioView = ({ posts, prompts, onCreatePost, strategic
                                     </div>
                                     <div className="mt-4 flex justify-end">
                                         <button onClick={handleSavePost} disabled={isSaving} className="px-4 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 disabled:bg-green-400">
-                                            {isSaving ? <LoadingSpinner/> : 'Save Post'}
+                                            {isSaving ? <LoadingSpinner /> : 'Save Post'}
                                         </button>
                                     </div>
                                 </div>
@@ -285,7 +276,7 @@ export const LinkedInPostStudioView = ({ posts, prompts, onCreatePost, strategic
             </div>
 
             {error && <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4 text-sm font-medium text-red-700 dark:text-red-300">{error}</div>}
-            
+
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Post History</h2>
                 <div className="mt-4 space-y-4">
@@ -296,11 +287,11 @@ export const LinkedInPostStudioView = ({ posts, prompts, onCreatePost, strategic
                             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">{post.content}</p>
                         </div>
                     )) : (
-                         <div className="text-center py-12 px-6 bg-slate-50 dark:bg-slate-800/50 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700">
+                        <div className="text-center py-12 px-6 bg-slate-50 dark:bg-slate-800/50 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700">
                             <LinkedInIcon className="mx-auto h-12 w-12 text-slate-400" />
                             <h3 className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">No posts yet</h3>
                             <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">Get started by generating or tracking your first post.</p>
-                         </div>
+                        </div>
                     )}
                 </div>
             </div>

@@ -23,7 +23,7 @@ interface EngagementHubProps {
     onCreateLinkedInEngagement: (payload: LinkedInEngagementPayload) => Promise<void>;
     onCreatePost: (payload: LinkedInPostPayload) => Promise<void>;
     onImportContacts: (fileContent: string) => Promise<void>;
-    prompts: Prompt[];
+    // prompts prop removed
     onDeleteContact: (contactId: string) => void;
     companies: Company[];
     onViewCompany: (companyId: string) => void;
@@ -91,7 +91,7 @@ export const EngagementHub = (props: EngagementHubProps) => {
                         userProfile={props.userProfile}
                         strategicNarratives={props.strategicNarratives}
                         activeNarrative={props.activeNarrative}
-                        prompts={props.prompts}
+                        // prompts removed
                         onCreateDraftMessage={(draft) => {
                             // Try to find the contact and open the modal
                             // This is a "best effort" link for now
@@ -142,7 +142,7 @@ export const EngagementHub = (props: EngagementHubProps) => {
                         onCreatePost={props.onCreatePost}
                         onCreateLinkedInEngagement={props.onCreateLinkedInEngagement}
                         onOpenContactModal={props.onOpenContactModal}
-                        prompts={props.prompts}
+                        // prompts removed
                         strategicNarratives={props.strategicNarratives}
                         activeNarrative={props.activeNarrative}
                         onScoreEngagement={props.onScoreEngagement}
@@ -154,7 +154,7 @@ export const EngagementHub = (props: EngagementHubProps) => {
                         onCreatePostResponse={props.onCreatePostResponse}
                         onUpdatePostResponse={props.onUpdatePostResponse}
                         activeNarrative={props.activeNarrative}
-                        prompts={props.prompts}
+                    // prompts removed
                     />
                 )}
             </div>

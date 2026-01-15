@@ -283,6 +283,13 @@ class SchedulerService:
             return {"status": "error", "error": str(e)}
 
 
+
+# Singleton instance
+_scheduler_service = None
+
 def get_scheduler_service() -> SchedulerService:
-    """Create a new scheduler service instance."""
-    return SchedulerService()
+    """Get the singleton scheduler service instance."""
+    global _scheduler_service
+    if _scheduler_service is None:
+        _scheduler_service = SchedulerService()
+    return _scheduler_service

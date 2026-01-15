@@ -157,25 +157,21 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
             return;
         }
 
-        if (pendingAction) {
-            return;
-        }
+        // Optimistic UI: move to next card immediately
+        onOverrideSuccess(job.job_id, 'Job marked as not recommended');
+        nextCard();
 
-        setPendingAction('reject');
+        // Perform backend update in background
         try {
             await overrideJobReview(job.job_id, {
                 override_recommend: false,
                 override_comment: 'Human reviewer rejected via swipe',
             });
-
-            onOverrideSuccess(job.job_id, 'Job marked as not recommended');
-            nextCard();
         } catch (err) {
-            addToast('Failed to update recommendation', 'error');
-        } finally {
-            setPendingAction(null);
+            addToast('Failed to sync rejection to server', 'error');
+            console.error('Optimistic rejection failed:', err);
         }
-    }, [jobs, safeIndex, nextCard, onOverrideSuccess, pendingAction, addToast]);
+    }, [jobs, safeIndex, nextCard, onOverrideSuccess, addToast]);
 
     const handleFastTrack = useCallback(async () => {
         const job = jobs.length > 0 ? jobs[safeIndex] : undefined;
@@ -183,11 +179,11 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
             return;
         }
 
-        if (pendingAction) {
-            return;
-        }
+        // Optimistic UI: move to next card immediately
+        onOverrideSuccess(job.job_id, 'Fast-track application started');
+        nextCard();
 
-        setPendingAction('fast-track');
+        // Perform backend updates in background
         try {
             // Create application without AI generation
             await apiService.createApplicationFromJob(job.job_id, 'fast_track', activeNarrativeId || undefined);
@@ -195,18 +191,13 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
             await overrideJobReview(job.job_id, {
                 override_recommend: true,
                 override_comment: 'Human reviewer fast-tracked application',
+                skip_webhook: true,
             });
-
-            onOverrideSuccess(job.job_id, 'Fast-track application started');
-
-            // Stay in job review mode - no navigation
-            nextCard();
         } catch (err) {
-            addToast('Failed to fast-track job', 'error');
-        } finally {
-            setPendingAction(null);
+            addToast('Failed to sync fast-track to server', 'error');
+            console.error('Optimistic fast-track failed:', err);
         }
-    }, [activeNarrativeId, jobs, safeIndex, nextCard, onOverrideSuccess, pendingAction, addToast]);
+    }, [activeNarrativeId, jobs, safeIndex, nextCard, onOverrideSuccess, addToast]);
 
     const handleFullAI = useCallback(async () => {
         const job = jobs.length > 0 ? jobs[safeIndex] : undefined;
@@ -214,11 +205,11 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
             return;
         }
 
-        if (pendingAction) {
-            return;
-        }
+        // Optimistic UI: move to next card immediately
+        onOverrideSuccess(job.job_id, 'AI application created');
+        nextCard();
 
-        setPendingAction('full-ai');
+        // Perform backend updates in background
         try {
             // Trigger application creation (no automatic AI)
             await apiService.generateApplicationFromJob(job.job_id, activeNarrativeId || undefined);
@@ -226,18 +217,13 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
             await overrideJobReview(job.job_id, {
                 override_recommend: true,
                 override_comment: 'Human reviewer approved via full AI workflow',
+                skip_webhook: true,
             });
-
-            onOverrideSuccess(job.job_id, 'AI application created');
-
-            // Stay in job review mode - no navigation
-            nextCard();
         } catch (err) {
-            addToast('Failed to create AI application', 'error');
-        } finally {
-            setPendingAction(null);
+            addToast('Failed to sync AI application to server', 'error');
+            console.error('Optimistic AI application creation failed:', err);
         }
-    }, [activeNarrativeId, jobs, safeIndex, nextCard, onOverrideSuccess, pendingAction, addToast]);
+    }, [activeNarrativeId, jobs, safeIndex, nextCard, onOverrideSuccess, addToast]);
 
     if (isLoading) {
         return (
@@ -250,10 +236,10 @@ export const JobCardView: React.FC<JobCardViewProps> = ({
 
     if (!currentJob) {
         return (
-            <div className="text-center py-12">
+            <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
                 <UsersIcon className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-slate-900 dark:text-slate-300 mb-1">No jobs to review</h3>
-                <p className="text-slate-600 dark:text-slate-400">All jobs have been reviewed, or filters are too strict.</p>
+                <h3 className="text-lg font-medium text-slate-900 dark:text-slate-300 mb-1">There are no Job Postings to Review at this time.</h3>
+                <p className="text-slate-600 dark:text-slate-400">Please check back later or adjust your filters.</p>
             </div>
         );
     }

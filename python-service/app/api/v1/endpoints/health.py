@@ -11,17 +11,7 @@ from ....core.config import get_settings
 
 def _get_llm_provider_status():
     """Get status of available LLM providers."""
-    try:
-        from ....services.ai.llm_clients import LLMRouter
-        settings = get_settings()
-        router = LLMRouter(preferences=settings.llm_preference)
-        return [
-            {"provider": provider, "model": model, "available": available}
-            for provider, model, available in router.get_available_providers()
-        ]
-    except Exception as e:
-        logger.warning(f"Failed to check LLM provider status: {e}")
-        return []
+    return []
 
 
 router = APIRouter()

@@ -21,7 +21,7 @@ import {
 } from './IconComponents';
 
 interface ResumeFormulasDashboardProps {
-    activeNarrative: StrategicNarrative;
+    activeNarrative?: StrategicNarrative | null;
 }
 
 const parseCsv = (csv: string) => csv.split(',').map(s => s.trim()).filter(Boolean);
@@ -50,17 +50,17 @@ export const ResumeFormulasDashboard = ({ activeNarrative }: ResumeFormulasDashb
     const { addToast } = useToast();
 
     const fetchDocuments = useCallback(async () => {
-        if (!activeNarrative?.narrative_id) return;
         setIsLoading(true);
         try {
-            const docs = await apiService.getUploadedDocuments(activeNarrative.narrative_id);
-            setDocuments(docs.filter(d => d.content_type === 'proof_points' || d.collection_name === 'proof_points'));
+            // Fetch all documents from proof_points collection directly
+            const docs = await apiService.getCollectionDocuments('proof_points');
+            setDocuments(docs);
         } catch (error) {
             addToast('Failed to load experiences', 'error');
         } finally {
             setIsLoading(false);
         }
-    }, [activeNarrative?.narrative_id, addToast]);
+    }, [addToast]);
 
     useEffect(() => {
         fetchDocuments();
@@ -71,8 +71,8 @@ export const ResumeFormulasDashboard = ({ activeNarrative }: ResumeFormulasDashb
         const groups: Record<string, UploadedDocument[]> = {};
         documents.forEach(doc => {
             const company = doc.metadata?.company || 'Unknown Company';
-            const role = doc.metadata?.role_title || 'Unknown Role';
-            const key = `${company}|${role}`;
+            const startDate = doc.metadata?.start_date || 'Unknown Date';
+            const key = `${company}|${startDate}`;
             if (!groups[key]) groups[key] = [];
             groups[key].push(doc);
         });
@@ -109,8 +109,8 @@ export const ResumeFormulasDashboard = ({ activeNarrative }: ResumeFormulasDashb
                     endDate: (meta.end_date as string) || '',
                     isCurrent: Boolean(meta.is_current),
                     skills: Array.isArray(meta.impact_tags) ? meta.impact_tags.join(', ') : '',
-                    keywords: Array.isArray(jobMeta?.keywords) ? (jobMeta?.keywords as string[]).join(', ') : '',
-                    architecture: Array.isArray(jobMeta?.architecture) ? (jobMeta?.architecture as string[]).join(', ') : '',
+                    keywords: Array.isArray(meta.job_keywords) ? (meta.job_keywords as string[]).join(', ') : (Array.isArray(jobMeta?.keywords) ? (jobMeta?.keywords as string[]).join(', ') : ''),
+                    architecture: Array.isArray(meta.job_architecture) ? (meta.job_architecture as string[]).join(', ') : (Array.isArray(jobMeta?.architecture) ? (jobMeta?.architecture as string[]).join(', ') : ''),
                     content: detail.content || '',
                 });
                 setSelectedExpKey(expKey);
@@ -151,7 +151,9 @@ export const ResumeFormulasDashboard = ({ activeNarrative }: ResumeFormulasDashb
     };
 
     const handleSave = async () => {
-        if (!validate() || !activeNarrative.narrative_id) return;
+        // Use activeNarrative.narrative_id or fallback to USER_ID
+        const profileId = activeNarrative?.narrative_id || '';
+        if (!validate()) return;
 
         setIsSaving(true);
         try {
@@ -160,7 +162,7 @@ export const ResumeFormulasDashboard = ({ activeNarrative }: ResumeFormulasDashb
             if (formData.architecture) jobMetadata.architecture = parseCsv(formData.architecture);
 
             const payload = {
-                profile_id: activeNarrative.narrative_id,
+                profile_id: profileId,
                 role_title: formData.role.trim(),
                 company: formData.company.trim(),
                 location: formData.location.trim(),
@@ -461,7 +463,7 @@ export const ResumeFormulasDashboard = ({ activeNarrative }: ResumeFormulasDashb
                                     </div>
                                     <div className="flex-1">
                                         <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2 flex items-center gap-2">
-                                            Deep Vector Alignment <div className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-[8px] text-blue-600 dark:text-blue-400 rounded-md">Metadata Injected</div>
+                                            Deep Vector Alignment <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-[8px] text-blue-600 dark:text-blue-400 rounded-md">Metadata Injected</span>
                                         </p>
                                         <p className="text-xs text-slate-600 dark:text-slate-400 font-semibold leading-relaxed">
                                             By structuring this experience with specific metadata (skills, keywords, architecture), you allow the AI matching engine to perform high-fidelity comparisons against job requirements. This content becomes the single "Active Proof Point" for this career chapter.

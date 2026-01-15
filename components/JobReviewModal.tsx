@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { ReviewedJob } from '../types';
-import { overrideJobReview, JobReviewOverrideRequest } from '../services/apiService';
-import { LoadingSpinner, CheckIcon, XCircleIcon } from './IconComponents';
+import { overrideJobReview, JobReviewOverrideRequest, getTrackCompetencies, saveTrackCompetencies } from '../services/apiService';
+import { LoadingSpinner, CheckIcon, XCircleIcon, SparklesIcon } from './IconComponents';
+import { useToast } from '../hooks/useToast';
 
 interface JobReviewModalProps {
     job: ReviewedJob | null;
@@ -21,6 +22,7 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
     const [overrideComment, setOverrideComment] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const { addToast } = useToast();
 
     if (!isOpen || !job) return null;
 
@@ -33,6 +35,16 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
                 override_recommend: true,
                 override_comment: 'Human reviewer confirmed AI recommendation',
             });
+
+            // Initialize track if needed
+            const trackName = job.track || job.normalized_title || job.title;
+            if (trackName) {
+                const existing = await getTrackCompetencies(trackName);
+                if (!existing) {
+                    await saveTrackCompetencies({ track_name: trackName, competencies: [] });
+                    addToast(`New track detected: "${trackName}". Initialized in Competency Hub.`, 'info');
+                }
+            }
 
             onOverrideSuccess(job.job_id, 'AI recommendation confirmed');
             onClose();
@@ -68,6 +80,16 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
 
             await overrideJobReview(job.job_id, overrideData);
 
+            // Initialize track if needed and approved
+            const trackName = job.track || job.normalized_title || job.title;
+            if (overrideRecommendation && trackName) {
+                const existing = await getTrackCompetencies(trackName);
+                if (!existing) {
+                    await saveTrackCompetencies({ track_name: trackName, competencies: [] });
+                    addToast(`New track detected: "${trackName}". Initialized in Competency Hub.`, 'info');
+                }
+            }
+
             onOverrideSuccess(job.job_id, overrideRecommendation ? 'Job approved for application' : 'Job removed from recommendations');
             onClose();
         } catch (err) {
@@ -97,7 +119,7 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
     };
 
     const getRecommendationIcon = (recommendation: string) => {
-        return recommendation.includes('Recommended') 
+        return recommendation.includes('Recommended')
             ? <CheckIcon className="h-5 w-5 text-green-500" />
             : <XCircleIcon className="h-5 w-5 text-red-500" />;
     };
@@ -192,7 +214,7 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
                                         </div>
                                         <div className="mt-2 space-y-2">
                                             <div className="flex items-center gap-2">
-                                                {job.override_recommend 
+                                                {job.override_recommend
                                                     ? <CheckIcon className="h-5 w-5 text-green-500" />
                                                     : <XCircleIcon className="h-5 w-5 text-red-500" />
                                                 }
@@ -276,7 +298,7 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
                                     >
                                         {isSubmitting ? (
                                             <>
-                                                <LoadingSpinner size="sm" />
+                                                <LoadingSpinner className="w-4 h-4" />
                                                 <span className="ml-2">Submitting...</span>
                                             </>
                                         ) : (
@@ -302,7 +324,7 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
                                     >
                                         {isSubmitting ? (
                                             <>
-                                                <LoadingSpinner size="sm" />
+                                                <LoadingSpinner className="w-4 h-4" />
                                                 <span className="ml-2">Saving...</span>
                                             </>
                                         ) : (

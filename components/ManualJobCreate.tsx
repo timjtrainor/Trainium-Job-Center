@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useToast } from '../hooks/useToast';
 import * as apiService from '../services/apiService';
+import * as geminiService from '../services/geminiService';
 import { LoadingSpinner, CheckIcon, ArrowUturnLeftIcon } from './IconComponents';
 
 interface ManualJobCreateProps {
@@ -18,6 +19,8 @@ const initialFormData = {
     salary_currency: 'USD',
     remote_status: '' as '' | 'Remote' | 'Hybrid' | 'On-site',
     date_posted: '',
+    mission: '',
+    values: '',
 };
 
 export const ManualJobCreate = ({ onBack }: ManualJobCreateProps) => {
@@ -33,20 +36,37 @@ export const ManualJobCreate = ({ onBack }: ManualJobCreateProps) => {
         if (!rawText.trim()) return;
         setIsParsing(true);
         try {
-            const parsed = await apiService.parseJobDescription(rawText, formData.url);
+            let parsed = await geminiService.extractInitialDetailsFromPaste(
+                { JOB_DESCRIPTION: rawText },
+                'EXTRACT_DETAILS_FROM_PASTE'
+            ) as any;
 
-            setFormData(prev => ({
-                ...prev,
-                title: parsed.title || prev.title,
-                company_name: parsed.company_name || prev.company_name,
-                description: parsed.description || prev.description,
-                location: parsed.location || prev.location,
-                salary_min: parsed.salary_min !== null && parsed.salary_min !== undefined ? String(parsed.salary_min) : prev.salary_min,
-                salary_max: parsed.salary_max !== null && parsed.salary_max !== undefined ? String(parsed.salary_max) : prev.salary_max,
-                salary_currency: parsed.salary_currency || prev.salary_currency,
-                remote_status: parsed.remote_status || prev.remote_status,
-                date_posted: parsed.date_posted || prev.date_posted,
-            }));
+            console.log('Raw AI Response:', parsed);
+
+            // Handle array response (common with some models returning [ { ... } ])
+            if (Array.isArray(parsed)) {
+                parsed = parsed[0];
+            }
+
+            setFormData(prev => {
+                const newData = {
+                    ...prev,
+                    title: parsed.jobTitle || parsed.job_title || parsed.title || prev.title,
+                    company_name: parsed.companyName || parsed.company_name || parsed.company || prev.company_name,
+                    description: parsed.jobDescription || parsed.job_description || parsed.description || parsed.cleaned_description || prev.description,
+                    location: parsed.location || prev.location,
+                    url: parsed.companyHomepageUrl || parsed.url || prev.url,
+                    salary_min: (parsed.salary_min !== null && parsed.salary_min !== undefined) ? String(parsed.salary_min) : (parsed.min_salary ? String(parsed.min_salary) : prev.salary_min),
+                    salary_max: (parsed.salary_max !== null && parsed.salary_max !== undefined) ? String(parsed.salary_max) : (parsed.max_salary ? String(parsed.max_salary) : prev.salary_max),
+                    salary_currency: (parsed.salary_currency || parsed.currency || prev.salary_currency || 'USD').toUpperCase(),
+                    remote_status: (parsed.remote_status || parsed.remoteStatus || prev.remote_status) as any,
+                    date_posted: parsed.date_posted || parsed.datePosted || prev.date_posted,
+                    mission: parsed.mission || prev.mission,
+                    values: parsed.values || prev.values,
+                };
+                console.log('Mapped Form Data:', newData);
+                return newData;
+            });
 
             addToast('Job details auto-filled! Please review before saving.', 'success');
         } catch (error: any) {
@@ -399,6 +419,38 @@ export const ManualJobCreate = ({ onBack }: ManualJobCreateProps) => {
                                 onChange={(e) => handleInputChange('description', e.target.value)}
                                 placeholder="Paste the full job description here..."
                                 required
+                                disabled={isLoading}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Mission and Values */}
+                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                        <div>
+                            <label htmlFor="mission" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Company Mission
+                            </label>
+                            <textarea
+                                id="mission"
+                                rows={3}
+                                className="w-full p-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                                value={formData.mission}
+                                onChange={(e) => handleInputChange('mission', e.target.value)}
+                                placeholder="What is their mission?"
+                                disabled={isLoading}
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="values" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Company Values
+                            </label>
+                            <textarea
+                                id="values"
+                                rows={3}
+                                className="w-full p-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                                value={formData.values}
+                                onChange={(e) => handleInputChange('values', e.target.value)}
+                                placeholder="Core values..."
                                 disabled={isLoading}
                             />
                         </div>

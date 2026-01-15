@@ -4,7 +4,7 @@ from crewai.project import CrewBase, agent, crew, task, before_kickoff, after_ki
 from crewai.llm import BaseLLM
 import logging
 
-from ...ai.llm_clients import LLMRouter
+from ...ai.ai_service import ai_service, MODEL_ALIASES
 from ....core.config import get_settings
 
 from ..tools import get_postgres_tool
@@ -22,15 +22,15 @@ class PersonalBrandCrew:
 
     def __init__(self):
         """Initialize the PersonalBrandCrew with LLM router."""
-        settings = get_settings()
-        self._router = LLMRouter(preferences=settings.llm_preference)
+        pass
 
     class _RouterLLM(BaseLLM):
-        """Adapter to use LLMRouter with CrewAI agents."""
+        """Adapter to use LiteLLM with CrewAI agents."""
 
-        def __init__(self, router: LLMRouter):
-            super().__init__(model="gpt-oss:20b")
-            self._router = router
+        def __init__(self):
+            # Map to one of our aliased models
+            model_name = MODEL_ALIASES.get("high-reasoning", "gpt-4o")
+            super().__init__(model=model_name)
 
         def call(
             self,
@@ -45,7 +45,18 @@ class PersonalBrandCrew:
                 prompt = "\n".join(m.get("content", "") for m in messages if isinstance(m, dict))
             else:
                 prompt = str(messages)
-            return self._router.generate(prompt)
+            
+            # Use ai_service to execute or litellm directly
+            # Here we just want a completion
+            import litellm
+            # self.model is set by super().__init__ but we can double check aliases
+            
+            response = litellm.completion(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7
+            )
+            return response.choices[0].message.content
 
     @before_kickoff
     def prepare_inputs(self, inputs):
@@ -106,7 +117,7 @@ class PersonalBrandCrew:
         return Agent(
             config=self.agents_config["branding_agent"],  # type: ignore[index]
             verbose=True,
-            llm=self._RouterLLM(self._router)
+            llm=self._RouterLLM()
         )
 
     @task

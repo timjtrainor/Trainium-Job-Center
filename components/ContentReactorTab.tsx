@@ -26,7 +26,7 @@ interface ContentReactorTabProps {
     onCreatePost: (payload: LinkedInPostPayload) => Promise<void>;
     onCreateLinkedInEngagement: (payload: LinkedInEngagementPayload) => Promise<void>;
     onOpenContactModal: (contact?: Partial<Contact> | null) => void;
-    prompts: Prompt[];
+    // prompts prop removed
     strategicNarratives: StrategicNarrative[];
     activeNarrative: StrategicNarrative | null;
     onScoreEngagement: (engagement: LinkedInEngagement) => void;
@@ -38,18 +38,18 @@ type Tab = 'studio' | 'engagements';
 export const ContentReactorTab = (props: ContentReactorTabProps) => {
     const [activeTab, setActiveTab] = useState<Tab>('studio');
     const [isEngagementFormOpen, setIsEngagementFormOpen] = useState(false);
-    
+
     const tabs: { id: Tab; name: string; icon: React.ElementType }[] = [
         { id: 'studio', name: 'Post Studio', icon: LinkedInIcon },
         { id: 'engagements', name: 'Engagement Tracking', icon: UsersIcon },
     ];
-    
+
     const tabClass = (tabName: Tab) =>
         `group inline-flex items-center justify-center px-4 py-2.5 -mb-px border-b-2 font-medium text-sm focus:outline-none ` +
         (activeTab === tabName
             ? 'border-blue-500 text-blue-600 dark:text-blue-400'
             : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:border-slate-600');
-            
+
     const iconClass = (tabName: Tab) =>
         `mr-2 h-5 w-5 ` +
         (activeTab === tabName
@@ -72,14 +72,14 @@ export const ContentReactorTab = (props: ContentReactorTabProps) => {
             {activeTab === 'studio' && (
                 <LinkedInPostStudioView
                     posts={props.posts}
-                    prompts={props.prompts}
+                    // prompts prop removed
                     onCreatePost={props.onCreatePost}
                     strategicNarratives={props.strategicNarratives}
                     applications={props.applications}
                     debugCallbacks={props.debugCallbacks}
                 />
             )}
-            
+
             {activeTab === 'engagements' && (
                 <PostEngagementTab
                     engagements={props.engagements}

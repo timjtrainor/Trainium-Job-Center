@@ -1,0 +1,35 @@
+model_aliases:
+  # The "Cognitive Peak." 
+  # Gemini 3 Pro is currently winning on spatial and multi-modal reasoning.
+  high-reasoning: "gemini/gemini-3-pro-preview"
+  
+  # The "Logic Engine." 
+  # Stays in your 250K free token group. Excellent for pure logic.
+  high-reasoning-gpt: "openai/gpt-5"
+
+  # The "Data Sovereign." 
+  # Mistral Large 3 on Bedrock. 
+  # Use this for sensitive Product data and compliance-heavy PRDs.
+  secure-balanced: "bedrock/mistral.mistral-large-3"
+
+  # The "Latency King." 
+  # Your tested favorite for real-time agentic actions.
+  fast-response: "gemini/gemini-3-flash-preview"
+  super-fast-response: "bedrock/us.amazon.nova-2-lite-v1:0"
+  
+  # User Specific Preferences (2026 Standards)
+  openai-test: "openai/gpt-4o-mini"
+  gemini-test: "gemini/gemini-1.5-flash"
+  bedrock-test: "bedrock/us.amazon.nova-lite-v1:0"
+
+  # The "Free Speed" option. 
+  # Part of the 2M token group. Use for simple classification.
+  fast-response-gpt: "openai/gpt-5-nano"
+
+  # The "Workhorse." 
+  # High intelligence, zero cost. Sits in your 10M free token bucket.
+  daily-driver: "openai/gpt-5-mini"
+
+  # The "Local Lab." 
+  # Llama 4 Scout handles privacy-first prototyping on your local metal.
+  local-rag: "ollama/llama-4-scout"

@@ -40,6 +40,9 @@ class JobDetails(BaseModel):
     salary_currency: Optional[str] = Field(None, description="Salary currency")
     salary_range: Optional[str] = Field(None, description="Formatted salary range for display")
     is_remote: Optional[bool] = Field(None, description="Remote work flag")
+    normalized_title: Optional[str] = Field(None, description="Normalized job title for competency tracking")
+    normalized_company: Optional[str] = Field(None, description="Normalized company name")
+    track: Optional[str] = Field(None, description="Job track for competency identification")
 
 
 class ReviewedJob(BaseModel):

@@ -13,6 +13,7 @@ from ....services.infrastructure.database import get_database_service, DatabaseS
 from ....services.ai.application_generator import get_application_generator
 from ....core.config import get_settings
 from ....services.infrastructure.company_normalization import normalize_company_name
+from ....services.infrastructure.webhooks import publish_webhook_event
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
 
@@ -30,14 +31,15 @@ def format_job_location(job: Dict[str, Any]) -> str:
     if parts:
         return ', '.join(parts)
 
-    # Fallback to any generic location field
-    return (job.get('location') or '').strip()
+    # Fallback to any generic location field (check common aliases)
+    return (job.get('location') or job.get('job_location') or '').strip()
 
 
 def format_job_salary(job: Dict[str, Any]) -> Optional[str]:
     """Format job salary range from min/max amounts."""
-    min_amount = job.get('salary_min')
-    max_amount = job.get('salary_max')
+    # Try multiple common field names for salary
+    min_amount = job.get('salary_min') or job.get('min_amount')
+    max_amount = job.get('salary_max') or job.get('max_amount')
     
     # Fallback to crew_output if top-level salary is missing
     if min_amount is None and max_amount is None:
@@ -48,15 +50,23 @@ def format_job_salary(job: Dict[str, Any]) -> Optional[str]:
             max_amount = salary_data.get('max_amount')
 
     if min_amount is not None or max_amount is not None:
-        min_str = f"{min_amount:,}" if min_amount else ""
-        max_str = f"{max_amount:,}" if max_amount else ""
+        # Convert to float/int if needed and format with commas
+        try:
+            min_val = float(min_amount) if min_amount is not None else None
+            max_val = float(max_amount) if max_amount is not None else None
+            
+            min_str = f"{int(min_val):,}" if min_val is not None else ""
+            max_str = f"{int(max_val):,}" if max_val is not None else ""
 
-        if min_str and max_str:
-            return f"${min_str}-${max_str}"
-        elif min_str:
-            return f"${min_str}+"
-        elif max_str:
-            return f"Up to ${max_str}"
+            if min_str and max_str:
+                return f"${min_str}-${max_str}"
+            elif min_str:
+                return f"${min_str}+"
+            elif max_str:
+                return f"Up to ${max_str}"
+        except (ValueError, TypeError):
+            # Fallback if conversion fails
+            return f"{min_amount or ''} - {max_amount or ''}".strip(' -')
 
     return None
 
@@ -65,6 +75,14 @@ class ApplicationResponse(BaseModel):
     success: bool
     application_id: str
     message: str
+
+
+class ResetApplicationPayload(BaseModel):
+    workflowMode: str
+    jobTitle: str
+    jobLink: str
+    jobDescription: str
+    isMessageOnlyApp: bool
 
 
 async def _ensure_job_company(
@@ -227,6 +245,7 @@ async def generate_application_from_job(job_id: str, narrative_id: str = None):
                     job_link,
                     salary,
                     location,
+                    remote_status,
                     narrative_id,
                     user_id,
                     source_job_id,
@@ -235,7 +254,7 @@ async def generate_application_from_job(job_id: str, narrative_id: str = None):
                     guidance,
                     created_at
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
                 RETURNING job_application_id
             """,
                 job.get('company_id'),
@@ -245,6 +264,7 @@ async def generate_application_from_job(job_id: str, narrative_id: str = None):
                 job.get('job_url') or job.get('url', ''),  # Use consistent field naming
                 format_job_salary({**job, 'crew_output': review.get('crew_output') if review else None}),
                 format_job_location(job),
+                "Remote" if job.get('is_remote') else "On-site",
                 narrative['narrative_id'],
                 narrative['user_id'],
                 UUID(job_id),
@@ -258,11 +278,28 @@ async def generate_application_from_job(job_id: str, narrative_id: str = None):
 
         logger.info(f"Created application {app_id} for job {job_id} (Full AI mode)")
 
-        return ApplicationResponse(
+        response = ApplicationResponse(
             success=True,
             application_id=str(app_id),
             message="Application created successfully. You can now add details manually."
         )
+        
+        # Trigger webhook
+        try:
+            publish_webhook_event(
+                event_type="job_approved",
+                payload={
+                    "job_id": job_id,
+                    "application_id": str(app_id),
+                    "approval_mode": "full_ai",
+                    "title": job.get('title'),
+                    "company": job.get('company_name') or job.get('company')
+                }
+            )
+        except Exception as webhook_err:
+            logger.error(f"Failed to trigger webhook for job {job_id}: {webhook_err}")
+            
+        return response
 
     except HTTPException:
         raise
@@ -348,8 +385,7 @@ async def _generate_ai_content(
                 UPDATE job_applications
                 SET tailored_resume_json = $1,
                     application_message = $2,
-                    application_questions = $3,
-                    updated_at = NOW()
+                    application_questions = $3
                 WHERE job_application_id = $4
             """,
                 json.dumps(tailoring_data),
@@ -367,7 +403,7 @@ async def _generate_ai_content(
             async with db_service.pool.acquire() as conn:
                 await conn.execute("""
                     UPDATE job_applications
-                    SET updated_at = NOW()
+                    SET job_application_id = $1
                     WHERE job_application_id = $1
                 """, UUID(app_id))
         except Exception as update_error:
@@ -453,13 +489,14 @@ async def create_application_from_job(job_id: str, mode: str = "fast_track", nar
                     job_link,
                     salary,
                     location,
+                    remote_status,
                     narrative_id,
                     user_id,
                     source_job_id,
                     workflow_mode,
                     created_at
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
                 RETURNING job_application_id
             """,
                 job.get('company_id'),
@@ -469,6 +506,7 @@ async def create_application_from_job(job_id: str, mode: str = "fast_track", nar
                 job.get('job_url') or job.get('url', ''),  # Use consistent field naming
                 format_job_salary({**job, 'crew_output': review.get('crew_output') if review else None}),
                 format_job_location(job),
+                "Remote" if job.get('is_remote') else "On-site",
                 narrative['narrative_id'],
                 narrative['user_id'],
                 UUID(job_id),
@@ -480,14 +518,164 @@ async def create_application_from_job(job_id: str, mode: str = "fast_track", nar
 
         logger.info(f"Created fast-track application {app_id} for job {job_id}")
 
-        return ApplicationResponse(
+        response = ApplicationResponse(
             success=True,
             application_id=str(app_id),
             message="Application created successfully. You can now add details manually."
         )
+        
+        # Trigger webhook
+        try:
+            publish_webhook_event(
+                event_type="job_approved",
+                payload={
+                    "job_id": job_id,
+                    "application_id": str(app_id),
+                    "approval_mode": mode,  # fast_track
+                    "title": job.get('title'),
+                    "company": job.get('company_name') or job.get('company')
+                }
+            )
+        except Exception as webhook_err:
+            logger.error(f"Failed to trigger webhook for job {job_id}: {webhook_err}")
+            
+        return response
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to create application from job {job_id}: {e}")
+        raise HTTPException(500, str(e))
+@router.post("/{appId}/reset-to-draft", response_model=ApplicationResponse)
+async def reset_application_to_draft(
+    appId: str, 
+    payload: ResetApplicationPayload, 
+    background_tasks: BackgroundTasks
+):
+    """
+    Reset an application to Draft status, update details, and trigger AI workflow.
+    """
+    db_service = get_database_service()
+    await db_service.initialize()
+
+    try:
+        # 1. Get current application to ensure it exists and get context
+        async with db_service.pool.acquire() as conn:
+            app = await conn.fetchrow("""
+                SELECT * FROM job_applications 
+                WHERE job_application_id = $1
+            """, UUID(appId))
+
+            if not app:
+                raise HTTPException(404, "Application not found")
+
+            # 2. Use Hardcoded 'Draft' status_id
+            status_id = UUID('d45cb421-3c30-4c0d-82b1-9fbec532a720')
+
+            # 3. Update application details and status
+            await conn.execute("""
+                UPDATE job_applications
+                SET job_title = $1,
+                    job_link = $2,
+                    job_description = $3,
+                    workflow_mode = $4,
+                    status_id = $5
+                WHERE job_application_id = $6
+            """,
+                payload.jobTitle,
+                payload.jobLink,
+                payload.jobDescription,
+                payload.workflowMode,
+                status_id,
+                UUID(appId)
+            )
+
+            # 4. Get context for AI generation
+            company = await conn.fetchrow("SELECT * FROM companies WHERE company_id = $1", app['company_id'])
+            narrative = await conn.fetchrow("SELECT * FROM strategic_narratives WHERE narrative_id = $1", app['narrative_id'])
+            
+            # Get default resume for the narrative
+            default_resume = None
+            if narrative and narrative['default_resume_id']:
+                default_resume = await conn.fetchrow("SELECT * FROM resumes WHERE resume_id = $1", narrative['default_resume_id'])
+
+        # 5. Queue AI generation task
+        job_context = {
+            "title": payload.jobTitle,
+            "description": payload.jobDescription
+        }
+        
+        # Prepare context dicts for AI service
+        company_dict = dict(company) if company else {}
+        narrative_dict = dict(narrative) if narrative else {}
+        resume_dict = dict(default_resume) if default_resume else {}
+        
+        # Add background task
+        background_tasks.add_task(
+            _generate_ai_content,
+            appId,
+            job_context,
+            company_dict,
+            narrative_dict,
+            resume_dict,
+            None # Optional review context
+        )
+
+        # 6. Publish Redis event
+        try:
+            publish_webhook_event(
+                event_type="application_reset",
+                payload={
+                    "application_id": appId,
+                    "event": "reset_to_draft",
+                    "workflow_mode": payload.workflowMode,
+                    "job_title": payload.jobTitle,
+                    "company_id": str(app['company_id'])
+                }
+            )
+        except Exception as redis_err:
+            logger.error(f"Failed to publish Redis event for application reset {appId}: {redis_err}")
+
+        return ApplicationResponse(
+            success=True,
+            application_id=appId,
+            message="Application reset to Draft and AI generation triggered."
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to reset application {appId}: {e}")
+        raise HTTPException(500, str(e))
+
+
+@router.post("/{appId}/set-bad-fit", response_model=ApplicationResponse)
+async def set_application_to_bad_fit(appId: str):
+    """
+    Update application status to 'Bad Fit'.
+    """
+    db_service = get_database_service()
+    await db_service.initialize()
+
+    try:
+        async with db_service.pool.acquire() as conn:
+            # 2. Use Hardcoded 'Bad Fit' status_id
+            status_id = UUID('a1b2c3d4-0012-4012-8012-cccccccccccc')
+
+            # 3. Update application status
+            await conn.execute("""
+                UPDATE job_applications
+                SET status_id = $1
+                WHERE job_application_id = $2
+            """,
+                status_id,
+                UUID(appId)
+            )
+
+        return ApplicationResponse(
+            success=True,
+            application_id=appId,
+            message="Application marked as Bad Fit."
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to set application {appId} as bad fit: {e}")
         raise HTTPException(500, str(e))

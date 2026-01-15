@@ -11,12 +11,14 @@ from pydantic import BaseModel, Field, validator
 from loguru import logger
 from datetime import datetime
 
+from uuid import UUID
 from ....schemas.job_reviews import ReviewedJobsResponse, ReviewedJob, JobDetails, JobReviewData
 from ....schemas.job_parsing import JobParseRequest, JobParseResponse
 from ....schemas.jobspy import ScrapedJob
 from ....services.infrastructure.database import get_database_service, DatabaseService
 from ....services.infrastructure.job_persistence import persist_jobs
 from ....services.ai.job_parser import JobParser
+from ....services.infrastructure.webhooks import publish_webhook_event
 
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -26,6 +28,7 @@ class OverrideRequest(BaseModel):
     """Request model for human override of AI recommendation."""
     override_recommend: bool
     override_comment: str
+    skip_webhook: bool = False
 
     class Config:
         json_schema_extra = {
@@ -227,47 +230,27 @@ async def get_job_review(
                 detail=f"Job details not found for job_id: {job_id}"
             )
         
-        # Transform to response models
-        # Map database fields to schema fields if they differ
-        # db.get_job_by_id returns keys like 'max_amount', schema expects 'salary_max'? 
-        # Actually schemas in jobs.py line 184-185 show:
-        # job_details = JobDetails(**job_data["job"])
-        # review_data = JobReviewData(**job_data["review"])
-        # Wait, db.get_reviewed_jobs returns a transformed structure.
-        
-        # Let's see how db.get_reviewed_jobs transforms it.
-        # In database.py around line 800 (not shown in previous view)
-        
-        # I'll just manually construct it to be safe or use the same logic if I can find it.
-        # Actually database.py get_job_by_id returns:
-        # id, site, job_url, title, company, company_url, location_country, ...
-        
-        # Schema JobDetails expects:
-        # job_id, title, company, location, url, date_posted, source, description, salary_min, salary_max, ...
-        
-        formatted_job = {
-            "job_id": str(job_data["id"]),
-            "title": job_data["title"],
-            "company": job_data["company"],
-            "location": job_data["location_city"] or job_data["location_state"] or job_data["location_country"] or "Remote" if job_data["is_remote"] else "N/A",
-            "url": job_data["job_url"],
-            "date_posted": job_data["date_posted"],
-            "source": job_data["site"],
-            "description": job_data["description"],
-            "salary_min": job_data["min_amount"],
-            "salary_max": job_data["max_amount"],
-            "salary_currency": job_data["currency"],
-            "is_remote": job_data["is_remote"]
+        # Map database fields to JobDetails schema fields
+        mapped_job = {
+            "job_id": str(job_data.get("id")),
+            "title": job_data.get("title"),
+            "company": job_data.get("company"),
+            "location": job_data.get("location_city") or job_data.get("location_state"),
+            "url": job_data.get("job_url"),
+            "date_posted": job_data.get("date_posted"),
+            "source": job_data.get("site"),
+            "description": job_data.get("description"),
+            "salary_min": job_data.get("min_amount"),
+            "salary_max": job_data.get("max_amount"),
+            "salary_currency": job_data.get("currency"),
+            "is_remote": job_data.get("is_remote"),
+            "normalized_title": job_data.get("normalized_title"),
+            "normalized_company": job_data.get("normalized_company"),
+            "track": job_data.get("track")
         }
         
-        # review_date in schema matches created_at in db?
-        formatted_review = {
-            **review_data,
-            "review_date": review_data["created_at"],
-            "reviewer": review_data.get("crew_version")
-        }
-        
-        return ReviewedJob(job=JobDetails(**formatted_job), review=JobReviewData(**formatted_review))
+        # review_data is already normalized by db.get_job_review helper
+        return ReviewedJob(job=JobDetails(**mapped_job), review=JobReviewData(**review_data))
 
     except HTTPException:
         raise
@@ -340,7 +323,7 @@ async def override_job_review(
             )
         
         # Transform the result to match the response model
-        return OverrideResponse(
+        response = OverrideResponse(
             id=str(result["id"]),
             job_id=str(result["job_id"]),  # Convert UUID to string
             recommend=result["recommend"],
@@ -353,6 +336,46 @@ async def override_job_review(
             created_at=result["created_at"].isoformat() if result["created_at"] else None,
             updated_at=result["updated_at"].isoformat() if result["updated_at"] else None
         )
+        
+        # Lookup application_id
+        application_id = None
+        try:
+            # Query job_applications table for an application associated with this job
+            async with db.pool.acquire() as conn:
+                app_row = await conn.fetchrow("""
+                    SELECT job_application_id 
+                    FROM job_applications 
+                    WHERE source_job_id = $1
+                    LIMIT 1
+                """, UUID(job_id))
+                if app_row:
+                    application_id = str(app_row['job_application_id'])
+                    logger.info(f"Found application {application_id} for job {job_id}")
+        except Exception as app_lookup_err:
+            # Non-critical error, just log it
+            logger.error(f"Failed to lookup application ID for job {job_id}: {app_lookup_err}")
+
+        # Trigger webhook ONLY if approved AND not skipped
+        if request.override_recommend and not request.skip_webhook:
+            try:
+                # Fetch job details to ensure title and company are available
+                job = await db.get_job(job_id)
+                
+                publish_webhook_event(
+                    event_type="job_approved",
+                    payload={
+                        "job_id": job_id,
+                        "application_id": application_id,
+                        "approval_mode": "manual_override",
+                        "title": job.get("title") if job else result.get("title"),
+                        "company": job.get("company_name") or job.get("company") if job else result.get("company"),
+                        "override_comment": request.override_comment
+                    }
+                )
+            except Exception as webhook_err:
+                logger.error(f"Failed to trigger webhook for job {job_id}: {webhook_err}")
+            
+        return response
         
     except ValueError as e:
         # Invalid job_id format - client error

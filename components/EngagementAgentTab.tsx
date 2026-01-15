@@ -8,7 +8,7 @@ interface EngagementAgentTabProps {
     userProfile: any; // UserProfile
     strategicNarratives: StrategicNarrative[];
     activeNarrative: StrategicNarrative | null;
-    prompts: Prompt[];
+    // prompts prop removed
     // Callbacks for actions
     onCreateDraftMessage: (msg: any) => void;
 }
@@ -49,7 +49,7 @@ export const EngagementAgentTab = (props: EngagementAgentTabProps) => {
         setIsTyping(true);
 
         try {
-            const systemPrompt = props.prompts.find(p => p.id === 'ENGAGEMENT_AGENT_SYSTEM_PROMPT')?.content || '';
+            // Context definition restored
             const narrativeSummary = props.activeNarrative
                 ? `${props.activeNarrative.positioning_statement} Mastery: ${props.activeNarrative.signature_capability}`
                 : 'No active narrative selected.';
@@ -61,8 +61,8 @@ export const EngagementAgentTab = (props: EngagementAgentTabProps) => {
             };
 
             const response = await geminiService.runEngagementAgent(
-                systemPrompt,
-                messages, // History excluding the new message (service adds it? No, service expects history + new msg logic usually, but let's check service impl)
+                'ENGAGEMENT_AGENT_SYSTEM_PROMPT',
+                messages,
                 userMsg.content,
                 context
             );

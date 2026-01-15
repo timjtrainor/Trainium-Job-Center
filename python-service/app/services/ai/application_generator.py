@@ -64,8 +64,11 @@ First, generate keywords and strategic guidance based on the job description.
 
 **PART 2: RESUME TAILORING**
 Then, use the keywords and guidance you just generated to perform the following tailoring tasks:
-- **Work Experience Processing**: For each accomplishment in the resume, provide a `relevance_score`, an `original_score` for the original text, and a `keyword_suggestions` array.
-- **Summary Suggestions**: Generate three powerful, distinct versions of an executive summary. Each summary MUST be 2-3 sentences long.
+- **Executive Summary**: Generate a single, powerful executive summary. Provide a `headline` (max 8 words) and a `paragraph` (75-100 words).
+- **Work Experience Processing**: For each accomplishment in the resume, provide:
+    - `bucket_category`: A short label (1-2 words) that categorizes the skill/impact (e.g., "Stakeholder Alignment", "Cloud Architecture").
+    - `description`: The tailored text of the accomplishment.
+    - `relevance_score`, `original_score`, and `keyword_suggestions`.
 - **Skills**: Suggest differentiating capabilities and domain expertise.
     - `comprehensive_skills`: Create a comprehensive FLAT LIST of 15-20 relevant, differentiating skills.
     - `ai_selected_skills`: From the comprehensive list, pre-select the 9 most critical skills for this specific job.
@@ -92,12 +95,25 @@ Return ONLY a single, valid JSON object with all the following top-level keys. N
     "bullets": ["...", "..."],
     "keys": ["...", "..."]
   }},
-  "processed_work_experience": [...],
-  "summary_suggestions": [
-    "Summary option 1...",
-    "Summary option 2...",
-    "Summary option 3..."
+  "processed_work_experience": [
+    {{
+       "company_name": "...",
+       "job_title": "...",
+       "accomplishments": [
+         {{
+           "bucket_category": "...",
+           "description": "...",
+           "relevance_score": 0.0,
+           "original_score": {{ "overall_score": 0.0, "clarity": 0.0, "drama": 0.0 }},
+           "keyword_suggestions": ["..."]
+         }}
+       ]
+    }}
   ],
+  "summary": {{
+    "headline": "...",
+    "paragraph": "..."
+  }},
   "comprehensive_skills": [...],
   "ai_selected_skills": [...],
   "missing_keywords": [...],

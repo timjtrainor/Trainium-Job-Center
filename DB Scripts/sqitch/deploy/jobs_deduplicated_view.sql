@@ -31,6 +31,9 @@ SELECT DISTINCT ON (COALESCE(canonical_key, id::text))
     j.fingerprint,
     j.duplicate_group_id,
     j.duplicate_status,
+    j.track,
+    j.normalized_title,
+    j.normalized_company,
     -- Aggregated fields showing all sites where this job was found
     ARRAY_AGG(j.site) OVER (
         PARTITION BY COALESCE(canonical_key, id::text)

@@ -63,7 +63,16 @@ def scrape_jobs_worker(site_schedule_id: Optional[str] = None,
         # Check if we own a lock for this run
         from .queue import get_queue_service
         queue_service = get_queue_service()
-        queue_service.initialize()
+        # Ensure queue service is initialized
+        if not queue_service.initialized:
+            try:
+                import asyncio
+                loop = asyncio.get_event_loop()
+                loop.run_until_complete(queue_service.initialize())
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(queue_service.initialize())
         
         existing_lock = queue_service.check_redis_lock(lock_key)
         if existing_lock:
@@ -200,249 +209,108 @@ def scrape_jobs_worker(site_schedule_id: Optional[str] = None,
                 logger.error(f"Run {run_id}: Error while releasing lock: {le}")
 
 
-def process_job_review(job_id: str, max_retries: int = 3) -> Dict[str, Any]:
+def process_job_review(job_id: str, max_retries: int = 3, user_id: Optional[str] = None) -> Dict[str, Any]:
     """
-    Worker function for processing job review tasks using CrewAI.
+    Worker function for processing job review tasks using LangGraph.
     
     Args:
         job_id: UUID of the job to review
         max_retries: Maximum number of retry attempts
+        user_id: Optional user ID for context
         
     Returns:
         Dictionary with review results and status
     """
-    import time
     import asyncio
-    from ..crewai.job_posting_review.crew import run_crew
+    import os
+    import json
+    import redis
     
     logger.info(f"Processing job review for job_id: {job_id}")
-    start_time = time.time()
+    start_time = datetime.now(timezone.utc)
     
     # Initialize database service
     db_service = get_database_service()
     
+    # Check for Webhook Bridge Redirection
+    webhook_enabled = os.getenv("WEBHOOK_BRIDGE_ENABLED", "true").lower() == "true"
+    
     try:
         # Set up async event loop
-        loop = None
         try:
             loop = asyncio.get_event_loop()
-        except:
+        except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        
-        # Initialize database connection
-        if not db_service.initialized:
-            loop.run_until_complete(db_service.initialize())
-        
-        # Update job status to 'in_review'
-        success = loop.run_until_complete(
-            db_service.update_job_status(job_id, "in_review")
-        )
-        if not success:
-            raise RuntimeError(f"Failed to update job status to 'in_review'")
-        
-        # Fetch job details
-        job_data = loop.run_until_complete(db_service.get_job_by_id(job_id))
-        if not job_data:
-            raise RuntimeError(f"Job not found: {job_id}")
-        
-        logger.info(f"Job review started - ID: {job_id}, Title: '{job_data.get('title')}', Company: {job_data.get('company')}")
-        
-        # Check if review already exists (for retry scenarios)
-        existing_review = loop.run_until_complete(db_service.get_job_review(job_id))
-        retry_count = existing_review.get("retry_count", 0) if existing_review else 0
-        
-        if retry_count >= max_retries:
-            error_msg = f"Maximum retry attempts ({max_retries}) reached for job {job_id}"
-            logger.error(error_msg)
+
+        if webhook_enabled:
+            logger.info(f"Webhook redirection is enabled. Redirecting job {job_id} to Redis.")
             
-            # Update job status to error and store error in job_reviews
-            loop.run_until_complete(db_service.update_job_status(job_id, "error"))
-            loop.run_until_complete(db_service.insert_job_review(job_id, {
-                "recommend": False,
-                "confidence": "low",
-                "rationale": error_msg,
-                "error_message": error_msg,
-                "retry_count": retry_count,
-                "processing_time_seconds": time.time() - start_time
-            }))
+            # 1. Fetch job data
+            job_data = loop.run_until_complete(db_service.get_job_by_id(job_id))
+            if not job_data:
+                logger.error(f"Job {job_id} not found in DB for redirection.")
+                return {"status": "error", "message": "Job not found"}
+
+            # 2. Check for duplicate status
+            duplicate_status = job_data.get("duplicate_status")
+            # Relax check to allow None (which might happen if the column is null for older records or specific ingestion flows)
+            if duplicate_status not in ["original", None]:
+                logger.info(f"Skipping webhook redirection for job {job_id}: status is '{duplicate_status}' (not 'original' or None)")
+                return {
+                    "status": "skipped_duplicate",
+                    "job_id": job_id,
+                    "duplicate_status": duplicate_status
+                }
+
+            # 3. Publish to Redis channel
+            from app.core.config import get_settings
+            settings = get_settings()
+            
+            # Create redis connection
+            redis_conn = redis.Redis(
+                host=settings.redis_host, 
+                port=settings.redis_port, 
+                db=settings.redis_db
+            )
+            
+            channel = os.getenv("REDIS_CHANNEL", "job_review_webhook")
+            payload = {
+                "job_id": str(job_id),
+                "title": job_data.get("title"),
+                "company": job_data.get("company"),
+                "description": job_data.get("description"),
+                "user_id": user_id or "system"
+            }
+            
+            redis_conn.publish(channel, json.dumps(payload))
+            logger.success(f"Successfully published job {job_id} to Redis channel {channel}")
+            
+            # 4. Update job status to 'testing'
+            loop.run_until_complete(db_service.update_job_status(job_id, "testing"))
             
             return {
-                "status": "failed",
+                "status": "redirected_to_webhook",
                 "job_id": job_id,
-                "processed_at": datetime.now(timezone.utc).isoformat(),
-                "message": error_msg,
-                "retry_count": retry_count
-            }
-        
-        # Prepare structured job data for CrewAI (skip job_intake_agent - already structured)
-        crew_input = {
-            "title": job_data.get("title", ""),
-            "company": job_data.get("company", ""),
-            "location": job_data.get("location_city") or job_data.get("location_state") or "Remote",
-            "description": job_data.get("description", ""),
-            "job_type": job_data.get("job_type", ""),
-            "seniority": "Senior",  # Default as this field may not exist in jobs table
-            "salary": {
-                "min_amount": job_data.get("min_amount"),
-                "max_amount": job_data.get("max_amount"),
-                "currency": job_data.get("currency", "USD"),
-                "interval": job_data.get("interval", "yearly")
-            }
-        }
-
-        crew_input = _coerce_decimals(crew_input)
-        
-        # Run CrewAI job posting review
-        logger.info(f"Running CrewAI review for job {job_id}")
-        crew_result = run_crew(crew_input, correlation_id=job_id)
-        
-        processing_time = time.time() - start_time
-        
-        # Handle crew errors
-        if "error" in crew_result:
-            error_msg = f"CrewAI error: {crew_result['error']}"
-            logger.error(f"CrewAI failed for job {job_id}: {error_msg}")
-            
-            # Store error and increment retry count
-            review_data = {
-                "recommend": False,
-                "confidence": "low", 
-                "rationale": error_msg,
-                "error_message": error_msg,
-                "retry_count": retry_count + 1,
-                "processing_time_seconds": processing_time,
-                "crew_output": crew_result
+                "channel": channel,
+                "processed_at": datetime.now(timezone.utc).isoformat()
             }
             
-            loop.run_until_complete(db_service.insert_job_review(job_id, review_data))
-            
-            # If under retry limit, keep status as pending_review for retry
-            if retry_count + 1 < max_retries:
-                loop.run_until_complete(db_service.update_job_status(job_id, "pending_review"))
-                return {
-                    "status": "retry",
-                    "job_id": job_id,
-                    "processed_at": datetime.now(timezone.utc).isoformat(),
-                    "message": f"Review failed, will retry. Attempt {retry_count + 1}/{max_retries}",
-                    "retry_count": retry_count + 1
-                }
-            else:
-                # Max retries reached
-                loop.run_until_complete(db_service.update_job_status(job_id, "error"))
-                return {
-                    "status": "failed",
-                    "job_id": job_id,
-                    "processed_at": datetime.now(timezone.utc).isoformat(),
-                    "message": f"Review failed after {max_retries} attempts",
-                    "retry_count": retry_count + 1
-                }
-        
-        # Parse successful crew result
-        if isinstance(crew_result, dict):
-            final_result = crew_result.get("final", {})
-            prefilter = crew_result.get("pre_filter", {})
-        else:
-            final_result = {}
-            prefilter = {}
-
-        if not isinstance(final_result, dict):
-            final_result = {}
-        if not isinstance(prefilter, dict):
-            prefilter = {}
-
-        rationale = (
-            final_result.get("rationale")
-            or prefilter.get("reason")
-            or "No rationale provided"
-        )
-
-        review_data = {
-            "recommend": final_result.get(
-                "recommend", prefilter.get("recommend", False)
-            ),
-            "confidence": final_result.get("confidence", "low"),
-            "rationale": rationale,
-            "personas": crew_result.get("personas", []),
-            "tradeoffs": crew_result.get("tradeoffs", []),
-            "actions": crew_result.get("actions", []),
-            "sources": crew_result.get("sources", []),
-            "overall_alignment_score": crew_result.get("overall_alignment_score"),  # Extract for database column
-            "tldr_summary": crew_result.get("tldr_summary"),  # Include for crew_output JSON (no separate column)
-            "crew_output": crew_result,
-            "processing_time_seconds": processing_time,
-            "crew_version": "job_posting_review_v1",
-            "model_used": "CrewAI",
-            "retry_count": retry_count
-        }
-        
-        logger.info(f"Prepared review data for job_id {job_id}: recommend={review_data['recommend']}, confidence={review_data['confidence']}")
-        
-        # Store review results  
-        logger.info(f"Storing review results for job_id: {job_id}")
-        success = loop.run_until_complete(db_service.insert_job_review(job_id, review_data))
-        if not success:
-            error_msg = f"Failed to store review results in database for job_id: {job_id}"
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
-        
-        # Update job status to 'reviewed'
-        success = loop.run_until_complete(db_service.update_job_status(job_id, "reviewed"))
-        if not success:
-            logger.warning(f"Failed to update job status to 'reviewed' for {job_id}")
-        
-        result = {
-            "status": "completed",
-            "job_id": job_id,
-            "processed_at": datetime.now(timezone.utc).isoformat(),
-            "message": f"Job review completed for '{job_data.get('title')}' at '{job_data.get('company')}'",
-            "recommend": review_data["recommend"],
-            "confidence": review_data["confidence"],
-            "processing_time_seconds": processing_time,
-            "retry_count": retry_count
-        }
-        
-        logger.info(f"Job review completed successfully for job_id: {job_id} (recommend: {review_data['recommend']}, confidence: {review_data['confidence']})")
-        return result
-        
-    except Exception as e:
-        processing_time = time.time() - start_time
-        error_msg = f"Job review error for job_id {job_id}: {str(e)}"
-        logger.error(error_msg)
-        
-        try:
-            # Get current retry count
-            existing_review = loop.run_until_complete(db_service.get_job_review(job_id)) if loop else None
-            retry_count = existing_review.get("retry_count", 0) if existing_review else 0
-            
-            # Store error information
-            error_review_data = {
-                "recommend": False,
-                "confidence": "low",
-                "rationale": f"Processing failed: {str(e)}",
-                "error_message": error_msg,
-                "retry_count": retry_count + 1,
-                "processing_time_seconds": processing_time
-            }
-            
-            if loop:
-                loop.run_until_complete(db_service.insert_job_review(job_id, error_review_data))
-                
-                # Set status based on retry count
-                if retry_count + 1 < max_retries:
-                    loop.run_until_complete(db_service.update_job_status(job_id, "pending_review"))
-                else:
-                    loop.run_until_complete(db_service.update_job_status(job_id, "error"))
-        except Exception as store_error:
-            logger.error(f"Failed to store error information: {store_error}")
-        
+        # Standard Mode (Deprecated/Placeholder)
+        logger.warning(f"Standard job review mode is deprecated. Job {job_id} was not redirected.")
         return {
-            "status": "failed", 
+            "status": "ignored",
             "job_id": job_id,
-            "processed_at": datetime.now(timezone.utc).isoformat(),
-            "message": error_msg,
+            "message": "Direct LangGraph workflow is removed. Use Webhook/ActivePieces."
+        }
+            
+    except Exception as e:
+        logger.error(f"Error in process_job_review for {job_id}: {e}")
+        return {
+            "status": "error",
+            "job_id": job_id,
             "error": str(e),
-            "processing_time_seconds": processing_time
+            "processed_at": datetime.now(timezone.utc).isoformat()
         }
 
 
@@ -466,7 +334,14 @@ def run_linkedin_job_search(
     """
     import time
     import asyncio
-    from ..crewai.linkedin_job_search.crew import run_linkedin_job_search as execute_linkedin_search
+    # CrewAI is deprecated, using local search instead
+    # from ..crewai.linkedin_job_search.crew import run_linkedin_job_search as execute_linkedin_search
+    logger.warning(f"Run {run_id}: CrewAI is disabled. Skipping LinkedIn job search via Crew.")
+    return {
+        "run_id": run_id,
+        "status": "skipped",
+        "message": "CrewAI is deprecated and disabled."
+    }
     
     # Generate run_id if not provided
     if not run_id:

@@ -15,7 +15,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -41,13 +41,14 @@ services:
   redis:
     image: redis:7-alpine
     container_name: trainium_redis
+    command: redis-server --stop-writes-on-bgsave-error no
     restart: always
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -89,7 +90,7 @@ services:
       - .:/app
       - /app/node_modules
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      test: [ "CMD", "curl", "-f", "http://localhost:5173" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -97,8 +98,6 @@ services:
     depends_on:
       - postgrest
       - python-service
-
-
 
   # Defines the Python AI microservice
   python-service:
@@ -118,6 +117,14 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       TAVILY_API_KEY: ${TAVILY_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION_NAME: ${AWS_REGION_NAME:-us-east-1}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_HOST: http://langfuse:3000
+      LANGFUSE_ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
       LLM_PREFERENCE: ollama:qwen3:8b,openai:gpt-4o-mini,gemini:gemini-2.0-flash-lite
       OLLAMA_HOST: http://host.docker.internal:11434
       OLLAMA_API_BASE: http://host.docker.internal:11434
@@ -131,8 +138,9 @@ services:
       CHROMA_PORT: ${CHROMA_PORT:-8001}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
-      DISABLE_JOB_POSTING_REVIEW: ${DISABLE_JOB_POSTING_REVIEW}
       JOB_REVIEW_ENABLED: ${JOB_REVIEW_ENABLED}
+      # REDIS_CHANNEL used by webhook bridge
+      REDIS_CHANNEL: job_review_webhook
     volumes:
       # Mount the python service code for development
       - ./python-service:/app
@@ -144,7 +152,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -156,7 +164,9 @@ services:
       context: ./python-service
       dockerfile: Dockerfile
     image: python-service:latest
-    entrypoint: ["python", "worker.py"]
+    entrypoint: [ "python", "worker.py" ]
+    volumes:
+      - ./python-service:/app
     environment:
       # Environment configuration for worker
       ENVIRONMENT: ${ENVIRONMENT:-development}
@@ -180,10 +190,13 @@ services:
       LINKEDIN_EMAIL: ${LINKEDIN_EMAIL}
       LINKEDIN_PASSWORD: ${LINKEDIN_PASSWORD}
       LINKEDIN_COOKIE: ${LINKEDIN_COOKIE}
-      DISABLE_JOB_POSTING_REVIEW: ${DISABLE_JOB_POSTING_REVIEW}
       JOB_REVIEW_ENABLED: ${JOB_REVIEW_ENABLED}
+      LANGFLOW_TEST_MODE: "true"
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_HOST: http://langfuse:3000
     deploy:
-      replicas: 2   # Number of workers
+      replicas: 2 # Number of workers
     depends_on:
       redis:
         condition: service_healthy
@@ -195,7 +208,9 @@ services:
       dockerfile: Dockerfile
     image: python-service
     container_name: trainium_scheduler
-    entrypoint: ["python", "scheduler_daemon.py"]
+    entrypoint: [ "python", "scheduler_daemon.py" ]
+    volumes:
+      - ./python-service:/app
     environment:
       # Environment configuration for scheduler
       ENVIRONMENT: ${ENVIRONMENT:-development}
@@ -215,8 +230,10 @@ services:
       REDIS_DB: ${REDIS_DB:-0}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformer}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
-      DISABLE_JOB_POSTING_REVIEW: ${DISABLE_JOB_POSTING_REVIEW}
       JOB_REVIEW_ENABLED: ${JOB_REVIEW_ENABLED}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_HOST: http://langfuse:3000
     depends_on:
       redis:
         condition: service_healthy
@@ -228,7 +245,7 @@ services:
       dockerfile: Dockerfile
     image: python-service
     container_name: trainium_poller
-    entrypoint: ["python", "poller_daemon.py"]
+    entrypoint: [ "python", "poller_daemon.py" ]
     environment:
       # Environment configuration for poller
       ENVIRONMENT: ${ENVIRONMENT:-development}
@@ -242,11 +259,33 @@ services:
       # Poller-specific configuration
       POLL_INTERVAL_MINUTES: ${POLL_INTERVAL_MINUTES:-5}
       JOB_REVIEW_QUEUE_NAME: ${JOB_REVIEW_QUEUE_NAME:-job_review}
-      DISABLE_JOB_POSTING_REVIEW: ${DISABLE_JOB_POSTING_REVIEW}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_HOST: http://langfuse:3000
       JOB_REVIEW_ENABLED: ${JOB_REVIEW_ENABLED}
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Redis-to-Webhook Bridge for Job Review (ActivePieces integration)
+  redis-webhook-bridge:
+    build:
+      context: ./python-service
+      dockerfile: Dockerfile
+    container_name: trainium_webhook_bridge
+    restart: always
+    command: python redis_webhook_bridge.py
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_CHANNEL: job_review_webhook
+      WEB_HOOK_URL: ${WEB_HOOK_URL}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
       redis:
         condition: service_healthy
 
@@ -300,10 +339,10 @@ services:
       AP_TELEMETRY_ENABLED: "false"
       AP_EXECUTION_MODE: UNSANDBOXED
 
-      AP_PIECES_SOURCE: CLOUD_AND_DB  # Default, allows both cloud pieces and custom DB pieces
-      AP_PIECES_SYNC_MODE: OFFICIAL_AUTO  # Automatically sync piece metadata
-      AP_WORKER_CONCURRENCY: 25  # Increase for better AI workflow performance
-      AP_TRIGGER_DEFAULT_POLL_INTERVAL: 5  # Default polling interval for triggers
+      AP_PIECES_SOURCE: CLOUD_AND_DB # Default, allows both cloud pieces and custom DB pieces
+      AP_PIECES_SYNC_MODE: OFFICIAL_AUTO # Automatically sync piece metadata
+      AP_WORKER_CONCURRENCY: 25 # Increase for better AI workflow performance
+      AP_TRIGGER_DEFAULT_POLL_INTERVAL: 5 # Default polling interval for triggers
       AP_MAX_FILE_SIZE_MB: 50
     depends_on:
       db:
@@ -313,6 +352,122 @@ services:
     volumes:
       - activepieces_data:/usr/src/app/cache
 
+  langfuse:
+    image: langfuse/langfuse:3
+    container_name: langfuse_web
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_started
+      minio:
+        condition: service_started
+    ports:
+      - "${LANGFUSE_PORT:-3300}:3000"
+    environment:
+      # Connects to the main 'db' service using environment variables
+      DATABASE_URL: postgresql://${LANGFUSE_DB_USER:-langfuse}:${LANGFUSE_DB_PASSWORD:-changeme}@db:5432/${LANGFUSE_DB_NAME:-langfuse}
+      NEXTAUTH_URL: ${LANGFUSE_HOST:-http://localhost:3300}
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-changeme}
+      SALT: ${LANGFUSE_SALT:-changeme}
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+      TELEMETRY_ENABLED: "false"
+      # Additional Env Vars for v3 features (e.g. storage)
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: "langfuse-events"
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: "http://minio:9000"
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: "minio"
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: "minio123123"
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: "us-east-1"
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      CLICKHOUSE_URL: "http://clickhouse:8123"
+      CLICKHOUSE_USER: "default"
+      CLICKHOUSE_PASSWORD: "password"
+      CLICKHOUSE_MIGRATION_URL: "clickhouse://default:password@clickhouse:9000"
+      REDIS_CONNECTION_STRING: "redis://redis:6379"
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    container_name: langfuse_worker
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_started
+      minio:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://${LANGFUSE_DB_USER:-langfuse}:${LANGFUSE_DB_PASSWORD:-changeme}@db:5432/${LANGFUSE_DB_NAME:-langfuse}
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: "langfuse-events"
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: "http://minio:9000"
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: "minio"
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: "minio123123"
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: "us-east-1"
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      CLICKHOUSE_URL: "http://clickhouse:8123"
+      CLICKHOUSE_USER: "default"
+      CLICKHOUSE_PASSWORD: "password"
+      CLICKHOUSE_MIGRATION_URL: "clickhouse://default:password@clickhouse:9000"
+      REDIS_CONNECTION_STRING: "redis://redis:6379"
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+      TELEMETRY_ENABLED: "false"
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24
+    container_name: langfuse_clickhouse
+    user: "101:101"
+    restart: always
+    environment:
+      - CLICKHOUSE_DB=default
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+      - CLICKHOUSE_PASSWORD=password
+    ports:
+      - "8123:8123"
+      - "9002:9000"
+      - "9002:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+      - ./clickhouse_config/config.xml:/etc/clickhouse-server/config.d/config.xml
+    depends_on:
+      - zookeeper
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  zookeeper:
+    image: zookeeper:3.8
+    container_name: langfuse_zookeeper
+    restart: always
+    environment:
+      ZOO_MY_ID: 1
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/data
+      - zookeeper_datalog:/datalog
+
+  minio:
+    image: minio/minio
+    container_name: langfuse_minio
+    command: server /data --console-address ":9001"
+    restart: always
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123123
+    volumes:
+      - minio_data:/data
 
 volumes:
   # Defines the named volumes for data persistence.
@@ -320,3 +475,8 @@ volumes:
   redis_data:
   chroma_data:
   activepieces_data:
+  minio_data:
+  clickhouse_data:
+  clickhouse_logs:
+  zookeeper_data:
+  zookeeper_datalog:

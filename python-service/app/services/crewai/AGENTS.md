@@ -1,5 +1,10 @@
 # AGENT.md - CrewAI Multi-Crew Architecture Guide
 
+## ⚠️ DEPRECATION NOTICE
+
+**CrewAI is being phased out in favor of LangGraph + Langfuse + LiteLLM.**
+New agentic workflows should NOT use this architecture. Use the patterns defined in the top-level [`AGENTS.md`](file:///Users/timtrainor/PycharmProjects/career-trainium/python-service/AGENTS.md).
+
 ## Introduction
 
 This document provides comprehensive guidance for AI agents and developers working with CrewAI crews in the Trainium Job Center project. It establishes coding standards, architectural patterns, and maintenance requirements to ensure consistent implementation of multi-agent systems.
@@ -13,35 +18,39 @@ This document provides comprehensive guidance for AI agents and developers worki
 The Python service includes four active CrewAI multi-agent services:
 
 ### 1. Job Posting Review (`job_posting_review`)
+
 - **Purpose**: Analyzes job postings for fit and alignment with candidate criteria
 - **Location**: `app/services/crewai/job_posting_review/`
 - **Agents**: Job Intake, Pre-filter, Quick Fit Analyst, Brand Framework Matcher
 - **Usage**: Orchestrated evaluation pipeline with YAML-driven configuration
 
 ### 2. Personal Branding (`personal_branding`)
+
 - **Purpose**: Assists with personal brand development and career positioning
 - **Location**: `app/services/crewai/personal_branding/`
 - **Agents**: Branding Agent
 - **Usage**: Provides branding guidance and career development insights
 
-### 3. Research Company (`research_company`) 
+### 3. Research Company (`research_company`)
+
 - **Purpose**: Comprehensive company research and analysis
 - **Location**: `app/services/crewai/research_company/`
 - **Agents**: Financial Analyst, Culture Investigator, Leadership Analyst, Career Growth Analyst, Report Writer
 - **Usage**: Gathers and analyzes company information for job applications
 
 ### 4. LinkedIn Job Search (`linkedin_job_search`)
+
 - **Purpose**: Comprehensive LinkedIn job discovery, analysis, and networking strategy
 - **Location**: `app/services/crewai/linkedin_job_search/`
 - **Agents**: LinkedIn Job Searcher, Job Opportunity Analyzer, Networking Strategist, LinkedIn Report Writer
 - **Usage**: Searches LinkedIn for opportunities, analyzes fit, and develops networking strategies
 
 ### 5. LinkedIn Recommended Jobs (`linkedin_recommended_jobs`)
+
 - **Purpose**: Retrieves personalized LinkedIn job recommendations and normalizes them for downstream services
 - **Location**: `app/services/crewai/linkedin_recommended_jobs/`
 - **Agents**: Job Collector, Job Details Specialist, Documentation Steward
 - **Usage**: Fetches recommended LinkedIn jobs via MCP, enriches details, and normalizes to the JobPosting schema
-
 
 All CrewAI services follow YAML-first configuration and modular agent design patterns.
 
@@ -49,7 +58,7 @@ All CrewAI services follow YAML-first configuration and modular agent design pat
 
 All CrewAI crews follow a standardized directory structure based on the scalable multi-crew pattern:
 
-```
+```bash
 app/services/crewai/
 ├── base.py                           # Shared CrewBase utilities and tools
 ├── agents/                           # Shared agent YAML configurations (optional)
@@ -135,7 +144,7 @@ shared_agent_name:
 1. **Role**: Should be descriptive and specific to the agent's function
 2. **Goal**: Must be clear, actionable, and measurable
 3. **Backstory**: Written in second person, explains expertise and tool access
-4. **Temperature**: 
+4. **Temperature**:
    - `0.1-0.3` for analytical/factual tasks
    - `0.4-0.6` for creative/synthesis tasks
    - `0.7+` for highly creative tasks
@@ -280,6 +289,7 @@ def crew(self) -> Crew:
 ```
 
 **Use When**:
+
 - Tasks have strict dependencies
 - Later tasks need complete results from earlier tasks
 - Simple linear workflows
@@ -309,6 +319,7 @@ def crew(self) -> Crew:
 ```
 
 **Use When**:
+
 - Complex workflows with multiple parallel analyses
 - Need coordination between specialist agents
 - Final synthesis/compilation step required
@@ -329,6 +340,7 @@ def crew(self) -> Crew:
 ```
 
 **Use When**:
+
 - Independent tasks with no dependencies
 - Maximum speed required
 - Simple parallel processing

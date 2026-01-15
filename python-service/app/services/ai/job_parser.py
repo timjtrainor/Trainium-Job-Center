@@ -2,51 +2,36 @@ import json
 import re
 from typing import Optional
 from loguru import logger
+import litellm
 
-from .llm_clients import LLMRouter
 from ...schemas.job_parsing import JobParseResponse
+from .ai_service import ai_service
 
 class JobParser:
     def __init__(self):
-        # Use fast, lightweight models for parsing task to ensure low latency
-        # prioritizing Gemini 1.5 Flash as requested for speed
-        self.router = LLMRouter(preferences="gemini:gemini-1.5-flash,openai:gpt-4o-mini,ollama:llama3")
+        # Use fast, lightweight model for parsing
+        # Try to resolvealias, fallback to gemini-1.5-flash
+        self.model = ai_service.get_model_for_alias("fast-response") or "gemini/gemini-1.5-flash"
 
     def parse_job_text(self, text: str) -> JobParseResponse:
         """
-        Parse raw job text to extract structured data using LLM.
+        Parse raw job text to extract structured data using LLM via Langfuse prompt.
         """
-        prompt = f"""Extract structured data from the job posting below into a valid JSON object.
-
-Fields:
-- title: Job title
-- company_name: Company name
-- location: Location (City, State)
-- salary_min: Min salary (number, annual)
-- salary_max: Max salary (number, annual)
-- salary_currency: Currency code (default "USD")
-- remote_status: "Remote", "Hybrid", "On-site", or null
-- date_posted: "YYYY-MM-DD" or null
-- cleaned_description: The EXACT copy of the job description text provided, but with UI noise (navigation menus, headers, footers, cookie notices, "apply now" buttons, etc.) removed. DO NOT summarize, rewrite, or shorten the description text itself. Keep all bullet points, formatting, and sections exactly as they are.
-
-Return ONLY JSON.
-
-TEXT:
-{text[:15000]}
-"""
-
-        response_text = ""
         try:
-            response_text = self.router.generate(
-                prompt,
-                temperature=0.0,  # Deterministic for faster/consistent parsing
-                max_tokens=2048   # Limit output to prevent runaways
+            # Execute managed prompt from Langfuse
+            data = ai_service.execute_prompt(
+                prompt_name="EXTRACT_DETAILS_FROM_PASTE",
+                variables={
+                    "JOB_DESCRIPTION": text[:20000] # Increased limit for safety
+                },
+                json_schema={"type": "object"}, # Enforce JSON output
+                label="production"
             )
 
-            # Clean up potential markdown formatting
-            clean_text = self._clean_json_string(response_text)
-
-            data = json.loads(clean_text)
+            # If execute_prompt returns string (it might if json_schema wasn't strictly enforced by provider), parse it
+            if isinstance(data, str):
+                clean_text = self._clean_json_string(data)
+                data = json.loads(clean_text)
 
             # Post-processing
             return JobParseResponse(
@@ -62,8 +47,7 @@ TEXT:
             )
 
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to decode JSON from LLM response: {e}. Response: {response_text}")
-            # Fallback: try to just return the original text as description
+            logger.error(f"Failed to decode JSON from LLM response: {e}")
             return JobParseResponse(description=text)
         except Exception as e:
             logger.error(f"Error parsing job text: {e}")

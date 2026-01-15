@@ -15,6 +15,7 @@ from ...core.config import get_settings
 from ...schemas.jobspy import ScrapedJob
 from .database import get_database_service
 from .company_normalization import normalize_company_name
+from .job_review_service import get_job_review_service
 
 
 class JobPersistenceService:
@@ -22,6 +23,14 @@ class JobPersistenceService:
     
     def __init__(self):
         self.db_service = get_database_service()
+        self._job_review_service = None
+
+    @property
+    def job_review_service(self):
+        """Lazy load JobReviewService to avoid circular imports or early init."""
+        if self._job_review_service is None:
+            self._job_review_service = get_job_review_service()
+        return self._job_review_service
     
     async def persist_jobs(self, 
                           records: List[Union[ScrapedJob, Dict[str, Any]]], 
@@ -48,6 +57,7 @@ class JobPersistenceService:
         inserted = 0
         skipped_duplicates = 0
         blocked_duplicates = 0
+        inserted_job_ids = []
         errors = []
 
         async with self.db_service.pool.acquire() as conn:
@@ -72,10 +82,14 @@ class JobPersistenceService:
                         job_data = self._map_job_to_db(job, site_name)
 
                         # Attempt upsert
-                        result = await self._upsert_job(conn, job_data)
+                        result_data = await self._upsert_job(conn, job_data)
+                        result = result_data["status"]
 
                         if result == "inserted":
                             inserted += 1
+                            if result_data.get("job_id"):
+                                # Record ID for reactive triggering
+                                inserted_job_ids.append(str(result_data["job_id"]))
                         elif result == "duplicate":
                             skipped_duplicates += 1
                         elif result == "duplicate_skipped":
@@ -90,8 +104,19 @@ class JobPersistenceService:
             "inserted": inserted,
             "skipped_duplicates": skipped_duplicates,  # Site+URL conflicts (same job from same site)
             "blocked_duplicates": blocked_duplicates,  # Canonical key conflicts (prevented from AI processing)
+            "inserted_job_ids": inserted_job_ids,
             "errors": errors
         }
+        
+        # Reactive Triggering: Enqueue job reviews for new unique jobs
+        if inserted_job_ids:
+            try:
+                logger.info(f"Reactively enqueuing {len(inserted_job_ids)} jobs for AI review")
+                # We do this outside the transaction to ensure jobs are committed before review starts
+                self.job_review_service.queue_multiple_job_reviews(inserted_job_ids)
+            except Exception as e:
+                logger.error(f"Failed to reactively enqueue job reviews: {e}")
+                # We don't fail the persistence if queuing fails, just log it
         
         logger.info(f"Persistence complete: {summary}")
         return summary
@@ -185,7 +210,7 @@ class JobPersistenceService:
             "duplicate_status": None  # Will be set during upsert based on canonical key check
         }
     
-    async def _upsert_job(self, conn: asyncpg.Connection, job_data: Dict[str, Any]) -> str:
+    async def _upsert_job(self, conn: asyncpg.Connection, job_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Perform preventive duplicate checking and upsert of job record.
 
@@ -194,7 +219,7 @@ class JobPersistenceService:
             job_data: Mapped job data dictionary
 
         Returns:
-            "inserted" if new record, "duplicate" if already exists, "duplicate_skipped" if prevented from insertion
+            Dict with "status" ("inserted", "duplicate", "duplicate_skipped") and optional "job_id"
         """
         # Check if this canonical key already exists (preventive deduplication)
         canonical_key = job_data.get("canonical_key")
@@ -247,7 +272,7 @@ class JobPersistenceService:
                 )
 
                 logger.info(f"Blocked duplicate job insertion: {canonical_key} (original already exists)")
-                return "duplicate_skipped"
+                return {"status": "duplicate_skipped"}
 
         # If no canonical duplicate found, proceed with normal upsert
         # Use INSERT ... ON CONFLICT DO NOTHING for idempotent behavior
@@ -258,50 +283,50 @@ class JobPersistenceService:
             location_state, location_city, is_remote, job_type, compensation,
             interval, min_amount, max_amount, currency, salary_source,
             description, date_posted, ingested_at, source_raw, canonical_key,
-            fingerprint, duplicate_group_id, duplicate_status
+            fingerprint, duplicate_group_id, duplicate_status, status
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-            $16, $17, $18, $19, $20, $21, $22, $23, $24
+            $16, $17, $18, $19, $20, $21, $22, $23, $24, 'pending_review'
         ) ON CONFLICT (site, job_url) DO NOTHING
+        RETURNING id
         """
 
+        params = [
+            job_data["site"],
+            job_data["job_url"],
+            job_data["title"],
+            job_data["company"],
+            job_data["company_url"],
+            job_data["location_country"],
+            job_data["location_state"],
+            job_data["location_city"],
+            job_data["is_remote"],
+            job_data["job_type"],
+            job_data["compensation"],
+            job_data["interval"],
+            job_data["min_amount"],
+            job_data["max_amount"],
+            job_data["currency"],
+            job_data["salary_source"],
+            job_data["description"],
+            job_data["date_posted"],
+            job_data["ingested_at"],
+            json.dumps(job_data["source_raw"]),
+            job_data["canonical_key"],
+            job_data["fingerprint"],
+            job_data["duplicate_group_id"],
+            'original'
+        ]
+
         try:
-            result = await conn.execute(
-                query,
-                job_data["site"],
-                job_data["job_url"],
-                job_data["title"],
-                job_data["company"],
-                job_data["company_url"],
-                job_data["location_country"],
-                job_data["location_state"],
-                job_data["location_city"],
-                job_data["is_remote"],
-                job_data["job_type"],
-                job_data["compensation"],
-                job_data["interval"],
-                job_data["min_amount"],
-                job_data["max_amount"],
-                job_data["currency"],
-                job_data["salary_source"],
-                job_data["description"],
-                job_data["date_posted"],
-                job_data["ingested_at"],
-                json.dumps(job_data["source_raw"]),
-                job_data["canonical_key"],
-                job_data["fingerprint"],
-                job_data["duplicate_group_id"],
-                'original'  # This is the first/original instance
-            )
-
             # Check if a row was actually inserted
-            if result.split()[-1] == "1":  # "INSERT 0 1"
-                logger.info(f"Inserted original job: {canonical_key}")
-                return "inserted"
-            else:  # "INSERT 0 0" - conflict occurred
+            job_id = await conn.fetchval(query, *params)
+            if job_id:
+                logger.info(f"Inserted original job: {canonical_key} with ID {job_id}")
+                return {"status": "inserted", "job_id": job_id}
+            else:
                 logger.info(f"Skipped duplicate job insertion (site+url conflict): {job_data['site']} - {job_data['job_url']}")
-                return "duplicate"
-
+                return {"status": "duplicate"}
         except Exception as e:
             logger.error(f"Database error during job upsert: {e}")
             raise

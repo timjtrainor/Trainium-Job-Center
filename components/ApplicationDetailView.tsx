@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { JobApplication, Company, Resume, DateInfo, Status, KeywordsResult, GuidanceResult, Prompt, PromptContext, JobProblemAnalysisResult, JobProblemAnalysisResultV1, JobProblemAnalysisResultV2, KeywordDetail, CoreProblemAnalysis, Education, Certification, WorkExperience, SkillSection, InterviewPayload, Interview, Contact, ResumeHeader, UserProfile, SuggestedContact, InterviewPrep, StrategicNarrative, Offer, InfoField, JobApplicationPayload, ApplicationDetailTab, ReviewedJob } from '../types';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { JobApplication, Company, Resume, DateInfo, Status, KeywordsResult, GuidanceResult, Prompt, PromptContext, JobProblemAnalysisResult, JobProblemAnalysisResultV1, JobProblemAnalysisResultV2, KeywordDetail, CoreProblemAnalysis, Education, Certification, WorkExperience, SkillSection, InterviewPayload, Interview, Contact, ResumeHeader, UserProfile, SuggestedContact, InterviewPrep, StrategicNarrative, Offer, InfoField, JobApplicationPayload, ApplicationDetailTab, ReviewedJob, AlignmentStrategy } from '../types';
 import { LoadingSpinner, SparklesIcon, PlusCircleIcon, TrashIcon, StrategyIcon, MicrophoneIcon, RocketLaunchIcon, CubeIcon } from './IconComponents';
 import * as geminiService from '../services/geminiService';
 import * as apiService from '../services/apiService';
@@ -8,8 +8,13 @@ import { INTERVIEW_TYPES } from '../constants';
 import * as resumeExport from '../utils/resumeExport';
 import { v4 as uuidv4 } from 'uuid';
 import { ApplicationQuestion, Sprint, SprintActionPayload } from '../types';
-import { CheckIcon, DocumentTextIcon, ClipboardDocumentListIcon, ClipboardDocumentCheckIcon, BeakerIcon, XMarkIcon } from './IconComponents';
+import { CheckIcon, DocumentTextIcon, ClipboardDocumentListIcon, ClipboardDocumentCheckIcon, BeakerIcon, XMarkIcon, PencilSquareIcon, LinkIcon, ArrowTopRightOnSquareIcon, ArrowPathIcon } from './IconComponents';
 import { useToast } from '../hooks/useToast';
+import { useNavigate } from 'react-router-dom';
+import { ResetApplicationModal } from './ResetApplicationModal';
+import { ResetApplicationPayload } from '../types';
+import { CreateCompanyModal } from './CreateCompanyModal';
+import { InterviewStrategyTab } from './interview/InterviewStrategyTab';
 
 interface ApplicationDetailViewProps {
     application: JobApplication;
@@ -22,7 +27,7 @@ interface ApplicationDetailViewProps {
     onResumeApplication: (app: JobApplication) => void;
     onReanalyze: () => void;
     isReanalyzing: boolean;
-    prompts: Prompt[];
+    // prompts prop removed
     statuses: Status[];
     userProfile: UserProfile | null;
     activeNarrative: StrategicNarrative | null;
@@ -44,6 +49,8 @@ interface ApplicationDetailViewProps {
     debugCallbacks?: { before: (p: string) => Promise<void>; after: (r: string) => Promise<void>; };
     sprint?: Sprint | null;
     onAddActions?: (sprintId: string, actions: SprintActionPayload[]) => Promise<void>;
+    onGenerateCoverLetter?: () => Promise<void>;
+    isGeneratingCoverLetter?: boolean;
 }
 
 const formatDate = (date: DateInfo | string | undefined, format: 'short' | 'long' | 'year' = 'long'): string => {
@@ -79,7 +86,7 @@ const DetailItem = ({ label, value, children, isLink = false }: { label: string,
 );
 
 
-const ResumeViewer = ({ resume, version, companyName }: { resume: any, version?: number, companyName: string }) => {
+const ResumeViewer = ({ resume, version, companyName, onResetToDraft, onSetToBadFit }: { resume: any, version?: number, companyName: string, onResetToDraft: () => void, onSetToBadFit: () => void }) => {
     const [copySuccess, setCopySuccess] = useState(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isGeneratingDocx, setIsGeneratingDocx] = useState(false);
@@ -91,7 +98,7 @@ const ResumeViewer = ({ resume, version, companyName }: { resume: any, version?:
     const handleDownloadPdf = async () => {
         setIsGeneratingPdf(true);
         try {
-            resumeExport.generatePdf(resume, companyName);
+            resumeExport.generatePdf(resumeExport.normalizeResume(resume, version), companyName);
         } catch (error) {
             console.error("Failed to generate PDF:", error);
         } finally {
@@ -102,7 +109,7 @@ const ResumeViewer = ({ resume, version, companyName }: { resume: any, version?:
     const handleDownloadDocx = async () => {
         setIsGeneratingDocx(true);
         try {
-            await resumeExport.generateDocx(resume, companyName);
+            await resumeExport.generateDocx(resumeExport.normalizeResume(resume, version), companyName);
         } catch (error) {
             console.error("Failed to generate DOCX:", error);
         } finally {
@@ -112,7 +119,8 @@ const ResumeViewer = ({ resume, version, companyName }: { resume: any, version?:
 
     const handleCopyToClipboard = async () => {
         setCopySuccess(false);
-        const markdownText = resumeExport.resumeToMarkdown(resume);
+        const normalized = resumeExport.normalizeResume(resume, version);
+        const markdownText = resumeExport.resumeToMarkdown(normalized);
         try {
             await navigator.clipboard.writeText(markdownText);
             setCopySuccess(true);
@@ -130,17 +138,26 @@ const ResumeViewer = ({ resume, version, companyName }: { resume: any, version?:
     return (
         <div className="space-y-6">
             <div className="flex justify-end gap-4">
-                <button onClick={handleDownloadPdf} disabled={isGeneratingPdf} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50">
-                    {isGeneratingPdf ? <LoadingSpinner /> : <DocumentTextIcon className="h-4 w-4" />}
-                    Download PDF
-                </button>
                 <button onClick={handleDownloadDocx} disabled={isGeneratingDocx} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50">
                     {isGeneratingDocx ? <LoadingSpinner /> : <ClipboardDocumentListIcon className="h-4 w-4" />}
                     Download DOCX
                 </button>
+                <button onClick={handleDownloadPdf} disabled={isGeneratingPdf} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50">
+                    {isGeneratingPdf ? <LoadingSpinner /> : <DocumentTextIcon className="h-4 w-4" />}
+                    Download PDF
+                </button>
                 <button onClick={handleCopyToClipboard} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700">
                     {copySuccess ? <ClipboardDocumentCheckIcon className="h-4 w-4 text-green-500" /> : <ClipboardDocumentCheckIcon className="h-4 w-4" />}
                     {copySuccess ? 'Copied' : 'Copy Markdown'}
+                </button>
+                <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 mx-1" />
+                <button onClick={onResetToDraft} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30">
+                    <ArrowPathIcon className="h-4 w-4" />
+                    Reset to Draft
+                </button>
+                <button onClick={onSetToBadFit} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/30">
+                    <XMarkIcon className="h-4 w-4" />
+                    Set to Bad Fit
                 </button>
             </div>
 
@@ -169,6 +186,7 @@ const ResumeViewer = ({ resume, version, companyName }: { resume: any, version?:
                 {summary && (
                     <div className="mb-6">
                         <h4 className="font-bold text-sm uppercase tracking-wider text-slate-900 dark:text-sky-400 border-b-2 border-slate-200 dark:border-slate-700 pb-1 mb-3">Professional Summary</h4>
+                        {summary.headline && <p className="font-bold text-slate-900 dark:text-white mb-2">{summary.headline}</p>}
                         <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 mb-3">{summary.paragraph}</p>
                         {summary.bullets && summary.bullets.length > 0 && (
                             <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 pl-4">
@@ -209,7 +227,14 @@ const ResumeViewer = ({ resume, version, companyName }: { resume: any, version?:
                                         {job.accomplishments?.map((acc: any, accIdx: number) => (
                                             <li key={accIdx} className="text-sm text-slate-700 dark:text-slate-300 pl-4 relative group">
                                                 <span className="absolute left-0 top-1.5 w-1.5 h-1.5 bg-slate-400 rounded-full group-hover:bg-sky-500 transition-colors"></span>
-                                                {acc.description}
+                                                {acc.bucket_category ? (
+                                                    <>
+                                                        <span className="font-bold">{acc.bucket_category}. </span>
+                                                        {acc.description}
+                                                    </>
+                                                ) : (
+                                                    acc.description
+                                                )}
                                             </li>
                                         ))}
                                     </ul>
@@ -277,7 +302,7 @@ const ResumeViewer = ({ resume, version, companyName }: { resume: any, version?:
 
 
 export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
-    const { application, company, contacts, allCompanies, onBack, onUpdate, onDeleteApplication, onResumeApplication, onReanalyze, isReanalyzing, prompts, statuses, userProfile, activeNarrative, onSaveInterview, onDeleteInterview, onGenerateInterviewPrep, onGenerateRecruiterScreenPrep, onOpenContactModal, onOpenOfferModal, onGenerate90DayPlan, onAddQuestionToCommonPrep, onOpenStrategyStudio, onNavigateToStudio, handleLaunchCopilot, isLoading, onOpenDebriefStudio, initialTab, onTabChange, debugCallbacks, sprint, onAddActions } = props;
+    const { application, company, contacts, allCompanies, onBack, onUpdate, onDeleteApplication, onResumeApplication, onReanalyze, isReanalyzing, statuses, userProfile, activeNarrative, onSaveInterview, onDeleteInterview, onGenerateInterviewPrep, onGenerateRecruiterScreenPrep, onOpenContactModal, onOpenOfferModal, onGenerate90DayPlan, onAddQuestionToCommonPrep, onOpenStrategyStudio, onNavigateToStudio, handleLaunchCopilot, isLoading, onOpenDebriefStudio, initialTab, onTabChange, debugCallbacks, sprint, onAddActions } = props;
 
     const currentStatus = application.status || statuses.find(s => s.status_id === (application as any).status_id);
     const isStep3 = currentStatus?.status_name === 'Step-3: Resume created';
@@ -296,6 +321,10 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
     const [localMessage, setLocalMessage] = useState(application.application_message || '');
     const [addedToSprint, setAddedToSprint] = useState(false);
     const [showCompanyModal, setShowCompanyModal] = useState(false);
+    const [isEditingApplySnapshot, setIsEditingApplySnapshot] = useState(false);
+    const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+    const isRedirecting = useRef(false);
+    const navigate = useNavigate();
 
     // V2 Data Parsers
     const parsedKeywords = useMemo(() => {
@@ -387,6 +416,23 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
         return Array.from(new Set(results));
     }, [application.vocabulary_mirror, parsedProblemAnalysis]);
 
+    const parsedAlignmentStrategy = useMemo(() => {
+        if (!application.alignment_strategy) return null;
+        try {
+            const data = typeof application.alignment_strategy === 'string'
+                ? JSON.parse(application.alignment_strategy)
+                : application.alignment_strategy;
+            // V2 detection: check for thematic_alignments in the first element
+            const strategy = data.alignment_strategy || data;
+            if (Array.isArray(strategy) && strategy.length > 0 && strategy[0].thematic_alignments) {
+                return { type: 'v2' as const, data: data as AlignmentStrategy };
+            }
+            return { type: 'v1' as const, data: data };
+        } catch (e) {
+            return null;
+        }
+    }, [application.alignment_strategy]);
+
     const [questions, setQuestions] = useState<ApplicationQuestion[]>(
         (application.application_questions && typeof application.application_questions === 'string'
             ? JSON.parse(application.application_questions)
@@ -431,7 +477,7 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
     }, [initialTab]);
 
     useEffect(() => {
-        if (activeTab === 'apply' && !isStep3) {
+        if (activeTab === 'apply' && !isStep3 && !isRedirecting.current) {
             setActiveTab('overview');
             onTabChange?.('overview');
         }
@@ -529,6 +575,7 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
 
     const handleMarkAsApplied = async () => {
         setIsSaving(true);
+        isRedirecting.current = true;
         try {
             const appliedStatus = statuses.find(s => s.status_name === 'Step-4: Applied');
             if (appliedStatus) {
@@ -538,9 +585,11 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
                     date_applied: new Date().toISOString()
                 };
                 await onUpdate(payload);
+                navigate('/applications', { replace: true });
             }
         } catch (e) {
             console.error(e);
+            isRedirecting.current = false;
         } finally {
             setIsSaving(false);
         }
@@ -621,6 +670,73 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
 
     const removeQuestion = (index: number) => {
         setQuestions(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleSaveApplySnapshot = async () => {
+        setIsSaving(true);
+        try {
+            const {
+                job_application_id,
+                user_id,
+                status,
+                messages,
+                interviews,
+                offers,
+                created_at,
+                ...payloadData
+            } = editableApp;
+
+            const payload: JobApplicationPayload = {
+                ...payloadData,
+                status_id: status?.status_id
+            };
+
+            await onUpdate(payload);
+            setIsEditingApplySnapshot(false);
+            addToast('Apply details updated!', 'success');
+        } catch (e) {
+            console.error(e);
+            addToast('Failed to update apply details', 'error');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleResetSubmit = async (payload: ResetApplicationPayload) => {
+        setIsSaving(true);
+        try {
+            await apiService.resetApplication(application.job_application_id, payload);
+            addToast('Application reset and re-analysis triggered!', 'success');
+            setIsResetModalOpen(false);
+            navigate('/applications');
+        } catch (err) {
+            console.error(err);
+            handleError(err, 'Failed to reset application');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleSetToBadFit = async () => {
+        if (!window.confirm("Are you sure you want to mark this application as a Bad Fit? This will change its status and take you back to the list.")) {
+            return;
+        }
+        setIsSaving(true);
+        try {
+            await apiService.setApplicationToBadFit(application.job_application_id);
+            addToast('Application marked as Bad Fit', 'success');
+            navigate('/applications');
+        } catch (err) {
+            console.error(err);
+            handleError(err, 'Failed to update status');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleError = (err: any, context: string) => {
+        console.error(`${context}:`, err);
+        addToast(`${context}: ${err.message || 'Unknown error'}`, 'error');
     };
 
     const { addToast } = useToast();
@@ -758,6 +874,7 @@ ${JSON.stringify(questions, null, 2)}
                                 <p className="text-blue-100">Review your final materials below. Once you've submitted the application to the employer, mark it as applied here to move to the next stage.</p>
                             </div>
                             <button
+                                type="button"
                                 onClick={handleMarkAsApplied}
                                 disabled={isSaving}
                                 className="whitespace-nowrap inline-flex items-center gap-2 px-8 py-3.5 text-lg font-bold rounded-xl bg-white text-blue-700 hover:bg-blue-50 transition-all hover:scale-105 shadow-lg disabled:opacity-50"
@@ -767,41 +884,133 @@ ${JSON.stringify(questions, null, 2)}
                             </button>
                         </div>
 
+
+
+
                         {/* Job Snapshot */}
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 flex flex-wrap gap-8 items-center shadow-sm">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg">
-                                    <StrategyIcon className="h-5 w-5 text-slate-500" />
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                                <h4 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                    <StrategyIcon className="h-4 w-4 text-slate-500" />
+                                    Job Snapshot
+                                </h4>
+                                <div className="flex gap-2">
+                                    {isEditingApplySnapshot ? (
+                                        <>
+                                            <button onClick={() => setIsEditingApplySnapshot(false)} className="text-xs font-bold text-slate-500 hover:text-slate-700">CANCEL</button>
+                                            <button onClick={handleSaveApplySnapshot} disabled={isSaving} className="text-xs font-bold text-green-600 hover:text-green-700 disabled:opacity-50">SAVE CHANGES</button>
+                                        </>
+                                    ) : (
+                                        <button onClick={() => setIsEditingApplySnapshot(true)} className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700">
+                                            <PencilSquareIcon className="h-3.5 w-3.5" />
+                                            EDIT DETAILS
+                                        </button>
+                                    )}
                                 </div>
-                                <div>
+                            </div>
+                            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-8">
+                                <div className="space-y-1">
                                     <span className="block text-xs text-slate-500 uppercase font-bold tracking-wider">Salary</span>
-                                    <span className="font-semibold text-slate-900 dark:text-white">{application.salary || 'Not specified'}</span>
+                                    {isEditingApplySnapshot ? (
+                                        <input
+                                            type="text"
+                                            value={editableApp.salary || ''}
+                                            onChange={e => setEditableApp({ ...editableApp, salary: e.target.value })}
+                                            className="w-full text-sm font-semibold p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 outline-none"
+                                            placeholder="e.g. $120k - $150k"
+                                        />
+                                    ) : (
+                                        <span className="font-semibold text-slate-900 dark:text-white block">{editableApp.salary || 'Not specified'}</span>
+                                    )}
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="block text-xs text-slate-500 uppercase font-bold tracking-wider">Workspace & Location</span>
+                                    {isEditingApplySnapshot ? (
+                                        <div className="flex gap-2">
+                                            <select
+                                                value={editableApp.remote_status || ''}
+                                                onChange={e => setEditableApp({ ...editableApp, remote_status: e.target.value as any })}
+                                                className="w-1/3 text-xs font-semibold p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 outline-none"
+                                            >
+                                                <option value="">Status...</option>
+                                                <option value="Remote">Remote</option>
+                                                <option value="Hybrid">Hybrid</option>
+                                                <option value="On-site">On-site</option>
+                                            </select>
+                                            <input
+                                                type="text"
+                                                value={editableApp.location || ''}
+                                                onChange={e => setEditableApp({ ...editableApp, location: e.target.value })}
+                                                className="w-2/3 text-sm font-semibold p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 outline-none"
+                                                placeholder="City, State"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <span className="font-semibold text-slate-900 dark:text-white block">
+                                            {editableApp.remote_status || 'N/A'} {editableApp.location && `• ${editableApp.location}`}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="block text-xs text-slate-500 uppercase font-bold tracking-wider">Job Posting Link</span>
+                                    {isEditingApplySnapshot ? (
+                                        <input
+                                            type="text"
+                                            value={editableApp.job_link || ''}
+                                            onChange={e => setEditableApp({ ...editableApp, job_link: e.target.value })}
+                                            className="w-full text-sm font-semibold p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 outline-none text-blue-600 truncate"
+                                            placeholder="https://..."
+                                        />
+                                    ) : (
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-semibold text-blue-600 dark:text-blue-400 truncate block">
+                                                {editableApp.job_link ? editableApp.job_link : 'No link provided'}
+                                            </span>
+                                            {editableApp.job_link && (
+                                                <a
+                                                    href={editableApp.job_link}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="p-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded text-blue-600"
+                                                    title="Open Link"
+                                                >
+                                                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                                                </a>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="md:col-span-3 space-y-1">
+                                    <span className="block text-xs text-slate-500 uppercase font-bold tracking-wider">Job Description</span>
+                                    {isEditingApplySnapshot ? (
+                                        <textarea
+                                            value={editableApp.job_description || ''}
+                                            onChange={e => setEditableApp({ ...editableApp, job_description: e.target.value })}
+                                            rows={8}
+                                            className="w-full text-sm p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-y"
+                                            placeholder="Enter full job description..."
+                                        />
+                                    ) : (
+                                        <div className="max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                                            <MarkdownPreview markdown={editableApp.job_description || ''} />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg">
-                                    <MicrophoneIcon className="h-5 w-5 text-slate-500" />
-                                </div>
-                                <div>
-                                    <span className="block text-xs text-slate-500 uppercase font-bold tracking-wider">Location</span>
-                                    <span className="font-semibold text-slate-900 dark:text-white">
-                                        {application.location || 'Not specified'}
-                                        {application.remote_status && ` (${application.remote_status})`}
-                                    </span>
-                                </div>
-                            </div>
-                            {application.job_link && (
-                                <a
-                                    href={application.job_link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="ml-auto inline-flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                                >
-                                    View Original Post
-                                    <RocketLaunchIcon className="h-4 w-4" />
-                                </a>
-                            )}
                         </div>
+
+                        {/* Job Review TLDR */}
+                        {reviewedJob?.tldr_summary && (
+                            <div className="bg-blue-50 dark:bg-blue-900/10 rounded-2xl border border-blue-200 dark:border-blue-900/30 p-6 shadow-sm overflow-hidden animate-fade-in">
+                                <h4 className="text-xs font-bold text-blue-900 dark:text-blue-300 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                    <SparklesIcon className="h-4 w-4" />
+                                    AI Job Intake Review (TLDR)
+                                </h4>
+                                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium bg-blue-100/30 dark:bg-slate-800/50 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30 italic">
+                                    "{reviewedJob.tldr_summary}"
+                                </p>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             {/* Resume Card */}
@@ -812,17 +1021,7 @@ ${JSON.stringify(questions, null, 2)}
                                 </div>
                                 <div className="space-y-3 mt-auto">
                                     <button
-                                        onClick={() => resumeExport.generatePdf(application.tailored_resume_json, company.company_name)}
-                                        className="w-full flex items-center justify-between p-4 border border-slate-100 dark:border-slate-700 rounded-xl hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all group"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <DocumentTextIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                                            <span className="font-semibold text-slate-900 dark:text-white">PDF Version</span>
-                                        </div>
-                                        <span className="text-xs text-slate-400 group-hover:text-blue-500">Download</span>
-                                    </button>
-                                    <button
-                                        onClick={() => resumeExport.generateDocx(application.tailored_resume_json, company.company_name)}
+                                        onClick={() => resumeExport.generateDocx(resumeExport.normalizeResume(application.tailored_resume_json, application.tailored_resume_json_version), company.company_name)}
                                         className="w-full flex items-center justify-between p-4 border border-slate-100 dark:border-slate-700 rounded-xl hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all group"
                                     >
                                         <div className="flex items-center gap-3">
@@ -832,8 +1031,19 @@ ${JSON.stringify(questions, null, 2)}
                                         <span className="text-xs text-slate-400 group-hover:text-blue-500">Download</span>
                                     </button>
                                     <button
+                                        onClick={() => resumeExport.generatePdf(resumeExport.normalizeResume(application.tailored_resume_json, application.tailored_resume_json_version), company.company_name)}
+                                        className="w-full flex items-center justify-between p-4 border border-slate-100 dark:border-slate-700 rounded-xl hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <DocumentTextIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                            <span className="font-semibold text-slate-900 dark:text-white">PDF Version</span>
+                                        </div>
+                                        <span className="text-xs text-slate-400 group-hover:text-blue-500">Download</span>
+                                    </button>
+                                    <button
                                         onClick={() => {
-                                            const md = resumeExport.resumeToMarkdown(application.tailored_resume_json);
+                                            const normalized = resumeExport.normalizeResume(application.tailored_resume_json, application.tailored_resume_json_version);
+                                            const md = resumeExport.resumeToMarkdown(normalized);
                                             navigator.clipboard.writeText(md);
                                             setCopySuccess(true);
                                             setTimeout(() => setCopySuccess(false), 2000);
@@ -847,15 +1057,48 @@ ${JSON.stringify(questions, null, 2)}
                                         <span className="text-xs text-slate-400 group-hover:text-indigo-500">Copy Text</span>
                                     </button>
                                 </div>
+
+                                {/* Status Buttons for Apply Tab */}
+                                <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700">
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => setIsResetModalOpen(true)}
+                                            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-all font-sans"
+                                        >
+                                            <ArrowPathIcon className="h-4 w-4" />
+                                            RESET TO DRAFT
+                                        </button>
+                                        <button
+                                            onClick={handleSetToBadFit}
+                                            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-all font-sans"
+                                        >
+                                            <XMarkIcon className="h-4 w-4" />
+                                            SET BAD FIT
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
 
-                            {/* Export for AI Card */}
-                            <div className="bg-indigo-50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-200 dark:border-indigo-900/30 p-8 flex flex-col justify-center items-center text-center shadow-sm">
+                            {/* AI Data Export for Cover Letter and Questions */}
+                            <div className="bg-indigo-50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-200 dark:border-indigo-900/30 p-8 flex flex-col justify-center items-center text-center shadow-sm h-full">
                                 <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-md mb-4">
                                     <SparklesIcon className="h-10 w-10 text-indigo-600" />
                                 </div>
-                                <h4 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Need a custom letter?</h4>
-                                <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">Export all job and resume data to paste into ChatGPT/Claude for custom drafting.</p>
+                                <h4 className="text-xl font-bold text-slate-900 dark:text-white mb-2">AI Data Export for Cover Letter and Questions</h4>
+                                <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">Export all job and resume data to paste into AI for custom cover letter and question generation.</p>
+                                <div className="flex items-center mb-4">
+                                    <label className="inline-flex items-center">
+                                        <input
+                                            type="radio"
+                                            name="coverLetterOption"
+                                            value="request"
+                                            checked={includeCoverLetter}
+                                            onChange={() => setIncludeCoverLetter(true)}
+                                            className="form-radio h-4 w-4 text-indigo-600"
+                                        />
+                                        <span className="ml-2 text-sm text-slate-900 dark:text-white">Request Cover Letter</span>
+                                    </label>
+                                </div>
                                 <button
                                     onClick={handleExportForAi}
                                     className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/25"
@@ -1034,8 +1277,18 @@ ${JSON.stringify(questions, null, 2)}
                             <DetailItem label="Job Link" value={editableApp.job_link} isLink />
                             <div className="sm:col-span-2">
                                 <dt className="text-sm font-medium text-slate-500 dark:text-slate-400">Job Description</dt>
-                                <dd className="mt-2 p-3 border rounded-md border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 max-h-60 overflow-y-auto">
-                                    <MarkdownPreview markdown={application.job_description} />
+                                <dd className={`mt-2 p-3 border rounded-md border-slate-200 dark:border-slate-700 ${isEditing ? 'bg-white dark:bg-slate-800' : 'bg-slate-50 dark:bg-slate-900/50'} max-h-80 overflow-y-auto`}>
+                                    {isEditing ? (
+                                        <textarea
+                                            value={editableApp.job_description || ''}
+                                            onChange={e => setEditableApp({ ...editableApp, job_description: e.target.value })}
+                                            rows={12}
+                                            className="w-full text-sm p-2 bg-transparent border-none focus:ring-0 outline-none resize-y"
+                                            placeholder="Paste the full job description here..."
+                                        />
+                                    ) : (
+                                        <MarkdownPreview markdown={editableApp.job_description || ''} />
+                                    )}
                                 </dd>
                             </div>
                         </dl>
@@ -1109,16 +1362,31 @@ ${JSON.stringify(questions, null, 2)}
                                                 {/* Diagnostic Intel Header */}
                                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                                     <div className="md:col-span-2 p-5 bg-purple-50 dark:bg-purple-900/10 rounded-xl border border-purple-100 dark:border-purple-800/30">
-                                                        <h5 className="text-xs font-bold text-purple-900 dark:text-purple-300 uppercase tracking-widest mb-3">Composite Antidote Persona</h5>
+                                                        <h5 className="text-xs font-bold text-purple-900 dark:text-purple-300 uppercase tracking-widest mb-3">
+                                                            {parsedProblemAnalysis.data.diagnostic_intel?.ideal_persona_mandate ? 'Ideal Persona Mandate' : 'Composite Antidote Persona'}
+                                                        </h5>
                                                         <p className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
-                                                            {parsedProblemAnalysis.data.diagnostic_intel?.composite_antidote_persona}
+                                                            {parsedProblemAnalysis.data.diagnostic_intel?.ideal_persona_mandate || parsedProblemAnalysis.data.diagnostic_intel?.composite_antidote_persona}
                                                         </p>
-                                                        <div className="mt-4 flex flex-wrap gap-2">
-                                                            {(parsedProblemAnalysis.data.diagnostic_intel?.failure_state_portfolio || []).map((state, i) => (
-                                                                <span key={i} className="px-2 py-1 bg-red-100/50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-[10px] font-bold rounded border border-red-200/50 uppercase tracking-tighter">
-                                                                    {state}
-                                                                </span>
-                                                            ))}
+                                                        <div className="mt-4 space-y-3">
+                                                            {(parsedProblemAnalysis.data.diagnostic_intel?.failure_state_portfolio || []).map((state, i) => {
+                                                                if (typeof state === 'string') {
+                                                                    return (
+                                                                        <span key={i} className="inline-block px-2 py-1 bg-red-100/50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-[10px] font-bold rounded border border-red-200/50 uppercase tracking-tighter mr-2">
+                                                                            {state}
+                                                                        </span>
+                                                                    );
+                                                                }
+                                                                return (
+                                                                    <div key={i} className="flex flex-col gap-1 p-3 bg-red-50/30 dark:bg-red-900/10 rounded-lg border border-red-100/50 dark:border-red-900/20">
+                                                                        <div className="flex justify-between items-center">
+                                                                            <span className="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest">{state.pathology}</span>
+                                                                        </div>
+                                                                        <p className="text-[10px] text-slate-500 italic mt-0.5">"{state.evidence_from_context}"</p>
+                                                                        <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-1">Antidote: {state.required_antidote_dna}</p>
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
                                                     </div>
                                                     <div className="p-5 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-800/30">
@@ -1197,21 +1465,37 @@ ${JSON.stringify(questions, null, 2)}
                                                     </div>
                                                 </div>
 
-                                                {/* Strategic Friction Hooks (V2) */}
-                                                <div>
-                                                    <h5 className="text-xs font-bold text-red-500 uppercase mb-4 tracking-widest flex items-center gap-2">
-                                                        <RocketLaunchIcon className="h-3 w-3" />
-                                                        Strategic Friction Hooks
-                                                    </h5>
-                                                    <div className="flex flex-wrap gap-3">
-                                                        {(parsedProblemAnalysis.data.diagnostic_intel?.strategic_friction_hooks || []).map((hook, i) => (
-                                                            <div key={i} className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
-                                                                <span className="text-indigo-500 text-lg">#</span>
-                                                                {hook}
-                                                            </div>
-                                                        ))}
+                                                {/* Strategic Thematic Buckets (New) */}
+                                                {(parsedProblemAnalysis.data.diagnostic_intel?.strategic_thematic_buckets || []).length > 0 && (
+                                                    <div>
+                                                        <h5 className="text-xs font-bold text-slate-500 uppercase mb-4 tracking-widest">Strategic Thematic Buckets</h5>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {parsedProblemAnalysis.data.diagnostic_intel?.strategic_thematic_buckets?.map((bucket, i) => (
+                                                                <span key={i} className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 text-xs font-bold rounded-xl border border-indigo-100 dark:border-indigo-800/30">
+                                                                    {bucket}
+                                                                </span>
+                                                            ))}
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                )}
+
+                                                {/* Strategic Friction Hooks (V2) */}
+                                                {(parsedProblemAnalysis.data.diagnostic_intel?.strategic_friction_hooks || []).length > 0 && (
+                                                    <div>
+                                                        <h5 className="text-xs font-bold text-red-500 uppercase mb-4 tracking-widest flex items-center gap-2">
+                                                            <RocketLaunchIcon className="h-3 w-3" />
+                                                            Strategic Friction Hooks
+                                                        </h5>
+                                                        <div className="flex flex-wrap gap-3">
+                                                            {(parsedProblemAnalysis.data.diagnostic_intel?.strategic_friction_hooks || []).map((hook, i) => (
+                                                                <div key={i} className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                                                                    <span className="text-indigo-500 text-lg">#</span>
+                                                                    {hook}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </>
                                         )}
 
@@ -1260,52 +1544,103 @@ ${JSON.stringify(questions, null, 2)}
                                     </div>
                                 </div>
 
-                                {/* Strategic Alignment Hooks */}
+                                {/* Strategic Alignment Matrix (Redesigned) */}
                                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                                    <div className="bg-slate-50 dark:bg-slate-800/50 px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
-                                        <SparklesIcon className="h-5 w-5 text-indigo-500" />
-                                        <h4 className="font-bold text-slate-900 dark:text-white">Strategic Alignment Hooks</h4>
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                                        <div className="flex items-center gap-2">
+                                            <RocketLaunchIcon className="h-5 w-5 text-indigo-500" />
+                                            <h4 className="font-bold text-slate-900 dark:text-white">Strategic Alignment Matrix</h4>
+                                        </div>
+                                        {parsedAlignmentStrategy?.type === 'v2' && parsedAlignmentStrategy.data.strategic_identity_anchor && (
+                                            <span className="text-xs font-black px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg uppercase tracking-tighter">
+                                                {parsedAlignmentStrategy.data.strategic_identity_anchor}
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="p-6">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {application.alignment_strategy?.alignment_strategy?.map((item: any, idx: number) => (
-                                                <div key={idx} className="p-5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 transition-all group">
-                                                    <div className="flex justify-between items-start mb-3">
-                                                        <div>
-                                                            {item.context_type && (
-                                                                <span className={`inline-block mb-1 text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-widest ${item.context_type.includes('Direct')
-                                                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                                                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                                                    }`}>
-                                                                    {item.context_type}
-                                                                </span>
-                                                            )}
-                                                            <p className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-indigo-600">{item.role}</p>
-                                                            <p className="text-xs text-slate-500">{item.company}</p>
+                                        {parsedAlignmentStrategy?.type === 'v2' ? (
+                                            <div className="space-y-8">
+                                                {parsedAlignmentStrategy.data.alignment_strategy.map((role, idx) => (
+                                                    <div key={idx} className="relative pl-6 border-l-2 border-slate-100 dark:border-slate-700">
+                                                        <div className="absolute -left-2 top-0 h-4 w-4 rounded-full bg-white dark:bg-slate-800 border-2 border-indigo-500" />
+                                                        <div className="flex justify-between items-start mb-4">
+                                                            <div>
+                                                                <h5 className="font-bold text-slate-900 dark:text-white leading-tight">
+                                                                    {role.strategically_aligned_title}
+                                                                </h5>
+                                                                <p className="text-xs text-slate-500 font-medium">{role.organization_name}</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Context</p>
+                                                                <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-1 max-w-[200px] leading-tight italic">{role.role_pathology_context}</p>
+                                                            </div>
                                                         </div>
-                                                        <span className="text-[10px] uppercase font-black px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded tracking-tighter">
-                                                            {item.mapped_pillar}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-sm italic text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-                                                        "{item.friction_hook}"
-                                                    </p>
-                                                    {item.secondary_alignments && item.secondary_alignments.length > 0 && (
-                                                        <div className="flex flex-wrap gap-1 mt-3">
-                                                            {item.secondary_alignments.map((sa: string, si: number) => (
-                                                                <span key={si} className="text-[9px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded border border-slate-200 dark:border-slate-700 opacity-70 group-hover:opacity-100">
-                                                                    {sa}
-                                                                </span>
+
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                            {role.thematic_alignments.map((alignment, aIdx) => (
+                                                                <div key={aIdx} className={`p-4 rounded-xl border transition-all ${alignment.is_kill_shot_container ? 'bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-200 dark:border-indigo-800/50' : 'bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-700'}`}>
+                                                                    <div className="flex justify-between items-center mb-2">
+                                                                        <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-widest">{alignment.bucket_name}</span>
+                                                                        {alignment.is_kill_shot_container && (
+                                                                            <span className="text-[8px] font-black px-1.5 py-0.5 bg-indigo-600 text-white rounded-full uppercase">Kill Shot</span>
+                                                                        )}
+                                                                    </div>
+                                                                    <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mb-2 italic">"{alignment.friction_hook}"</p>
+                                                                    <div className="space-y-1.5">
+                                                                        {alignment.mapped_proof_point_ids.map((pp, ppIdx) => (
+                                                                            <div key={ppIdx} className="text-[10px] leading-relaxed text-slate-600 dark:text-slate-400 pl-3 relative">
+                                                                                <div className="absolute left-0 top-1.5 h-1 w-1 rounded-full bg-slate-400" />
+                                                                                {pp}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
                                                             ))}
                                                         </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {(parsedAlignmentStrategy?.data?.alignment_strategy || []).map((item: any, idx: number) => (
+                                                    <div key={idx} className="p-5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 transition-all group">
+                                                        <div className="flex justify-between items-start mb-3">
+                                                            <div>
+                                                                {item.context_type && (
+                                                                    <span className={`inline-block mb-1 text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-widest ${item.context_type.includes('Direct')
+                                                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                                                        : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                                                        }`}>
+                                                                        {item.context_type}
+                                                                    </span>
+                                                                )}
+                                                                <p className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-indigo-600">{item.role}</p>
+                                                                <p className="text-xs text-slate-500">{item.company}</p>
+                                                            </div>
+                                                            <span className="text-[10px] uppercase font-black px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded tracking-tighter">
+                                                                {item.mapped_pillar}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-sm italic text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                                                            "{item.friction_hook}"
+                                                        </p>
+                                                        {item.secondary_alignments && item.secondary_alignments.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1 mt-3">
+                                                                {item.secondary_alignments.map((sa: string, si: number) => (
+                                                                    <span key={si} className="text-[9px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded border border-slate-200 dark:border-slate-700 opacity-70 group-hover:opacity-100">
+                                                                        {sa}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
-                                {/* AI Interaction Hub / Questions Preview? */}
+                                {/* AI Interaction Hub / Questions Preview */}
                                 {application.application_message && (
                                     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
                                         <div className="bg-slate-50 dark:bg-slate-800/50 px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
@@ -1396,15 +1731,66 @@ ${JSON.stringify(questions, null, 2)}
                                             <div>
                                                 <h5 className="text-xs font-bold text-slate-500 uppercase mb-3">Impact Proof Points</h5>
                                                 <ul className="space-y-2">
-                                                    {parsedGuidance.bullets.map((bullet: string, i: number) => (
-                                                        <li key={i} className="text-xs text-slate-600 dark:text-slate-400 flex gap-2">
-                                                            <span className="text-blue-500 font-bold">•</span>
-                                                            {bullet}
+                                                    {(parsedGuidance.bullets || []).map((b: string, i: number) => (
+                                                        <li key={i} className="text-xs text-slate-600 dark:text-slate-400 flex items-start leading-relaxed">
+                                                            <PlusCircleIcon className="h-3 w-3 mt-0.5 mr-2 text-blue-500 flex-shrink-0" />
+                                                            {b}
                                                         </li>
                                                     ))}
                                                 </ul>
                                             </div>
                                         )}
+                                    </div>
+                                </div>
+
+                                {/* Company Shadow Intelligence */}
+                                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
+                                        <CubeIcon className="h-5 w-5 text-amber-500" />
+                                        <h4 className="font-bold text-slate-900 dark:text-white">Company Shadow Intelligence</h4>
+                                    </div>
+                                    <div className="p-6 space-y-6">
+                                        <div className="grid grid-cols-1 gap-4">
+                                            {company.economic_model?.text && (
+                                                <div className="p-4 bg-amber-50/50 dark:bg-amber-900/10 rounded-xl border border-amber-100 dark:border-amber-800/30">
+                                                    <h5 className="text-[10px] font-black uppercase text-amber-700 dark:text-amber-400 mb-2 tracking-widest">Economic Model</h5>
+                                                    <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed italic">"{company.economic_model.text}"</p>
+                                                </div>
+                                            )}
+                                            {company.operating_model?.text && (
+                                                <div className="p-4 bg-slate-50 dark:bg-slate-900/30 rounded-xl border border-slate-200 dark:border-slate-700">
+                                                    <h5 className="text-[10px] font-black uppercase text-slate-500 mb-2 tracking-widest">Operating Model</h5>
+                                                    <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{company.operating_model.text}</p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <div>
+                                                <h5 className="text-[10px] font-black uppercase text-red-500 mb-3 tracking-widest">Internal Headwinds & Gripes</h5>
+                                                <div className="space-y-2">
+                                                    {company.internal_gripes?.text ? (
+                                                        <div className="p-3 bg-red-50/50 dark:bg-red-900/10 rounded-lg border border-red-100 dark:border-red-800/30 text-xs text-red-700 dark:text-red-400">
+                                                            <strong>Gripes:</strong> {company.internal_gripes.text}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-[10px] text-slate-400 italic">No historical gripes recorded.</p>
+                                                    )}
+                                                    {company.org_headwinds?.text && (
+                                                        <div className="p-3 bg-orange-50/50 dark:bg-orange-900/10 rounded-lg border border-orange-100 dark:border-orange-800/30 text-xs text-orange-700 dark:text-orange-400">
+                                                            <strong>Headwinds:</strong> {company.org_headwinds.text}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <h5 className="text-[10px] font-black uppercase text-slate-500 mb-3 tracking-widest">Talent Expectations</h5>
+                                                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed italic">
+                                                    {company.talent_expectations?.text || "Standard high-performance requirements."}
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1495,367 +1881,458 @@ ${JSON.stringify(questions, null, 2)}
                             </div>
                         </div>
                     </div>
-                )}
+                )
+                }
 
-                {activeTab === 'resume' && (
-                    <ResumeViewer resume={application.tailored_resume_json} version={application.tailored_resume_json_version} companyName={company.company_name} />
-                )}
+                {
+                    activeTab === 'resume' && (
+                        <ResumeViewer
+                            resume={application.tailored_resume_json}
+                            version={application.tailored_resume_json_version}
+                            companyName={company.company_name}
+                            onResetToDraft={() => setIsResetModalOpen(true)}
+                            onSetToBadFit={handleSetToBadFit}
+                        />
+                    )
+                }
 
-                {activeTab === 'questions' && (
-                    <div className="space-y-8 animate-fade-in max-w-4xl mx-auto">
-                        <div className="border-b border-slate-200 dark:border-slate-700 pb-5">
-                            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Prepare Application Questions</h2>
-                            <p className="mt-2 text-slate-600 dark:text-slate-400">Add any required application questions below. Bundle them with job and company research to export a prompt for your Gemini Gem.</p>
-                        </div>
-
-                        <div className="space-y-6">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Application Questions</h3>
-                                <div className="flex gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={handleSaveQuestions}
-                                        className="inline-flex items-center gap-x-1.5 rounded-md bg-white dark:bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-900 dark:text-white shadow-sm ring-1 ring-inset ring-slate-300 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700"
-                                    >
-                                        Save Questions
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={addQuestion}
-                                        className="inline-flex items-center gap-x-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500"
-                                    >
-                                        <PlusCircleIcon className="-ml-0.5 h-5 w-5" />
-                                        Add Question
-                                    </button>
-                                </div>
+                {
+                    activeTab === 'questions' && (
+                        <div className="space-y-8 animate-fade-in max-w-4xl mx-auto">
+                            <div className="border-b border-slate-200 dark:border-slate-700 pb-5">
+                                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Prepare Application Questions</h2>
+                                <p className="mt-2 text-slate-600 dark:text-slate-400">Add any required application questions below. Bundle them with job and company research to export a prompt for your Gemini Gem.</p>
                             </div>
 
-                            {questions.length === 0 ? (
-                                <div className="text-center py-12 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl">
-                                    <p className="text-slate-500 dark:text-slate-400">No questions added yet.</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {questions.map((qa, index) => (
-                                        <div key={qa.id} className="group relative p-6 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800/50 shadow-sm transition-all hover:shadow-md">
-                                            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button type="button" onClick={() => removeQuestion(index)} className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
-                                                    <TrashIcon className="h-5 w-5" />
-                                                </button>
-                                            </div>
-                                            <div className="space-y-4">
-                                                <div>
-                                                    <label htmlFor={`question-${index}`} className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Question {index + 1}</label>
-                                                    <textarea
-                                                        id={`question-${index}`}
-                                                        rows={2}
-                                                        value={qa.question}
-                                                        onChange={(e) => handleQuestionChange(index, 'question', e.target.value)}
-                                                        placeholder="Paste the application question here..."
-                                                        className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label htmlFor={`thoughts-${index}`} className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Your Context / Notes (Optional)</label>
-                                                    <textarea
-                                                        id={`thoughts-${index}`}
-                                                        rows={2}
-                                                        value={qa.user_thoughts || ''}
-                                                        onChange={(e) => handleQuestionChange(index, 'user_thoughts', e.target.value)}
-                                                        placeholder="Add specific points or experiences you want the AI to emphasize..."
-                                                        className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-8 border border-blue-100 dark:border-blue-800/50">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                <div className="space-y-1">
-                                    <h3 className="text-xl font-bold text-blue-900 dark:text-blue-100">AI Export</h3>
-                                    <p className="text-blue-700 dark:text-blue-300">Bundle all application context into a single prompt for your Gemini Gem.</p>
-
-                                    <div className="flex items-center mt-4 bg-white dark:bg-slate-900/50 self-start px-4 py-2 rounded-full border border-blue-200 dark:border-blue-800 shadow-sm cursor-pointer select-none" onClick={() => setIncludeCoverLetter(!includeCoverLetter)}>
-                                        <input
-                                            id="include-cover-letter"
-                                            type="checkbox"
-                                            checked={includeCoverLetter}
-                                            onChange={(e) => setIncludeCoverLetter(e.target.checked)}
-                                            className="h-5 w-5 rounded border-blue-300 text-blue-600 focus:ring-blue-500 transition-colors"
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
-                                        <label htmlFor="include-cover-letter" className="ml-3 text-sm font-medium text-blue-900 dark:text-blue-200 cursor-pointer">
-                                            Include Cover Letter Request
-                                        </label>
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Application Questions</h3>
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={handleSaveQuestions}
+                                            className="inline-flex items-center gap-x-1.5 rounded-md bg-white dark:bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-900 dark:text-white shadow-sm ring-1 ring-inset ring-slate-300 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700"
+                                        >
+                                            Save Questions
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={addQuestion}
+                                            className="inline-flex items-center gap-x-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500"
+                                        >
+                                            <PlusCircleIcon className="-ml-0.5 h-5 w-5" />
+                                            Add Question
+                                        </button>
                                     </div>
                                 </div>
 
-                                <button
-                                    type="button"
-                                    onClick={handleExportForAi}
-                                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-8 py-4 text-lg font-bold text-white shadow-lg shadow-blue-500/30 hover:bg-blue-700 hover:-translate-y-0.5 transition-all active:translate-y-0 focus:outline-none focus:ring-4 focus:ring-blue-500/50"
-                                >
-                                    <SparklesIcon className="h-6 w-6" />
-                                    Export Data for AI
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-
-                {activeTab === 'interviews' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        <div className="lg:col-span-2 space-y-4">
-                            {(application.interviews || []).map(interview => {
-                                const todayString = new Date().toISOString().split('T')[0];
-                                const isPastOrToday = interview.interview_date ? interview.interview_date <= todayString : false;
-                                const isRecruiterScreen = interview.interview_type === "Step 6.1: Recruiter Screen";
-                                const hasPrepData = interview.ai_prep_data && Object.values(interview.ai_prep_data).some(val => Array.isArray(val) ? val.length > 0 : !!val);
-
-                                return (
-                                    <div key={interview.interview_id} className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <h4 className="font-bold text-slate-800 dark:text-slate-200">{interview.interview_type}</h4>
-                                                <p className="text-sm text-slate-500 dark:text-slate-400">{interview.interview_date ? new Date(interview.interview_date + 'T00:00:00Z').toLocaleDateString() : 'Date TBD'}</p>
-                                                <div className="mt-2 flex flex-wrap gap-2">
-                                                    {(interview.interview_contacts || []).map(c => {
-                                                        const contact = contacts.find(storedContact => storedContact.contact_id === c.contact_id);
-                                                        return (
-                                                            <button key={c.contact_id} onClick={() => {
-                                                                setSelectedContextContact(contact || null);
-                                                                setIsContextCompanyView(false);
-                                                            }} className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900">
-                                                                {c.first_name} {c.last_name}
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {isPastOrToday && (
-                                                    <button onClick={() => onOpenDebriefStudio(interview)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-300 ring-1 ring-inset ring-yellow-200 dark:ring-yellow-500/30 hover:bg-yellow-100 dark:hover:bg-yellow-500/20">
-                                                        Debrief
-                                                    </button>
-                                                )}
-                                                <button onClick={() => handleLaunchCopilot(application, interview)} disabled={isLoading} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-300 ring-1 ring-inset ring-green-200 dark:ring-green-500/30 hover:bg-green-100 dark:hover:bg-green-500/20 disabled:opacity-50" title="Launch Interview Co-pilot">
-                                                    <RocketLaunchIcon className="h-4 w-4" /> Co-pilot
-                                                </button>
-                                                <button onClick={() => onOpenStrategyStudio(interview)} disabled={isLoading} className="p-1.5 text-xs font-semibold rounded-md bg-white dark:bg-slate-700 ring-1 ring-inset ring-slate-300 dark:ring-slate-600 inline-flex items-center gap-1.5 hover:bg-slate-50" title="Open Strategy Studio">
-                                                    <StrategyIcon className="h-4 w-4" /> Studio
-                                                </button>
-                                                <button onClick={() => { setEditingInterviewId(interview.interview_id); setEditableInterview({ interview_type: interview.interview_type, interview_date: interview.interview_date, live_notes: interview.live_notes || '', contact_ids: (interview.interview_contacts || []).map(c => c.contact_id) }); }} className="p-1.5 text-xs font-semibold rounded-md bg-white dark:bg-slate-700 ring-1 ring-inset ring-slate-300 dark:ring-slate-600">Edit</button>
-                                                <button onClick={() => onDeleteInterview(interview.interview_id)} className="p-1 text-red-500 hover:text-red-400" title="Delete Interview"><TrashIcon className="h-5 w-5" /></button>
-                                            </div>
-                                        </div>
-                                        {hasPrepData ? (
-                                            <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                                                <details><summary className="text-sm font-semibold cursor-pointer">View AI Prep</summary>
-                                                    <div className="text-xs mt-2 space-y-2 prose prose-xs dark:prose-invert max-w-none">
-                                                        <p><strong>Focus Areas:</strong> {(interview.ai_prep_data.keyFocusAreas || []).join(', ')}</p>
-                                                        <div><strong>Potential Questions They Might Ask You:</strong><ul>{(interview.ai_prep_data.potentialQuestions || []).map(q => <li key={q.question}><strong>{q.question}</strong><br /><em>Strategy: {q.strategy}</em></li>)}</ul></div>
-                                                        <div><strong>Strategic Questions for You to Ask Them:</strong><ul>{(interview.ai_prep_data.questionsToAsk || []).map((q, i) => <li key={i}>{q}</li>)}</ul></div>
-                                                        <div><strong>Potential Red Flags to Watch For:</strong><ul>{(interview.ai_prep_data.redFlags || []).map((flag, i) => <li key={i}>{flag}</li>)}</ul></div>
-                                                    </div>
-                                                </details>
-                                            </div>
-                                        ) : (
-                                            <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 text-center">
-                                                <button onClick={() => handleGeneratePrep(interview, isRecruiterScreen)} disabled={isGeneratingPrep[interview.interview_id]} className="text-sm font-semibold text-blue-600 hover:underline">
-                                                    {isGeneratingPrep[interview.interview_id] ? <LoadingSpinner /> : (isRecruiterScreen ? 'Generate Quick Prep' : 'Generate Prep with AI')}
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-
-                            {editingInterviewId ? (
-                                <div className="mt-4 p-4 rounded-lg bg-slate-100 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600">
-                                    <h4 className="font-bold text-slate-800 dark:text-slate-200 mb-3">{editingInterviewId === 'new' ? 'Add New Interview' : 'Edit Interview'}</h4>
-                                    <div className="space-y-4">
-                                        <div><label className={labelClass}>Interview Type</label><select value={editableInterview.interview_type || ''} onChange={e => setEditableInterview(prev => ({ ...prev, interview_type: e.target.value }))} className={inputClass}><option value="">Select type...</option>{INTERVIEW_TYPES.map(type => <option key={type} value={type}>{type}</option>)}</select></div>
-                                        <div><label className={labelClass}>Date</label><input type="date" value={editableInterview.interview_date || ''} onChange={e => setEditableInterview(prev => ({ ...prev, interview_date: e.target.value }))} className={inputClass} /></div>
-                                        <div>
-                                            <label className={labelClass}>Interviewers</label>
-                                            <div className="mt-1 max-h-32 overflow-y-auto border rounded-md p-2 space-y-1 bg-white dark:bg-slate-800">
-                                                {relevantContactsForInterview.map(contact => (
-                                                    <div key={contact.contact_id} className="flex items-center"><input type="checkbox" id={`contact-${contact.contact_id}`} checked={editableInterview.contact_ids?.includes(contact.contact_id) || false} onChange={e => { const { checked } = e.target; setEditableInterview(prev => ({ ...prev, contact_ids: checked ? [...(prev.contact_ids || []), contact.contact_id] : (prev.contact_ids || []).filter(id => id !== contact.contact_id) })); }} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><label htmlFor={`contact-${contact.contact_id}`} className="ml-2 text-sm text-slate-700 dark:text-slate-300">{contact.first_name} {contact.last_name}</label></div>
-                                                ))}
-                                                {relevantContactsForInterview.length === 0 && (
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400 p-2">
-                                                        No relevant contacts found. Add contacts for "{company.company_name}" or for recruiting firms in the Engagement Hub.
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div><label className={labelClass}>Live Notes</label><textarea rows={4} value={editableInterview.live_notes || ''} onChange={e => setEditableInterview(prev => ({ ...prev, live_notes: e.target.value }))} className={inputClass} /></div>
-                                        <div className="flex justify-end gap-2"><button onClick={() => { setEditingInterviewId(null); setEditableInterview({}); }} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-white dark:bg-slate-700 ring-1 ring-inset ring-slate-300 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600">Cancel</button><button onClick={() => handleSaveInterview({ job_application_id: application.job_application_id, ...editableInterview }, editingInterviewId === 'new' ? undefined : editingInterviewId)} disabled={isSaving} className="px-3 py-1.5 text-sm font-semibold rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">{isSaving ? <LoadingSpinner /> : 'Save'}</button></div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <button onClick={() => { setEditingInterviewId('new'); setEditableInterview({ interview_date: new Date().toISOString().split('T')[0] }); }} className="w-full flex justify-center items-center gap-2 py-3 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition">
-                                    <PlusCircleIcon className="h-5 w-5" /> Add Interview
-                                </button>
-                            )}
-                        </div>
-                        <div className="sticky top-8">
-                            <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-                                <div className="flex justify-between items-center mb-2">
-                                    <h4 className="font-bold text-slate-800 dark:text-slate-200">Context Hub</h4>
-                                    {!isContextCompanyView && <button onClick={() => setIsContextCompanyView(true)} className="text-xs font-semibold text-blue-600 hover:underline">&larr; Show Company</button>}
-                                </div>
-                                {isContextCompanyView ? (
-                                    <div className="space-y-3 text-xs">
-                                        <DetailItem label="Mission" value={company.mission?.text} />
-                                        <DetailItem label="Values" value={company.values?.text} />
-                                        <DetailItem label="Challenges/Issues" value={company.issues?.text} />
-                                        <DetailItem label="Goals" value={company.goals?.text} />
-                                        <DetailItem label="Strategic Initiatives" value={company.strategic_initiatives?.text} />
-                                        <DetailItem label="Recent News" value={company.news?.text} />
+                                {questions.length === 0 ? (
+                                    <div className="text-center py-12 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl">
+                                        <p className="text-slate-500 dark:text-slate-400">No questions added yet.</p>
                                     </div>
                                 ) : (
-                                    <div className="space-y-3 text-xs">
-                                        {selectedContextContact ? (
-                                            <>
-                                                <DetailItem label="Name" value={`${selectedContextContact.first_name} ${selectedContextContact.last_name}`} />
-                                                <DetailItem label="Title" value={selectedContextContact.job_title} />
-                                                <DetailItem label="Persona" value={selectedContextContact.persona} />
-                                                <DetailItem label="About">
-                                                    <p className="whitespace-pre-wrap max-h-48 overflow-y-auto">{selectedContextContact.linkedin_about || 'N/A'}</p>
-                                                </DetailItem>
-                                            </>
-                                        ) : (
-                                            <p className="text-xs text-slate-500 dark:text-slate-400">Click an interviewer to see their details.</p>
-                                        )}
+                                    <div className="space-y-4">
+                                        {questions.map((qa, index) => (
+                                            <div key={qa.id} className="group relative p-6 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800/50 shadow-sm transition-all hover:shadow-md">
+                                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button type="button" onClick={() => removeQuestion(index)} className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
+                                                        <TrashIcon className="h-5 w-5" />
+                                                    </button>
+                                                </div>
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <label htmlFor={`question-${index}`} className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Question {index + 1}</label>
+                                                        <textarea
+                                                            id={`question-${index}`}
+                                                            rows={2}
+                                                            value={qa.question}
+                                                            onChange={(e) => handleQuestionChange(index, 'question', e.target.value)}
+                                                            placeholder="Paste the application question here..."
+                                                            className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label htmlFor={`thoughts-${index}`} className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Your Context / Notes (Optional)</label>
+                                                        <textarea
+                                                            id={`thoughts-${index}`}
+                                                            rows={2}
+                                                            value={qa.user_thoughts || ''}
+                                                            onChange={(e) => handleQuestionChange(index, 'user_thoughts', e.target.value)}
+                                                            placeholder="Add specific points or experiences you want the AI to emphasize..."
+                                                            className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                             </div>
+
+                            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-8 border border-blue-100 dark:border-blue-800/50">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                    <div className="space-y-1">
+                                        <h3 className="text-xl font-bold text-blue-900 dark:text-blue-100">AI Export</h3>
+                                        <p className="text-blue-700 dark:text-blue-300">Bundle all application context into a single prompt for your Gemini Gem.</p>
+
+                                        <div className="flex items-center mt-4 bg-white dark:bg-slate-900/50 self-start px-4 py-2 rounded-full border border-blue-200 dark:border-blue-800 shadow-sm cursor-pointer select-none" onClick={() => setIncludeCoverLetter(!includeCoverLetter)}>
+                                            <input
+                                                id="include-cover-letter"
+                                                type="checkbox"
+                                                checked={includeCoverLetter}
+                                                onChange={(e) => setIncludeCoverLetter(e.target.checked)}
+                                                className="h-5 w-5 rounded border-blue-300 text-blue-600 focus:ring-blue-500 transition-colors"
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                            <label htmlFor="include-cover-letter" className="ml-3 text-sm font-medium text-blue-900 dark:text-blue-200 cursor-pointer">
+                                                Include Cover Letter Request
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleExportForAi}
+                                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-8 py-4 text-lg font-bold text-white shadow-lg shadow-blue-500/30 hover:bg-blue-700 hover:-translate-y-0.5 transition-all active:translate-y-0 focus:outline-none focus:ring-4 focus:ring-blue-500/50"
+                                    >
+                                        <SparklesIcon className="h-6 w-6" />
+                                        Export Data for AI
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )
+                }
+
+
+                {
+                    activeTab === 'interviews' && (
+                        <div className="space-y-12">
+                            {/* 1. Strategy Studio (New Module) */}
+                            <div className="bg-slate-50 dark:bg-slate-900/50 p-1 rounded-xl -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 pt-4 pb-8 border-b border-slate-200 dark:border-slate-700 mb-8">
+                                <InterviewStrategyTab
+                                    application={application}
+                                    company={company}
+                                    onUpdateApplication={async (id, data) => {
+                                        // wrapper to match signature if needed, or direct call
+                                        await onUpdate({ ...application, ...data });
+                                    }}
+                                    userProfile={userProfile}
+                                />
+                            </div>
+
+                            {/* 2. Logistics & Schedule (Existing List) */}
+                            <div>
+                                <div className="mb-6 flex items-center gap-2">
+                                    <div className="h-px bg-slate-200 dark:bg-slate-700 flex-1" />
+                                    <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Logistics & Schedule</span>
+                                    <div className="h-px bg-slate-200 dark:bg-slate-700 flex-1" />
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                    <div className="lg:col-span-2 space-y-4">
+                                        {(application.interviews || []).map(interview => {
+                                            const todayString = new Date().toISOString().split('T')[0];
+                                            const isPastOrToday = interview.interview_date ? interview.interview_date <= todayString : false;
+                                            const isRecruiterScreen = interview.interview_type === "Step 6.1: Recruiter Screen";
+                                            const hasPrepData = interview.ai_prep_data && Object.values(interview.ai_prep_data).some(val => Array.isArray(val) ? val.length > 0 : !!val);
+
+                                            return (
+                                                <div key={interview.interview_id} className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+                                                    <div className="flex justify-between items-start">
+                                                        <div>
+                                                            <h4 className="font-bold text-slate-800 dark:text-slate-200">{interview.interview_type}</h4>
+                                                            <p className="text-sm text-slate-500 dark:text-slate-400">{interview.interview_date ? new Date(interview.interview_date + 'T00:00:00Z').toLocaleDateString() : 'Date TBD'}</p>
+                                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                                {(interview.interview_contacts || []).map(c => {
+                                                                    const contact = contacts.find(storedContact => storedContact.contact_id === c.contact_id);
+                                                                    return (
+                                                                        <button key={c.contact_id} onClick={() => {
+                                                                            setSelectedContextContact(contact || null);
+                                                                            setIsContextCompanyView(false);
+                                                                        }} className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900">
+                                                                            {c.first_name} {c.last_name}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            {isPastOrToday && (
+                                                                <button onClick={() => onOpenDebriefStudio(interview)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-300 ring-1 ring-inset ring-yellow-200 dark:ring-yellow-500/30 hover:bg-yellow-100 dark:hover:bg-yellow-500/20">
+                                                                    Debrief
+                                                                </button>
+                                                            )}
+                                                            <button onClick={() => handleLaunchCopilot(application, interview)} disabled={isLoading} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-300 ring-1 ring-inset ring-green-200 dark:ring-green-500/30 hover:bg-green-100 dark:hover:bg-green-500/20 disabled:opacity-50" title="Launch Interview Co-pilot">
+                                                                <RocketLaunchIcon className="h-4 w-4" /> Co-pilot
+                                                            </button>
+                                                            <button onClick={() => navigate(`/interview-lens/${interview.interview_id}`)} disabled={isLoading} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 ring-1 ring-inset ring-indigo-200 dark:ring-indigo-500/30 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 disabled:opacity-50" title="Launch Interview Lens">
+                                                                <StrategyIcon className="h-4 w-4" /> Lens
+                                                            </button>
+                                                            <button onClick={() => onOpenStrategyStudio(interview)} disabled={isLoading} className="p-1.5 text-xs font-semibold rounded-md bg-white dark:bg-slate-700 ring-1 ring-inset ring-slate-300 dark:ring-slate-600 inline-flex items-center gap-1.5 hover:bg-slate-50" title="Open Strategy Studio">
+                                                                <StrategyIcon className="h-4 w-4" /> Studio
+                                                            </button>
+                                                            <button onClick={() => { setEditingInterviewId(interview.interview_id); setEditableInterview({ interview_type: interview.interview_type, interview_date: interview.interview_date, live_notes: interview.live_notes || '', contact_ids: (interview.interview_contacts || []).map(c => c.contact_id) }); }} className="p-1.5 text-xs font-semibold rounded-md bg-white dark:bg-slate-700 ring-1 ring-inset ring-slate-300 dark:ring-slate-600">Edit</button>
+                                                            <button onClick={() => onDeleteInterview(interview.interview_id)} className="p-1 text-red-500 hover:text-red-400" title="Delete Interview"><TrashIcon className="h-5 w-5" /></button>
+                                                        </div>
+                                                    </div>
+                                                    {hasPrepData ? (
+                                                        <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                                            <details open><summary className="text-sm font-semibold cursor-pointer mb-2">Consultant Blueprint</summary>
+                                                                <div className="text-xs space-y-4">
+                                                                    {/* 1. Consultant Opener */}
+                                                                    {interview.ai_prep_data.scripted_opening && (
+                                                                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
+                                                                            <h5 className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2">The Scripted Opener</h5>
+                                                                            <div className="space-y-2 leading-relaxed">
+                                                                                <p><strong>Hook:</strong> {interview.ai_prep_data.scripted_opening.hook}</p>
+                                                                                <p><strong>Bridge:</strong> {interview.ai_prep_data.scripted_opening.bridge}</p>
+                                                                                <p><strong>Pivot:</strong> {interview.ai_prep_data.scripted_opening.pivot}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* 2. Diagnostic Battle Map */}
+                                                                    {interview.ai_prep_data.diagnostic_matrix && (
+                                                                        <div>
+                                                                            <h5 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Battle Map: Diagnosis & Intervention</h5>
+                                                                            <div className="space-y-1">
+                                                                                {interview.ai_prep_data.diagnostic_matrix.map((row: any, i: number) => (
+                                                                                    <div key={i} className="grid grid-cols-5 gap-3 p-2 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                                                                                        <div className="col-span-2 text-slate-500 italic">"{row.friction_point}"</div>
+                                                                                        <div className="col-span-3 text-slate-900 dark:text-slate-100 font-medium border-l border-slate-200 dark:border-slate-700 pl-3">
+                                                                                            {row.proposed_intervention}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Legacy Prep Data (if any) */}
+                                                                    {!interview.ai_prep_data.scripted_opening && (
+                                                                        <div className="prose prose-xs dark:prose-invert max-w-none">
+                                                                            <p><strong>Focus Areas:</strong> {(interview.ai_prep_data.keyFocusAreas || []).join(', ')}</p>
+                                                                            <div><strong>Potential Questions They Might Ask You:</strong><ul>{(interview.ai_prep_data.potentialQuestions || []).map((q: any) => <li key={q.question}><strong>{q.question}</strong><br /><em>Strategy: {q.strategy}</em></li>)}</ul></div>
+                                                                            <div><strong>Strategic Questions for You to Ask Them:</strong><ul>{(interview.ai_prep_data.questionsToAsk || []).map((q: any, i: number) => <li key={i}>{q}</li>)}</ul></div>
+                                                                            <div><strong>Potential Red Flags to Watch For:</strong><ul>{(interview.ai_prep_data.redFlags || []).map((flag: any, i: number) => <li key={i}>{flag}</li>)}</ul></div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </details>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 text-center">
+                                                            <button onClick={() => handleGeneratePrep(interview, isRecruiterScreen)} disabled={isGeneratingPrep[interview.interview_id]} className="text-sm font-semibold text-blue-600 hover:underline">
+                                                                {isGeneratingPrep[interview.interview_id] ? <LoadingSpinner /> : (isRecruiterScreen ? 'Generate Quick Prep' : 'Generate Prep with AI')}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+
+                                        {editingInterviewId ? (
+                                            <div className="mt-4 p-4 rounded-lg bg-slate-100 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600">
+                                                <h4 className="font-bold text-slate-800 dark:text-slate-200 mb-3">{editingInterviewId === 'new' ? 'Add New Interview' : 'Edit Interview'}</h4>
+                                                <div className="space-y-4">
+                                                    <div><label className={labelClass}>Interview Type</label><select value={editableInterview.interview_type || ''} onChange={e => setEditableInterview(prev => ({ ...prev, interview_type: e.target.value }))} className={inputClass}><option value="">Select type...</option>{INTERVIEW_TYPES.map(type => <option key={type} value={type}>{type}</option>)}</select></div>
+                                                    <div><label className={labelClass}>Date</label><input type="date" value={editableInterview.interview_date || ''} onChange={e => setEditableInterview(prev => ({ ...prev, interview_date: e.target.value }))} className={inputClass} /></div>
+                                                    <div>
+                                                        <label className={labelClass}>Interviewers</label>
+                                                        <div className="mt-1 max-h-32 overflow-y-auto border rounded-md p-2 space-y-1 bg-white dark:bg-slate-800">
+                                                            {relevantContactsForInterview.map(contact => (
+                                                                <div key={contact.contact_id} className="flex items-center"><input type="checkbox" id={`contact-${contact.contact_id}`} checked={editableInterview.contact_ids?.includes(contact.contact_id) || false} onChange={e => { const { checked } = e.target; setEditableInterview(prev => ({ ...prev, contact_ids: checked ? [...(prev.contact_ids || []), contact.contact_id] : (prev.contact_ids || []).filter(id => id !== contact.contact_id) })); }} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><label htmlFor={`contact-${contact.contact_id}`} className="ml-2 text-sm text-slate-700 dark:text-slate-300">{contact.first_name} {contact.last_name}</label></div>
+                                                            ))}
+                                                            {relevantContactsForInterview.length === 0 && (
+                                                                <p className="text-xs text-slate-500 dark:text-slate-400 p-2">
+                                                                    No relevant contacts found. Add contacts for "{company.company_name}" or for recruiting firms in the Engagement Hub.
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div><label className={labelClass}>Live Notes</label><textarea rows={4} value={editableInterview.live_notes || ''} onChange={e => setEditableInterview(prev => ({ ...prev, live_notes: e.target.value }))} className={inputClass} /></div>
+                                                    <div className="flex justify-end gap-2"><button onClick={() => { setEditingInterviewId(null); setEditableInterview({}); }} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-white dark:bg-slate-700 ring-1 ring-inset ring-slate-300 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600">Cancel</button><button onClick={() => handleSaveInterview({ job_application_id: application.job_application_id, ...editableInterview }, editingInterviewId === 'new' ? undefined : editingInterviewId)} disabled={isSaving} className="px-3 py-1.5 text-sm font-semibold rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">{isSaving ? <LoadingSpinner /> : 'Save'}</button></div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <button onClick={() => { setEditingInterviewId('new'); setEditableInterview({ interview_date: new Date().toISOString().split('T')[0] }); }} className="w-full flex justify-center items-center gap-2 py-3 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition">
+                                                <PlusCircleIcon className="h-5 w-5" /> Add Interview
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="sticky top-8">
+                                        <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <h4 className="font-bold text-slate-800 dark:text-slate-200">Context Hub</h4>
+                                                {!isContextCompanyView && <button onClick={() => setIsContextCompanyView(true)} className="text-xs font-semibold text-blue-600 hover:underline">&larr; Show Company</button>}
+                                            </div>
+                                            {showCompanyModal && <CreateCompanyModal isOpen={showCompanyModal} onClose={() => setShowCompanyModal(false)} onCreate={async (payload) => { await apiService.createCompany(payload as any); return company; }} initialData={{ company_name: company.company_name, company_url: company.company_url } as any} prompts={[]} />}
+
+                                            {isContextCompanyView ? (
+                                                <div className="space-y-3 text-xs">
+                                                    <DetailItem label="Mission" value={company.mission?.text} />
+                                                    <DetailItem label="Values" value={company.values?.text} />
+                                                    <DetailItem label="Challenges/Issues" value={company.issues?.text} />
+                                                    <DetailItem label="Goals" value={company.goals?.text} />
+                                                    <DetailItem label="Strategic Initiatives" value={company.strategic_initiatives?.text} />
+                                                    <DetailItem label="Recent News" value={company.news?.text} />
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-3 text-xs">
+                                                    {selectedContextContact ? (
+                                                        <>
+                                                            <DetailItem label="Name" value={`${selectedContextContact.first_name} ${selectedContextContact.last_name}`} />
+                                                            <DetailItem label="Title" value={selectedContextContact.job_title} />
+                                                            <DetailItem label="Persona" value={selectedContextContact.persona} />
+                                                            <DetailItem label="About">
+                                                                <p className="whitespace-pre-wrap max-h-48 overflow-y-auto">{selectedContextContact.linkedin_about || 'N/A'}</p>
+                                                            </DetailItem>
+                                                        </>
+                                                    ) : (
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400">Click an interviewer to see their details.</p>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )
+                }
 
                 {/* Company Deep Research Modal */}
-                {showCompanyModal && company && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fade-in">
-                        <div className="bg-white dark:bg-slate-900 w-full max-w-5xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col animate-scale-up">
-                            {/* Modal Header */}
-                            <div className="px-8 py-6 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl text-emerald-600 dark:text-emerald-400">
-                                        <StrategyIcon className="h-6 w-6" />
+                {
+                    showCompanyModal && company && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fade-in">
+                            <div className="bg-white dark:bg-slate-900 w-full max-w-5xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col animate-scale-up">
+                                {/* Modal Header */}
+                                <div className="px-8 py-6 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl text-emerald-600 dark:text-emerald-400">
+                                            <StrategyIcon className="h-6 w-6" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-bold text-slate-900 dark:text-white leading-tight">{company.company_name}</h3>
+                                            <p className="text-xs text-slate-500 font-medium tracking-wide uppercase">Deep Intelligence Research</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className="text-xl font-bold text-slate-900 dark:text-white leading-tight">{company.company_name}</h3>
-                                        <p className="text-xs text-slate-500 font-medium tracking-wide uppercase">Deep Intelligence Research</p>
+                                    <button
+                                        onClick={() => setShowCompanyModal(false)}
+                                        className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"
+                                    >
+                                        <XMarkIcon className="h-6 w-6 text-slate-400" />
+                                    </button>
+                                </div>
+
+                                {/* Modal Body */}
+                                <div className="flex-1 overflow-y-auto p-8 bg-white dark:bg-slate-900">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                                        {/* Left Column: Mission & Strategy */}
+                                        <div className="space-y-10">
+                                            <section>
+                                                <h4 className="text-[10px] uppercase font-black text-indigo-500 tracking-[0.2em] mb-4">Mission & Values</h4>
+                                                <div className="space-y-4">
+                                                    <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                                                        <p className="text-sm text-slate-700 dark:text-slate-300 italic leading-relaxed">"{company.mission?.text || 'No mission statement available.'}"</p>
+                                                    </div>
+                                                    <p className="text-sm text-slate-600 dark:text-slate-400 font-medium leading-relaxed">{company.values?.text}</p>
+                                                </div>
+                                            </section>
+
+                                            <section>
+                                                <h4 className="text-[10px] uppercase font-black text-emerald-500 tracking-[0.2em] mb-4">Strategic Initiatives</h4>
+                                                <div className="p-6 bg-emerald-50/30 dark:bg-emerald-900/10 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
+                                                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">{company.strategic_initiatives?.text || 'No strategic initiatives recorded.'}</p>
+                                                </div>
+                                            </section>
+
+                                            <section>
+                                                <h4 className="text-[10px] uppercase font-black text-amber-500 tracking-[0.2em] mb-4">Success Metrics & Goals</h4>
+                                                <div className="space-y-4">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
+                                                        <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-bold">Metrics: <span className="font-normal text-slate-700 dark:text-slate-300">{company.success_metrics?.text || 'N/A'}</span></p>
+                                                    </div>
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
+                                                        <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-bold">Goals: <span className="font-normal text-slate-700 dark:text-slate-300">{company.goals?.text || 'N/A'}</span></p>
+                                                    </div>
+                                                </div>
+                                            </section>
+                                        </div>
+
+                                        {/* Right Column: Market & Tech */}
+                                        <div className="space-y-10">
+                                            <section>
+                                                <h4 className="text-[10px] uppercase font-black text-blue-500 tracking-[0.2em] mb-4">Technology Architecture</h4>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {Array.isArray(company.known_tech_stack) ? (
+                                                        company.known_tech_stack.map(tech => (
+                                                            <span key={tech} className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700">
+                                                                {tech}
+                                                            </span>
+                                                        ))
+                                                    ) : (
+                                                        <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{String(company.known_tech_stack || '')}</p>
+                                                    )}
+                                                    {(!company.known_tech_stack || (Array.isArray(company.known_tech_stack) && company.known_tech_stack.length === 0)) && !(!Array.isArray(company.known_tech_stack) && company.known_tech_stack) && (
+                                                        <p className="text-sm text-slate-500 italic">No technology stack listed.</p>
+                                                    )}
+                                                </div>
+                                            </section>
+
+                                            <section>
+                                                <h4 className="text-[10px] uppercase font-black text-purple-500 tracking-[0.2em] mb-4">Market & Competitive Positioning</h4>
+                                                <div className="space-y-4">
+                                                    <div className="p-5 bg-purple-50/50 dark:bg-purple-900/10 rounded-2xl border border-purple-100 dark:border-purple-900/30">
+                                                        <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{company.market_position?.text}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Key Competitors</p>
+                                                        <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{company.competitors?.text}</p>
+                                                    </div>
+                                                </div>
+                                            </section>
+
+                                            <section>
+                                                <h4 className="text-[10px] uppercase font-black text-indigo-500 tracking-[0.2em] mb-4">Talent Expectations</h4>
+                                                <div className="p-6 bg-slate-900 text-slate-100 rounded-2xl shadow-inner border border-slate-800">
+                                                    <p className="text-sm leading-relaxed italic opacity-90">{company.talent_expectations?.text || 'No talent expectations research found.'}</p>
+                                                </div>
+                                            </section>
+                                        </div>
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => setShowCompanyModal(false)}
-                                    className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"
-                                >
-                                    <XMarkIcon className="h-6 w-6 text-slate-400" />
-                                </button>
-                            </div>
 
-                            {/* Modal Body */}
-                            <div className="flex-1 overflow-y-auto p-8 bg-white dark:bg-slate-900">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                                    {/* Left Column: Mission & Strategy */}
-                                    <div className="space-y-10">
-                                        <section>
-                                            <h4 className="text-[10px] uppercase font-black text-indigo-500 tracking-[0.2em] mb-4">Mission & Values</h4>
-                                            <div className="space-y-4">
-                                                <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
-                                                    <p className="text-sm text-slate-700 dark:text-slate-300 italic leading-relaxed">"{company.mission?.text || 'No mission statement available.'}"</p>
-                                                </div>
-                                                <p className="text-sm text-slate-600 dark:text-slate-400 font-medium leading-relaxed">{company.values?.text}</p>
-                                            </div>
-                                        </section>
-
-                                        <section>
-                                            <h4 className="text-[10px] uppercase font-black text-emerald-500 tracking-[0.2em] mb-4">Strategic Initiatives</h4>
-                                            <div className="p-6 bg-emerald-50/30 dark:bg-emerald-900/10 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
-                                                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">{company.strategic_initiatives?.text || 'No strategic initiatives recorded.'}</p>
-                                            </div>
-                                        </section>
-
-                                        <section>
-                                            <h4 className="text-[10px] uppercase font-black text-amber-500 tracking-[0.2em] mb-4">Success Metrics & Goals</h4>
-                                            <div className="space-y-4">
-                                                <div className="flex items-start gap-3">
-                                                    <div className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
-                                                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-bold">Metrics: <span className="font-normal text-slate-700 dark:text-slate-300">{company.success_metrics?.text || 'N/A'}</span></p>
-                                                </div>
-                                                <div className="flex items-start gap-3">
-                                                    <div className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
-                                                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-bold">Goals: <span className="font-normal text-slate-700 dark:text-slate-300">{company.goals?.text || 'N/A'}</span></p>
-                                                </div>
-                                            </div>
-                                        </section>
-                                    </div>
-
-                                    {/* Right Column: Market & Tech */}
-                                    <div className="space-y-10">
-                                        <section>
-                                            <h4 className="text-[10px] uppercase font-black text-blue-500 tracking-[0.2em] mb-4">Technology Architecture</h4>
-                                            <div className="flex flex-wrap gap-2">
-                                                {Array.isArray(company.known_tech_stack) ? (
-                                                    company.known_tech_stack.map(tech => (
-                                                        <span key={tech} className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700">
-                                                            {tech}
-                                                        </span>
-                                                    ))
-                                                ) : (
-                                                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{String(company.known_tech_stack || '')}</p>
-                                                )}
-                                                {(!company.known_tech_stack || (Array.isArray(company.known_tech_stack) && company.known_tech_stack.length === 0)) && !(!Array.isArray(company.known_tech_stack) && company.known_tech_stack) && (
-                                                    <p className="text-sm text-slate-500 italic">No technology stack listed.</p>
-                                                )}
-                                            </div>
-                                        </section>
-
-                                        <section>
-                                            <h4 className="text-[10px] uppercase font-black text-purple-500 tracking-[0.2em] mb-4">Market & Competitive Positioning</h4>
-                                            <div className="space-y-4">
-                                                <div className="p-5 bg-purple-50/50 dark:bg-purple-900/10 rounded-2xl border border-purple-100 dark:border-purple-900/30">
-                                                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{company.market_position?.text}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Key Competitors</p>
-                                                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{company.competitors?.text}</p>
-                                                </div>
-                                            </div>
-                                        </section>
-
-                                        <section>
-                                            <h4 className="text-[10px] uppercase font-black text-indigo-500 tracking-[0.2em] mb-4">Talent Expectations</h4>
-                                            <div className="p-6 bg-slate-900 text-slate-100 rounded-2xl shadow-inner border border-slate-800">
-                                                <p className="text-sm leading-relaxed italic opacity-90">{company.talent_expectations?.text || 'No talent expectations research found.'}</p>
-                                            </div>
-                                        </section>
-                                    </div>
+                                {/* Modal Footer */}
+                                <div className="px-8 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex justify-end items-center">
+                                    <button
+                                        onClick={() => setShowCompanyModal(false)}
+                                        className="px-6 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-sm hover:scale-105 active:scale-95 transition-all"
+                                    >
+                                        Close Intelligence
+                                    </button>
                                 </div>
-                            </div>
-
-                            {/* Modal Footer */}
-                            <div className="px-8 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex justify-end items-center">
-                                <button
-                                    onClick={() => setShowCompanyModal(false)}
-                                    className="px-6 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-sm hover:scale-105 active:scale-95 transition-all"
-                                >
-                                    Close Intelligence
-                                </button>
                             </div>
                         </div>
-                    </div>
-                )}
-            </div>
-        </div>
+                    )
+                }
+
+                <ResetApplicationModal
+                    isOpen={isResetModalOpen}
+                    onClose={() => setIsResetModalOpen(false)}
+                    onSubmit={handleResetSubmit}
+                    initialValues={{
+                        workflowMode: (application.workflow_mode as any) || 'ai_generated',
+                        jobTitle: application.job_title,
+                        jobLink: application.job_link || '',
+                        jobDescription: application.job_description || '',
+                        isMessageOnlyApp: false
+                    }}
+                />
+            </div >
+        </div >
     );
 };

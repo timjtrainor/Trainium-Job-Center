@@ -8,16 +8,21 @@ import {
     BragBankEntry, BragBankEntryPayload, SkillTrend, SkillTrendPayload,
     Sprint, SprintAction, CreateSprintPayload, SprintActionPayload, ApplicationQuestion,
     SiteSchedule, SiteDetails, SiteSchedulePayload,
+    WebhookConfiguration, WebhookConfigurationPayload,
     UploadedDocument, UploadSuccessResponse, ContentType, DocumentMetadata, DocumentDetail,
     PaginatedResponse, ReviewedJob, ReviewedJobRecommendation,
     StandardResponse, ChromaUploadResponseData, ProofPointPayload,
     ResumeCreatePayload, ResumeUpdatePayload, ResumeDocumentResponseData,
     InterviewLayoutState, InterviewWidgetMetadataMap, InterviewWidgetStateMap,
+    ResetApplicationPayload, InterviewStrategy, InterviewPrep, TMAYConfig,
+    QuestionDraft, Competency, TrackCompetencies
 } from '../types';
 import { API_BASE_URL, USER_ID, FASTAPI_BASE_URL } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
 import { ensureUniqueAchievementIds } from '../utils/resume';
 import type { Layout, Layouts } from 'react-grid-layout';
+
+let todays_date = new Date();
 
 // --- API Helpers ---
 
@@ -143,7 +148,7 @@ const normalizeLayoutItem = (item: any): Layout | null => {
         h: Number.isFinite(Number(item.h)) ? Number(item.h) : 1,
     };
 
-    const numericProps: Array<keyof Layout> = ['minW', 'maxW', 'minH', 'maxH'];
+    const numericProps: Array<Extract<keyof Layout, string>> = ['minW', 'maxW', 'minH', 'maxH'];
     numericProps.forEach((key) => {
         const value = (item as Record<string, any>)[key];
         if (value !== undefined && value !== null && Number.isFinite(Number(value))) {
@@ -151,7 +156,7 @@ const normalizeLayoutItem = (item: any): Layout | null => {
         }
     });
 
-    const booleanProps: Array<keyof Layout> = ['static', 'isBounded', 'moved'];
+    const booleanProps: Array<Extract<keyof Layout, string>> = ['static', 'isBounded', 'moved'];
     booleanProps.forEach((key) => {
         if ((item as Record<string, any>).hasOwnProperty(key)) {
             (sanitized as Record<string, any>)[key] = Boolean((item as Record<string, any>)[key]);
@@ -254,6 +259,32 @@ const FASTAPI_BASE = FASTAPI_BASE_URL.replace(/\/+$/u, '') || '/api';
 const buildFastApiUrl = (path = ''): string => {
     const normalizedPath = path ? (path.startsWith('/') ? path : `/${path}`) : '';
     return `${FASTAPI_BASE}${normalizedPath}`;
+};
+
+export const researchCompany = async (companyName: string, companyUrl: string = '', companyId: string = '', today: string = todays_date.toISOString()): Promise<any> => {
+    const response = await fetch(buildFastApiUrl('company-research/company/web-research'), {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ company_name: companyName, company_url: companyUrl, company_id: companyId, today: today }),
+    });
+    const rawResult = await handleResponse(response);
+
+    // Map AI result keys to DB schema keys
+    return {
+        ...rawResult,
+        internal_gripes: rawResult.the_internal_gripes,
+        talent_expectations: rawResult.talent_bar_expectations,
+        org_headwinds: rawResult.organizational_headwinds,
+        cultural_keywords: rawResult.culture_keywords, // Python `culture_keywords` -> DB `cultural_keywords`
+        known_tech_stack: rawResult.core_technical_stack || rawResult.known_tech_stack,
+
+        // Remove old keys to avoid confusion (optional but cleaner)
+        the_internal_gripes: undefined,
+        talent_bar_expectations: undefined,
+        organizational_headwinds: undefined,
+        culture_keywords: undefined,
+        core_technical_stack: undefined,
+    };
 };
 
 
@@ -428,6 +459,7 @@ const _parseApplication = (app: any): JobApplication => {
                     : undefined,
                 strategic_plan: safeParseJson(restInterview.strategic_plan, 'strategic_plan', interview.interview_id),
                 post_interview_debrief: safeParseJson(restInterview.post_interview_debrief, 'post_interview_debrief', interview.interview_id),
+                interview_strategy_state: safeParseJson(restInterview.interview_strategy_state, 'interview_strategy_state', interview.interview_id),
                 strategic_questions_to_ask: Array.isArray(rawQuestions)
                     ? rawQuestions
                     : safeParseJson(rawQuestions, 'strategic_questions_to_ask', interview.interview_id),
@@ -447,16 +479,37 @@ export const getApplications = async (since?: string): Promise<JobApplication[]>
         `&select=*,` +
         `status:statuses(*),` +
         `messages(*),` +
-        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,prep_outline,live_notes,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,layout,widgets,widget_metadata,story_deck:interview_story_decks(order_index,story_id,custom_notes),interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
+        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,prep_outline,live_notes,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,interview_strategy_state,layout,widgets,widget_metadata,story_deck:interview_story_decks(order_index,story_id,custom_notes),interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
         `offers(*)` +
         `&order=date_applied.desc,created_at.desc`;
     if (since) {
         url += `&date_applied=gte.${since}`;
     }
     const response = await fetch(url);
-    const applications: any[] = await handleResponse(response);
+    const rawApps: any[] = await handleResponse(response);
+    const apps = rawApps.map(_parseApplication);
 
-    return applications.map(_parseApplication);
+    // Bulk fetch associated jobs to bypass missing foreign key constraint for PostgREST
+    const jobIds = apps.map(a => a.source_job_id).filter(Boolean);
+    if (jobIds.length > 0) {
+        try {
+            const uniqueJobIds = Array.from(new Set(jobIds));
+            // Chunk job IDs if there are too many (PostgREST URL length limits)
+            const jobsResponse = await fetch(`${API_BASE_URL}/jobs?id=in.(${uniqueJobIds.join(',')})`);
+            const jobsData = await handleResponse(jobsResponse);
+            const jobsMap = new Map(jobsData.map((j: any) => [j.id, j]));
+
+            apps.forEach(app => {
+                if (app.source_job_id && jobsMap.has(app.source_job_id)) {
+                    app.job = jobsMap.get(app.source_job_id);
+                }
+            });
+        } catch (err) {
+            console.warn('Failed to bulk fetch associated jobs:', err);
+        }
+    }
+
+    return apps;
 };
 
 export const getSingleApplication = async (appId: string): Promise<JobApplication> => {
@@ -464,7 +517,7 @@ export const getSingleApplication = async (appId: string): Promise<JobApplicatio
         `&select=*,` +
         `status:statuses(*),` +
         `messages(*),` +
-        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,prep_outline,live_notes,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,layout,widgets,widget_metadata,story_deck:interview_story_decks(order_index,story_id,custom_notes),interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
+        `interviews(interview_id,job_application_id,interview_date,interview_type,notes,ai_prep_data,prep_outline,live_notes,strategic_plan,strategic_opening,post_interview_debrief,strategic_questions_to_ask,interview_strategy_state,layout,widgets,widget_metadata,story_deck:interview_story_decks(order_index,story_id,custom_notes),interview_contacts(*,contacts(contact_id,first_name,last_name))),` +
         `offers(*)` +
         `&limit=1`;
     const response = await fetch(url);
@@ -474,7 +527,24 @@ export const getSingleApplication = async (appId: string): Promise<JobApplicatio
         throw new Error(`Application with ID ${appId} not found.`);
     }
 
-    return _parseApplication(applications[0]);
+    const app = _parseApplication(applications[0]);
+    if (app.source_job_id) {
+        try {
+            const job = await getJobById(app.source_job_id);
+            if (job) app.job = job;
+        } catch (err) {
+            console.warn('Failed to fetch associated job:', err);
+        }
+    }
+
+    return app;
+};
+
+export const getJobById = async (jobId: string): Promise<any | null> => {
+    const url = `${API_BASE_URL}/jobs?id=eq.${jobId}&limit=1`;
+    const response = await fetch(url);
+    const data = await handleResponse(response);
+    return data && data.length > 0 ? data[0] : null;
 };
 
 // --- Robust Application Create/Update ---
@@ -489,7 +559,7 @@ const APPLICATION_TABLE_FIELDS: (keyof JobApplicationPayload)[] = [
     'resume_summary_bullets', 'tailored_resume_json', 'application_questions',
     'application_message', 'cover_letter_draft', 'strategic_fit_score', 'initial_interview_prep', 'why_this_job', 'next_steps_plan',
     'first_90_day_plan', 'keyword_coverage_score', 'assumed_requirements',
-    'referral_target_suggestion', 'vocabulary_mirror', 'alignment_strategy'
+    'referral_target_suggestion', 'vocabulary_mirror', 'alignment_strategy', 'interview_strategy'
 ];
 
 /**
@@ -554,6 +624,30 @@ export const updateApplication = async (appId: string, appData: JobApplicationPa
     return getSingleApplication(appId);
 };
 
+export const resetApplication = async (appId: string, payload: ResetApplicationPayload): Promise<JobApplication> => {
+    const response = await fetch(buildFastApiUrl(`applications/${appId}/reset-to-draft`), {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(payload),
+    });
+
+    await handleResponse(response);
+
+    // Re-fetch the full application to get the updated status and triggered state
+    return getSingleApplication(appId);
+};
+
+export const setApplicationToBadFit = async (appId: string): Promise<JobApplication> => {
+    const response = await fetch(buildFastApiUrl(`applications/${appId}/set-bad-fit`), {
+        method: 'POST',
+        headers: headers,
+    });
+
+    await handleResponse(response);
+
+    return getSingleApplication(appId);
+};
+
 
 export const deleteApplication = async (appId: string): Promise<void> => {
     await handleResponse(await fetch(`${API_BASE_URL}/offers?job_application_id=eq.${appId}`, { method: 'DELETE', headers }));
@@ -577,8 +671,72 @@ const COMPANY_TABLE_FIELDS: (keyof CompanyPayload)[] = [
     'company_name', 'company_url', 'mission', 'values', 'news', 'goals', 'issues',
     'customer_segments', 'strategic_initiatives', 'market_position', 'competitors',
     'industry', 'is_recruiting_firm',
-    'funding_status', 'culture_keywords', 'known_tech_stack'
+    'funding_status', 'cultural_keywords', 'known_tech_stack',
+    'economic_model', 'operating_model',
+    'internal_gripes', 'talent_expectations', 'org_headwinds', 'core_technical_stack'
 ];
+
+/**
+ * Parses a company object from the API.
+ * Specifically handles 'funding_status' which is stored as a text column but may contain a JSON string.
+ */
+const _parseCompany = (company: any): Company => {
+    if (!company) return company;
+
+    const parsed = { ...company };
+
+    // Handle funding_status (Text -> JSON -> InfoField)
+    if (parsed.funding_status) {
+        if (typeof parsed.funding_status === 'string') {
+            try {
+                // Try parse if it looks like JSON
+                if (parsed.funding_status.trim().startsWith('{')) {
+                    parsed.funding_status = JSON.parse(parsed.funding_status);
+                } else {
+                    // Legacy plain text -> Wrap in InfoField
+                    parsed.funding_status = { text: parsed.funding_status, source: 'manual' };
+                }
+            } catch (e) {
+                // Parse error -> Treat as manual text
+                parsed.funding_status = { text: parsed.funding_status, source: 'manual' };
+            }
+        }
+    }
+
+    // Ensure strict InfoField structure for other JSONB fields if they come back null/missing
+    const infoFields: (keyof Company)[] = [
+        'mission', 'values', 'news', 'goals', 'issues', 'customer_segments',
+        'strategic_initiatives', 'market_position', 'competitors', 'industry',
+        'cultural_keywords', 'known_tech_stack', 'economic_model', 'operating_model',
+        'internal_gripes',
+        'talent_expectations', 'org_headwinds', 'core_technical_stack'
+    ];
+
+    infoFields.forEach(field => {
+        if (parsed[field] === null || parsed[field] === undefined) {
+            // Do not default to empty object here, let it be undefined or null so UI knows it's empty.
+            // But if it is an object, ensure it has at least 'text'.
+        }
+    });
+
+    return parsed;
+};
+
+/**
+ * Prepares a company payload for saving.
+ * Specifically stringifies 'funding_status' back to text for the DB.
+ */
+const _prepareCompanyPayload = (data: Partial<CompanyPayload | Company>): object => {
+    const sanitized = createSanitizedCompanyPayload(data) as any;
+
+    // Handle funding_status (InfoField -> JSON String)
+    if (sanitized.funding_status && typeof sanitized.funding_status === 'object') {
+        sanitized.funding_status = JSON.stringify(sanitized.funding_status);
+    }
+
+    console.log("[Debug] Prepared Company Payload:", sanitized);
+    return sanitized;
+};
 
 /**
  * Creates a sanitized payload for creating or updating a Company.
@@ -600,30 +758,31 @@ const createSanitizedCompanyPayload = (data: Partial<CompanyPayload | Company>):
 
 export const getCompanies = async (): Promise<Company[]> => {
     const response = await fetch(`${API_BASE_URL}/companies?user_id=eq.${USER_ID}&order=company_name.asc`);
-    return handleResponse(response);
+    const data = await handleResponse(response);
+    return data.map(_parseCompany);
 };
 
 export const getCompany = async (companyId: string): Promise<Company> => {
     const response = await fetch(`${API_BASE_URL}/companies?company_id=eq.${companyId}&user_id=eq.${USER_ID}`);
     const data = await handleResponse(response);
     if (!data || data.length === 0) throw new Error(`Company with ID ${companyId} not found.`);
-    return data[0];
+    return _parseCompany(data[0]);
 };
 
 export const createCompany = async (companyData: CompanyPayload): Promise<Company> => {
-    const sanitizedData = createSanitizedCompanyPayload(companyData);
-    const payload = { ...sanitizedData, user_id: USER_ID };
+    const payload = { ..._prepareCompanyPayload(companyData), user_id: USER_ID };
     const response = await fetch(`${API_BASE_URL}/companies`, {
         method: 'POST',
         headers: { ...headers, 'Prefer': 'return=representation' },
         body: JSON.stringify(payload),
     });
     const data = await handleResponse(response);
-    return data[0];
+    return _parseCompany(data[0]);
 };
 
 export const updateCompany = async (companyId: string, companyData: Partial<Company>): Promise<Company> => {
-    const payload = createSanitizedCompanyPayload(companyData);
+    console.log("[Debug] updateCompany called with:", companyData);
+    const payload = _prepareCompanyPayload(companyData);
 
     if (Object.keys(payload).length === 0) {
         console.warn("Update company called with an empty payload. Re-fetching current state.");
@@ -1091,6 +1250,10 @@ export const saveInterview = async (interviewData: InterviewPayload, interviewId
 
     const payload: Record<string, unknown> = { ...rest };
 
+    if (interviewData.interview_strategy_state !== undefined) {
+        payload.interview_strategy_state = interviewData.interview_strategy_state;
+    }
+
     if (layout !== undefined) {
         payload.layout = layout === null ? null : cloneLayouts(layout) ?? null;
     }
@@ -1372,6 +1535,77 @@ export const saveStrategicNarrative = async (payload: StrategicNarrativePayload,
     };
 };
 
+// --- Competency Hub ---
+
+export const getTrackCompetencies = async (trackName: string): Promise<TrackCompetencies | null> => {
+    const response = await fetch(`${API_BASE_URL}/job_track_competencies?user_id=eq.${USER_ID}&track_name=eq.${encodeURIComponent(trackName)}`);
+    const data = await handleResponse(response);
+    if (!data || data.length === 0) return null;
+
+    return {
+        ...data[0],
+        competencies: safeParseJson(data[0].competencies, 'competencies', data[0].track_competency_id)
+    };
+};
+
+export const saveTrackCompetencies = async (payload: Partial<TrackCompetencies>): Promise<TrackCompetencies> => {
+    const { track_competency_id, ...data } = payload;
+    const finalPayload = { ...data, user_id: USER_ID };
+
+    let response;
+    if (track_competency_id) {
+        response = await fetch(`${API_BASE_URL}/job_track_competencies?track_competency_id=eq.${track_competency_id}&user_id=eq.${USER_ID}`, {
+            method: 'PATCH',
+            headers: { ...headers, 'Prefer': 'return=representation' },
+            body: JSON.stringify(finalPayload),
+        });
+    } else {
+        response = await fetch(`${API_BASE_URL}/job_track_competencies`, {
+            method: 'POST',
+            headers: { ...headers, 'Prefer': 'return=representation' },
+            body: JSON.stringify(finalPayload),
+        });
+    }
+
+    const result = await handleResponse(response);
+    const saved = result[0];
+
+    return {
+        ...saved,
+        competencies: safeParseJson(saved.competencies, 'competencies', saved.track_competency_id)
+    };
+};
+
+export const getTracksWithApplications = async (): Promise<string[]> => {
+    try {
+        // 1. Get all source_job_ids from applications
+        const appsResponse = await fetch(`${API_BASE_URL}/job_applications?user_id=eq.${USER_ID}&select=source_job_id`);
+        const appsData = await handleResponse(appsResponse);
+
+        const jobIds = appsData
+            .map((a: any) => a.source_job_id)
+            .filter((id: string | null) => id !== null);
+
+        if (jobIds.length === 0) {
+            return [];
+        }
+
+        // 2. Get tracks for these jobs, filtered by duplicate_status = 'original'
+        const jobsResponse = await fetch(`${API_BASE_URL}/jobs?id=in.(${jobIds.join(',')})&select=track&duplicate_status=eq.original&track=not.is.null`);
+        const jobsData = await handleResponse(jobsResponse);
+
+        const tracks = new Set<string>();
+        jobsData.forEach((j: any) => {
+            if (j.track) tracks.add(j.track);
+        });
+
+        return Array.from(tracks).sort();
+    } catch (err) {
+        console.error('Failed to get tracks with applications:', err);
+        return [];
+    }
+};
+
 
 // --- Offers ---
 
@@ -1548,6 +1782,41 @@ export const addActionsToSprint = async (sprintId: string, actions: Omit<SprintA
     return await handleResponse(response);
 };
 
+// --- Interviews AI ---
+
+export const generatePersonaDefinition = async (
+    buyerType: string,
+    interviewerTitle: string,
+    interviewerAbout: string,
+    jdAnalysis: string,
+    alignment: string,
+    interviewStrategy: any,
+    previousInterviewContext: string
+): Promise<{
+    primary_anxiety: string;
+    win_condition: string;
+    functional_friction_point: string;
+    mirroring_style: string;
+}> => {
+    const payload = {
+        buyer_type: buyerType,
+        interviewer_title: interviewerTitle,
+        interviewer_linkedin: interviewerAbout,
+        application_interview_strategy_json: JSON.stringify(interviewStrategy),
+        jd_analysis_json: jdAnalysis, // Assuming it's already a summary/json string
+        alignment_strategy_json: alignment,
+        previous_interview_context: previousInterviewContext
+    };
+
+    const response = await fetch(buildFastApiUrl('interview/persona_definition'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+    });
+
+    return await handleResponse(response);
+};
+
 // --- Scheduler / Dev Mode ---
 
 export const getSiteSchedules = async (): Promise<SiteSchedule[]> => {
@@ -1605,6 +1874,42 @@ export const deleteSiteSchedule = async (scheduleId: string): Promise<void> => {
         headers,
     });
     await handleResponse(response);
+};
+
+// --- Webhook Configurations ---
+
+export const getWebhookConfigurations = async (): Promise<WebhookConfiguration[]> => {
+    const response = await fetch(`${API_BASE_URL}/webhook_configurations?order=name.asc`);
+    return await handleResponse(response);
+};
+
+export const createWebhookConfiguration = async (webhookData: WebhookConfigurationPayload): Promise<WebhookConfiguration> => {
+    const response = await fetch(`${API_BASE_URL}/webhook_configurations`, {
+        method: 'POST',
+        headers: { ...headers, 'Prefer': 'return=representation' },
+        body: JSON.stringify(webhookData),
+    });
+    const data = await handleResponse(response);
+    return data[0];
+};
+
+export const updateWebhookConfiguration = async (webhookId: string, webhookData: WebhookConfigurationPayload): Promise<WebhookConfiguration> => {
+    const response = await fetch(`${API_BASE_URL}/webhook_configurations?id=eq.${webhookId}`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Prefer': 'return=representation' },
+        body: JSON.stringify(webhookData),
+    });
+    const data = await handleResponse(response);
+    return data[0];
+};
+
+export const deleteWebhookConfiguration = async (webhookId: string): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/webhook_configurations?id=eq.${webhookId}`, { method: 'DELETE', headers });
+    await handleResponse(response);
+};
+
+export const toggleWebhookConfiguration = async (webhook: WebhookConfiguration): Promise<WebhookConfiguration> => {
+    return await updateWebhookConfiguration(webhook.id, { active: !webhook.active });
 };
 
 // --- Document Management via FastAPI ---
@@ -1683,6 +1988,27 @@ export const getUploadedDocuments = async (profileId: string): Promise<UploadedD
     return documents.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 };
 
+export const getCollectionDocuments = async (collectionName: string): Promise<UploadedDocument[]> => {
+    const response = await fetch(buildFastApiUrl(`chroma/collections/${collectionName}/documents`));
+    const data = await handleResponse(response);
+    const documents: UploadedDocument[] = (data?.documents || []).map((doc: any) => {
+        const recordId = doc?.id || 'unknown';
+        const metadata = parseMetadataObject(doc?.metadata, recordId);
+
+        return {
+            id: recordId,
+            title: doc?.title || 'Untitled',
+            content_type: (doc?.content_type || collectionName) as ContentType,
+            collection_name: collectionName,
+            content: doc?.content_snippet || '',
+            created_at: doc?.created_at || new Date().toISOString(),
+            section: doc?.section,
+            metadata: metadata // Ensure metadata is passed
+        };
+    });
+    return documents;
+};
+
 export const deleteUploadedDocument = async (documentId: string): Promise<void> => {
     const response = await fetch(buildFastApiUrl(`documents/${documentId}`), {
         method: 'DELETE',
@@ -1721,6 +2047,18 @@ export const getLatestDocumentByDimension = async (
     }
 
     const response = await fetch(buildFastApiUrl(`documents/by-dimension?${params.toString()}`));
+
+    if (response.status === 404) {
+        return {
+            id: 'unknown',
+            title: 'Untitled',
+            collection_name: collectionName as any,
+            content: '',
+            chunk_count: 0,
+            metadata: undefined,
+        };
+    }
+
     const data = await handleResponse(response);
     const metadata = parseMetadataObject(data?.metadata, data?.id || 'unknown');
 
@@ -1986,6 +2324,9 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
             confidence: confidenceLookup[String(review.confidence).toLowerCase()] ?? 0.3,
             overall_alignment_score: overallScore,
             is_eligible_for_application: Boolean(finalRecommendation),
+            normalized_title: job.normalized_title ?? null,
+            normalized_company: job.normalized_company ?? null,
+            track: job.track ?? null,
             is_remote: job.is_remote ?? null,
             salary_min: formatSalaryComponent(job.salary_min),
             salary_max: formatSalaryComponent(job.salary_max),
@@ -2030,6 +2371,7 @@ export const getReviewedJobs = async ({ page = 1, size = 15, filters = {}, sort 
 export interface JobReviewOverrideRequest {
     override_recommend: boolean;
     override_comment: string;
+    skip_webhook?: boolean;
 }
 
 export interface JobReviewOverrideResponse {
@@ -2163,4 +2505,162 @@ export const createApplicationFromJob = async (jobId: string, mode: string = 'fa
     });
 
     return handleResponse(response);
+};
+
+// --- Interview Strategy ---
+
+export const generateApplicationStrategy = async (
+    jobDescription: string,
+    companyData: any,
+    careerDna: any,
+    jobProblemAnalysis: any = null,
+    vocabularyMirror: string[] | null = null,
+    alignmentStrategy: any = null
+): Promise<InterviewStrategy> => {
+    const response = await fetch(buildFastApiUrl('interview-strategy/application-strategy'), {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+            job_description: jobDescription,
+            company_data: companyData,
+            career_dna: careerDna,
+            job_problem_analysis: jobProblemAnalysis,
+            vocabulary_mirror: vocabularyMirror,
+            alignment_strategy: alignmentStrategy,
+            user_id: USER_ID
+        }),
+    });
+    return handleResponse(response);
+};
+
+export const generateInterviewBlueprint = async (
+    jobDescription: string,
+    companyData: any,
+    careerDna: any,
+    jobProblemAnalysis: any = null,
+    interviewerProfiles: any[] | null = null,
+    applicationInterviewStrategy: any = null
+): Promise<InterviewPrep> => {
+    const response = await fetch(buildFastApiUrl('interview-strategy/blueprint'), {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+            job_description: jobDescription,
+            company_data: companyData,
+            career_dna: careerDna,
+            job_problem_analysis: jobProblemAnalysis,
+            interviewer_profiles: interviewerProfiles,
+            application_interview_strategy: applicationInterviewStrategy,
+            user_id: USER_ID
+        }),
+    });
+    return handleResponse(response);
+};
+
+export const generateInterviewStrategy = async (
+    applicationId: string,
+    jobDescription: string,
+    companyData: any,
+    careerDna: any,
+    jobProblemAnalysis: any = null,
+    vocabularyMirror: string | null = null,
+    alignmentStrategy: any = null
+): Promise<InterviewStrategy> => {
+    const mirrorArray = vocabularyMirror ? [vocabularyMirror] : null;
+    return generateApplicationStrategy(
+        jobDescription,
+        companyData,
+        careerDna,
+        jobProblemAnalysis,
+        mirrorArray,
+        alignmentStrategy
+    );
+};
+
+export const researchShadowTruth = async (
+    companyName: string,
+    topic: string,
+    context?: string
+): Promise<{ content: string }> => {
+    const response = await fetch(buildFastApiUrl('interview-strategy/research-shadow-truth'), {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+            company_name: companyName,
+            topic: topic,
+            context: context,
+            user_id: USER_ID
+        }),
+    });
+    const result = await handleResponse(response);
+    return result;
+};
+
+export const generateTMAY = async (
+    primaryAnxiety: string,
+    winCondition: string,
+    functionalFrictionPoint: string,
+    mirroringStyle: string,
+    alignmentStrategyJson: string,
+    candidateDnaSummary: string
+): Promise<TMAYConfig> => {
+    const response = await fetch(buildFastApiUrl('interview/tmay'), {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+            primary_anxiety: primaryAnxiety,
+            win_condition: winCondition,
+            functional_friction_point: functionalFrictionPoint,
+            mirroring_style: mirroringStyle,
+            alignment_strategy_json: alignmentStrategyJson,
+            candidate_dna_summary: candidateDnaSummary,
+            user_id: USER_ID
+        }),
+    });
+    const result = await handleResponse(response);
+    return result;
+};
+
+export const generateInterviewQuestions = async (
+    buyerType: string,
+    interviewerTitle: string,
+    interviewerLinkedin: string,
+    applicationInterviewStrategyJson: string,
+    jdAnalysisJson: string
+): Promise<{ questions: QuestionDraft[] }> => {
+    const response = await fetch(buildFastApiUrl('interview/questions'), {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+            buyer_type: buyerType,
+            interviewer_title: interviewerTitle,
+            interviewer_linkedin: interviewerLinkedin,
+            application_interview_strategy_json: applicationInterviewStrategyJson,
+            jd_analysis_json: jdAnalysisJson,
+            user_id: USER_ID
+        }),
+    });
+    const result = await handleResponse(response);
+    return result;
+};
+
+export const generateTalkingPoints = async (
+    questionText: string,
+    framework: string,
+    personaJson: string,
+    candidateProofPoints: string
+): Promise<{ talking_points: string[] }> => {
+    const response = await fetch(buildFastApiUrl('interview/talking-points'), {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+            question_text: questionText,
+            framework: framework,
+            persona_json: personaJson,
+            candidate_proof_points: candidateProofPoints,
+            user_id: USER_ID
+        }),
+    });
+    const result = await handleResponse(response);
+    return result;
 };

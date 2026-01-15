@@ -43,6 +43,16 @@ export enum AppView {
 export type ApplicationDetailTab = 'overview' | 'analysis' | 'resume' | 'interviews' | 'ai-content' | 'questions' | 'apply';
 export type ApplicationLabTab = 'lab' | 'formulas' | 'offers';
 
+export type WorkflowModeOption = 'manual' | 'ai_generated' | 'fast_track';
+
+export interface ResetApplicationPayload {
+  workflowMode: WorkflowModeOption;
+  jobTitle: string;
+  jobLink: string;
+  jobDescription: string;
+  isMessageOnlyApp: boolean;
+}
+
 
 
 
@@ -59,11 +69,16 @@ export interface ExtractedInitialDetails {
   jobTitle: string;
   jobDescription: string;
   salary?: string;
+  salary_min?: number | null;
+  salary_max?: number | null;
+  salary_currency?: string;
   companyHomepageUrl?: string;
   mission?: string;
   values?: string;
   location?: string;
+  remote_status?: 'Remote' | 'Hybrid' | 'On-site' | '';
   remoteStatus?: 'Remote' | 'Hybrid' | 'On-site' | '';
+  date_posted?: string;
   error?: string;
 }
 
@@ -82,26 +97,27 @@ export interface CoreProblemAnalysis {
 export interface JobProblemAnalysisResultV1 {
   core_problem_analysis: CoreProblemAnalysis;
   key_success_metrics: string[];
-  role_levers: string[];
-  potential_blockers: string[];
-  suggested_positioning: string;
   tags: string[];
 }
 
+export interface MandateQuadrant {
+  solve: string;
+  improve: string;
+  deliver: string;
+  maintain: string;
+}
+
+export interface ExperienceAnchoring {
+  anchor_role_title: string;
+  alignment_type: string;
+  fidelity_logic: string;
+}
+
 export interface DiagnosticIntel {
-  failure_state_portfolio: string[];
+  failure_state_portfolio: string | string[];
   composite_antidote_persona: string;
-  experience_anchoring: {
-    anchor_role_title: string;
-    alignment_type: string;
-    fidelity_logic: string;
-  };
-  mandate_quadrant: {
-    solve: string;
-    improve: string;
-    deliver: string;
-    maintain: string;
-  };
+  experience_anchoring: string | ExperienceAnchoring;
+  mandate_quadrant: string | MandateQuadrant;
   functional_gravity_stack: string[];
   strategic_friction_hooks: string[];
 }
@@ -116,31 +132,41 @@ export interface ContentIntelligence {
   must_have_tech_signals: string[];
 }
 
-export interface JobProblemAnalysisResultV2 {
+export interface JobProblemAnalysis {
   diagnostic_intel: DiagnosticIntel;
   economic_logic_gates: EconomicLogicGates;
   content_intelligence: ContentIntelligence;
 }
 
+export interface JobProblemAnalysisResultV2 extends JobProblemAnalysis { }
 export type JobProblemAnalysisResult = JobProblemAnalysisResultV1 | JobProblemAnalysisResultV2;
 
-export interface StrategicAlignmentHook {
-  role: string;
-  company: string;
+export interface ThematicAlignment {
+  bucket_name: string;
   friction_hook: string;
-  mapped_pillar: string;
-  context_type: string;
-  secondary_alignments?: string[];
-  role_index?: number;
+  strategic_weight: number;
+  is_kill_shot_container: boolean;
+  mapped_proof_point_ids: string[];
+}
+
+export interface StrategicAlignmentHook {
+  role_index: number;
+  organization_name: string;
+  chronological_order: number;
+  thematic_alignments: ThematicAlignment[];
+  role_pathology_context: string;
+  distributed_bullet_count: number;
+  strategically_aligned_title: string;
 }
 
 export interface AlignmentStrategy {
   alignment_strategy: StrategicAlignmentHook[];
+  strategic_identity_anchor?: string;
 }
 
 export interface InfoField {
   text: string;
-  source: string;
+  source: string | string[];
 }
 
 // Result from the AI company research
@@ -164,7 +190,8 @@ export interface Company {
   company_id: string; // uuid in DB
   user_id: string;
   company_name: string;
-  company_url?: string;
+  normalized_name?: string;
+  source?: string;
   mission?: InfoField;
   values?: InfoField;
   news?: InfoField;
@@ -178,9 +205,23 @@ export interface Company {
   success_metrics?: InfoField;
   talent_expectations?: InfoField;
   is_recruiting_firm?: boolean;
-  funding_status?: string;
-  culture_keywords?: string[];
-  known_tech_stack?: string[];
+  funding_status?: InfoField;
+  cultural_keywords?: InfoField;
+  known_tech_stack?: InfoField;
+
+  // New Research Fields
+  economic_model?: InfoField;
+  operating_model?: InfoField;
+  leadership_pedigree_and_success_mythology?: InfoField; // DB seems to have this (need to check curl output more closely if possible, assuming matches for now or will be verified)
+  // Actually curl output didn't show leadership_pedigree... wait.
+  // Curl output: "internal_gripes":null,"talent_expectations":null,"org_headwinds":null
+  // It didn't show all columns because they are null? No, it showed key=null.
+  // I must be careful.
+  internal_gripes?: InfoField;
+  // talent_expectations removed here as it is defined above
+  org_headwinds?: InfoField;
+  core_technical_stack?: InfoField; // Maps to known_tech_stack in DB? Curl showed known_tech_stack.
+  company_url?: string;
 }
 
 // Based on the 'statuses' table
@@ -263,6 +304,46 @@ export interface ConsultativeClosePlan {
 }
 
 
+// New Interview Strategy Types
+export interface CompanyPathology {
+  name: string;
+  diagnosis: string;
+  symptoms: string[];
+  risk_level: 'Low' | 'Medium' | 'High' | 'Critical';
+}
+
+export interface ConsultativeBridge {
+  antidote_theme: string;
+  narrative_arc: string;
+  key_talking_points: string[];
+}
+
+export interface PersonaGuidance {
+  persona_type: 'Talent Sifter' | 'The Owner' | 'Deep Diver' | 'Visionary';
+  focus_area: string;
+  success_metric: string;
+  vocabulary_mirror: string[];
+  consultative_questions: string[];
+  anti_persona_warning?: string;
+}
+
+export interface SelectedStory {
+  story_id?: string;
+  title: string;
+  relevance: string;
+  custom_hook: string;
+}
+
+// Redundant definitions for DiagnosticIntel, EconomicLogicGates, etc. removed.
+// Using definitions from lines 103-132.
+
+export interface InterviewStrategy {
+  job_problem_analysis: JobProblemAnalysis;
+  strategic_fit_score: number;
+  assumed_requirements: string[];
+}
+
+
 // A simplified representation of the 'job_applications' table for the frontend
 export interface JobApplication {
   job_application_id: string; // Changed from number to string for UUID
@@ -306,6 +387,12 @@ export interface JobApplication {
   referral_target_suggestion?: string;
   vocabulary_mirror?: string;
   alignment_strategy?: AlignmentStrategy;
+  interview_strategy?: InterviewStrategy;
+  job?: {
+    id?: string;
+    track?: string;
+    [key: string]: any;
+  };
 }
 
 // ----- New Detailed Resume Structures -----
@@ -346,6 +433,13 @@ export interface ResumeAccomplishment {
   original_score?: AchievementScore;
   order_index: number;
   relevance_score?: number;
+  bucket_category?: string; // V4.x Billboard style
+}
+
+export interface ThematicBucket {
+  bucket_name: string;
+  friction_hook?: string;
+  bullets: string[];
 }
 
 export interface WorkExperience {
@@ -358,6 +452,7 @@ export interface WorkExperience {
   filter_accomplishment_count: number;
   role_context?: string;
   accomplishments: ResumeAccomplishment[];
+  thematic_buckets?: ThematicBucket[]; // Deprecated in V4.x
 }
 
 export interface Education {
@@ -391,6 +486,7 @@ export interface Resume {
   education: Education[];
   certifications: Certification[];
   skills: SkillSection[];
+  version?: number;
 }
 
 
@@ -507,7 +603,96 @@ export interface Interview {
   layout?: InterviewLayoutState | null;
   widgets?: InterviewWidgetStateMap | null;
   widget_metadata?: InterviewWidgetMetadataMap | null;
+  // New Strategic Data
+  interview_strategy_state?: InterviewStrategyState | null;
 }
+
+export type BuyerType = 'Recruiter' | 'Hiring Manager' | 'Technical Buyer' | 'Peer' | 'Executive';
+export type CommunicationStyle = 'Unknown' | 'Driver' | 'Analytical' | 'Expressive' | 'Amiable';
+
+export interface PersonaDefinition {
+  // Must-Have
+  buyer_type: BuyerType;
+  primary_anxiety: string;
+  win_condition: string;
+  functional_friction_point: string;
+  mirroring_style?: string;
+  interviewer_title?: string;
+  interviewer_linkedin_about?: string;
+  // Could-Have
+  professional_pedigree?: string;
+  objection_triggers?: string[];
+  preferred_vocabulary?: string[];
+  communication_style?: CommunicationStyle;
+}
+
+export interface TMAYConfig {
+  hook: string;
+  bridge: string;
+  pivot: string;
+}
+
+export interface QuestionDraft {
+  id: string; // uuid
+  type: 'Behavioral' | 'Technical Depth' | 'Situational' | 'Strategy Case' | 'Leadership';
+  question_text: string;
+  talking_points: string[];
+  framework?: 'STAR' | 'DIG' | 'PAR' | 'Vision/ROI';
+  // Subtitle populated from user hints or defaults
+  subtitle_hint?: string;
+}
+
+export interface InterviewStrategyState {
+  persona: PersonaDefinition;
+  tmay: TMAYConfig;
+  questions: QuestionDraft[];
+  // General success metrics & blockers
+  success_metrics: string[];
+  potential_blockers: string[];
+  // Tab-specific power vocab can be derived or stored here
+  power_vocabulary: Record<string, string[]>; // key is tab name or category, value is list of words
+  discovery_questions: string[]; // for "Discovery (Ask Them)" tab
+  lens_setup?: InterviewLensSetup | null;
+}
+
+export type LensNarrativeStyle = 'STAR' | 'PAR' | 'DIGS' | 'SPI';
+
+export interface LensStrategy {
+  strategy_id: string;
+  strategy_name: string;
+  icon_name: string; // Heroicon name or custom icon key
+
+  // New Structured Fields
+  hero_kpi?: string; // "40%", "$2M", etc.
+  visual_anchor?: string; // Icon name
+  narrative_steps?: Record<string, string>; // { S: "...", T: "...", ... }
+  talking_points: string[]; // Max 7 words per line (This is the 'thinned_bullets')
+
+  context_icon_name?: string; // Company/Role logo key
+  framework?: LensNarrativeStyle;
+
+  // Legacy/Draft fields
+  draft_story?: string;
+  source_story_id?: string;
+}
+
+export interface LensCompetency {
+  competency_id: string;
+  title: string;
+  color_code?: string; // e.g., 'blue', 'green'
+  strategies: LensStrategy[]; // 2-3 per competency
+}
+
+export interface InterviewLensSetup {
+  role_id: string;
+  objective: string;
+  narrative_style: LensNarrativeStyle;
+  active_competencies: LensCompetency[]; // Max 3
+  is_locked: boolean; // Frozen UI mode
+  experience_company?: string;
+  experience_role?: string;
+}
+
 
 export type InterviewLayoutState = Partial<Layouts>;
 
@@ -544,15 +729,38 @@ export interface Offer {
 }
 
 
+export interface ScriptedOpening {
+  hook: string;
+  bridge: string;
+  pivot: string;
+}
+
+export interface DiagnosticRow {
+  friction_point: string;
+  proposed_intervention: string;
+}
+
+export interface ExpectedQuestion {
+  question: string;
+  strategic_answer: string;
+  rationale: string;
+}
+
+export interface InterviewerIntel {
+  name: string;
+  role: string;
+  persona_type: 'Talent Sifter' | 'The Owner' | 'Deep Diver' | 'Visionary';
+  expected_questions: ExpectedQuestion[];
+}
+
 export interface InterviewPrep {
-  keyFocusAreas: string[];
-  potentialQuestions: { question: string; strategy: string; }[];
-  questionsToAsk: string[];
-  redFlags: string[];
-  salaryNegotiation?: {
-    suggestion: string;
-    reasoning: string;
-  };
+  scripted_opening: ScriptedOpening;
+  diagnostic_matrix: DiagnosticRow[];
+  interviewer_intel: InterviewerIntel[];
+  keyFocusAreas?: string[];
+  potentialQuestions?: string[];
+  questionsToAsk?: string[];
+  redFlags?: string[];
 }
 
 export interface InterviewCoachingQuestion {
@@ -716,8 +924,20 @@ export interface SpotlightBody {
 export interface ImpactStory {
   story_id: string; // uuid
   story_title: string;
-  format: StorytellingFormat;
+  format: 'STAR' | 'PAR' | 'DIGS'; // Restricted to supported formats
+  // Legacy body structure (deprecated but kept for fallback)
   story_body: StarBody | ScopeBody | WinsBody | SpotlightBody | { [key: string]: string };
+
+  // New Structured Fields
+  hero_kpi?: string; // e.g., "Reduced Latency 40%"
+  visual_anchor?: string; // Icon name
+  narrative_steps?: Record<string, string>; // { S: "...", T: "...", ... }
+  thinned_bullets?: string[]; // 3-5 punchy triggers
+
+  // Associations
+  associated_strategy_id?: string;
+  associated_experience_index?: number; // Index in UserProfile.work_experience
+
   target_questions: string[];
   speaker_notes?: { [key: string]: string };
 }
@@ -763,6 +983,11 @@ export interface StrategicNarrative {
   relocation_open?: boolean;
   compensation_expectation?: string;
   common_interview_answers?: CommonInterviewAnswer[];
+  desired_title?: string;
+  desired_industry?: string;
+  desired_company_stage?: string;
+  career_story?: string;
+  narratives_proof_points?: string;
   created_at?: string;
   updated_at?: string;
   default_resume_id?: string;
@@ -1042,6 +1267,20 @@ export interface SiteSchedule {
 
 export type SiteSchedulePayload = Partial<Omit<SiteSchedule, 'id' | 'created_at' | 'updated_at'>>;
 
+export interface WebhookConfiguration {
+  id: string; // uuid
+  name: string;
+  redis_channel: string;
+  webhook_url: string;
+  auth_token?: string | null;
+  active: boolean;
+  description?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type WebhookConfigurationPayload = Partial<Omit<WebhookConfiguration, 'id' | 'created_at' | 'updated_at'>>;
+
 
 export const ResumeTemplate: Resume = {
   header: { first_name: "", last_name: "", job_title: "", email: "", phone_number: "", city: "", state: "", links: [] },
@@ -1222,6 +1461,7 @@ export interface ProofPointPayload {
   uploaded_at?: string;
   status_transitions?: StatusTransitionPayload[];
   additional_metadata?: Record<string, unknown> | null;
+  [key: string]: any;
 }
 
 export interface ResumeCreatePayload {
@@ -1240,6 +1480,7 @@ export interface ResumeCreatePayload {
   is_latest?: boolean | null;
   uploaded_at?: string;
   additional_metadata?: Record<string, unknown> | null;
+  [key: string]: any;
 }
 
 export interface ResumeUpdatePayload {
@@ -1267,6 +1508,9 @@ export interface ReviewedJob {
   confidence: number; // 0.0 to 1.0
   overall_alignment_score: number; // 0.0 to 10.0
   is_eligible_for_application: boolean;
+  normalized_title?: string | null;
+  normalized_company?: string | null;
+  track?: string | null;
   is_remote?: boolean | null;
   salary_min?: string | null;
   salary_max?: string | null;
@@ -1312,4 +1556,26 @@ export interface PaginatedResponse<T> {
   page: number;
   size: number;
   pages: number;
+}
+
+export interface CompetencyStrategy {
+  strategy_name: string;
+  best_practices: string;
+  tools: string[];
+  kpis: string[];
+  talking_points: string[];
+}
+
+export interface Competency {
+  title: string;
+  strategies: CompetencyStrategy[];
+}
+
+export interface TrackCompetencies {
+  track_competency_id: string; // uuid
+  user_id: string; // uuid
+  track_name: string;
+  competencies: Competency[];
+  created_at?: string;
+  updated_at?: string;
 }

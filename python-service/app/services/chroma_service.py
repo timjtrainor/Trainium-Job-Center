@@ -15,7 +15,6 @@ from ..schemas.chroma import ChromaUploadRequest, ChromaUploadResponse, ChromaCo
 from chromadb.errors import (
     ChromaError,
     InvalidDimensionException,
-    InvalidCollectionException,
 )
 
 
@@ -210,7 +209,7 @@ class ChromaService:
                     metadatas=metadatas,
                 )
                 logger.info(f"Successfully added all chunks to collection '{request.collection_name}'")
-            except (InvalidDimensionException, InvalidCollectionException, ChromaError) as e:
+            except (InvalidDimensionException, ChromaError) as e:
                 error_msg = (
                     f"ChromaDB operation failed: {str(e)}\n"
                     f"Error type: {type(e).__name__}\n"

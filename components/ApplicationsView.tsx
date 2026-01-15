@@ -88,13 +88,6 @@ export const ApplicationsView = ({
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Application Lab</h1>
                     <p className="mt-1 text-slate-600 dark:text-slate-400">Catalyze your next career move by tracking every application.</p>
                 </div>
-                <button
-                    onClick={onAddNew}
-                    className="inline-flex items-center justify-center w-full md:w-auto px-5 py-2 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                >
-                    <PlusCircleIcon className="w-5 h-5 mr-2 -ml-1" />
-                    Add New Application
-                </button>
             </div>
 
             <div className="border-b border-slate-200 dark:border-slate-700">
@@ -121,7 +114,7 @@ export const ApplicationsView = ({
                     strategicNarratives={strategicNarratives}
                 />
             )}
-            {activeTab === 'formulas' && activeNarrative && (
+            {activeTab === 'formulas' && (
                 <ResumeFormulasDashboard
                     activeNarrative={activeNarrative}
                 />

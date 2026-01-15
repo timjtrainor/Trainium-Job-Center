@@ -10,7 +10,7 @@ from loguru import logger
 
 from ...core.config import get_settings
 from .database import get_database_service
-from .worker import scrape_jobs_worker, process_job_review, run_linkedin_job_search
+
 
 
 class QueueService:
@@ -93,6 +93,7 @@ class QueueService:
                 pass
             
             # Enqueue the job
+            from .worker import scrape_jobs_worker
             job = self.queue.enqueue(
                 scrape_jobs_worker,
                 site_schedule_id=site_schedule_id,
@@ -132,6 +133,7 @@ class QueueService:
             return None
             
         try:
+            from .worker import process_job_review
             job = self.review_queue.enqueue(
                 process_job_review,
                 job_id,
@@ -206,6 +208,7 @@ class QueueService:
                 pass
             
             # Enqueue the LinkedIn job search
+            from .worker import run_linkedin_job_search
             job = self.queue.enqueue(
                 run_linkedin_job_search,
                 site_schedule_id=site_schedule_id,
@@ -540,6 +543,13 @@ class QueueService:
             return {"error": error_msg}
 
 
+
+# Singleton instance
+_queue_service = None
+
 def get_queue_service() -> QueueService:
-    """Create a new queue service instance."""
-    return QueueService()
+    """Get the singleton queue service instance."""
+    global _queue_service
+    if _queue_service is None:
+        _queue_service = QueueService()
+    return _queue_service

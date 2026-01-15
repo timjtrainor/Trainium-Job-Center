@@ -1,0 +1,92 @@
+2026-01-02 13:42:38.776 | WARNING  | app.core.config:__init__:66 - DATABASE_URL may be misconfigured for Docker: %s
+2026-01-02 13:42:40.799 | INFO     | app.services.ai.ai_service:<module>:38 - Loaded 11 model aliases.
+/Users/timtrainor/anaconda3_intel/anaconda3/lib/python3.11/site-packages/pandas/core/arrays/masked.py:61: UserWarning: Pandas requires version '1.3.6' or newer of 'bottleneck' (version '1.3.5' currently installed).
+  from pandas.core import (
+2026-01-02 13:42:42.177 | INFO     | app.services.ai.ai_service:execute_prompt:118 - Executing AI: company/web-research | Resolved Model: gemini/gemini-3-flash-preview | Key starts with: AIzaSyCk...
+2026-01-02 13:42:42.177 | DEBUG    | app.services.ai.ai_service:execute_prompt:121 - LiteLLM Params: {'model': 'gemini/gemini-3-flash-preview', 'temperature': 0, 'response_format': {'type': 'json_schema', 'json_schema': {'type': 'object', 'properties': {'funding_status': {'type': 'object', 'properties': {'text': {'type': 'string', 'description': 'Hard Noun start. Financial health and capital runway.'}, 'source': {'type': 'array', 'items': {'type': 'string'}}}}, 'strategic_initiatives': {'type': 'object', 'properties': {'text': {'type': 'string', 'description': 'Hard Noun start. Core 2026 focus areas.'}, 'source': {'type': 'array', 'items': {'type': 'string'}}}}, 'economic_model': {'type': 'object', 'properties': {'text': {'type': 'string', 'description': 'Hard Noun start. Unit economics and margin profile.'}, 'source': {'type': 'array', 'items': {'type': 'string'}}}}, 'operating_model': {'type': 'object', 'properties': {'text': {'type': 'string', 'description': 'Hard Noun start. How they build and deploy.'}, 'source': {'type': 'array', 'items': {'type': 'string'}}}}, 'leadership_pedigree_and_success_mythology': {'type': 'object', 'properties': {'text': {'type': 'string', 'description': "Hard Noun start. Executive track record and internal 'hero' stories."}, 'source': {'type': 'array', 'items': {'type': 'string'}}}}, 'the_internal_gripes': {'type': 'object', 'properties': {'text': {'type': 'string', 'description': 'Hard Noun start. Friction points identified on Blind/Reddit.'}, 'source': {'type': 'array', 'items': {'type': 'string'}}}}, 'talent_bar_expectations': {'type': 'object', 'properties': {'text': {'type': 'string', 'description': 'Hard Noun start. Technical rigor and interview difficulty.'}, 'source': {'type': 'array', 'items': {'type': 'string'}}}}, 'organizational_headwinds': {'type': 'object', 'properties': {'text': {'type': 'string', 'description': 'Hard Noun start. Macro or internal obstacles to growth.'}, 'source': {'type': 'array', 'items': {'type': 'string'}}}}, 'cultural_keywords': {'type': 'object', 'properties': {'text': {'type': 'string', 'description': 'Comma-separated list of high-density culture terms.'}, 'source': {'type': 'array', 'items': {'type': 'string'}}}}, 'core_technical_stack': {'type': 'object', 'properties': {'text': {'type': 'string', 'description': 'Hard Noun start. Primary languages, frameworks, and infrastructure.'}, 'source': {'type': 'array', 'items': {'type': 'string'}}}}, 'market_position': {'type': 'object', 'properties': {'text': {'type': 'string', 'description': 'Hard Noun start. Market share and competitive moat.'}, 'source': {'type': 'array', 'items': {'type': 'string'}}}}, 'competitors': {'type': 'object', 'properties': {'text': {'type': 'string', 'description': 'A comma-separated list of top competitors.'}}}, 'mission': {'type': 'object', 'properties': {'text': {'type': 'string'}, 'source': {'type': 'array', 'items': {'type': 'string'}}}}, 'values': {'type': 'object', 'properties': {'text': {'type': 'string'}, 'source': {'type': 'array', 'items': {'type': 'string'}}}}, 'company_url': {'type': 'string'}}, 'required': ['funding_status', 'strategic_initiatives', 'economic_model', 'operating_model', 'the_internal_gripes', 'core_technical_stack', 'competitors', 'company_url']}}, 'metadata': {'prompt_name': 'company/web-research', 'prompt_version': 6}}
+[92m13:42:42 - LiteLLM:WARNING[0m: utils.py:528 - `litellm.set_verbose` is deprecated. Please set `os.environ['LITELLM_LOG'] = 'DEBUG'` for debug logs.
+2026-01-02 13:42:42.483 | ERROR    | app.services.ai.ai_service:execute_prompt:172 - AI Service Failure (company/web-research): litellm.RateLimitError: litellm.RateLimitError: VertexAIException - {
+  "error": {
+    "code": 429,
+    "message": "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/usage?tab=rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3-flash\nPlease retry in 17.581988129s.",
+    "status": "RESOURCE_EXHAUSTED",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.Help",
+        "links": [
+          {
+            "description": "Learn more about Gemini API quotas",
+            "url": "https://ai.google.dev/gemini-api/docs/rate-limits"
+          }
+        ]
+      },
+      {
+        "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+        "violations": [
+          {
+            "quotaMetric": "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+            "quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+            "quotaDimensions": {
+              "location": "global",
+              "model": "gemini-3-flash"
+            },
+            "quotaValue": "20"
+          }
+        ]
+      },
+      {
+        "@type": "type.googleapis.com/google.rpc.RetryInfo",
+        "retryDelay": "17s"
+      }
+    ]
+  }
+}
+
+Loaded Aliases: {'high-reasoning': 'gemini/gemini-3-pro-preview', 'high-reasoning-gpt': 'openai/gpt-5', 'secure-balanced': 'bedrock/mistral.mistral-large-3', 'fast-response': 'gemini/gemini-3-flash-preview', 'super-fast-response': 'bedrock/us.amazon.nova-2-lite-v1:0', 'openai-test': 'openai/gpt-4o-mini', 'gemini-test': 'gemini/gemini-1.5-flash', 'bedrock-test': 'bedrock/us.amazon.nova-lite-v1:0', 'fast-response-gpt': 'openai/gpt-5-nano', 'daily-driver': 'openai/gpt-5-mini', 'local-rag': 'ollama/llama-4-scout'}
+--- Firing prompt: company/web-research ---
+SYNC kwargs[caching]: False; litellm.cache: None; kwargs.get('cache')['no-cache']: False
+Final returned optional params: {'temperature': 0}
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+
+--- FAILURE ---
+Error type: RateLimitError
+Error message: litellm.RateLimitError: litellm.RateLimitError: VertexAIException - {
+  "error": {
+    "code": 429,
+    "message": "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/usage?tab=rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3-flash\nPlease retry in 17.581988129s.",
+    "status": "RESOURCE_EXHAUSTED",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.Help",
+        "links": [
+          {
+            "description": "Learn more about Gemini API quotas",
+            "url": "https://ai.google.dev/gemini-api/docs/rate-limits"
+          }
+        ]
+      },
+      {
+        "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+        "violations": [
+          {
+            "quotaMetric": "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+            "quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+            "quotaDimensions": {
+              "location": "global",
+              "model": "gemini-3-flash"
+            },
+            "quotaValue": "20"
+          }
+        ]
+      },
+      {
+        "@type": "type.googleapis.com/google.rpc.RetryInfo",
+        "retryDelay": "17s"
+      }
+    ]
+  }
+}
+

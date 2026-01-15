@@ -1,16 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Switch } from './Switch';
 import { LoadingSpinner } from './IconComponents';
-
-export type WorkflowModeOption = 'manual' | 'ai_generated' | 'fast_track';
-
-export interface ResetApplicationPayload {
-  workflowMode: WorkflowModeOption;
-  jobTitle: string;
-  jobLink: string;
-  jobDescription: string;
-  isMessageOnlyApp: boolean;
-}
+import { WorkflowModeOption, ResetApplicationPayload } from '../types';
 
 interface ResetApplicationModalProps {
   isOpen: boolean;
@@ -93,11 +84,10 @@ export const ResetApplicationModal: React.FC<ResetApplicationModalProps> = ({
                     type="button"
                     key={option.value}
                     onClick={() => updateField('workflowMode', option.value)}
-                    className={`flex flex-col items-start rounded-lg border px-4 py-3 text-left transition shadow-sm ${
-                      isActive
+                    className={`flex flex-col items-start rounded-lg border px-4 py-3 text-left transition shadow-sm ${isActive
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-200'
                         : 'border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-400'
-                    }`}
+                      }`}
                   >
                     <span className="text-sm font-semibold">{option.label}</span>
                     <span className="mt-1 text-xs text-slate-600 dark:text-slate-400 leading-snug">{option.description}</span>

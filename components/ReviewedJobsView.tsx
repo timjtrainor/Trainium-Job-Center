@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getReviewedJobs, ReviewedJobsFilters, ReviewedJobsSort } from '../services/apiService';
 import { ReviewedJob, PaginatedResponse, ReviewedJobRecommendation } from '../types';
-import { LoadingSpinner, CheckIcon, XCircleIcon, TableCellsIcon, Squares2X2Icon, PlusCircleIcon } from './IconComponents';
+import { LoadingSpinner, CheckIcon, XCircleIcon, TableCellsIcon, Squares2X2Icon, PlusCircleIcon, UsersIcon } from './IconComponents';
 import { JobReviewModal } from './JobReviewModal';
 import { JobCardView } from './JobCardView';
 import { useToast } from '../hooks/useToast';
@@ -127,7 +127,13 @@ export const ReviewedJobsView = () => {
 
     const renderTable = () => {
         if (!data || data.items.length === 0) {
-            return <div className="text-center py-10 text-slate-500 dark:text-slate-400">No reviewed jobs found matching your criteria.</div>;
+            return (
+                <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                    <UsersIcon className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-slate-900 dark:text-slate-300">There are no Job Postings to Review at this time.</h3>
+                    <p className="mt-1 text-slate-500 dark:text-slate-400">Please check back later or adjust your filters.</p>
+                </div>
+            );
         }
 
         return (
@@ -153,7 +159,7 @@ export const ReviewedJobsView = () => {
                             const finalEligibility = hasOverride
                                 ? job.override_recommend
                                 : job.is_eligible_for_application;
-                            
+
                             return (
                                 <tr key={job.job_id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                                     <td className="py-4 pl-4 pr-3 text-sm sm:pl-6">
@@ -163,9 +169,9 @@ export const ReviewedJobsView = () => {
                                     <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400">{job.company_name ?? '—'}</td>
                                     <td className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400">{job.date_posted ? new Date(job.date_posted).toLocaleDateString() : '—'}</td>
                                     <td className="px-3 py-4 text-sm">
-                                        <RecommendationBadge 
-                                            recommendation={finalRecommendation as ReviewedJobRecommendation} 
-                                            hasOverride={hasOverride} 
+                                        <RecommendationBadge
+                                            recommendation={finalRecommendation as ReviewedJobRecommendation}
+                                            hasOverride={hasOverride}
                                         />
                                     </td>
                                     <td className="px-3 py-4 text-sm font-semibold text-gray-900 dark:text-white">{job.overall_alignment_score.toFixed(1)}</td>
@@ -244,14 +250,22 @@ export const ReviewedJobsView = () => {
                     ) : error ? (
                         <div className="p-4 bg-red-50 text-red-700 rounded-md">Error: {error}</div>
                     ) : viewMode === 'cards' ? (
-                        data && <JobCardView
-                            jobs={data.items}
-                            onOverrideSuccess={handleOverrideSuccess}
-                            currentPage={page}
-                            onPageChange={setPage}
-                            isLoading={isLoading}
-                            activeNarrativeId={undefined} // TODO: Pass actual active narrative from parent
-                        />
+                        (data && data.items.length > 0) ? (
+                            <JobCardView
+                                jobs={data.items}
+                                onOverrideSuccess={handleOverrideSuccess}
+                                currentPage={page}
+                                onPageChange={setPage}
+                                isLoading={isLoading}
+                                activeNarrativeId={undefined} // TODO: Pass actual active narrative from parent
+                            />
+                        ) : (
+                            <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                                <UsersIcon className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                                <h3 className="text-lg font-medium text-slate-900 dark:text-slate-300">There are no Job Postings to Review at this time.</h3>
+                                <p className="mt-1 text-slate-500 dark:text-slate-400">Please check back later or adjust your filters.</p>
+                            </div>
+                        )
                     ) : renderTable()}
                 </div>
                 {!isLoading && data && data.pages > 1 && (

@@ -1,169 +1,131 @@
-# AGENTS Instructions
+# AGENTS & INTEGRATION DOCUMENTATION
 
-## General
-- Use descriptive commit messages.
-- Run `npm run build` after changing frontend code.
-- Run `python -m py_compile $(git ls-files '*.py')` after changing Python code.
+> [!IMPORTANT]
+> **Architecture Update (Jan 2026)**: We follow a "Contract-First" pattern. The Python backend is a thin execution layer. All prompt logic, model configuration (temperature, model name), and schema definitions live in Langfuse.
 
-## Frontend
-- Use TypeScript with React and Vite.
-- Prefer React Query for data fetching and caching.
-- Debounce search inputs and reflect filters in the URL.
-- Style with Tailwind CSS or CSS Modules, providing visible focus states and keyboard-friendly modals.
-- Make user-visible decisions with UI elements like toasts or badges; avoid relying on console logs.
-- Do not invent new backend endpoints; use the ones provided by the API.
+## 1. The Contract-First Pattern
 
-## Python Service
-- Build FastAPI endpoints with async functions.
-- Keep modules organized under `app/api`, `app/schemas`, and `app/services`.
-- Reserve `app/models` for future ORM models.
+### Fetching Prompts
 
-## CrewAI Services
-The Python service includes active CrewAI multi-agent services:
+We use `langfuse.get_prompt(name, label="production")` to retrieve the "Contract".
+This contract includes:
 
-### 1. Job Posting Review (`job_posting_review`)
-- **Purpose**: Analyzes job postings for fit and alignment with candidate criteria
-- **Location**: `python-service/app/services/crewai/job_posting_review/`
-- **Agents**:
-  - Pre-filter Agent: Applies hard-coded rejection rules (e.g., salary below $180k)
-  - TLDR Summarizer: Creates concise scannable summaries for quick human review (3-5 bullet points, 10-20 seconds read)
-  - North Star Matcher: Evaluates long-term career vision alignment
-  - Trajectory Mastery Matcher: Assesses skill development trajectory fit
-  - Values Compass Matcher: Checks cultural and values alignment
-  - Lifestyle Alignment Matcher: Reviews work-life balance compatibility
-  - Compensation Philosophy Matcher: Analyzes total compensation alignment
-  - Brand Match Manager: Synthesizes all specialist results into final recommendation
-- **Usage**: Orchestrated evaluation pipeline with YAML-driven configuration, TLDR runs in parallel with analysis tasks
+- **Compile Template**: The handlebars string.
+- **Config**: Model, temperature, max_tokens, and tools.
+- **Schema**: Valid JSON schema for structured outputs.
 
-### 2. Personal Branding (`personal_branding`)
-- **Purpose**: Assists with personal brand development and career positioning
-- **Location**: `python-service/app/services/crewai/personal_branding/`
-- **Usage**: Provides branding guidance and career development insights
+### Passing Dynamic Config
 
-### 3. Research Company (`research_company`) 
-- **Purpose**: Comprehensive company research and analysis
-- **Location**: `python-service/app/services/crewai/research_company/`
-- **Usage**: Gathers and analyzes company information for job applications
+The React frontend passes `variables` to fill the template.
+It does **NOT** hardcode model names (unless using a specific override for debugging).
 
-### 4. LinkedIn Job Search (`linkedin_job_search`)
-- **Purpose**: Coordinates LinkedIn job searches and recommendations
-- **Location**: `python-service/app/services/crewai/linkedin_job_search/`
-- **Process**: Hierarchical with manager agent coordination
-- **Usage**: LinkedIn-focused job discovery and networking strategies
-
-All CrewAI services follow YAML-first configuration and modular agent design patterns.
-
-### CrewAI Architecture Requirements
-- **Hierarchical Process**: Requires a `manager_agent` parameter in the crew definition to coordinate specialist agents and synthesize outputs
-- **Sequential Process**: Agents execute tasks in defined order without requiring a manager agent
-- **Manager Agent**: Must have appropriate role, goal, backstory, and tool access to effectively coordinate and synthesize outputs from specialist agents
-- **Configuration**: All agent definitions must be properly wired in both `agents.yaml` and `crew.py` files
-
-## MCP (Model Context Protocol) Integration
-
-The Python service integrates with MCP servers through the Docker MCP Gateway, providing external tools and data sources to CrewAI agents.
-
-### Architecture Pattern
-- **Use Docker MCP Gateway**: All MCP servers are integrated through the Docker MCP Gateway (`mcp-gateway` service in docker-compose.yml) following the established pattern.
-- **Dynamic Tool Discovery**: MCP tools are discovered dynamically from the gateway at runtime using `MCPServerAdapter` from `crewai-tools`.
-- **Configuration-Driven**: Tools are assigned to agents via YAML configuration files (`config/tools.yaml`).
-- **Gateway Orchestration**: The MCP Gateway manages server lifecycles and provides a unified API endpoint.
-
-### Implementation Guidelines
-1. **MCP servers are configured** in the `--servers` parameter in `docker-compose.yml` mcp-gateway service
-2. **Tools are loaded automatically** by `MCPServerAdapter` through dynamic discovery from the gateway
-3. **Agent tool assignment** is done via `config/tools.yaml` files in each crew directory
-4. **Follow the established pattern** used in `linkedin_recommended_jobs` crew for consistency
-
-### Available MCP Servers
-- **DuckDuckGo** (`mcp/duckduckgo`): Web search capabilities via `duckduckgo_search` and `duckduckgo_news` tools
-- **LinkedIn** (`stickerdaniel/linkedin-mcp-server`): LinkedIn people and job search capabilities via tools like `search_jobs`, `get_job_details`, `get_company_profile`, etc.
-
-### Chroma Upload Integration Guidelines
-
-#### Enhanced Document Management Capabilities
-- **Resume Document Upload**: Crews can now upload resume documents with versioned metadata tracking
-- **Proof Point Management**: Support for proof points with approval workflow and status transitions
-- **Career Brand Upload**: Enhanced career branding document management with semantic search integration
-- **Document Status Tracking**: Real-time status updates for document processing and approvals
-
-#### Template for Chroma Upload Agent Integration
-```python
-# Example integration pattern for Chroma document upload in crews
-def get_document_upload_tools(self):
-    """Tools available for document upload and management tasks"""
-    return {
-        'resume_upload': {
-            'endpoint': '/documents/resumes',
-            'required_fields': ['profile_id', 'title', 'content', 'job_target'],
-            'optional_fields': ['status', 'selected_proof_points', 'approval_workflow']
-        },
-        'proof_point_upload': {
-            'endpoint': '/documents/proof-points',
-            'required_fields': ['profile_id', 'role_title', 'job_title', 'content'],
-            'optional_fields': ['skills', 'impact_tags', 'approval_metadata']
-        },
-        'career_brand_upload': {
-            'endpoint': '/documents/career-brand',
-            'required_fields': ['profile_id', 'title', 'content'],
-            'optional_fields': ['section', 'metadata']
-        }
-    }
-
-def upload_document_to_chroma(self, document_type: str, data: dict):
-    """Standardized document upload method for Chroma integration"""
-    endpoint = self.get_document_upload_tools()[document_type]['endpoint']
-    response = send_standard_json(endpoint, data)
-    return response
+```typescript
+// Frontend
+await geminiService.executeAiPrompt({
+    promptName: "job-analysis-v2",
+    variables: { job_description: "..." }
+});
 ```
 
-### Adding New MCP Tools
+### OTel Tracing Signature
 
-To add a new MCP server or tools to an existing crew:
+All backend execution MUST be wrapped in a Langfuse observation span to ensure visibility.
 
-1. **Add the MCP server** to docker-compose.yml `mcp-gateway` service `--servers` parameter:
-   ```yaml
-   command:
-     - --servers=duckduckgo,linkedin-mcp-server,your-new-server
-   ```
+```python
+# Backend (ai_service.py)
+with lf.start_as_current_observation(name="api_job-analysis-v2", ...) as span:
+    prompt = lf.get_prompt("job-analysis-v2")
+    # ... execution ...
+    span.update(output=...)
+```
 
-2. **Create or update** the crew's `config/tools.yaml` file to specify which agents get which tools:
-   ```yaml
-   # Example tools.yaml
-   agent_name_tools:
-     - tool_name_1
-     - tool_name_2
+## 2. Model Configuration
 
-   shared_tools:
-     - shared_tool_name
-   ```
+Langfuse `config` object drives execution.
 
-3. **Update the crew.py** to follow the established pattern:
-   ```python
-   from crewai_tools import MCPServerAdapter
+- `model`: "gemini/gemini-1.5-pro", "openai/gpt-4o", etc.
+- `temperature`: float
+- `max_tokens`: int (optional)
+- `json_schema`: object (force structured output)
 
-   # MCP Server configuration
-   _MCP_SERVER_CONFIG = [
-       {
-           "url": "http://mcp-gateway:8811/mcp/",
-           "transport": "streamable-http",
-           "headers": {"Accept": "application/json, text/event-stream"}
-       }
-   ]
+**No global model aliases** should be used in the Python service unless strictly necessary for legacy routing.
 
-   class YourCrew:
-       def _get_mcp_tools(self):
-           self._mcp_adapter = MCPServerAdapter(_MCP_SERVER_CONFIG)
-           self._mcp_tools = self._mcp_adapter.__enter__()
+## 3. Observability & Logging
 
-       def _get_tools_for_agent(self, section: str):
-           # Load tools from tools.yaml and filter available MCP tools
-   ```
+- **Frontend**: API Request payload and Response/Error status are logged to `console`.
+- **Backend**: All traces are sent to Langfuse.
+- **Silent Failures**: The UI MUST display a clear error if the API returns 500/400.
 
-4. **Tools are automatically discovered** - no need to modify adapter code or hard-code tool definitions
+## 4. Deprecated Patterns
 
-### Implementation Requirements
-- **All crews using MCP tools** must use the Docker MCP Gateway pattern for consistency
-- **No standalone MCP server implementations** should be created outside the gateway
-- **Tool discovery is dynamic** - tools are loaded at runtime from the gateway
-- **Configuration drives tool assignment** - use YAML files, not hard-coded tool lists
+- **Legacy Frameworks**: We have deprecated all heavy-weight agent frameworks (including CrewAI) in favor of the single-purpose, highly reliable prompt chains documented above.
+- **Hardcoded Prompts**: Do not write prompt strings in Python/TS files.
+
+## 5. Verification & Testing
+
+The backend includes a robust **Test Harness** to verify any prompt without touching the UI.
+
+```bash
+# General Execution
+docker exec trainium_python_service python scripts/test_prompt.py "company/web-research" --vars '{"company_name": "Google"}'
+
+# Test with specific Model Overrides (verify and debug plumbing)
+docker exec trainium_python_service python scripts/test_prompt.py "company/web-research" --model "openai-test"
+docker exec trainium_python_service python scripts/test_prompt.py "company/web-research" --model "gemini-test"
+docker exec trainium_python_service python scripts/test_prompt.py "company/web-research" --model "bedrock-test"
+```
+
+## 6. Advanced Features (2026 Resilience)
+
+### Variable Case-Bridging
+
+The AI Service automatically bridges naming conventions. If you pass `company_name` from the UI, it will automatically satisfy `{{CompanyName}}` and `{{COMPANY_NAME}}` in your Langfuse prompt.
+
+### Self-Healing JSON
+
+If a model wraps JSON in markdown blocks (e.g. ` ```json ... ``` `), the service automatically extracts and parses the core JSON object.
+
+### Tool Normalization
+
+## 7. DB-AI Alignment & Schema Mapping
+
+### The "Source" Rule
+
+All AI-generated intelligence is stored with source attribution.
+
+- **Postgres Column**: `text` or `jsonb`
+- **Frontend Type**: `InfoField { text: string, source: string | string[] }`
+- **DB Rule**:
+  - If the column is `jsonb`: Store the `InfoField` object directly.
+  - If the column is `text` (e.g. `funding_status`): Store the **JSON stringified** version of the `InfoField` object use `JSON.parse` on the frontend.
+  - Default `source` for manual edits: `"manual"`
+
+### Column Mapping Strategy
+
+| AI Key | DB Column | Type | Notes |
+| :--- | :--- | :--- | :--- |
+| `funding_status` | `funding_status` | `text` | **JSON-in-Text**. Must parse. |
+| `competitors` | `competitors` | `jsonb` | Object with `text` (comma-separated list). |
+| `strategic_initiatives` | `strategic_initiatives` | `jsonb` | Standard `InfoField`. |
+| `known_tech_stack` | `known_tech_stack` | `jsonb` | Standard `InfoField`. |
+
+## 8. Consultant-Led Interview Standard
+
+As of Jan 2026, all interview preparation agents must adhere to the "Consultative Diagnosis" framework.
+
+### Strategic Pivot: "Selling a Solution"
+
+- **Focus**: Strategic intervention vs. Achievement listing.
+- **Tone**: Executive Peer-to-Peer (Modern Carnegie style).
+- **Core Assets**:
+    1. **Scripted Opener (3-part)**:
+        - **Hook**: Pivot to the company's macro challenge.
+        - **Bridge**: Link background to their core problem.
+        - **Pivot**: Hand back the conversation with a diagnostic question.
+    2. **Diagnostic Battle Map**:
+        - Explicit mapping of **Company Pathology** (Pain/Friction) to **Proposed Intervention** (Your solution).
+
+### Prompt Contract: `interview/consultant-blueprint`
+
+- **Input Variables**: `JOB_DESCRIPTION`, `COMPANY_DATA_JSON`, `CAREER_DNA_JSON`, `JOB_PROBLEM_ANALYSIS_JSON`.
+- **Primary Schema**: Matches the `InterviewStrategy` model with `scripted_opening` and `diagnostic_matrix`.

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { BaseResume, Resume, WorkExperience, Education, Certification, SkillSection, ResumeAccomplishment, DateInfo, StrategicNarrative, Prompt, CombinedAchievementSuggestion, KeywordDetail, PromptContext, ResumeTailoringData, SkillOptions } from '../types';
-import { LoadingSpinner, PlusCircleIcon, TrashIcon, SparklesIcon, GripVerticalIcon, ArrowDownTrayIcon, CheckIcon, DocumentTextIcon } from './IconComponents';
+import { LoadingSpinner, PlusCircleIcon, TrashIcon, SparklesIcon, GripVerticalIcon, ArrowDownTrayIcon, CheckIcon, DocumentTextIcon, ClipboardDocumentListIcon, ClipboardDocumentCheckIcon } from './IconComponents';
 import { AchievementRefinementPanel } from './AchievementRefinementPanel';
 import { SummaryRefinementPanel } from './SummaryRefinementPanel';
 import { CombineAchievementsModal } from './CombineAchievementsModal';
@@ -40,7 +40,7 @@ const FormSection = ({ title, children, onAdd, addLabel }: { title: string, chil
     </div>
 );
 
-const ArrayItemWrapper = ({ onRemove, children, title }: { onRemove: () => void, children: React.ReactNode, title?: string }) => (
+const ArrayItemWrapper: React.FC<{ onRemove: () => void, children: React.ReactNode, title?: string }> = ({ onRemove, children, title }) => (
     <div className="relative p-4 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-800/50">
         <div className="absolute top-2 right-2 flex items-center gap-2">
             {title && <span className="text-xs font-semibold text-slate-500">{title}</span>}
@@ -302,7 +302,6 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                     achievement={editingAchievement.achievement}
                     activeNarrative={activeNarrative}
                     onSave={handleSaveAchievement}
-                    prompts={prompts}
                     jobContext={{
                         jobTitle: 'Various Roles',
                         companyName: 'Various Companies',
@@ -400,8 +399,21 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                     </FormSection>
 
                     <FormSection title="Summary">
-                        <div className="flex justify-between items-center"><label htmlFor="summary" className={labelClass}>Summary Paragraph</label><button type="button" onClick={() => setIsSummaryPanelOpen(true)} className="p-1 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200" title="Refine with AI"><SparklesIcon className="w-5 h-5" /></button></div>
-                        <textarea id="summary" rows={4} value={safeGetString(editableResume.content.summary?.paragraph)} onChange={e => handleSaveSummary(e.target.value)} className={textareaClass} />
+                        <div className="grid grid-cols-1 gap-4">
+                            <div>
+                                <label htmlFor="summary_headline" className={labelClass}>Summary Headline (max 8 words)</label>
+                                <input type="text" id="summary_headline" value={safeGetString(editableResume.content.summary?.headline)} onChange={e => handleResumeChange(draft => { if (draft.content?.summary) draft.content.summary.headline = e.target.value; })} className={inputClass} placeholder="e.g. Enterprise Account Executive | Cloud Infrastructure" />
+                            </div>
+                            <div>
+                                <div className="flex justify-between items-center">
+                                    <label htmlFor="summary" className={labelClass}>Summary Paragraph</label>
+                                    <button type="button" onClick={() => setIsSummaryPanelOpen(true)} className="p-1 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200" title="Refine with AI">
+                                        <SparklesIcon className="w-5 h-5" />
+                                    </button>
+                                </div>
+                                <textarea id="summary" rows={4} value={safeGetString(editableResume.content.summary?.paragraph)} onChange={e => handleSaveSummary(e.target.value)} className={textareaClass} />
+                            </div>
+                        </div>
                     </FormSection>
 
                     <FormSection title="Work Experience" onAdd={() => handleResumeChange(draft => draft.content?.work_experience.push({ company_name: '', job_title: '', location: '', start_date: { month: 1, year: 2024 }, end_date: { month: 1, year: 2024 }, is_current: false, filter_accomplishment_count: 3, accomplishments: [] }))} addLabel="Add Experience">
@@ -428,11 +440,24 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                                                             <div key={acc.achievement_id} draggable onDragStart={(e) => handleDragStart(e, expIdx, accIdx)} onDragEnd={() => setDraggedItem(null)} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, expIdx, accIdx)} className={`flex items-start gap-2 rounded-lg transition-opacity ${draggedItem?.expIdx === expIdx && draggedItem?.accIdx === accIdx ? 'opacity-50' : ''}`}>
                                                                 <div className="cursor-grab text-slate-400 pt-5"><GripVerticalIcon className="w-5 h-5" /></div>
                                                                 <div className="flex-grow"><ArrayItemWrapper onRemove={() => handleResumeChange(draft => { draft.content?.work_experience[expIdx].accomplishments.splice(accIdx, 1) })} >
-                                                                    <div className="space-y-2"><label className={labelClass}>Description</label><textarea rows={3} value={safeGetString(acc.description)} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.work_experience[expIdx].accomplishments[accIdx].description = e.target.value })} className={textareaClass} />
+                                                                    <div className="space-y-4">
+                                                                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
+                                                                            <div className="sm:col-span-2">
+                                                                                <label className={labelClass}>Category</label>
+                                                                                <input type="text" value={safeGetString(acc.bucket_category)} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.work_experience[expIdx].accomplishments[accIdx].bucket_category = e.target.value })} className={inputClass} placeholder="e.g. Stakeholder Alignment" />
+                                                                            </div>
+                                                                            <div className="sm:col-span-4">
+                                                                                <label className={labelClass}>Description</label>
+                                                                                <textarea rows={3} value={safeGetString(acc.description)} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.work_experience[expIdx].accomplishments[accIdx].description = e.target.value })} className={textareaClass} />
+                                                                            </div>
+                                                                        </div>
                                                                         {acc.score && typeof acc.score.overall_score === 'number' && (<div className="flex items-center gap-x-4 text-xs text-slate-500 dark:text-slate-400 p-2 bg-slate-100 dark:bg-slate-900/50 rounded-md"><strong className="text-slate-600 dark:text-slate-300">AI Score:</strong><span>Overall: <span className="font-semibold">{acc.score.overall_score.toFixed(1)}</span></span><span>Clarity: <span className="font-semibold">{acc.score.clarity.toFixed(1)}</span></span><span>Drama: <span className="font-semibold">{acc.score.drama.toFixed(1)}</span></span></div>)}
-                                                                        <div className="flex justify-between items-center"><div className="flex gap-4">
-                                                                            <div className="relative flex items-start"><div className="flex h-6 items-center"><input id={`always-${expIdx}-${accIdx}`} type="checkbox" checked={acc.always_include} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.work_experience[expIdx].accomplishments[accIdx].always_include = e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /></div><div className="ml-3 text-sm leading-6"><label htmlFor={`always-${expIdx}-${accIdx}`} className={labelClass}>Always Include</label></div></div>
-                                                                        </div><button type="button" onClick={() => handleOpenRefinementPanel(acc, expIdx, accIdx)} className="inline-flex items-center gap-x-1 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-500"><SparklesIcon className="h-4 w-4" />Refine</button></div>
+                                                                        <div className="flex justify-between items-center">
+                                                                            <div className="flex gap-4">
+                                                                                <div className="relative flex items-start"><div className="flex h-6 items-center"><input id={`always-${expIdx}-${accIdx}`} type="checkbox" checked={acc.always_include} onChange={e => handleResumeChange(draft => { if (draft.content) draft.content.work_experience[expIdx].accomplishments[accIdx].always_include = e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /></div><div className="ml-3 text-sm leading-6"><label htmlFor={`always-${expIdx}-${accIdx}`} className={labelClass}>Always Include</label></div></div>
+                                                                            </div>
+                                                                            <button type="button" onClick={() => handleOpenRefinementPanel(acc, expIdx, accIdx)} className="inline-flex items-center gap-x-1 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-500"><SparklesIcon className="h-4 w-4" />Refine</button>
+                                                                        </div>
                                                                     </div>
                                                                 </ArrayItemWrapper></div>
                                                             </div>
@@ -560,7 +585,15 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                                         <p className="text-sm text-slate-600 dark:text-slate-300 mb-2"><strong>Previewing release for:</strong> {previewCompanyName}</p>
                                         <p className="text-sm text-slate-600 dark:text-slate-300"><strong>Job Title:</strong> {previewJobTitle}</p>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                        <button
+                                            onClick={() => resumeExport.generateDocx(previewResume, previewCompanyName)}
+                                            className="flex flex-col items-center justify-center p-6 border-2 border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group"
+                                        >
+                                            <ClipboardDocumentListIcon className="w-10 h-10 text-slate-400 group-hover:text-blue-500 mb-3" />
+                                            <span className="font-semibold text-slate-900 dark:text-white">Download DOCX</span>
+                                            <span className="text-xs text-slate-500 mt-1">Best for editing</span>
+                                        </button>
                                         <button
                                             onClick={() => resumeExport.generatePdf(previewResume, previewCompanyName)}
                                             className="flex flex-col items-center justify-center p-6 border-2 border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group"
@@ -570,12 +603,16 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
                                             <span className="text-xs text-slate-500 mt-1">Best for applications</span>
                                         </button>
                                         <button
-                                            onClick={() => resumeExport.generateDocx(previewResume, previewCompanyName)}
+                                            onClick={() => {
+                                                const md = resumeExport.resumeToMarkdown(previewResume);
+                                                navigator.clipboard.writeText(md);
+                                                alert("Resume copied to clipboard as Markdown!");
+                                            }}
                                             className="flex flex-col items-center justify-center p-6 border-2 border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group"
                                         >
-                                            <DocumentTextIcon className="w-10 h-10 text-slate-400 group-hover:text-blue-500 mb-3" />
-                                            <span className="font-semibold text-slate-900 dark:text-white">Download DOCX</span>
-                                            <span className="text-xs text-slate-500 mt-1">Best for editing</span>
+                                            <ClipboardDocumentCheckIcon className="w-10 h-10 text-slate-400 group-hover:text-blue-500 mb-3" />
+                                            <span className="font-semibold text-slate-900 dark:text-white">Copy Markdown</span>
+                                            <span className="text-xs text-slate-500 mt-1">Best for secondary use</span>
                                         </button>
                                     </div>
                                     <div className="mt-6 flex justify-end">

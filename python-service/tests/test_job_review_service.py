@@ -88,14 +88,15 @@ async def test_get_review_status_job_exists(job_review_service, mock_db_service)
         "company": "TechCorp",
         "status": "reviewed"
     }
+    from datetime import datetime
     mock_review = {
         "recommend": True,
         "confidence": "high",
         "rationale": "Great fit",
         "retry_count": 0,
         "error_message": None,
-        "created_at": "2024-01-01T00:00:00",
-        "updated_at": "2024-01-01T01:00:00"
+        "created_at": datetime(2024, 1, 1),
+        "updated_at": datetime(2024, 1, 1, 1)
     }
     
     mock_db_service.get_job_by_id.return_value = mock_job

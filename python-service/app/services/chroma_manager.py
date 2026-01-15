@@ -778,11 +778,7 @@ class ChromaManager:
                 unique_keys=[
                     "profile_id",
                     "company",
-                    "job_title",
-                    "location",
                     "start_date",
-                    "end_date",
-                    "is_current",
                 ],
                 tags=tags
             )

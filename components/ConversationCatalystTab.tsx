@@ -8,27 +8,27 @@ interface ConversationCatalystTabProps {
     onCreatePostResponse: (payload: PostResponsePayload) => Promise<void>;
     onUpdatePostResponse: (commentId: string, payload: PostResponsePayload) => void;
     activeNarrative: StrategicNarrative | null;
-    prompts: Prompt[];
+    // prompts prop removed
 }
 
 const ConversationView = ({
     response,
     onUpdateResponse,
     activeNarrative,
-    prompts,
+    // prompts prop removed
     onClose,
 }: {
     response: PostResponse;
     onUpdateResponse: (commentId: string, payload: PostResponsePayload) => void;
     activeNarrative: StrategicNarrative | null;
-    prompts: Prompt[];
+    // prompts prop removed
     onClose: () => void;
 }) => {
     const [newReply, setNewReply] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
     const [isSaving, setIsSaving] = useState(false);
-    
+
     const conversation = response.conversation || [];
 
     const handleAddReply = (author: 'user' | 'other') => {
@@ -44,9 +44,6 @@ const ConversationView = ({
         setIsGenerating(true);
         setAiSuggestions([]);
         try {
-            const prompt = prompts.find(p => p.id === 'GENERATE_STRATEGIC_COMMENT');
-            if (!prompt) throw new Error("Strategic comment prompt not found.");
-
             const history = conversation.map(c => `${c.author.toUpperCase()}: ${c.text}`).join('\n');
             const context: PromptContext = {
                 POST_TEXT: response.post_excerpt,
@@ -55,7 +52,7 @@ const ConversationView = ({
                 MASTERY: activeNarrative?.signature_capability,
             };
 
-            const result = await geminiService.generateStrategicComment(context, prompt.content);
+            const result = await geminiService.generateStrategicComment(context, 'GENERATE_STRATEGIC_COMMENT');
             setAiSuggestions(result);
         } catch (error) {
             console.error(error);
@@ -117,7 +114,7 @@ const ConversationView = ({
     );
 };
 
-export const ConversationCatalystTab = ({ postResponses, onCreatePostResponse, onUpdatePostResponse, activeNarrative, prompts }: ConversationCatalystTabProps) => {
+export const ConversationCatalystTab = ({ postResponses, onCreatePostResponse, onUpdatePostResponse, activeNarrative }: ConversationCatalystTabProps) => {
     const [isCreating, setIsCreating] = useState(false);
     const [newPostExcerpt, setNewPostExcerpt] = useState('');
     const [initialComment, setInitialComment] = useState('');
@@ -193,7 +190,7 @@ export const ConversationCatalystTab = ({ postResponses, onCreatePostResponse, o
                     response={activeConversation}
                     onUpdateResponse={onUpdatePostResponse}
                     activeNarrative={activeNarrative}
-                    prompts={prompts}
+                    // prompts prop removed
                     onClose={() => setActiveConversation(null)}
                 />
             )}

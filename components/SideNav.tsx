@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LogoIcon, DashboardIcon, ApplicationsIcon, AtomGearIcon, ChatBubbleLeftRightIcon, StrategyIcon, MicrophoneIcon, UsersIcon, ClipboardDocumentListIcon, ClipboardDocumentCheckIcon, CircleStackIcon, ClockIcon } from './IconComponents';
+import { LogoIcon, DashboardIcon, ApplicationsIcon, AtomGearIcon, ChatBubbleLeftRightIcon, StrategyIcon, MicrophoneIcon, UsersIcon, ClipboardDocumentListIcon, ClipboardDocumentCheckIcon, CircleStackIcon, ClockIcon, LinkIcon } from './IconComponents';
 
 interface SideNavProps {
     onOpenProfileModal: () => void;
@@ -29,6 +29,7 @@ const navItems: NavItem[] = [
 const secondaryNavItems = [
     { path: '/health-checks', label: 'Health Checks', icon: AtomGearIcon },
     { path: '/schedule-management', label: 'Job Scheduler', icon: ClockIcon },
+    { path: '/webhook-management', label: 'Webhooks', icon: LinkIcon },
 ]
 
 export const SideNav = ({ onOpenProfileModal, onOpenSprintModal }: SideNavProps): React.ReactNode => {

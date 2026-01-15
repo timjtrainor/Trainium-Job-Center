@@ -36,17 +36,68 @@ class DatabaseService:
             try:
                 return json.loads(trimmed_value)
             except json.JSONDecodeError:
-                logger.warning("Failed to deserialize JSON field", value=value)
+                logger.warning(f"Failed to deserialize JSON field: {value[:100]}...")
                 return None
 
         return None
 
+    def _normalize_review_row(self, row: Any) -> Dict[str, Any]:
+        """Normalize a database review row to match the JobReviewData schema."""
+        # Deserialize JSON fields
+        personas = self._deserialize_json_field(row.get("personas"))
+        tradeoffs = self._deserialize_json_field(row.get("tradeoffs"))
+        actions = self._deserialize_json_field(row.get("actions"))
+        sources = self._deserialize_json_field(row.get("sources"))
+        crew_output = self._deserialize_json_field(row.get("crew_output"))
+        
+        # Calculate alignment score 
+        confidence_scores = {"high": 0.8, "medium": 0.6, "low": 0.4}
+        fallback_alignment_score = confidence_scores.get(row["confidence"], 0.4)
+        alignment_score = row.get("overall_alignment_score") or fallback_alignment_score
+
+        # Extract TLDR summary
+        tldr_summary = crew_output.get("tldr_summary") if crew_output else None
+
+        return {
+            "id": str(row["id"]),
+            "job_id": str(row["job_id"]),
+            "overall_alignment_score": alignment_score,
+            "recommendation": row["recommend"],
+            "recommend": row["recommend"],  # Legacy alias
+            "confidence": row["confidence"],
+            "reviewer": row.get("reviewer") or row.get("crew_version"),
+            "review_date": row.get("review_date") or row.get("created_at"),
+            "rationale": row["rationale"],
+            "tldr_summary": tldr_summary,
+            "crew_output": crew_output,
+            "personas": personas,
+            "tradeoffs": tradeoffs,
+            "actions": actions,
+            "sources": sources,
+            "override_recommend": row.get("override_recommend"),
+            "override_comment": row.get("override_comment"),
+            "override_by": row.get("override_by"),
+            "override_at": row.get("override_at"),
+            "updated_at": row.get("updated_at"),
+            "created_at": row.get("created_at")
+        }
+
     async def initialize(self) -> bool:
         """Initialize database connection pool with retry logic."""
+        if self.initialized and self.pool:
+            return True
+
         import asyncio
 
         for attempt in range(5):  # Retry up to 5 times
             try:
+                # If pool already exists but not initialized (edge case), close it
+                if self.pool:
+                    try:
+                        await self.pool.close()
+                    except Exception:
+                        pass
+
                 self.pool = await asyncpg.create_pool(
                     self.settings.database_url,
                     min_size=1,
@@ -499,7 +550,8 @@ class DatabaseService:
         SELECT id, site, job_url, title, company, company_url, location_country,
                location_state, location_city, is_remote, job_type, compensation,
                interval, min_amount, max_amount, currency, salary_source,
-               description, date_posted, ingested_at, status, updated_at, source_raw
+               description, date_posted, ingested_at, status, updated_at, source_raw,
+               duplicate_status, track
         FROM public.jobs 
         WHERE id = $1
         """
@@ -616,7 +668,7 @@ class DatabaseService:
         try:
             async with self.pool.acquire() as conn:
                 row = await conn.fetchrow(query, job_id)
-                return dict(row) if row else None
+                return self._normalize_review_row(dict(row)) if row else None
         except Exception as e:
             logger.error(f"Failed to get job review: {str(e)}")
             return None
@@ -675,7 +727,7 @@ class DatabaseService:
                 
                 if row:
                     logger.info(f"Job review override updated for job_id: {job_id}")
-                    return dict(row)
+                    return self._normalize_review_row(dict(row))
                 else:
                     # This is the legitimate "not found" case - job_id doesn't exist in database
                     logger.warning(f"No job review found for job_id: {job_id}")
@@ -809,6 +861,10 @@ class DatabaseService:
             jd.max_amount as salary_max,
             jd.currency as salary_currency,
             jd.is_remote,
+            jd.normalized_title,
+            jd.normalized_company,
+            jd.track,
+            jr.id,
             jr.recommend,
             jr.confidence,
             jr.rationale,
@@ -823,7 +879,9 @@ class DatabaseService:
             jr.override_recommend,
             jr.override_comment,
             jr.override_by,
-            jr.override_at
+            jr.override_at,
+            jr.created_at,
+            jr.updated_at
         FROM public.jobs_deduplicated jd
         INNER JOIN public.job_reviews jr ON jd.id = jr.job_id
         {where_clause}
@@ -882,24 +940,7 @@ class DatabaseService:
                             "salary_range": salary_range_formatted,
                             "is_remote": row["is_remote"]
                         },
-                        "review": {
-                            "overall_alignment_score": alignment_score,
-                            "recommendation": row["recommend"],
-                            "confidence": row["confidence"],
-                            "reviewer": row["reviewer"],
-                            "review_date": row["review_date"],
-                            "rationale": row["rationale"],
-                            "tldr_summary": tldr_summary,
-                            "crew_output": crew_output,  # Include full crew_output for dimension data
-                            "personas": self._deserialize_json_field(row["personas"]),
-                            "tradeoffs": self._deserialize_json_field(row["tradeoffs"]),
-                            "actions": self._deserialize_json_field(row["actions"]),
-                            "sources": self._deserialize_json_field(row["sources"]),
-                            "override_recommend": row["override_recommend"],
-                            "override_comment": row["override_comment"],
-                            "override_by": row["override_by"],
-                            "override_at": row["override_at"]
-                        }
+                        "review": self._normalize_review_row(row)
                     }
                     jobs.append(job_data)
 
@@ -1217,6 +1258,13 @@ class DatabaseService:
             return False
 
 
+
+# Singleton instance
+_database_service = None
+
 def get_database_service() -> DatabaseService:
-    """Create a new database service instance."""
-    return DatabaseService()
+    """Get the singleton database service instance."""
+    global _database_service
+    if _database_service is None:
+        _database_service = DatabaseService()
+    return _database_service

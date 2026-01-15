@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Any
 from loguru import logger
 
 from .database import get_database_service
-from .queue import get_queue_service
+
 from ...core.config import get_settings
 
 
@@ -22,6 +22,7 @@ class JobReviewService:
     def __init__(self):
         self.settings = get_settings()
         self.db_service = get_database_service()
+        from .queue import get_queue_service
         self.queue_service = get_queue_service()
         self.initialized = False
     
@@ -303,7 +304,35 @@ class JobReviewService:
             logger.error(f"Failed to queue job {job_id}: {e}")
             return None
 
+    def queue_multiple_job_reviews(self, job_ids: List[str], max_retries: int = 3) -> Dict[str, Optional[str]]:
+        """
+        Queue multiple jobs for review processing.
+        
+        Args:
+            job_ids: List of job UUIDs to review
+            max_retries: Maximum number of retry attempts per job
+            
+        Returns:
+            Dictionary mapping job_id to task_id (or None if failed)
+        """
+        if not self.initialized:
+            # Note: We can't await in a synchronous method called from job_persistence
+            # But the service is usually initialized by then.
+            pass
+            
+        try:
+            return self.queue_service.enqueue_multiple_job_reviews(job_ids, max_retries)
+        except Exception as e:
+            logger.error(f"Failed to queue multiple jobs: {e}")
+            return {job_id: None for job_id in job_ids}
+
+
+# Singleton instance
+_job_review_service = None
 
 def get_job_review_service() -> JobReviewService:
-    """Get job review service instance."""
-    return JobReviewService()
+    """Get the singleton job review service instance."""
+    global _job_review_service
+    if _job_review_service is None:
+        _job_review_service = JobReviewService()
+    return _job_review_service

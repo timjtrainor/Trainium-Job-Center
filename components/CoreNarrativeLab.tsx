@@ -1,369 +1,493 @@
 import React, { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { StrategicNarrative, StrategicNarrativePayload, Prompt, ImpactStory, StorytellingFormat, StarBody, ScopeBody, WinsBody, SpotlightBody } from '../types';
+import { StrategicNarrative, StrategicNarrativePayload, Prompt, ImpactStory, BaseResume, Competency, UploadedDocument } from '../types';
 import * as geminiService from '../services/geminiService';
-import { LoadingSpinner, PlusCircleIcon, SparklesIcon, TrashIcon } from './IconComponents';
+import * as apiService from '../services/apiService';
+import { LoadingSpinner, SparklesIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon, PlusCircleIcon, BuildingOfficeIcon } from './IconComponents';
 
 interface CoreNarrativeLabProps {
     activeNarrative: StrategicNarrative;
     onSaveNarrative: (payload: StrategicNarrativePayload, narrativeId: string) => Promise<void>;
     prompts: Prompt[];
+    competencies: Competency[];
+    proofPoints: UploadedDocument[];
 }
 
-const STORY_FORMATS: {
-    [key in StorytellingFormat]: {
-        name: string;
-        description: string;
-        fields: { id: keyof (StarBody & ScopeBody & WinsBody & SpotlightBody); label: string; placeholder: string; rows: number }[];
-    }
-} = {
-    STAR: {
-        name: 'STAR',
-        description: 'Classic, reliable, good for mid-level behavioral rounds.',
-        fields: [
-            { id: 'situation', label: 'Situation', placeholder: 'Set the scene. What was the context?', rows: 2 },
-            { id: 'task', label: 'Task', placeholder: 'What was your specific goal or challenge?', rows: 2 },
-            { id: 'action', label: 'Action', placeholder: 'What specific steps did YOU take?', rows: 4 },
-            { id: 'result', label: 'Result', placeholder: 'What was the quantifiable outcome?', rows: 2 },
-        ],
-    },
-    SCOPE: {
-        name: 'SCOPE',
-        description: 'Strategic stories with complexity and evolution.',
-        fields: [
-            { id: 'situation', label: 'Situation', placeholder: 'Set the scene. What was the business context and your role?', rows: 2 },
-            { id: 'complication', label: 'Complication', placeholder: 'What unexpected challenge, problem, or change occurred?', rows: 2 },
-            { id: 'opportunity', label: 'Opportunity', placeholder: 'What insight or opportunity did this complication reveal?', rows: 2 },
-            { id: 'product_thinking', label: 'Product Thinking', placeholder: 'Describe your thought process. What frameworks, data, or principles did you use?', rows: 3 },
-            { id: 'end_result', label: 'End Result', placeholder: 'What was the final, quantifiable outcome of your new approach?', rows: 2 },
-        ],
-    },
-    WINS: {
-        name: 'WINS',
-        description: 'Tight stories that emphasize insight and adaptability.',
-        fields: [
-            { id: 'situation', label: 'Situation', placeholder: 'Briefly set the scene. What was the context?', rows: 2 },
-            { id: 'what_i_did', label: 'What I Did', placeholder: 'Describe the specific actions you took.', rows: 4 },
-            { id: 'impact', label: 'Impact', placeholder: 'What was the quantifiable result or outcome of your actions?', rows: 2 },
-            { id: 'nuance', label: 'Nuance', placeholder: 'What was the subtle, non-obvious insight or learning?', rows: 3 },
-        ],
-    },
-    SPOTLIGHT: {
-        name: 'SPOTLIGHT',
-        description: 'PM stories that center product judgment and trade-offs.',
-        fields: [
-            { id: 'situation', label: 'Situation', placeholder: 'Set the scene. What was the context?', rows: 2 },
-            { id: 'positive_moment_or_goal', label: 'Positive Moment (Goal)', placeholder: 'What was the initial goal or positive event?', rows: 2 },
-            { id: 'observation_opportunity', label: 'Observation/Opportunity', placeholder: 'What did you notice that others might have missed?', rows: 2 },
-            { id: 'task_action', label: 'Task/Action', placeholder: 'What specific steps did you take based on your observation?', rows: 3 },
-            { id: 'learnings_leverage', label: 'Learnings/Leverage', placeholder: 'What did you learn, and how did you apply it?', rows: 2 },
-            { id: 'impact_results', label: 'Impact/Results', placeholder: 'What was the final quantifiable outcome?', rows: 2 },
-            { id: 'growth_grit', label: 'Growth/Grit', placeholder: 'How did this experience shape your growth or demonstrate resilience?', rows: 2 },
-            { id: 'highlights_key_trait', label: 'Highlights (Key Trait)', placeholder: "What core personal trait does this story highlight (e.g., 'curiosity', 'bias for action')?", rows: 1 },
-            { id: 'takeaway_tie_in', label: 'Takeaway/Tie-in', placeholder: 'What is the key takeaway for the interviewer?', rows: 2 },
-        ],
-    },
-};
+const FRAMEWORKS = ['DIGS', 'STAR', 'PAR', 'SCQA'] as const;
 
-const getInitialBodyForFormat = (format: StorytellingFormat): ImpactStory['story_body'] => {
-    const fields = STORY_FORMATS[format].fields;
-    const body: { [key: string]: string } = {};
-    fields.forEach(field => {
-        body[field.id as string] = '';
-    });
-    return body;
-};
+export const CoreNarrativeLab = ({ activeNarrative, onSaveNarrative, prompts, competencies, proofPoints }: CoreNarrativeLabProps) => {
+    // State for Wizard Selection
+    const [selectedFramework, setSelectedFramework] = useState<typeof FRAMEWORKS[number]>('DIGS');
 
-const labelClass = "block text-sm font-medium text-slate-700 dark:text-slate-300";
-const textareaClass = `mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm font-sans`;
+    // Strategy Selection (Now linked to Competency Hub)
+    const [selectedStrategyId, setSelectedStrategyId] = useState<string>('');
+    const [selectedexperienceKey, setSelectedExperienceKey] = useState<string>('');
 
-export const CoreNarrativeLab = ({ activeNarrative, onSaveNarrative, prompts }: CoreNarrativeLabProps) => {
-    const [stories, setStories] = useState<ImpactStory[]>([]);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [stories, setStories] = useState<ImpactStory[]>(activeNarrative.impact_stories || []);
     const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isGenerating, setIsGenerating] = useState<string | null>(null); // e.g., 'storyId-fieldName' or 'storyId-all-notes'
-    
-    const [isPracticeModalOpen, setIsPracticeModalOpen] = useState(false);
-    const [practiceStoryNotes, setPracticeStoryNotes] = useState<{ [key: string]: string }>({});
-    const [isSavingNotes, setIsSavingNotes] = useState(false);
 
+    // Sync stories
     useEffect(() => {
-        const initialStories = activeNarrative.impact_stories?.map(s => ({
-            ...s,
-            story_id: s.story_id || uuidv4(),
-            format: s.format || 'STAR',
-            speaker_notes: s.speaker_notes || {},
-            story_body: (typeof s.story_body === 'string' || !s.story_body)
-                ? getInitialBodyForFormat(s.format || 'STAR')
-                : s.story_body,
-        })) || [];
-
-        setStories(initialStories);
-        
-        if (!selectedStoryId) {
-            setSelectedStoryId(initialStories[0]?.story_id || null);
-        }
+        setStories(activeNarrative.impact_stories || []);
     }, [activeNarrative.impact_stories]);
 
+    const handleSave = async (updatedStories: ImpactStory[]) => {
+        setStories(updatedStories);
+        await onSaveNarrative({ impact_stories: updatedStories }, activeNarrative.narrative_id);
+    };
 
-    const handleSave = async () => {
-        setIsLoading(true);
+    // Helpers to find strategy details
+    const getStrategyDetails = (id: string) => {
+        for (const comp of competencies) {
+            const strat = comp.strategies.find((s: any) => (s.strategy_name === id || s.strategy_name === id.split('::')[1])); // Fuzzy or exact
+            // Better: Let's assume we construct ID as compIndex::stratIndex or similar? 
+            // Actually, let's just use the name for now as the ID isn't stable in the simple type.
+            // Or better, let's look it up.
+        }
+        return null;
+    };
+
+    // Flatten strategies for dropdown
+    const availableStrategies = React.useMemo(() => competencies.flatMap(c =>
+        c.strategies.map(s => ({
+            label: `${c.title} > ${s.strategy_name}`,
+            value: s.strategy_name,
+            details: s,
+            competency: c.title
+        }))
+    ), [competencies]);
+
+    // Group Proof Points by Company|Role (Same as ResumeFormulasDashboard)
+    const groupedExperiences = React.useMemo(() => {
+        const groups: Record<string, UploadedDocument[]> = {};
+        proofPoints.forEach(doc => {
+            const company = doc.metadata?.company || 'Unknown Company';
+            const role = doc.metadata?.role_title || 'Unknown Role';
+            const key = `${company}|${role}`;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(doc);
+        });
+
+        return Object.entries(groups).map(([key, docs]) => {
+            const sorted = docs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            return {
+                key,
+                latest: sorted[0],
+                label: `${sorted[0].metadata?.company} - ${sorted[0].metadata?.role_title}`
+            };
+        }).sort((a, b) => a.label.localeCompare(b.label));
+    }, [proofPoints]);
+
+    const handleGenerate = async () => {
+        if (!selectedStrategyId || !selectedexperienceKey) {
+            alert("Please select a Strategy and a Proof Point (Experience).");
+            return;
+        }
+
+        const strategyObj = availableStrategies.find(s => s.value === selectedStrategyId);
+        const experience = groupedExperiences.find(e => e.key === selectedexperienceKey);
+
+        setIsGenerating(true);
         try {
-            await onSaveNarrative({ impact_stories: stories }, activeNarrative.narrative_id);
-        } catch (e) { console.error(e); } finally { setIsLoading(false); }
-    };
+            // 1. Fetch full high-fidelity content if it's a Chroma proof point
+            let experienceContext = experience?.latest.content || experience?.latest.metadata?.description || "No specific experience content available.";
 
-    const handleStoryChange = (updatedStory: ImpactStory) => {
-        setStories(prev => prev.map(s => s.story_id === updatedStory.story_id ? updatedStory : s));
-    };
-
-    const handleFormatChange = (story: ImpactStory, newFormat: StorytellingFormat) => {
-        const newBody = getInitialBodyForFormat(newFormat);
-        // Attempt to map common fields
-        if ('situation' in story.story_body && typeof (story.story_body as any).situation === 'string') {
-            if ('situation' in newBody) {
-                (newBody as any).situation = (story.story_body as any).situation;
+            if (experience?.latest.id && experience?.latest.collection_name) {
+                try {
+                    const detail = await apiService.getDocumentDetail(experience.latest.collection_name, experience.latest.id);
+                    if (detail.content) {
+                        experienceContext = detail.content;
+                    }
+                } catch (err) {
+                    console.warn("Failed to fetch full document detail, falling back to snippet:", err);
+                }
             }
-        }
-        handleStoryChange({ ...story, format: newFormat, story_body: newBody, speaker_notes: {} });
-    };
 
-    const handleAddStory = () => {
-        const newStory: ImpactStory = {
-            story_id: uuidv4(),
-            story_title: 'New Core Story',
-            format: 'STAR',
-            story_body: getInitialBodyForFormat('STAR'),
-            target_questions: [],
-            speaker_notes: {}
-        };
-        setStories([...stories, newStory]);
-        setSelectedStoryId(newStory.story_id);
-    };
+            // 2. Construct Strategy Context
+            const strategyContext = strategyObj ? JSON.stringify({
+                competency: strategyObj.competency,
+                name: strategyObj.details.strategy_name,
+                best_practices: strategyObj.details.best_practices,
+                kpis: strategyObj.details.kpis,
+                talking_points: strategyObj.details.talking_points
+            }) : selectedStrategyId;
 
-    const handleRemoveStory = (storyIdToRemove: string) => {
-        const originalIndex = stories.findIndex(s => s.story_id === storyIdToRemove);
-        const newStories = stories.filter(s => s.story_id !== storyIdToRemove);
-        setStories(newStories);
-        if (selectedStoryId === storyIdToRemove) {
-            setSelectedStoryId(newStories[Math.min(originalIndex, newStories.length - 1)]?.story_id || null);
-        }
-    };
-    
-    const handleAIPolishPart = async (story: ImpactStory, fieldName: string) => {
-        const generationKey = `${story.story_id}-${fieldName}`;
-        setIsGenerating(generationKey);
-        try {
-            const prompt = prompts.find(p => p.id === 'POLISH_IMPACT_STORY_PART');
-            if (!prompt) throw new Error("POLISH_IMPACT_STORY_PART prompt not found.");
-            
-            const result = await geminiService.polishImpactStoryPart({
-                STORY_FORMAT: story.format,
-                STORY_PART: fieldName,
-                DRAFT_TEXT: (story.story_body as any)[fieldName],
-                FULL_STORY_CONTEXT: JSON.stringify(story.story_body)
-            }, prompt.content);
-            
-            handleStoryChange({ ...story, story_body: { ...story.story_body, [fieldName]: result } });
-        } catch (error) { console.error("AI polish failed", error); } finally { setIsGenerating(null); }
-    };
+            // 3. Generate structured narrative
+            console.log("Generating Narrative with context:", {
+                framework: selectedFramework,
+                strategy: strategyObj?.details.strategy_name,
+                experience: experience?.latest.metadata?.company || 'Unknown'
+            });
 
-    const handleGenerateAllSpeakerNotes = async () => {
-        const story = stories.find(s => s.story_id === selectedStoryId);
-        if (!story) return;
+            const result = await geminiService.generateStructuredNarrative({
+                strategy_name: strategyObj?.details.strategy_name || selectedStrategyId,
+                strategy_definition: strategyContext,
+                competency_name: strategyObj?.competency || "General",
+                experience_context: experienceContext,
+                framework: selectedFramework
+            }, 'GENERATE_STRUCTURED_NARRATIVE');
 
-        const generationKey = `${story.story_id}-all-notes`;
-        setIsGenerating(generationKey);
-        try {
-            const prompt = prompts.find(p => p.id === 'GENERATE_STRUCTURED_SPEAKER_NOTES');
-            if (!prompt) throw new Error("GENERATE_STRUCTURED_SPEAKER_NOTES prompt not found.");
-            
-            const result = await geminiService.generateStructuredSpeakerNotes({
-                STORY_FORMAT: story.format,
-                FULL_STORY_JSON: JSON.stringify(story.story_body)
-            }, prompt.content);
-            setPracticeStoryNotes(result);
-            handleStoryChange({ ...story, speaker_notes: result });
-        } catch (error) {
-            console.error("AI speaker notes generation failed", error);
-        } finally {
-            setIsGenerating(null);
-        }
-    };
-    
-    const handleSaveNotesFromPractice = async () => {
-        const story = stories.find(s => s.story_id === selectedStoryId);
-        if (!story) return;
-        setIsSavingNotes(true);
-        try {
-            const newStories = stories.map(s =>
-                s.story_id === selectedStoryId
-                    ? { ...s, speaker_notes: practiceStoryNotes }
-                    : s
+            console.log("Narrative Generation Result:", result);
+
+            const storyData: Partial<ImpactStory> = {
+                story_title: `${strategyObj?.details.strategy_name || selectedStrategyId} - ${experience?.latest.metadata?.company || 'Unknown'}`,
+                format: selectedFramework,
+                story_body: {}, // Legacy
+                hero_kpi: result.hero_kpi,
+                visual_anchor: result.visual_anchor,
+                narrative_steps: result.narrative_steps,
+                thinned_bullets: result.thinned_bullets,
+                associated_experience_index: -1, // No longer using legacy index
+                associated_strategy_id: selectedStrategyId,
+                target_questions: []
+            };
+
+            // Check if a story already exists for this Strategy + Experience combo
+            const existingStoryIndex = stories.findIndex(s =>
+                s.associated_strategy_id === selectedStrategyId &&
+                s.story_title.includes(experience?.latest.metadata?.company as string || '___')
             );
-            setStories(newStories);
-            await onSaveNarrative({ impact_stories: newStories }, activeNarrative.narrative_id);
-            setIsPracticeModalOpen(false);
-        } catch(e) {
-            console.error("Failed to save notes:", e);
+
+            let updatedStories: ImpactStory[];
+            let finalStoryId: string;
+
+            if (existingStoryIndex !== -1) {
+                // Update existing
+                const existingStory = stories[existingStoryIndex];
+                finalStoryId = existingStory.story_id;
+                updatedStories = [...stories];
+                updatedStories[existingStoryIndex] = {
+                    ...existingStory,
+                    ...storyData,
+                    story_id: finalStoryId // Keep same ID
+                };
+            } else {
+                // Create new
+                finalStoryId = uuidv4();
+                const newStory: ImpactStory = {
+                    ...storyData as ImpactStory,
+                    story_id: finalStoryId
+                };
+                updatedStories = [...stories, newStory];
+            }
+
+            await handleSave(updatedStories);
+            setSelectedStoryId(finalStoryId);
+
+        } catch (e) {
+            console.error(e);
+            alert("Failed to generate narrative. See console.");
         } finally {
-            setIsSavingNotes(false);
+            setIsGenerating(false);
         }
     };
 
-    
+    const handleRemoveStory = async (id: string) => {
+        const updated = stories.filter(s => s.story_id !== id);
+        await handleSave(updated);
+        if (selectedStoryId === id) setSelectedStoryId(null);
+    };
+
+    const handleUpdateStory = async (updatedStory: ImpactStory) => {
+        const updated = stories.map(s => s.story_id === updatedStory.story_id ? updatedStory : s);
+        await handleSave(updated);
+    };
+
     const selectedStory = stories.find(s => s.story_id === selectedStoryId);
-    const storyFormatData = selectedStory ? STORY_FORMATS[selectedStory.format] : null;
+
+    // Framework Step Definitions
+    const FRAMEWORK_STEPS: Record<string, string[]> = {
+        'STAR': ['Situation', 'Task', 'Action', 'Result'],
+        'DIGS': ['Dramatize', 'Indicate', 'Go', 'Synergize'],
+        'PAR': ['Problem', 'Action', 'Result'],
+        'SCQA': ['Situation', 'Complication', 'Question', 'Answer']
+    };
+
+    // Helpers for rendering the structured view
+    const renderSteps = (story: ImpactStory) => {
+        if (!story.narrative_steps) return <p className="text-slate-500 italic">No structured steps available.</p>;
+
+        // Determine order based on story format
+        const order = FRAMEWORK_STEPS[story.format] || [];
+
+        // Sort keys: If key is in order array, use index. If not, put at end.
+        const sortedKeys = Object.keys(story.narrative_steps).sort((a, b) => {
+            const indexA = order.indexOf(a);
+            const indexB = order.indexOf(b);
+
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            if (indexA !== -1) return -1;
+            if (indexB !== -1) return 1;
+            return 0;
+        });
+
+        return order.map((label) => {
+            // Try to find a matching key in narrative_steps
+            // In case the AI returned lowercase or slightly different keys
+            const keys = Object.keys(story.narrative_steps!);
+            const matchKey = keys.find(k =>
+                k.toLowerCase() === label.toLowerCase() ||
+                k.toLowerCase().includes(label.toLowerCase())
+            );
+
+            const value = matchKey ? story.narrative_steps![matchKey] : "Step content not available.";
+
+            return (
+                <div key={label} className="mb-3">
+                    <span className="text-xs font-bold uppercase text-slate-400 block mb-1">{label}</span>
+                    <textarea
+                        className="w-full text-sm p-3 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-serif leading-relaxed"
+                        rows={4}
+                        value={value}
+                        onChange={(e) => {
+                            const actualKey = matchKey || label;
+                            const newSteps = { ...story.narrative_steps, [actualKey]: e.target.value };
+                            handleUpdateStory({ ...story, narrative_steps: newSteps as any });
+                        }}
+                    />
+                </div>
+            );
+        });
+    };
 
     return (
-        <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-1">
-                    <div className="flex justify-between items-center mb-2">
-                        <h3 className="font-semibold">Core Story Library</h3>
-                        <button onClick={handleAddStory} className="text-sm font-semibold text-blue-600 hover:underline">Add New</button>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* LEFT PANEL: Library & Wizard */}
+            <div className="lg:col-span-4 space-y-6">
+
+                {/* 1. Story Library (Top for Access) */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4">
+                    <div className="flex justify-between items-center mb-3">
+                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Strategy Library</h3>
+                        <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full font-medium">
+                            {stories.length}
+                        </span>
                     </div>
-                    <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
+
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
                         {stories.map(story => (
-                            <div key={story.story_id} onClick={() => setSelectedStoryId(story.story_id)}
-                                className={`p-3 rounded-md cursor-pointer border ${selectedStoryId === story.story_id ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700' : 'bg-white dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-700/50 border-slate-200 dark:border-slate-700'}`}>
-                                <div className="flex justify-between items-center">
-                                    <p className="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate">{story.story_title}</p>
-                                    <span className="text-xs font-mono bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded">{story.format}</span>
+                            <div
+                                key={story.story_id}
+                                onClick={() => setSelectedStoryId(story.story_id)}
+                                className={`p-3 rounded-lg border cursor-pointer transition-all relative group ${selectedStoryId === story.story_id
+                                    ? 'bg-blue-50 border-blue-400 dark:bg-blue-900/20 dark:border-blue-500 shadow-sm ring-1 ring-blue-400 dark:ring-blue-500'
+                                    : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-sm dark:bg-slate-700/50 dark:border-slate-700 dark:hover:border-slate-600'
+                                    }`}
+                            >
+                                <div className="flex justify-between items-start mb-1">
+                                    <div className="pr-6">
+                                        <h4 className={`font-bold text-sm leading-tight mb-1 ${selectedStoryId === story.story_id ? 'text-blue-700 dark:text-blue-300' : 'text-slate-800 dark:text-slate-200'}`}>
+                                            {story.story_title}
+                                        </h4>
+                                        <div className="flex items-center gap-2">
+                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 uppercase border border-slate-200">
+                                                {story.format}
+                                            </span>
+                                            {story.hero_kpi && (
+                                                <span className="text-[10px] text-green-600 font-bold truncate max-w-[150px]">
+                                                    {story.hero_kpi}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleRemoveStory(story.story_id); }}
+                                        className="text-slate-300 hover:text-red-500 absolute top-3 right-3 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        title="Delete Story"
+                                    >
+                                        <TrashIcon className="h-4 w-4" />
+                                    </button>
                                 </div>
+                                {selectedStoryId === story.story_id && (
+                                    <div className="absolute right-3 bottom-3">
+                                        <span className="text-[10px] font-bold text-blue-500 flex items-center bg-blue-50 dark:bg-blue-900/40 px-2 py-0.5 rounded-full">
+                                            Editing <ChevronDownIcon className="w-3 h-3 ml-1 -rotate-90" />
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         ))}
+                        {stories.length === 0 && (
+                            <div className="text-center py-8 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-700">
+                                <p className="text-sm text-slate-400 font-medium">No saved strategies yet.</p>
+                                <p className="text-xs text-slate-400 mt-1">Use the generator below.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                <div className="md:col-span-2">
-                    {selectedStory && storyFormatData ? (
-                        <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-4">
-                            <div className="flex justify-between items-center">
-                                <h3 className="font-semibold text-lg">Story Editor</h3>
-                                <div className="flex items-center gap-x-2">
-                                    <button type="button" onClick={() => {
-                                        setPracticeStoryNotes(selectedStory.speaker_notes || {});
-                                        setIsPracticeModalOpen(true);
-                                    }} className="text-sm font-semibold text-blue-600 hover:underline">Practice Story</button>
-                                    <button type="button" onClick={() => handleRemoveStory(selectedStory.story_id)} className="p-1 text-slate-400 hover:text-red-500"><TrashIcon className="h-5 w-5" /></button>
-                                </div>
-                            </div>
-                            <div>
-                                <label htmlFor={`title-${selectedStory.story_id}`} className={labelClass}>Title</label>
-                                <input id={`title-${selectedStory.story_id}`} type="text" value={selectedStory.story_title} onChange={e => handleStoryChange({ ...selectedStory, story_title: e.target.value })} className={`${textareaClass} font-semibold`} />
-                            </div>
-                            <div>
-                                <label className={labelClass}>Story Format</label>
-                                <div className="mt-2 flex rounded-md shadow-sm">
-                                    {Object.values(STORY_FORMATS).map(formatInfo => (
-                                        <button
-                                            key={formatInfo.name}
-                                            type="button"
-                                            onClick={() => handleFormatChange(selectedStory, formatInfo.name as StorytellingFormat)}
-                                            className={`-ml-px px-4 py-2 text-sm border border-slate-300 dark:border-slate-600 first:rounded-l-md last:rounded-r-md first:ml-0 ${selectedStory.format === formatInfo.name ? 'bg-blue-600 text-white z-10' : 'bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600'}`}
-                                            title={formatInfo.description}
-                                        >
-                                            {formatInfo.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            
-                            <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                                <div className="flex justify-between items-center">
-                                    <h4 className="text-md font-semibold text-slate-700 dark:text-slate-300">Detailed Story</h4>
-                                    <button type="button" onClick={handleGenerateAllSpeakerNotes} disabled={!!isGenerating} className="text-xs font-semibold text-blue-600 hover:underline inline-flex items-center gap-1">
-                                        {isGenerating === `${selectedStory.story_id}-all-notes` ? <LoadingSpinner/> : <SparklesIcon className="h-4 w-4"/>} Generate All Speaker Notes
+                {/* 2. Wizard Input Panel */}
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-6 border border-slate-200 dark:border-slate-700 rounded-xl">
+                    <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <SparklesIcon className="w-4 h-4" />
+                        New Generator
+                    </h2>
+                    <div className="space-y-5">
+
+                        {/* 1. Strategic Anchor */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                                1. Strategic Anchor
+                            </label>
+                            <select
+                                value={selectedStrategyId}
+                                onChange={(e) => setSelectedStrategyId(e.target.value)}
+                                className="w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value="">Select Defined Strategy...</option>
+                                {availableStrategies.map((opt, i) => (
+                                    <option key={i} value={opt.value}>{opt.label}</option>
+                                ))}
+                            </select>
+                            <p className="text-[10px] text-slate-500">Source: Competency Hub</p>
+                        </div>
+
+                        {/* 2. Proof Point */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                                2. Proof Point (Vector Formula)
+                            </label>
+                            <select
+                                value={selectedexperienceKey}
+                                onChange={(e) => setSelectedExperienceKey(e.target.value)}
+                                className="w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value="">Select High-Fidelity Experience...</option>
+                                {groupedExperiences.map((exp, i) => (
+                                    <option key={i} value={exp.key}>
+                                        {exp.label}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-[10px] text-slate-500">Source: Resume Formulas (Chroma)</p>
+                        </div>
+
+                        {/* 3. Framework */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                3. Framework
+                            </label>
+                            <div className="flex bg-white dark:bg-slate-700 rounded-lg border border-slate-300 dark:border-slate-600 p-1">
+                                {FRAMEWORKS.map(f => (
+                                    <button
+                                        key={f}
+                                        onClick={() => setSelectedFramework(f)}
+                                        className={`flex-1 text-xs font-bold py-1.5 rounded-md transition-all ${selectedFramework === f
+                                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                                            }`}
+                                    >
+                                        {f}
                                     </button>
-                                </div>
-                                {storyFormatData.fields.map(field => (
-                                    <div key={field.id as string}>
-                                        <div className="flex justify-between items-center">
-                                            <label htmlFor={`${selectedStory.story_id}-${field.id as string}`} className={labelClass}>{field.label}</label>
-                                            <button type="button" onClick={() => handleAIPolishPart(selectedStory, field.id as string)} disabled={!!isGenerating} className="text-xs font-semibold text-blue-600 hover:underline inline-flex items-center gap-1">
-                                                {isGenerating === `${selectedStory.story_id}-${field.id as string}` ? <LoadingSpinner/> : <SparklesIcon className="h-4 w-4"/>} Polish
-                                            </button>
-                                        </div>
-                                        <textarea id={`${selectedStory.story_id}-${field.id as string}`} rows={field.rows} value={(selectedStory.story_body as any)[field.id] || ''} onChange={e => handleStoryChange({ ...selectedStory, story_body: {...selectedStory.story_body, [field.id]: e.target.value }})} className={textareaClass} placeholder={field.placeholder}/>
-                                    </div>
                                 ))}
                             </div>
                         </div>
-                    ) : (
-                        <div className="text-center p-12 bg-slate-50 dark:bg-slate-800/80 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700">
-                            <p>Select a story to edit or add a new one.</p>
-                        </div>
-                    )}
-                    <div className="flex justify-end mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
-                        <button type="button" onClick={handleSave} disabled={isLoading} className="rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50">
-                            {isLoading ? <LoadingSpinner/> : 'Save All Changes'}
+
+                        <button
+                            onClick={handleGenerate}
+                            disabled={isGenerating || !selectedStrategyId || !selectedexperienceKey}
+                            className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg shadow hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all font-bold text-sm mt-4"
+                        >
+                            {isGenerating ? <LoadingSpinner className="w-5 h-5 mr-2" /> : <SparklesIcon className="w-5 h-5 mr-2" />}
+                            Synthesize Narrative
                         </button>
                     </div>
                 </div>
             </div>
 
-            {isPracticeModalOpen && selectedStory && storyFormatData && (
-                <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-[70]" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                    <div className="fixed inset-0 z-10 w-screen overflow-y-auto">
-                        <div className="flex min-h-full items-center justify-center p-4 text-center">
-                            <div className="relative transform overflow-hidden rounded-lg bg-white dark:bg-slate-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-6xl">
-                                <div className="bg-white dark:bg-slate-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                                    <h3 className="text-xl font-bold leading-6 text-slate-900 dark:text-white" id="modal-title">Practice: {selectedStory.story_title}</h3>
-                                    <div className="mt-4 max-h-[70vh] overflow-y-auto pr-4">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            {/* Left Column: Full Story */}
-                                            <div className="space-y-4 p-4 rounded-lg bg-slate-50 dark:bg-slate-900/50">
-                                                <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Full Story</h2>
-                                                {storyFormatData.fields.map(field => (
-                                                    <div key={field.id as string}>
-                                                        <h3 className="font-semibold text-slate-600 dark:text-slate-300">{field.label}</h3>
-                                                        <p className="text-sm text-slate-700 dark:text-slate-400 whitespace-pre-wrap">{(selectedStory.story_body as any)[field.id] || 'Not provided.'}</p>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            {/* Right Column: Editable Speaker Notes */}
-                                            <div className="space-y-4 p-4 rounded-lg bg-slate-50 dark:bg-slate-900/50">
-                                                <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Editable Speaker Notes</h2>
-                                                {storyFormatData.fields.map(field => (
-                                                    <div key={field.id as string}>
-                                                        <label htmlFor={`practice-${field.id as string}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300">{field.label}</label>
-                                                        <textarea
-                                                            id={`practice-${field.id as string}`}
-                                                            value={practiceStoryNotes[field.id as string] || ''}
-                                                            onChange={e => setPracticeStoryNotes(prev => ({ ...prev, [field.id as string]: e.target.value }))}
-                                                            rows={field.rows > 2 ? 3 : 2}
-                                                            className={`${textareaClass} text-sm font-mono`}
-                                                            placeholder={`Concise points for ${field.label}...`}
-                                                        />
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
+            {/* RIGHT PANEL: Review & Edit (The Tweak) */}
+            <div className="lg:col-span-8">
+                {selectedStory ? (
+                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        {/* Header */}
+                        <div className="border-b border-slate-200 dark:border-slate-700 p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-between items-start">
+                            <div>
+                                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
+                                    {selectedStory.story_title}
+                                </h2>
+                                <p className="text-sm text-slate-500">
+                                    Framework: <span className="font-bold">{selectedStory.format}</span> •
+                                    Strategy: <span className="font-bold">{availableStrategies.find(s => s.value === selectedStory.associated_strategy_id)?.label || selectedStory.associated_strategy_id}</span>
+                                </p>
+                            </div>
+                            <div className="flex flex-col items-end">
+                                <label className="text-xs font-bold uppercase text-slate-400 mb-1">Hero KPI</label>
+                                <input
+                                    type="text"
+                                    className="text-right font-bold text-green-600 text-xl border-none bg-transparent focus:ring-0 p-0 placeholder-green-600/50"
+                                    value={selectedStory.hero_kpi || ''}
+                                    placeholder="+40% Efficiency"
+                                    onChange={(e) => handleUpdateStory({ ...selectedStory, hero_kpi: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* Column 1: The Narrative Steps (Deep Context) */}
+                            <div>
+                                <h3 className="text-md font-bold text-slate-900 dark:text-white mb-4 flex items-center">
+                                    <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs mr-2">1</span>
+                                    Core Narrative
+                                </h3>
+                                <div className="space-y-4">
+                                    {renderSteps(selectedStory)}
                                 </div>
-                                <div className="bg-gray-50 dark:bg-slate-800/50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                            </div>
+
+                            {/* Column 2: The Signal (Thinned Bullets) */}
+                            <div>
+                                <h3 className="text-md font-bold text-slate-900 dark:text-white mb-4 flex items-center">
+                                    <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs mr-2">2</span>
+                                    The Signal (War Room View)
+                                </h3>
+                                <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-5 border border-slate-200 dark:border-slate-700">
+                                    <p className="text-xs text-slate-400 mb-3 uppercase tracking-wider font-bold">Thinned Bullets (Max 7 words)</p>
+                                    <ul className="space-y-3">
+                                        {(selectedStory.thinned_bullets || []).map((bullet, idx) => (
+                                            <li key={idx} className="flex bg-white dark:bg-slate-800 p-2 rounded shadow-sm border border-slate-100 dark:border-slate-700">
+                                                <span className="text-blue-500 font-bold mr-2">•</span>
+                                                <input
+                                                    type="text"
+                                                    className="w-full text-sm border-none focus:ring-0 p-0 bg-transparent text-slate-700 dark:text-slate-200 font-medium"
+                                                    value={bullet}
+                                                    onChange={(e) => {
+                                                        const newBullets = [...(selectedStory.thinned_bullets || [])];
+                                                        newBullets[idx] = e.target.value;
+                                                        handleUpdateStory({ ...selectedStory, thinned_bullets: newBullets });
+                                                    }}
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        const newBullets = (selectedStory.thinned_bullets || []).filter((_, i) => i !== idx);
+                                                        handleUpdateStory({ ...selectedStory, thinned_bullets: newBullets });
+                                                    }}
+                                                    className="ml-2 text-slate-300 hover:text-red-400"
+                                                >
+                                                    &times;
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
                                     <button
-                                        type="button"
-                                        onClick={handleSaveNotesFromPractice}
-                                        disabled={isSavingNotes}
-                                        className="inline-flex w-full justify-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700 sm:ml-3 sm:w-auto disabled:opacity-50"
+                                        onClick={() => handleUpdateStory({ ...selectedStory, thinned_bullets: [...(selectedStory.thinned_bullets || []), "New bullet point"] })}
+                                        className="mt-3 text-xs font-semibold text-blue-600 flex items-center hover:underline"
                                     >
-                                        {isSavingNotes ? <LoadingSpinner /> : 'Save Notes'}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsPracticeModalOpen(false)}
-                                        className="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-slate-300 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 sm:mt-0 sm:w-auto"
-                                    >
-                                        Close
+                                        <PlusCircleIcon className="w-4 h-4 mr-1" /> Add Signal Bullet
                                     </button>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </>
+                ) : (
+                    <div className="h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800/50 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 p-12 text-slate-400">
+                        <SparklesIcon className="h-12 w-12 mb-4 opacity-50" />
+                        <p className="font-semibold text-lg">Select or Generate a Story</p>
+                        <p className="text-sm">Use the wizard on the left to cook up a new narrative.</p>
+                    </div>
+                )}
+            </div>
+        </div>
     );
 };

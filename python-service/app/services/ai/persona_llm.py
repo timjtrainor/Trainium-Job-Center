@@ -3,30 +3,17 @@ from __future__ import annotations
 
 from typing import Dict, Any, Tuple
 
-from .llm_clients import BaseLLMClient, create_llm_client, LLMRouter
-from ...core.config import get_settings
+from .ai_service import ai_service
 
 
 class PersonaLLM:
     """Dispatches persona calls to provider/model specific clients.
 
-    The class uses the new LLM router for automatic provider selection and fallback.
-    It maintains backwards compatibility with the existing interface while providing
-    improved reliability through the routing mechanism.
+    The class uses the unified AIService for execution.
     """
 
     def __init__(self) -> None:
-        settings = get_settings()
-        self._router = LLMRouter(preferences=settings.llm_preference)
-        self._clients: Dict[Tuple[str, str], BaseLLMClient] = {}  # For backwards compatibility
-
-    def _get_client(self, provider: str, model: str) -> BaseLLMClient:
-        # This method is kept for backwards compatibility but is now deprecated
-        # The router handles provider selection automatically
-        key = (provider, model)
-        if key not in self._clients:
-            self._clients[key] = create_llm_client(provider, model)
-        return self._clients[key]
+        pass
 
     def advise(
         self,
@@ -34,36 +21,37 @@ class PersonaLLM:
         job: Dict[str, Any],
         context: Dict[str, Any] | None = None,
         *,
-        provider: str = None,  # Now optional - uses router if not specified
-        model: str = None,     # Now optional - uses router if not specified
+        provider: str = None,
+        model: str = None,
     ) -> str:
         """Generate advisory notes for a persona."""
         
-        # Use router if provider/model not specified (preferred approach)
-        if provider is None or model is None:
-            desc = job.get("description", "").lower()
-            base_prompt = (
-                f"{advisor_id} notes salary info"
-                if "salary" in desc
-                else f"{advisor_id} finds no salary info"
-            )
-            if context and context.get("standard_job_roles"):
-                base_prompt += f" with roles {len(context['standard_job_roles'])}"
+        # Construct the "User Input" part of the prompt
+        desc = job.get("description", "").lower()
+        # Mirroring the logic from previous implementation to form the input
+        base_prompt = (
+            f"Please analyze this job description regarding salary info."
+            if "salary" in desc
+            else f"Please analyze this job description regarding lack of salary info."
+        )
+        if context and context.get("standard_job_roles"):
+            base_prompt += f" Context: including {len(context['standard_job_roles'])} standard roles."
             
-            return self._router.generate(base_prompt)
-        else:
-            # Backwards compatibility - use specific provider/model
-            client = self._get_client(provider, model)
-            desc = job.get("description", "").lower()
-            base = (
-                f"{advisor_id} notes salary info"
-                if "salary" in desc
-                else f"{advisor_id} finds no salary info"
-            )
-            if context and context.get("standard_job_roles"):
-                base += f" with roles {len(context['standard_job_roles'])}"
-            client.generate(base)  # placeholder call to demonstrate dispatch
-            return base
+        # Execute via AI Service
+        # We assume the prompt name in LangFuse follows convention "persona-{id}"
+        prompt_name = f"persona-{advisor_id}"
+        
+        # Determine strict model override if passed (backwards compat)
+        # Verify if 'provider/model' format is needed or just rely on LangFuse default
+        # If legacy code passed provider="openai", model="gpt-4", we try to map or ignore
+        # Ideally we let LangFuse control it, but if we must:
+        # ai_service determines model from prompt config primarily.
+        
+        return ai_service.execute_prompt(
+            prompt_name=prompt_name,
+            variables={"user_input": base_prompt},
+            label="production"
+        )
 
     def evaluate(
         self,
@@ -72,41 +60,32 @@ class PersonaLLM:
         job: Dict[str, Any],
         context: Dict[str, Any] | None = None,
         *,
-        provider: str = None,  # Now optional - uses router if not specified
-        model: str = None,     # Now optional - uses router if not specified
+        provider: str = None,
+        model: str = None,
     ) -> Dict[str, Any]:
         """Evaluate a job from a persona's perspective."""
         
         desc = job.get("description", "").lower()
-        approve = "remote" in desc or "flexible" in desc
         
-        # Use router if provider/model not specified (preferred approach)
-        if provider is None or model is None:
-            reason_prompt = f"{persona_id} {'approves' if approve else 'rejects'}: {decision_lens}"
-            if context and context.get("strategic_narratives"):
-                reason_prompt += " | narratives considered"
+        user_input = f"Evaluate this job based on: {decision_lens}."
+        if context and context.get("strategic_narratives"):
+            user_input += " Consider strategic narratives provided."
             
-            reason = self._router.generate(reason_prompt)
-            return {
-                "vote": approve,
-                "reason": reason,
-                "confidence": 0.8 if approve else 0.2,
-                "provider": "router",  # Indicates router was used
-                "model": "auto",       # Model selected by router
-                "latency_ms": 0,
-            }
-        else:
-            # Backwards compatibility - use specific provider/model
-            client = self._get_client(provider, model)
-            reason = f"{persona_id} {'approves' if approve else 'rejects'}: {decision_lens}"
-            if context and context.get("strategic_narratives"):
-                reason += " | narratives considered"
-            client.generate(reason)  # placeholder dispatch
-            return {
-                "vote": approve,
-                "reason": reason,
-                "confidence": 0.8 if approve else 0.2,
-                "provider": provider,
-                "model": model,
-                "latency_ms": 0,
-            }
+        prompt_name = f"persona-{persona_id}"
+        
+        response_text = ai_service.execute_prompt(
+            prompt_name=prompt_name,
+            variables={"user_input": user_input},
+            label="production"
+        )
+        
+        vote = "approve" in response_text.lower() or "positive" in response_text.lower()
+        
+        return {
+            "vote": vote,
+            "reason": response_text,
+            "confidence": 0.8,
+            "provider": "ai_service",
+            "model": "dynamic",
+            "latency_ms": 0,
+        }
