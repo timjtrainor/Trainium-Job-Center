@@ -44,7 +44,7 @@ export const SummaryRefinementPanel = ({ isOpen, onClose, summary, resume, activ
                 RESUME_TEXT: resumeJsonToText(resume),
             };
 
-            const newSummaries = await geminiService.rewriteSummary(context, prompt.content);
+            const newSummaries = await geminiService.rewriteSummary(context, prompt.id);
             setSuggestions(newSummaries);
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Failed to generate summary suggestions.');
@@ -52,7 +52,7 @@ export const SummaryRefinementPanel = ({ isOpen, onClose, summary, resume, activ
             setIsLoading(false);
         }
     };
-    
+
     useEffect(() => {
         if (isOpen) {
             // Automatically generate suggestions when the panel opens

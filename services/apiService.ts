@@ -15,7 +15,8 @@ import {
     ResumeCreatePayload, ResumeUpdatePayload, ResumeDocumentResponseData,
     InterviewLayoutState, InterviewWidgetMetadataMap, InterviewWidgetStateMap,
     ResetApplicationPayload, InterviewStrategy, InterviewPrep, TMAYConfig,
-    QuestionDraft, Competency, TrackCompetencies
+    QuestionDraft, Competency, TrackCompetencies,
+    ApplicationResponse, LeaderboardEntry
 } from '../types';
 import { API_BASE_URL, USER_ID, FASTAPI_BASE_URL } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -1548,6 +1549,17 @@ export const getTrackCompetencies = async (trackName: string): Promise<TrackComp
     };
 };
 
+export const getAllTrackCompetencies = async (): Promise<TrackCompetencies[]> => {
+    const response = await fetch(`${API_BASE_URL}/job_track_competencies?user_id=eq.${USER_ID}`);
+    const data = await handleResponse(response);
+    if (!data) return [];
+
+    return data.map((item: any) => ({
+        ...item,
+        competencies: safeParseJson(item.competencies, 'competencies', item.track_competency_id)
+    }));
+};
+
 export const saveTrackCompetencies = async (payload: Partial<TrackCompetencies>): Promise<TrackCompetencies> => {
     const { track_competency_id, ...data } = payload;
     const finalPayload = { ...data, user_id: USER_ID };
@@ -2480,7 +2492,7 @@ export const createManualJob = async (jobData: {
     return handleResponse(response);
 };
 
-export const generateApplicationFromJob = async (jobId: string, narrativeId?: string): Promise<any> => {
+export const generateApplicationFromJob = async (jobId: string, narrativeId?: string): Promise<ApplicationResponse> => {
     const url = narrativeId
         ? buildFastApiUrl(`applications/generate-from-job/${jobId}?narrative_id=${narrativeId}`)
         : buildFastApiUrl(`applications/generate-from-job/${jobId}`);
@@ -2492,6 +2504,80 @@ export const generateApplicationFromJob = async (jobId: string, narrativeId?: st
 
     return handleResponse(response);
 };
+
+// --- Networking Leaderboard / Tournament API ---
+
+export const getLeaderboard = async (): Promise<LeaderboardEntry[]> => {
+    // This is mapped to the 'networking_leaderboard' table in PostgREST
+    // joined with 'job_applications' to get titles and contact counts
+    const url = `${API_BASE_URL}/networking_leaderboard?select=rank,job_application_id,pov_hook,updated_at,job:job_applications(job_title,company:companies(company_name,company_id))&order=rank.asc`;
+    const response = await fetch(url);
+    const rawData = await handleResponse(response);
+
+    // Fetch contact counts for all companies in parallel
+    const companyIds = rawData
+        .map((item: any) => item.job?.company?.company_id)
+        .filter(Boolean);
+
+    const contactCounts = new Map<string, number>();
+
+    if (companyIds.length > 0) {
+        try {
+            const uniqueCompanyIds = Array.from(new Set(companyIds));
+            const contactsUrl = `${API_BASE_URL}/contacts?select=company_id&company_id=in.(${uniqueCompanyIds.join(',')})`;
+            const contactsResponse = await fetch(contactsUrl);
+            const contactsData = await handleResponse(contactsResponse);
+
+            // Count contacts per company
+            contactsData.forEach((contact: any) => {
+                const companyId = contact.company_id;
+                contactCounts.set(companyId, (contactCounts.get(companyId) || 0) + 1);
+            });
+        } catch (err) {
+            console.warn('Failed to fetch contact counts:', err);
+        }
+    }
+
+    return rawData.map((item: any) => {
+        const companyId = item.job?.company?.company_id;
+        return {
+            rank: item.rank,
+            job_application_id: item.job_application_id,
+            job_title: item.job.job_title,
+            company_name: item.job.company?.company_name,
+            contact_count: companyId ? (contactCounts.get(companyId) || 0) : 0,
+            pov_hook: item.pov_hook,
+            updated_at: item.updated_at
+        };
+    });
+};
+
+export const removeFromLeaderboard = async (applicationId: string): Promise<StandardResponse<any>> => {
+    const response = await fetch(buildFastApiUrl(`applications/leaderboard/${applicationId}`), {
+        method: 'DELETE',
+        headers,
+    });
+    return handleResponse(response);
+};
+
+export const recalculateLeaderboard = async (days: number = 30): Promise<{ success: boolean; message: string }> => {
+    const url = buildFastApiUrl(`applications/leaderboard/recalculate?days=${days}`);
+    const response = await fetch(url, {
+        method: 'POST',
+        headers,
+    });
+    return handleResponse(response);
+};
+
+export const auditTournamentImpact = async (appId: string): Promise<any> => {
+    const url = buildFastApiUrl(`applications/${appId}/audit-tournament`);
+    const response = await fetch(url, {
+        method: 'POST',
+        headers,
+    });
+    return handleResponse(response);
+};
+
 
 export const createApplicationFromJob = async (jobId: string, mode: string = 'fast_track', narrativeId?: string): Promise<any> => {
     let url = buildFastApiUrl(`applications/create-from-job/${jobId}?mode=${mode}`);
@@ -2663,4 +2749,12 @@ export const generateTalkingPoints = async (
     });
     const result = await handleResponse(response);
     return result;
+};
+
+export const deleteDocument = async (collectionName: string, documentId: string): Promise<StandardResponse<any>> => {
+    const response = await fetch(buildFastApiUrl(`documents/${documentId}?collection=${collectionName}`), {
+        method: 'DELETE',
+        headers,
+    });
+    return handleResponse(response);
 };

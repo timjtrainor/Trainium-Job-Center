@@ -29,6 +29,15 @@ async def scheduler_loop():
     scheduler_service = get_scheduler_service()
     
     try:
+        import gc
+        psutil = None
+        try:
+            import psutil
+        except ImportError:
+            logger.warning("psutil not found, memory logging disabled")
+        
+        process = psutil.Process(os.getpid()) if psutil else None
+        
         # Initialize scheduler
         await scheduler_service.initialize()
         logger.info("Scheduler initialized successfully")
@@ -38,11 +47,19 @@ async def scheduler_loop():
         
         while True:
             try:
+                # Log memory usage before cycle
+                if process:
+                    mem_info = process.memory_info()
+                    logger.info(f"Scheduler memory usage: {mem_info.rss / 1024 / 1024:.2f} MB")
+                
                 logger.debug("Checking for due scheduled tasks...")
                 jobs_enqueued = await scheduler_service.process_scheduled_sites()
                 
                 if jobs_enqueued > 0:
                     logger.info(f"Scheduler enqueued {jobs_enqueued} tasks")
+                
+                # Explicit garbage collection
+                gc.collect()
                 
                 # Wait for next check
                 await asyncio.sleep(check_interval)

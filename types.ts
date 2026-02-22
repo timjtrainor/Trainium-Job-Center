@@ -40,7 +40,7 @@ export enum AppView {
   POST_INTERVIEW_DEBRIEF,
 }
 
-export type ApplicationDetailTab = 'overview' | 'analysis' | 'resume' | 'interviews' | 'ai-content' | 'questions' | 'apply';
+export type ApplicationDetailTab = 'overview' | 'analysis' | 'resume' | 'interviews' | 'ai-content' | 'questions' | 'apply' | 'contacts';
 export type ApplicationLabTab = 'lab' | 'formulas' | 'offers';
 
 export type WorkflowModeOption = 'manual' | 'ai_generated' | 'fast_track';
@@ -79,6 +79,17 @@ export interface ExtractedInitialDetails {
   remote_status?: 'Remote' | 'Hybrid' | 'On-site' | '';
   remoteStatus?: 'Remote' | 'Hybrid' | 'On-site' | '';
   date_posted?: string;
+  error?: string;
+}
+
+export interface ContactExtractionResult {
+  first_name: string;
+  last_name: string;
+  job_title: string;
+  linkedin_url: string;
+  linkedin_about?: string;
+  persona_suggestion?: ContactPersona;
+  notes?: string;
   error?: string;
 }
 
@@ -393,6 +404,30 @@ export interface JobApplication {
     track?: string;
     [key: string]: any;
   };
+}
+
+export interface LeaderboardAlert {
+  type: 'leaderboard_alert';
+  rank: number;
+  pov_hook: string;
+  is_high_value: boolean;
+}
+
+export interface ApplicationResponse {
+  success: boolean;
+  application_id: string;
+  message: string;
+  leaderboard_alert?: LeaderboardAlert;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  job_application_id: string;
+  job_title: string;
+  company_name?: string;
+  contact_count?: number;
+  pov_hook?: string;
+  updated_at?: string;
 }
 
 // ----- New Detailed Resume Structures -----
@@ -1060,6 +1095,17 @@ export interface InitialJobAnalysisResult {
   job_problem_analysis: JobProblemAnalysisResult;
   strategic_fit_score: number;
   assumed_requirements: string[];
+}
+
+export interface StrategicMessage {
+  type: string;
+  body: string;
+  word_count: number;
+}
+
+export interface StrategicMessageResult {
+  internal_reasoning: string;
+  messages: StrategicMessage[];
 }
 
 export interface KeywordsAndGuidanceResult {

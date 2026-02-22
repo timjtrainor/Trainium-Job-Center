@@ -67,12 +67,12 @@ export const OfferModal = ({ isOpen, onClose, onSave, offer, prompts, activeNarr
 
             const context: PromptContext = {
                 STRATEGIC_NARRATIVE: JSON.stringify(activeNarrative),
-                CORE_PROBLEM_ANALYSIS: jobProblemAnalysis?.core_problem_analysis.core_problem,
+                CORE_PROBLEM_ANALYSIS: (jobProblemAnalysis as any)?.core_problem_analysis?.core_problem,
                 OFFER_DETAILS: JSON.stringify(editableOffer),
                 NEGOTIATION_GOAL: negotiationGoal || 'Improve the overall package, focusing on base salary.',
             };
 
-            const result = await geminiService.generateNegotiationScript(context, prompt.content, debugCallbacks);
+            const result = await geminiService.generateNegotiationScript(context, prompt.id, debugCallbacks);
             setNegotiationScript(result);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to generate script.");
@@ -80,7 +80,7 @@ export const OfferModal = ({ isOpen, onClose, onSave, offer, prompts, activeNarr
             setIsGenerating(false);
         }
     };
-    
+
     const inputClass = "block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm";
     const labelClass = "block text-sm font-medium text-slate-700 dark:text-slate-300";
 
@@ -120,7 +120,7 @@ export const OfferModal = ({ isOpen, onClose, onSave, offer, prompts, activeNarr
                                             <input type="text" id="negotiation_goal" value={negotiationGoal} onChange={e => setNegotiationGoal(e.target.value)} className={`${inputClass} mt-1`} placeholder="e.g., Increase base by 10%" />
                                         </div>
                                         <button type="button" onClick={handleGenerateScript} disabled={isGenerating} className="inline-flex w-full justify-center items-center gap-2 px-4 py-2 text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400">
-                                            {isGenerating ? <LoadingSpinner/> : <SparklesIcon className="h-4 w-4" />} Generate Script
+                                            {isGenerating ? <LoadingSpinner /> : <SparklesIcon className="h-4 w-4" />} Generate Script
                                         </button>
                                         {negotiationScript && (
                                             <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-700">

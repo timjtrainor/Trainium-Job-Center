@@ -75,6 +75,7 @@ class ApplicationResponse(BaseModel):
     success: bool
     application_id: str
     message: str
+    leaderboard_alert: Optional[Dict[str, Any]] = None
 
 
 class ResetApplicationPayload(BaseModel):
@@ -398,6 +399,46 @@ async def _generate_ai_content(
 
     except Exception as e:
         logger.error(f"Failed to generate AI content for application {app_id}: {e}")
+
+
+# --- Tournament / Leaderboard Endpoints ---
+
+@router.delete("/leaderboard/{application_id}", tags=["Tournament"])
+async def remove_from_leaderboard(application_id: str):
+    """Manual removal of an application from the networking leaderboard."""
+    try:
+        from ....services.ai.tournament_service import get_tournament_service
+        tournament_service = get_tournament_service()
+        await tournament_service.delete_from_leaderboard(application_id)
+        return {"success": True, "message": "Removed from leaderboard"}
+    except Exception as e:
+        logger.error(f"Failed to remove {application_id} from leaderboard: {e}")
+        raise HTTPException(500, str(e))
+
+
+@router.post("/leaderboard/recalculate", tags=["Tournament"])
+async def recalculate_leaderboard(days: int = 1):
+    """Trigger a full re-rank of the networking leaderboard for last X days."""
+    try:
+        from ....services.ai.tournament_service import get_tournament_service
+        # For demo/test, we'll use a hardcoded user_id or get it from auth context
+        # Assuming current user for now
+        tournament_service = get_tournament_service()
+        # In a real app, get user_id from token
+        # For now, we fetch the most recent narrative user
+        db = get_database_service()
+        await db.initialize()
+        async with db.pool.acquire() as conn:
+            user_id = await conn.fetchval("SELECT user_id FROM strategic_narratives ORDER BY created_at DESC LIMIT 1")
+            
+        if not user_id:
+            raise HTTPException(400, "No user narrative found to recalculate for.")
+            
+        await tournament_service.recalculate_history(str(user_id), days=days)
+        return {"success": True, "message": f"Leaderboard recalculated for the last {days} days."}
+    except Exception as e:
+        logger.error(f"Failed to recalculate leaderboard: {e}")
+        raise HTTPException(500, str(e))
         # Update application with error status
         try:
             async with db_service.pool.acquire() as conn:
@@ -678,4 +719,41 @@ async def set_application_to_bad_fit(appId: str):
 
     except Exception as e:
         logger.error(f"Failed to set application {appId} as bad fit: {e}")
+        raise HTTPException(500, str(e))
+@router.post("/{appId}/audit-tournament", response_model=ApplicationResponse)
+async def audit_application_tournament(appId: str):
+    """
+    Manually trigger the tournament re-rank for a specific application.
+    Typically used when an application is marked as 'Applied'.
+    """
+    from ....services.ai.tournament_service import get_tournament_service
+    db_service = get_database_service()
+    await db_service.initialize()
+
+    try:
+        # 1. Get user_id for this application
+        async with db_service.pool.acquire() as conn:
+            user_id = await conn.fetchval(
+                "SELECT user_id FROM job_applications WHERE job_application_id = $1",
+                UUID(appId)
+            )
+
+        if not user_id:
+            raise HTTPException(404, f"Application {appId} not found or has no user.")
+
+        # 2. Trigger Tournament Audit
+        tournament_service = get_tournament_service()
+        leaderboard_alert = await tournament_service.audit_application_impact(
+            appId, str(user_id)
+        )
+
+        return ApplicationResponse(
+            success=True,
+            application_id=appId,
+            message="Tournament audit completed.",
+            leaderboard_alert=leaderboard_alert
+        )
+
+    except Exception as e:
+        logger.error(f"Tournament audit trigger failed for {appId}: {e}")
         raise HTTPException(500, str(e))

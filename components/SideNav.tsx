@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LogoIcon, DashboardIcon, ApplicationsIcon, AtomGearIcon, ChatBubbleLeftRightIcon, StrategyIcon, MicrophoneIcon, UsersIcon, ClipboardDocumentListIcon, ClipboardDocumentCheckIcon, CircleStackIcon, ClockIcon, LinkIcon } from './IconComponents';
+import { LogoIcon, DashboardIcon, ApplicationsIcon, AtomGearIcon, ChatBubbleLeftRightIcon, StrategyIcon, MicrophoneIcon, UsersIcon, ClipboardDocumentListIcon, ClipboardDocumentCheckIcon, CircleStackIcon, ClockIcon, LinkIcon, NetworkingIcon } from './IconComponents';
 
 interface SideNavProps {
     onOpenProfileModal: () => void;
@@ -19,6 +19,7 @@ const navItems: NavItem[] = [
     { path: '/', label: 'Dashboard', icon: DashboardIcon, end: true },
     { path: '/sprint', label: 'Sprint', icon: ClipboardDocumentListIcon, isModal: true },
     { path: '/positioning', label: 'Positioning', icon: StrategyIcon },
+    { path: '/networking', label: 'Reaction Network', icon: NetworkingIcon },
     { path: '/engagement', label: 'Engagement Hub', icon: ChatBubbleLeftRightIcon },
     { path: '/reviewed-jobs', label: 'AI Job Board', icon: ClipboardDocumentCheckIcon },
     { path: '/applications', label: 'Application Lab', icon: ApplicationsIcon },

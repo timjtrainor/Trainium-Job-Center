@@ -9,7 +9,7 @@ from loguru import logger
 from enum import Enum
 
 from .infrastructure import get_chroma_client
-from .embeddings import get_embedding_function
+from .embeddings import get_embedding_function, create_embedding_function
 from ..core.config import get_settings
 from ..schemas.chroma import ChromaUploadRequest, ChromaUploadResponse, ChromaCollectionInfo
 
@@ -39,7 +39,9 @@ class ChromaCollectionConfig:
         description: str,
         chunk_size: int = 300,
         chunk_overlap: int = 50,
-        metadata_schema: Optional[Dict[str, Any]] = None
+        metadata_schema: Optional[Dict[str, Any]] = None,
+        embedding_provider: Optional[str] = None,
+        embedding_model: Optional[str] = None
     ):
         self.name = name
         self.collection_type = collection_type
@@ -47,6 +49,8 @@ class ChromaCollectionConfig:
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self.metadata_schema = metadata_schema or {}
+        self.embedding_provider = embedding_provider
+        self.embedding_model = embedding_model
 
 
 class ChromaManager:
@@ -77,7 +81,9 @@ class ChromaManager:
                 "experience_level": "str",
                 "skills": "list",
                 "job_type": "str"
-            }
+            },
+            embedding_provider="openai",
+            embedding_model="text-embedding-3-small"
         ))
         
         # Company profiles collection
@@ -144,7 +150,9 @@ class ChromaManager:
                 "uploaded_at": "str",
                 "updated_at": "str",
                 "created_at": "str"
-            }
+            },
+            embedding_provider="sentence_transformer",
+            embedding_model="all-MiniLM-L6-v2"
         ))
 
         # Resumes collection with enriched metadata
@@ -169,7 +177,9 @@ class ChromaManager:
                 "uploaded_at": "str",
                 "updated_at": "str",
                 "created_at": "str"
-            }
+            },
+            embedding_provider="sentence_transformer",
+            embedding_model="all-MiniLM-L6-v2"
         ))
 
         # Career research documents for users desired career research
@@ -213,7 +223,9 @@ class ChromaManager:
             collection_type=CollectionType.GENERIC_DOCUMENTS,
             description="Generic document storage for various purposes",
             chunk_size=300,
-            chunk_overlap=50
+            chunk_overlap=50,
+            embedding_provider="openai",
+            embedding_model="text-embedding-3-small"
         ))
     
     async def initialize(self):
@@ -391,15 +403,57 @@ class ChromaManager:
         )
     
     async def ensure_collection_exists(self, collection_name: str) -> bool:
-        """Ensure a collection exists, creating it if necessary."""
+        """Ensure a collection exists, creating it if necessary.
+        
+        Note: We use get_collection first to bypass library bugs with get_or_create_collection
+        and to support per-collection embedding models.
+        """
         try:
             client = self._get_client()
-            embedding_function = self._get_embedding_function()
             config = self.get_collection_config(collection_name)
             
-            expected_embed = f"{self.settings.embedding_provider}:{self.settings.embedding_model}"
+            # 1. Determine configured embedding model
+            provider = self.settings.embedding_provider
+            model = self.settings.embedding_model
             
-            # Create collection with appropriate metadata
+            if config:
+                if config.embedding_provider:
+                    provider = config.embedding_provider
+                if config.embedding_model:
+                    model = config.embedding_model
+            
+            # 2. Try to get existing collection first
+            try:
+                collection = client.get_collection(name=collection_name)
+                logger.info(f"Using existing collection '{collection_name}'")
+                
+                # Check for metadata embedding info if available
+                metadata = collection.metadata or {}
+                if "embed_model" in metadata:
+                    meta_embed = metadata["embed_model"]
+                    if ":" in meta_embed:
+                        m_provider, m_model = meta_embed.split(":", 1)
+                        if m_provider != provider or m_model != model:
+                            logger.warning(
+                                f"Collection '{collection_name}' uses {meta_embed}, "
+                                f"but config says {provider}:{model}. Using existing model."
+                            )
+                            provider, model = m_provider, m_model
+                
+                return True
+            except (ValueError, Exception) as e:
+                # If it's a "does not exist" error, we continue to create
+                # ValueError is what Chroma normally throws if not found
+                error_msg = str(e)
+                if "does not exist" not in error_msg.lower() and "collection" not in error_msg.lower():
+                    # If it's some other error (like the _type KeyError), we still try to proceed
+                    # or at least log it
+                    logger.warning(f"Error checking collection '{collection_name}': {e}. Attempting creation.")
+            
+            # 3. If we get here, we need to create it
+            embedding_function = create_embedding_function(provider, model)
+            expected_embed = f"{provider}:{model}"
+            
             collection_metadata = {
                 "purpose": "crew_ai_rag",
                 "embed_model": expected_embed,
@@ -414,17 +468,19 @@ class ChromaManager:
                     "chunk_overlap": config.chunk_overlap
                 })
             
-            collection = client.get_or_create_collection(
+            client.create_collection(
                 name=collection_name,
                 embedding_function=embedding_function,
                 metadata=collection_metadata
             )
             
-            logger.info(f"Collection '{collection_name}' is ready")
+            logger.info(f"Created collection '{collection_name}' with {expected_embed}")
             return True
             
         except Exception as e:
             logger.error(f"Failed to ensure collection '{collection_name}' exists: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
     
     async def upload_document(

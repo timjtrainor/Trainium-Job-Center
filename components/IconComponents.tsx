@@ -55,12 +55,14 @@ import {
   ArrowPathIcon,
   HomeIcon,
   UserIcon,
+  UserPlusIcon,
   ChatBubbleBottomCenterTextIcon,
   ShieldCheckIcon,
   PresentationChartLineIcon,
   CloudArrowUpIcon,
   FlagIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  TrophyIcon
 } from '@heroicons/react/24/outline';
 
 // --- Re-exports for Standard Heroicons ---
@@ -120,12 +122,14 @@ export {
   ArrowPathIcon,
   HomeIcon,
   UserIcon,
+  UserPlusIcon,
   ChatBubbleBottomCenterTextIcon,
   ShieldCheckIcon,
   PresentationChartLineIcon,
   CloudArrowUpIcon,
   FlagIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  TrophyIcon
 };
 
 // --- Custom / Non-Heroicons ---

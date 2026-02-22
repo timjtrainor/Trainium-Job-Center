@@ -60,18 +60,18 @@ export const InterviewAnswerRefinementPanel = ({ isOpen, onClose, answerData, ac
             setLoadingAction(null);
         }
     };
-    
+
     const handleChatSubmit = async (instruction: string) => {
         if (!instruction.trim()) return;
-        
+
         await handleAction(async () => {
             const prompt = prompts.find(p => p.id === 'REFINE_INTERVIEW_ANSWER_CHAT');
             if (!prompt) throw new Error("Refinement chat prompt not found.");
-            
+
             const newConversation = [...conversation, { author: 'user' as const, text: instruction }];
             setConversation(newConversation);
             setChatInput('');
-            
+
             const context: PromptContext = {
                 QUESTION: editableQuestion,
                 ANSWER: currentDraft,
@@ -81,7 +81,7 @@ export const InterviewAnswerRefinementPanel = ({ isOpen, onClose, answerData, ac
                 CONVERSATION_HISTORY: newConversation.map(m => `${m.author}: ${m.text}`).join('\n'),
             };
 
-            const result = await geminiService.chatToRefineAnswer(context, prompt.content);
+            const result = await geminiService.chatToRefineAnswer(context, prompt.id);
             setCurrentDraft(result);
             setConversation(prev => [...prev, { author: 'ai', text: result }]);
         }, instruction);
@@ -91,7 +91,7 @@ export const InterviewAnswerRefinementPanel = ({ isOpen, onClose, answerData, ac
         await handleAction(async () => {
             const prompt = prompts.find(p => p.id === 'SCORE_INTERVIEW_ANSWER');
             if (!prompt || !activeNarrative) throw new Error("Scoring prompt or active narrative not found.");
-            
+
             const context: PromptContext = {
                 QUESTION: editableQuestion,
                 ANSWER: currentDraft,
@@ -99,11 +99,11 @@ export const InterviewAnswerRefinementPanel = ({ isOpen, onClose, answerData, ac
                 MASTERY: activeNarrative.signature_capability,
                 IMPACT_STORY_BODY: activeNarrative.impact_story_body,
             };
-            const result = await geminiService.scoreInterviewAnswer(context, prompt.content);
+            const result = await geminiService.scoreInterviewAnswer(context, prompt.id);
             setScore(result);
         }, 'score');
     };
-    
+
     const handleGenerateNotes = async () => {
         await handleAction(async () => {
             await onGenerateSpeakerNotes(editableQuestion, currentDraft);
@@ -114,7 +114,7 @@ export const InterviewAnswerRefinementPanel = ({ isOpen, onClose, answerData, ac
         onSave({ ...answerData, question: editableQuestion, answer: currentDraft, speaker_notes: speakerNotes });
         onClose();
     };
-    
+
     if (!isOpen) return null;
 
     return (
@@ -125,7 +125,7 @@ export const InterviewAnswerRefinementPanel = ({ isOpen, onClose, answerData, ac
                     <div className="relative transform overflow-hidden rounded-lg bg-white dark:bg-slate-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-5xl">
                         <div className="bg-white dark:bg-slate-800 px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
                             <h3 className="text-lg font-semibold leading-6 text-slate-900 dark:text-white" id="modal-title">Answer Refinement Studio</h3>
-                             <textarea
+                            <textarea
                                 value={editableQuestion}
                                 onChange={e => setEditableQuestion(e.target.value)}
                                 rows={2}
@@ -139,10 +139,10 @@ export const InterviewAnswerRefinementPanel = ({ isOpen, onClose, answerData, ac
                                     <div className="p-4 bg-slate-100 dark:bg-slate-900/50 rounded-lg">
                                         <div className="flex justify-between items-center">
                                             <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">AI Scorecard</h4>
-                                            <button onClick={handleScore} disabled={isLoading} className="inline-flex items-center justify-center px-3 py-1 text-xs font-semibold rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400">{loadingAction === 'score' ? <LoadingSpinner/> : "Score Answer"}</button>
+                                            <button onClick={handleScore} disabled={isLoading} className="inline-flex items-center justify-center px-3 py-1 text-xs font-semibold rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400">{loadingAction === 'score' ? <LoadingSpinner /> : "Score Answer"}</button>
                                         </div>
                                         {score ? (
-                                             <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                                            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                                                 <div className="font-semibold text-slate-600 dark:text-slate-300">Overall Score:</div>
                                                 <div className="font-bold text-slate-800 dark:text-slate-100">{score.overall_score.toFixed(1)} / 10</div>
                                                 <div className="text-slate-500 dark:text-slate-400">Clarity:</div><div>{score.clarity.toFixed(1)}</div>
@@ -154,7 +154,7 @@ export const InterviewAnswerRefinementPanel = ({ isOpen, onClose, answerData, ac
                                     <div className="p-4 bg-slate-100 dark:bg-slate-900/50 rounded-lg">
                                         <div className="flex justify-between items-center">
                                             <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Speaker Notes</h4>
-                                            <button onClick={handleGenerateNotes} disabled={isLoading} className="inline-flex items-center justify-center px-3 py-1 text-xs font-semibold rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400">{loadingAction === 'generate notes' ? <LoadingSpinner/> : "Generate"}</button>
+                                            <button onClick={handleGenerateNotes} disabled={isLoading} className="inline-flex items-center justify-center px-3 py-1 text-xs font-semibold rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400">{loadingAction === 'generate notes' ? <LoadingSpinner /> : "Generate"}</button>
                                         </div>
                                         <textarea
                                             value={speakerNotes}
@@ -185,10 +185,10 @@ export const InterviewAnswerRefinementPanel = ({ isOpen, onClose, answerData, ac
                                                     <div className={`max-w-md p-2 rounded-lg ${message.author === 'user' ? 'bg-blue-100 dark:bg-blue-900/50' : 'bg-slate-100 dark:bg-slate-700'}`}><p className="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{message.text}</p></div>
                                                 </div>
                                             ))}
-                                             {isLoading && loadingAction && loadingAction !== 'score' && loadingAction !== 'generate notes' && <div className="flex justify-start"><div className="max-w-md p-2 rounded-lg bg-slate-100 dark:bg-slate-700"><LoadingSpinner/></div></div>}
+                                            {isLoading && loadingAction && loadingAction !== 'score' && loadingAction !== 'generate notes' && <div className="flex justify-start"><div className="max-w-md p-2 rounded-lg bg-slate-100 dark:bg-slate-700"><LoadingSpinner /></div></div>}
                                         </div>
                                         <div className="flex gap-2">
-                                            <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !isLoading && handleChatSubmit(chatInput)} disabled={isLoading} placeholder="Your instruction..." className="w-full p-2 text-sm bg-white dark:bg-slate-700 rounded-md border-slate-300 dark:border-slate-600"/>
+                                            <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !isLoading && handleChatSubmit(chatInput)} disabled={isLoading} placeholder="Your instruction..." className="w-full p-2 text-sm bg-white dark:bg-slate-700 rounded-md border-slate-300 dark:border-slate-600" />
                                             <button onClick={() => handleChatSubmit(chatInput)} disabled={isLoading || !chatInput} className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white font-semibold disabled:bg-blue-400">{isLoading && loadingAction === chatInput ? <LoadingSpinner /> : 'Send'}</button>
                                         </div>
                                     </div>

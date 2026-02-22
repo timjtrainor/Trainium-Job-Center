@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Contact, Company, ContactPayload, BaseResume, Prompt, JobApplication, MessagePayload, PromptContext, Resume, DateInfo, ContactPersona, LinkedInPost, UserProfile, Education, Certification, StrategicNarrative, BrandVoiceAnalysis } from '../types';
+import { Contact, Company, ContactPayload, BaseResume, Prompt, JobApplication, MessagePayload, PromptContext, Resume, DateInfo, ContactPersona, LinkedInPost, UserProfile, Education, Certification, StrategicNarrative, StrategicMessage, StrategicMessageResult } from '../types';
 import { LoadingSpinner, CheckIcon, SparklesIcon, TrashIcon } from './IconComponents';
 import * as geminiService from '../services/geminiService';
 import { CONTACT_PERSONAS } from '../constants';
@@ -29,21 +29,21 @@ type ComposerGoal = 'Initial Connection' | 'Follow-up' | 'Reply to Interaction' 
 type CommentTone = 'Standard' | 'Expertise-Driven';
 
 export const ContactModal = (props: ContactModalProps): React.ReactNode => {
-    const { 
-        isOpen, onClose, onSaveContact, onCreateMessage, onAddNewCompany, contact, 
+    const {
+        isOpen, onClose, onSaveContact, onCreateMessage, onAddNewCompany, contact,
         companies, applications, userProfile, prompts, debugCallbacks, onDeleteContact,
         strategicNarratives, activeNarrativeId
     } = props;
-    
-    const activeNarrative = strategicNarratives.find(n => n.narrative_id === activeNarrativeId);
 
+    const activeNarrative = strategicNarratives.find(n => n.narrative_id === activeNarrativeId);
     const [editableContact, setEditableContact] = useState<Partial<Contact>>({});
-    
+
     // AI Composer State
     const [isGenerating, setIsGenerating] = useState(false);
     const [generationError, setGenerationError] = useState<string | null>(null);
-    const [generatedMessages, setGeneratedMessages] = useState<string[]>([]);
-    
+    const [generatedMessages, setGeneratedMessages] = useState<StrategicMessage[]>([]);
+    const [generationReasoning, setGenerationReasoning] = useState<string | null>(null);
+
     // Composer Context State
     const [composerGoal, setComposerGoal] = useState<ComposerGoal>('Initial Connection');
     const [commentTone, setCommentTone] = useState<CommentTone>('Standard');
@@ -63,11 +63,11 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
-    const [isCalculatingFit, setIsCalculatingFit] = useState(false);
-    
-    // Brand Voice Analysis State
-    const [brandVoiceAnalysis, setBrandVoiceAnalysis] = useState<BrandVoiceAnalysis | null>(null);
-    const [isAnalyzingVoice, setIsAnalyzingVoice] = useState(false);
+
+
+    // Smart Fill State
+    const [rawLinkedInText, setRawLinkedInText] = useState('');
+    const [isParsing, setIsParsing] = useState(false);
 
 
     useEffect(() => {
@@ -75,12 +75,9 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
             const defaults = {
                 first_name: '', last_name: '', job_title: '', status: 'To Contact',
                 date_contacted: new Date().toISOString().split('T')[0], is_referral: false, messages: [],
-                narrative_ids: activeNarrativeId ? [activeNarrativeId] : [],
             };
-             const contactNarrativeIds = contact?.strategic_narratives?.map(n => n.narrative_id) || [];
-            
-            setEditableContact(contact ? { ...defaults, ...contact, narrative_ids: contactNarrativeIds } : defaults);
-            
+            setEditableContact(contact ? { ...defaults, ...contact } : defaults);
+
             // Reset all states on open
             setSaveError(null);
             setIsSaving(false);
@@ -90,6 +87,7 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
             setFollowUpDate('');
             setMessageType('Note');
             setGeneratedMessages([]);
+            setGenerationReasoning(null);
             setGenerationError(null);
             setIsGenerating(false);
             setComposerGoal('Initial Connection');
@@ -99,21 +97,21 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
             setIncludeProblem(true);
             setInteractionDetails('');
             setUserNotes('');
-            setBrandVoiceAnalysis(null);
-            setIsAnalyzingVoice(false);
+            setRawLinkedInText('');
+            setIsParsing(false);
         }
     }, [isOpen, contact, activeNarrativeId]);
 
     if (!isOpen) return null;
-    
+
     const handleGenerate = async () => {
         setIsGenerating(true);
         setGenerationError(null);
         setGeneratedMessages([]);
-        
+
         try {
             if (composerGoal === 'Comment on Post') {
-                const promptId = commentTone === 'Expertise-Driven' ? 'GENERATE_EXPERT_COMMENT' : 'GENERATE_STRATEGIC_COMMENT';
+                const promptId = commentTone === 'Expertise-Driven' ? 'networking/expert-comment-gen' : 'networking/strategic-comment-gen';
                 const prompt = prompts.find(p => p.id === promptId);
                 if (!prompt || !activeNarrative) {
                     throw new Error(`Prompt '${promptId}' or active narrative is not available.`);
@@ -124,37 +122,33 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
                     MASTERY: activeNarrative.signature_capability,
                 };
                 const comments = await geminiService.generateStrategicComment(context, prompt.content, debugCallbacks);
-                setGeneratedMessages(comments);
+                setGeneratedMessages(comments.map(c => ({ body: c, type: 'Comment', word_count: c.split(' ').length })));
+                setGenerationReasoning(null);
 
             } else {
-                const prompt = prompts.find(p => p.id === 'GENERATE_STRATEGIC_MESSAGE');
-                if (!prompt || !activeNarrative) {
-                    throw new Error('Strategic messaging prompt or active narrative is not available.');
+                const promptId = 'networking/strategic-message-gen';
+                const prompt = prompts.find(p => p.id === promptId);
+                if (!prompt) {
+                    throw new Error('Strategic messaging prompt is not available.');
                 }
 
                 const contactCompany = companies.find(c => c.company_id === editableContact.company_id);
                 const linkedApp = applications.find(app => app.job_application_id === editableContact.job_application_id);
 
                 const context: PromptContext = {
+                    alignment_strategy: linkedApp?.alignment_strategy ? JSON.stringify(linkedApp.alignment_strategy, null, 2) : "{}",
+                    job_problem_analysis: linkedApp?.job_problem_analysis_result ? JSON.stringify(linkedApp.job_problem_analysis_result, null, 2) : "{}",
+                    CONTACT_ROLE: editableContact.job_title || "Unknown Title",
+                    CONTACT_INTEL: editableContact.linkedin_about || editableContact.notes || "Not provided",
+                    USER_NOTES: userNotes || "No specific steer provided",
+                    CONTACT_FIRST_NAME: editableContact.first_name || "there",
+                    COMPANY_NAME: contactCompany?.company_name || linkedApp?.job_title || "Target Company",
                     GOAL: composerGoal,
-                    MY_SUMMARY: activeNarrative.positioning_statement || activeNarrative.impact_story_body,
-                    COMPANY_NAME: contactCompany?.company_name,
-                    CONTACT_PERSONA: editableContact.persona,
-                    CONTACT_FIRST_NAME: editableContact.first_name,
-                    CONTACT_LINKEDIN_ABOUT: editableContact.linkedin_about,
-                    MISSION: includeMission ? contactCompany?.mission?.text : undefined,
-                    VALUES: includeValues ? contactCompany?.values?.text : undefined,
-                    COMPANY_PROBLEM: includeProblem ? (linkedApp?.job_problem_analysis_result?.core_problem_analysis.core_problem || contactCompany?.issues?.text) : undefined,
-                    INTERACTION_DETAILS: composerGoal === 'Reply to Interaction' ? interactionDetails : undefined,
-                    USER_NOTES: userNotes,
-                    // Strategic Context
-                    NORTH_STAR: activeNarrative?.positioning_statement,
-                    MASTERY: activeNarrative?.signature_capability,
-                    NARRATIVE: activeNarrative?.impact_story_body,
                 };
-                
-                const messages = await geminiService.generateStrategicMessage(context, prompt.content, debugCallbacks);
-                setGeneratedMessages(messages);
+
+                const result = await geminiService.generateStrategicMessage(context, prompt.id, debugCallbacks);
+                setGeneratedMessages(result.messages);
+                setGenerationReasoning(result.internal_reasoning);
             }
         } catch (e) {
             setGenerationError(e instanceof Error ? e.message : "Failed to generate content.");
@@ -163,68 +157,35 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
         }
     };
 
-    const handleCalculateFit = async () => {
-        const selectedNarrativeIds = editableContact.narrative_ids || [];
 
-        if (selectedNarrativeIds.length !== 1) {
-            setSaveError("Please select exactly one narrative to calculate a fit score against.");
-            return;
-        }
+    const handleSmartFill = async () => {
+        if (!rawLinkedInText.trim()) return;
 
-        const narrativeForFit = strategicNarratives.find(n => n.narrative_id === selectedNarrativeIds[0]);
-        const prompt = prompts.find(p => p.id === 'SCORE_CONTACT_FIT');
-
-        if (!prompt || !narrativeForFit) {
-            setSaveError("Cannot calculate fit: Active narrative or required prompt is missing.");
-            return;
-        }
-
-        setIsCalculatingFit(true);
+        setIsParsing(true);
         setSaveError(null);
         try {
-             const context: PromptContext = {
-                POSITIONING_STATEMENT: narrativeForFit.positioning_statement,
-                MASTERY: narrativeForFit.signature_capability,
-                CONTACT_JOB_TITLE: editableContact.job_title,
-                CONTACT_PERSONA: editableContact.persona,
-                COMPANY_NAME: companies.find(c => c.company_id === editableContact.company_id)?.company_name,
-                CONTACT_LINKEDIN_ABOUT: editableContact.linkedin_about,
-            };
-            const result = await geminiService.scoreContactFit(context, prompt.content, debugCallbacks);
-            setEditableContact(prev => ({...prev, strategic_alignment_score: result.strategic_fit_score ? Math.round(result.strategic_fit_score) : undefined }));
-        } catch(err) {
-            setSaveError(err instanceof Error ? err.message : 'Failed to calculate fit score.');
-        } finally {
-            setIsCalculatingFit(false);
-        }
-    };
+            const result = await geminiService.parseLinkedinContact(rawLinkedInText);
 
-    const handleAnalyzeBrandVoice = async () => {
-        if (!composerText.trim() || !activeNarrative) {
-            setGenerationError("Please write a message draft and ensure your positioning profile is complete.");
-            return;
-        }
-        const prompt = prompts.find(p => p.id === 'ANALYZE_BRAND_VOICE');
-        if (!prompt) {
-            setGenerationError("Brand voice analysis prompt is not available.");
-            return;
-        }
-        setIsAnalyzingVoice(true);
-        setGenerationError(null);
-        setBrandVoiceAnalysis(null);
-
-        try {
-            const context: PromptContext = {
-                POSITIONING_STATEMENT: activeNarrative.positioning_statement,
-                MASTERY: activeNarrative.signature_capability,
-                MESSAGE_DRAFT: composerText,
-            };
-            const result = await geminiService.analyzeBrandVoice(context, prompt.content, debugCallbacks);
-            setBrandVoiceAnalysis(result);
-        } catch(err) {
-            setGenerationError(err instanceof Error ? err.message : 'Failed to analyze brand voice.');
+            if (result.error) {
+                setSaveError(`Parsing Error: ${result.error}`);
+            } else {
+                setEditableContact(prev => ({
+                    ...prev,
+                    first_name: result.first_name || prev.first_name,
+                    last_name: result.last_name || prev.last_name,
+                    job_title: result.job_title || prev.job_title,
+                    linkedin_url: result.linkedin_url || prev.linkedin_url,
+                    linkedin_about: result.linkedin_about || prev.linkedin_about,
+                    persona: result.persona_suggestion || prev.persona,
+                    notes: result.notes || prev.notes,
+                }));
+                setSaveSuccess(false);
+                setRawLinkedInText(''); // Clear on success
+            }
+        } catch (err) {
+            setSaveError(err instanceof Error ? err.message : 'Failed to parse LinkedIn text.');
         } finally {
-            setIsAnalyzingVoice(false);
+            setIsParsing(false);
         }
     };
 
@@ -233,22 +194,12 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
         const { name, value, type } = e.target;
         const isCheckbox = type === 'checkbox';
         setSaveSuccess(false); // Reset save success on any change
-        setEditableContact(prev => ({ 
-            ...prev, 
+        setEditableContact(prev => ({
+            ...prev,
             [name]: isCheckbox ? (e.target as HTMLInputElement).checked : (value || undefined)
         }));
     };
 
-    const handleNarrativeChange = (narrativeId: string, isChecked: boolean) => {
-        setEditableContact(prev => {
-            const currentIds = prev.narrative_ids || [];
-            if (isChecked) {
-                return { ...prev, narrative_ids: [...currentIds, narrativeId] };
-            } else {
-                return { ...prev, narrative_ids: currentIds.filter(id => id !== narrativeId) };
-            }
-        });
-    };
 
     const handleSaveDetails = async (closeOnSuccess: boolean) => {
         if (!editableContact.first_name || !editableContact.last_name) {
@@ -267,10 +218,10 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
             // This is the crucial fix: update the local state with the full object
             // returned from the API, which now includes the contact_id.
             setEditableContact(savedContact);
-            
+
             setSaveSuccess(true);
             setTimeout(() => setSaveSuccess(false), 3000);
-            if(closeOnSuccess) onClose();
+            if (closeOnSuccess) onClose();
 
         } catch (err) {
             setSaveError(err instanceof Error ? err.message : 'Failed to save contact.');
@@ -278,7 +229,7 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
             setIsSaving(false);
         }
     };
-    
+
     const handleSendMessage = async () => {
         if (!composerText.trim()) return;
         setIsSending(true);
@@ -297,23 +248,22 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
             setGeneratedMessages([]);
             setFollowUpDate('');
             setMessageType('Note');
-            setBrandVoiceAnalysis(null);
         } catch (e) {
             setSaveError("Failed to save message.");
         } finally {
             setIsSending(false);
         }
     };
-    
+
     const handleDelete = async () => {
         if (onDeleteContact && editableContact.contact_id) {
-            if(window.confirm("Are you sure you want to permanently delete this contact and all their messages? This action cannot be undone.")) {
+            if (window.confirm("Are you sure you want to permanently delete this contact and all their messages? This action cannot be undone.")) {
                 try {
                     setIsSaving(true);
                     setSaveError(null);
                     await onDeleteContact(editableContact.contact_id);
                     onClose();
-                } catch(err) {
+                } catch (err) {
                     setSaveError(err instanceof Error ? err.message : "Failed to delete contact.");
                 } finally {
                     setIsSaving(false);
@@ -336,8 +286,34 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
                                 {contact?.contact_id ? 'Edit Contact & Engage' : 'Add New Contact & Engage'}
                             </h3>
                             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[80vh] overflow-y-auto p-1">
-                               {/* Left: Details Form */}
-                               <div className="space-y-4 pr-4 border-r-0 md:border-r border-slate-200 dark:border-slate-700">
+                                {/* Left: Details Form */}
+                                <div className="space-y-4 pr-4 border-r-0 md:border-r border-slate-200 dark:border-slate-700">
+                                    {/* Smart Fill Section */}
+                                    <div className="p-3 bg-blue-50/50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800/50 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">Smart Fill (from LinkedIn)</label>
+                                            <span className="text-[10px] text-blue-600/70 dark:text-blue-400/50 italic">Paste text from a profile page</span>
+                                        </div>
+                                        <div className="relative">
+                                            <textarea
+                                                rows={2}
+                                                className="block w-full rounded-md border-0 py-1.5 text-slate-900 dark:text-white bg-white dark:bg-slate-800/50 ring-1 ring-inset ring-blue-300 dark:ring-blue-800 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
+                                                placeholder="Paste any LinkedIn profile text here..."
+                                                value={rawLinkedInText}
+                                                onChange={(e) => setRawLinkedInText(e.target.value)}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleSmartFill}
+                                                disabled={isParsing || !rawLinkedInText.trim()}
+                                                className="absolute bottom-1.5 right-1.5 inline-flex items-center gap-x-1 rounded bg-blue-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-blue-500 disabled:opacity-50"
+                                            >
+                                                {isParsing ? <LoadingSpinner /> : <SparklesIcon className="h-3 w-3" />}
+                                                Fill Form
+                                            </button>
+                                        </div>
+                                    </div>
+
                                     <form onSubmit={(e) => { e.preventDefault(); handleSaveDetails(false); }} className="space-y-4">
                                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                             <div><label htmlFor="first_name" className={labelClass}>First Name *</label><input type="text" name="first_name" id="first_name" value={editableContact.first_name || ''} onChange={handleChange} className={inputClass} required /></div>
@@ -350,7 +326,7 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
                                             <label htmlFor="persona" className={labelClass}>Contact Persona</label>
                                             <select name="persona" id="persona" value={editableContact.persona || ''} onChange={handleChange} className={inputClass}><option value="">-- Select --</option>{CONTACT_PERSONAS.map(p => <option key={p.type} value={p.type}>{p.type}</option>)}</select>
                                         </div>
-                                         <div>
+                                        <div>
                                             <div className="flex justify-between items-center"><label htmlFor="company_id" className={labelClass}>Company</label><button type="button" onClick={onAddNewCompany} className="text-xs font-semibold text-blue-600 hover:text-blue-500">Add New</button></div>
                                             <select name="company_id" id="company_id" value={editableContact.company_id || ''} onChange={handleChange} className={inputClass}><option value="">-- Select --</option>{companies.map(c => <option key={c.company_id} value={c.company_id}>{c.company_name}</option>)}</select>
                                         </div>
@@ -358,56 +334,29 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
                                             <label htmlFor="job_application_id" className={labelClass}>Related Job Application</label>
                                             <select name="job_application_id" id="job_application_id" value={editableContact.job_application_id || ''} onChange={handleChange} className={inputClass}>
                                                 <option value="">-- None --</option>
-                                                {applications.map(app => <option key={app.job_application_id} value={app.job_application_id}>{companies.find(c => c.company_id === app.company_id)?.company_name} - {app.job_title}</option>)}
+                                                {applications
+                                                    .filter(app => !editableContact.company_id || app.company_id === editableContact.company_id)
+                                                    .sort((a, b) => {
+                                                        const compA = companies.find(c => c.company_id === a.company_id)?.company_name || '';
+                                                        const compB = companies.find(c => c.company_id === b.company_id)?.company_name || '';
+                                                        return `${compA} - ${a.job_title}`.localeCompare(`${compB} - ${b.job_title}`);
+                                                    })
+                                                    .map(app => (
+                                                        <option key={app.job_application_id} value={app.job_application_id}>
+                                                            {companies.find(c => c.company_id === app.company_id)?.company_name} - {app.job_title}
+                                                        </option>
+                                                    ))}
                                             </select>
-                                        </div>
-                                         <div className="space-y-2">
-                                            <label className={labelClass}>Strategic Narratives</label>
-                                            <div className="flex flex-col sm:flex-row gap-4">
-                                                {strategicNarratives.map(n => (
-                                                    <div key={n.narrative_id} className="relative flex items-start">
-                                                        <div className="flex h-6 items-center">
-                                                            <input
-                                                                id={`narrative-${n.narrative_id}`}
-                                                                type="checkbox"
-                                                                checked={editableContact.narrative_ids?.includes(n.narrative_id) || false}
-                                                                onChange={(e) => handleNarrativeChange(n.narrative_id, e.target.checked)}
-                                                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                            />
-                                                        </div>
-                                                        <div className="ml-3 text-sm leading-6">
-                                                            <label htmlFor={`narrative-${n.narrative_id}`} className="font-medium text-slate-700 dark:text-slate-300">
-                                                                {n.narrative_name}
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
-                                            <label className={labelClass}>Strategic Fit</label>
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center">
-                                                    <div className="w-24 bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
-                                                        <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${(editableContact.strategic_alignment_score || 0) * 10}%` }}></div>
-                                                    </div>
-                                                    <span className="ml-3 font-bold text-lg text-slate-800 dark:text-slate-200">{(editableContact.strategic_alignment_score || 0).toFixed(1)}</span>
-                                                </div>
-                                                <button type="button" onClick={handleCalculateFit} disabled={isCalculatingFit} className="inline-flex items-center gap-x-1.5 rounded-md bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 ring-1 ring-inset ring-blue-200 dark:ring-blue-500/30 hover:bg-blue-100 dark:hover:bg-blue-500/20 disabled:opacity-50">
-                                                    {isCalculatingFit ? <LoadingSpinner/> : <SparklesIcon className="h-4 w-4" />}
-                                                    Calculate Fit with AI
-                                                </button>
-                                            </div>
                                         </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div><label htmlFor="status" className={labelClass}>Status</label><select name="status" id="status" value={editableContact.status || ''} onChange={handleChange} className={inputClass}>{contactStatuses.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
                                             <div className="flex items-end pb-1"><div className="flex items-center"><input id="is_referral" name="is_referral" type="checkbox" checked={editableContact.is_referral || false} onChange={handleChange} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><label htmlFor="is_referral" className={`${labelClass} ml-2`}>Referral</label></div></div>
                                         </div>
                                         <div><label htmlFor="notes" className={labelClass}>Notes</label><textarea name="notes" id="notes" value={editableContact.notes || ''} onChange={handleChange} rows={2} className={inputClass}></textarea></div>
-                                        
+
                                         <div className="flex justify-end pt-2">
                                             <button type="submit" disabled={isSaving || saveSuccess} className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md text-white shadow-sm transition-colors bg-green-600 hover:bg-green-700 disabled:bg-green-400">
-                                                {isSaving ? <LoadingSpinner/> : saveSuccess ? <CheckIcon className="h-5 w-5"/> : null}
+                                                {isSaving ? <LoadingSpinner /> : saveSuccess ? <CheckIcon className="h-5 w-5" /> : null}
                                                 <span className="ml-2">{saveSuccess ? 'Saved!' : 'Save Details'}</span>
                                             </button>
                                         </div>
@@ -417,7 +366,7 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
                                         <h4 className="font-semibold text-slate-800 dark:text-slate-200">Message History</h4>
                                         <div className="max-h-48 overflow-y-auto space-y-2 pr-2">
                                             {editableContact?.messages && editableContact.messages.length > 0 ? (
-                                                editableContact.messages.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(msg => (
+                                                editableContact.messages.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(msg => (
                                                     <div key={msg.message_id} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg group relative">
                                                         <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">{msg.message_type} on {new Date(msg.created_at).toLocaleDateString()}</p>
                                                         <p className="mt-1 text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{msg.content}</p>
@@ -426,20 +375,43 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
                                             ) : <p className="text-sm text-slate-500 dark:text-slate-400">No messages yet.</p>}
                                         </div>
                                     </div>
-                               </div>
+                                </div>
 
                                 {/* Right: AI Composer */}
                                 <div className="space-y-4">
                                     <h4 className="font-semibold text-slate-800 dark:text-slate-200">AI Composer</h4>
                                     <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg space-y-3 border border-slate-200 dark:border-slate-700">
                                         <div><label className="text-sm font-medium text-slate-600 dark:text-slate-400">Goal</label><select value={composerGoal} onChange={(e) => setComposerGoal(e.target.value as ComposerGoal)} className={`${inputClass} mt-1`}><option>Initial Connection</option><option>Follow-up</option><option>Reply to Interaction</option><option>Comment on Post</option></select></div>
-                                        {(composerGoal === 'Reply to Interaction' || composerGoal === 'Comment on Post') && <div><label className={labelClass}>Their Post/Comment Text</label><textarea value={interactionDetails} onChange={(e) => setInteractionDetails(e.target.value)} rows={2} className={`${inputClass} mt-1`} placeholder="Paste text of their post or comment..."/></div>}
-                                        {composerGoal !== 'Comment on Post' && <div><label className={labelClass}>Include Context:</label><div className="flex flex-wrap gap-x-4 gap-y-2 mt-1">{[{label:'Mission', state:includeMission, setter:setIncludeMission}, {label:'Values',state:includeValues,setter:setIncludeValues}, {label:'Problem',state:includeProblem,setter:setIncludeProblem}].map(item => (<div key={item.label} className="flex items-center"><input id={item.label} type="checkbox" checked={item.state} onChange={(e) => item.setter(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/><label htmlFor={item.label} className="ml-2 text-sm text-slate-700 dark:text-slate-300">{item.label}</label></div>))}</div></div>}
-                                        {composerGoal !== 'Comment on Post' && <div><label className={labelClass}>Your Notes (optional)</label><textarea value={userNotes} onChange={(e) => setUserNotes(e.target.value)} rows={2} className={`${inputClass} mt-1`} placeholder="Guide the AI's tone or angle..."/></div>}
-                                        <button type="button" onClick={handleGenerate} disabled={isGenerating} className="w-full px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400">{isGenerating ? <LoadingSpinner/> : "Generate Messages"}</button>
+                                        {(composerGoal === 'Reply to Interaction' || composerGoal === 'Comment on Post') && <div><label className={labelClass}>Their Post/Comment Text</label><textarea value={interactionDetails} onChange={(e) => setInteractionDetails(e.target.value)} rows={2} className={`${inputClass} mt-1`} placeholder="Paste text of their post or comment..." /></div>}
+                                        {composerGoal !== 'Comment on Post' && <div><label className={labelClass}>Your Notes (optional)</label><textarea value={userNotes} onChange={(e) => setUserNotes(e.target.value)} rows={2} className={`${inputClass} mt-1`} placeholder="Guide the AI's tone or angle..." /></div>}
+                                        <button type="button" onClick={handleGenerate} disabled={isGenerating} className="w-full px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400">
+                                            {isGenerating ? <div className="flex items-center justify-center gap-2"><LoadingSpinner /><span>Generating...</span></div> : "Generate Messages"}
+                                        </button>
+                                        {generationError && <p className="text-xs text-red-500 mt-1">{generationError}</p>}
                                     </div>
+                                    {generationReasoning && (
+                                        <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg border border-indigo-200 dark:border-indigo-700 text-xs italic text-slate-700 dark:text-slate-300">
+                                            <strong className="font-semibold block mb-1">Diagnostic Logic:</strong>
+                                            {generationReasoning}
+                                        </div>
+                                    )}
                                     <div className="space-y-2">
-                                        {generatedMessages.map((msg, idx) => (<div key={idx} className="p-2 rounded-md border border-slate-200 dark:border-slate-700 flex justify-between items-center gap-2"><p className="text-sm flex-grow">{msg}</p><button onClick={() => setComposerText(msg)} className="text-xs font-semibold text-blue-600 hover:underline flex-shrink-0">Use this</button></div>))}
+                                        {generatedMessages.map((msg, idx) => (
+                                            <div key={idx} className="p-3 rounded-md border border-slate-200 dark:border-slate-700 flex flex-col gap-2 bg-white dark:bg-slate-800 shadow-sm transition-shadow hover:shadow-md">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider border border-blue-200 dark:border-blue-800">
+                                                        {msg.type}
+                                                    </span>
+                                                    <button onClick={() => setComposerText(msg.body)} className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline flex-shrink-0">
+                                                        Use message
+                                                    </button>
+                                                </div>
+                                                <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">{msg.body}</p>
+                                                <div className="text-[10px] text-slate-400 dark:text-slate-500 flex justify-end italic">
+                                                    {msg.word_count} words
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                     <div>
                                         <h4 className="font-semibold text-slate-800 dark:text-slate-200">New Message / Note Composer</h4>
@@ -450,17 +422,8 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
                                             <option value="Comment">Comment</option>
                                         </select>
                                         <div className="relative">
-                                            <textarea value={composerText} onChange={e => {setComposerText(e.target.value); setBrandVoiceAnalysis(null);}} rows={4} className={`${inputClass} mt-2`} placeholder="Compose your message or generate one..."/>
-                                            <button onClick={handleAnalyzeBrandVoice} disabled={isAnalyzingVoice || !composerText.trim()} title="Analyze Brand Voice" className="absolute top-3 right-2 p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-blue-600 dark:text-blue-400 disabled:opacity-50">
-                                                {isAnalyzingVoice ? <div className="animate-spin h-5 w-5"/> : <SparklesIcon className="h-5 w-5" />}
-                                            </button>
+                                            <textarea value={composerText} onChange={e => setComposerText(e.target.value)} rows={4} className={`${inputClass} mt-2`} placeholder="Compose your message or generate one..." />
                                         </div>
-                                        {brandVoiceAnalysis && (
-                                            <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700 text-xs space-y-2">
-                                                <p><strong className="font-semibold text-blue-800 dark:text-blue-200">Alignment Score: {brandVoiceAnalysis.alignment_score.toFixed(1)}/10</strong> - {brandVoiceAnalysis.tone_feedback}</p>
-                                                <p><strong className="font-semibold text-blue-800 dark:text-blue-200">Suggestion:</strong> {brandVoiceAnalysis.suggestion}</p>
-                                            </div>
-                                        )}
                                         {messageType === 'Follow-up' && (
                                             <div className="mt-2">
                                                 <label htmlFor="follow_up_due_date" className={labelClass}>Schedule Follow-up Date</label>
@@ -469,7 +432,7 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
                                         )}
                                         <div className="flex justify-end mt-2">
                                             <button type="button" onClick={handleSendMessage} disabled={isSending || !composerText.trim()} className="px-4 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 disabled:bg-green-400">
-                                                {isSending ? <LoadingSpinner/> : 'Save Message'}
+                                                {isSending ? <LoadingSpinner /> : 'Save Message'}
                                             </button>
                                         </div>
                                     </div>
@@ -483,12 +446,12 @@ export const ContactModal = (props: ContactModalProps): React.ReactNode => {
                             <button type="button" onClick={onClose} disabled={isSaving || isSending || isGenerating} className="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-slate-300 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 sm:mt-0 sm:w-auto">
                                 Cancel
                             </button>
-                             {contact?.contact_id && onDeleteContact && (
+                            {contact?.contact_id && onDeleteContact && (
                                 <div className="sm:flex-1">
-                                    <button 
-                                        type="button" 
-                                        onClick={handleDelete} 
-                                        disabled={isSaving || isSending || isGenerating} 
+                                    <button
+                                        type="button"
+                                        onClick={handleDelete}
+                                        disabled={isSaving || isSending || isGenerating}
                                         className="mt-3 inline-flex w-full justify-center rounded-md bg-red-100 dark:bg-red-900/40 px-3 py-2 text-sm font-semibold text-red-700 dark:text-red-400 shadow-sm ring-1 ring-inset ring-red-200 dark:ring-red-700 hover:bg-red-200 dark:hover:bg-red-900/60 sm:mt-0 sm:mr-auto disabled:opacity-50"
                                     >
                                         <TrashIcon className="h-5 w-5 mr-2" />

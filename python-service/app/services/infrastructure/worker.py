@@ -264,15 +264,17 @@ def process_job_review(job_id: str, max_retries: int = 3, user_id: Optional[str]
                 }
 
             # 3. Publish to Redis channel
-            from app.core.config import get_settings
-            settings = get_settings()
+            from .queue import get_queue_service
+            queue_service = get_queue_service()
             
-            # Create redis connection
-            redis_conn = redis.Redis(
-                host=settings.redis_host, 
-                port=settings.redis_port, 
-                db=settings.redis_db
-            )
+            # Ensure queue service is initialized
+            if not queue_service.initialized:
+                loop.run_until_complete(queue_service.initialize())
+            
+            redis_conn = queue_service.redis_conn
+            if not redis_conn:
+                logger.error(f"Redis connection not available for job {job_id}")
+                return {"status": "error", "message": "Redis connection error"}
             
             channel = os.getenv("REDIS_CHANNEL", "job_review_webhook")
             payload = {

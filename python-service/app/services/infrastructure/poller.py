@@ -209,10 +209,29 @@ class PollerService:
         poll_interval_seconds = self.settings.poll_interval_minutes * 60
         
         try:
+            import gc
+            psutil = None
+            try:
+                import psutil
+            except ImportError:
+                logger.warning("psutil not found, memory logging disabled")
+                
+            import os
+            
+            process = psutil.Process(os.getpid()) if psutil else None
+            
             while True:
                 try:
+                    # Log memory usage before cycle
+                    if process:
+                        mem_info = process.memory_info()
+                        logger.info(f"Poller memory usage: {mem_info.rss / 1024 / 1024:.2f} MB")
+                    
                     enqueued_count = await self.poll_and_enqueue_jobs()
                     logger.debug(f"Poll cycle complete, sleeping for {self.settings.poll_interval_minutes} minutes")
+                    
+                    # Explicit garbage collection
+                    gc.collect()
                     
                 except Exception as e:
                     logger.error(f"Error in polling cycle: {str(e)}")

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { JobApplication, Company, Resume, DateInfo, Status, KeywordsResult, GuidanceResult, Prompt, PromptContext, JobProblemAnalysisResult, JobProblemAnalysisResultV1, JobProblemAnalysisResultV2, KeywordDetail, CoreProblemAnalysis, Education, Certification, WorkExperience, SkillSection, InterviewPayload, Interview, Contact, ResumeHeader, UserProfile, SuggestedContact, InterviewPrep, StrategicNarrative, Offer, InfoField, JobApplicationPayload, ApplicationDetailTab, ReviewedJob, AlignmentStrategy } from '../types';
+import { JobApplication, Company, Resume, DateInfo, Status, KeywordsResult, GuidanceResult, Prompt, PromptContext, JobProblemAnalysisResult, JobProblemAnalysisResultV1, JobProblemAnalysisResultV2, KeywordDetail, CoreProblemAnalysis, Education, Certification, WorkExperience, SkillSection, InterviewPayload, Interview, Contact, ResumeHeader, UserProfile, SuggestedContact, InterviewPrep, StrategicNarrative, Offer, InfoField, JobApplicationPayload, ApplicationDetailTab, ReviewedJob, AlignmentStrategy, LeaderboardAlert } from '../types';
 import { LoadingSpinner, SparklesIcon, PlusCircleIcon, TrashIcon, StrategyIcon, MicrophoneIcon, RocketLaunchIcon, CubeIcon } from './IconComponents';
 import * as geminiService from '../services/geminiService';
 import * as apiService from '../services/apiService';
@@ -15,6 +15,7 @@ import { ResetApplicationModal } from './ResetApplicationModal';
 import { ResetApplicationPayload } from '../types';
 import { CreateCompanyModal } from './CreateCompanyModal';
 import { InterviewStrategyTab } from './interview/InterviewStrategyTab';
+import { NetworkingAlertModal } from './NetworkingAlertModal';
 
 interface ApplicationDetailViewProps {
     application: JobApplication;
@@ -307,6 +308,7 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
     const currentStatus = application.status || statuses.find(s => s.status_id === (application as any).status_id);
     const isStep3 = currentStatus?.status_name === 'Step-3: Resume created';
     const [activeTab, setActiveTab] = useState<ApplicationDetailTab>(initialTab || (isStep3 ? 'apply' : 'overview'));
+    const [activeAlert, setActiveAlert] = useState<LeaderboardAlert | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [editableApp, setEditableApp] = useState<JobApplication>(application);
     const [editingInterviewId, setEditingInterviewId] = useState<string | null>(null);
@@ -575,7 +577,6 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
 
     const handleMarkAsApplied = async () => {
         setIsSaving(true);
-        isRedirecting.current = true;
         try {
             const appliedStatus = statuses.find(s => s.status_name === 'Step-4: Applied');
             if (appliedStatus) {
@@ -584,8 +585,32 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
                     status_id: appliedStatus.status_id,
                     date_applied: new Date().toISOString()
                 };
+
+                addToast("Marking as Applied & re-ranking leaderboard...", "info");
+
+                // 1. Update the status
                 await onUpdate(payload);
-                navigate('/applications', { replace: true });
+
+                // 2. Trigger Tournament Audit (AI Re-ranking)
+                try {
+                    const response = await apiService.auditTournamentImpact(application.job_application_id);
+
+                    // Handle STRIKE alert
+                    if (response?.leaderboard_alert?.is_high_value) {
+                        addToast("High Value Networking Match detected!", "success");
+                        setActiveAlert(response.leaderboard_alert);
+                        // We DON'T navigate yet - wait for modal close
+                    } else {
+                        addToast("Leaderboard re-ranked successfully!", "success");
+                        isRedirecting.current = true;
+                        navigate('/applications', { replace: true });
+                    }
+                } catch (auditErr) {
+                    console.error("Tournament audit failed:", auditErr);
+                    addToast("Status updated, but leaderboard re-rank failed.", "warning");
+                    isRedirecting.current = true;
+                    navigate('/applications', { replace: true });
+                }
             }
         } catch (e) {
             console.error(e);
@@ -742,40 +767,80 @@ export const ApplicationDetailView = (props: ApplicationDetailViewProps) => {
     const { addToast } = useToast();
 
     const handleExportForAi = () => {
-        const xmlContent = `
-<JOB_APPLICATION_CONTEXT>
-  <JOB_DETAILS>
-    <TITLE>${application.job_title}</TITLE>
-    <COMPANY>${company.company_name}</COMPANY>
-    <LOCATION>${application.location || 'N/A'} (${application.remote_status || 'N/A'})</LOCATION>
-    <SALARY>${application.salary || 'N/A'}</SALARY>
-    <URL>${application.job_link || 'N/A'}</URL>
-    <DESCRIPTION>
-${application.job_description}
-    </DESCRIPTION>
-  </JOB_DETAILS>
+        const getFieldContent = (value: any) => {
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'object') {
+                if (value && 'text' in value && typeof value.text === 'string') return value.text;
+                return JSON.stringify(value, null, 2);
+            }
+            return String(value);
+        };
 
-  <STRATEGIC_CONTEXT>
-    <POSITIONING_STATEMENT>${activeNarrative?.positioning_statement || 'N/A'}</POSITIONING_STATEMENT>
-    <SIGNATURE_CAPABILITY>${activeNarrative?.signature_capability || 'N/A'}</SIGNATURE_CAPABILITY>
-    <MISSION_ALIGNMENT>${activeNarrative?.mission_alignment || 'N/A'}</MISSION_ALIGNMENT>
-  </STRATEGIC_CONTEXT>
+        const renderTag = (tag: string, value: any, indent = '') => {
+            const content = getFieldContent(value);
+            return `${indent}<${tag}>${content}</${tag}>`;
+        };
 
-  <TAILORED_RESUME_JSON>
-${JSON.stringify(application.tailored_resume_json, null, 2)}
-  </TAILORED_RESUME_JSON>
-
-  <APPLICATION_MESSAGE>
-${localMessage || application.application_message || 'N/A'}
-  </APPLICATION_MESSAGE>
-
-  <APPLICATION_QUESTIONS>
-${JSON.stringify(questions, null, 2)}
-  </APPLICATION_QUESTIONS>
-</JOB_APPLICATION_CONTEXT>`.trim();
+        const xmlContent = [
+            '<JOB_DETAILS>',
+            renderTag('JOB_PROBLEM', application.job_problem_analysis_result, '  '),
+            renderTag('ALIGNMENT_STRATEGY', application.alignment_strategy, '  '),
+            '</JOB_DETAILS>',
+            '<COMPANY_DETAILS>',
+            renderTag('MISSION', company.mission, '  '),
+            renderTag('VALUES', company.values, '  '),
+            renderTag('NEWS', company.news, '  '),
+            renderTag('GOALS', company.goals, '  '),
+            renderTag('ISSUES', company.issues, '  '),
+            renderTag('STRATEGIC_INITIATIVES', company.strategic_initiatives, '  '),
+            renderTag('HEADWINDS', company.org_headwinds, '  '),
+            '</COMPANY_DETAILS>',
+            renderTag('TAILORED_RESUME_JSON', application.tailored_resume_json),
+            renderTag('APPLICATION_MESSAGE', localMessage || application.application_message),
+            renderTag('APPLICATION_QUESTIONS', questions),
+            renderTag('INCLUDE_COVER_LETTER', includeCoverLetter)
+        ].join('\n');
 
         navigator.clipboard.writeText(xmlContent);
         addToast('Application data copied to clipboard in XML format for AI!', 'success');
+    };
+
+    const handleExportJobContextForAi = () => {
+        const getFieldContent = (value: any) => {
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'object') {
+                if (value && 'text' in value && typeof value.text === 'string') return value.text;
+                return JSON.stringify(value, null, 2);
+            }
+            return String(value);
+        };
+
+        const renderTag = (tag: string, value: any, indent = '') => {
+            const content = getFieldContent(value);
+            return `${indent}<${tag}>${content}</${tag}>`;
+        };
+
+        const xmlContent = [
+            '<JOB_DETAILS>',
+            renderTag('JOB_TITLE', application.job_title, '  '),
+            renderTag('COMPANY_NAME', company.company_name, '  '),
+            renderTag('JOB_DESCRIPTION', application.job_description, '  '),
+            renderTag('JOB_PROBLEM', application.job_problem_analysis_result, '  '),
+            renderTag('ALIGNMENT_STRATEGY', application.alignment_strategy, '  '),
+            '</JOB_DETAILS>',
+            '<COMPANY_DETAILS>',
+            renderTag('MISSION', company.mission, '  '),
+            renderTag('VALUES', company.values, '  '),
+            renderTag('NEWS', company.news, '  '),
+            renderTag('GOALS', company.goals, '  '),
+            renderTag('ISSUES', company.issues, '  '),
+            renderTag('STRATEGIC_INITIATIVES', company.strategic_initiatives, '  '),
+            renderTag('HEADWINDS', company.org_headwinds, '  '),
+            '</COMPANY_DETAILS>'
+        ].join('\n');
+
+        navigator.clipboard.writeText(xmlContent);
+        addToast('Job context data copied to clipboard in XML format for AI!', 'success');
     };
 
     const tabClass = (tabName: ApplicationDetailTab) =>
@@ -826,6 +891,22 @@ ${JSON.stringify(questions, null, 2)}
                     <p className="text-lg text-slate-600 dark:text-slate-300">{application.job_title}</p>
                 </div>
                 <div className="flex gap-2">
+                    <button
+                        onClick={handleExportJobContextForAi}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm"
+                        title="Copy Job Context XML"
+                    >
+                        <DocumentTextIcon className="h-5 w-5" />
+                        Job XML
+                    </button>
+                    <button
+                        onClick={handleExportForAi}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm"
+                        title="Copy Application XML"
+                    >
+                        <DocumentTextIcon className="h-5 w-5 text-indigo-500" />
+                        App XML
+                    </button>
                     {sprint && onAddActions && (
                         <button
                             onClick={handleAddToSprint}
@@ -2319,6 +2400,22 @@ ${JSON.stringify(questions, null, 2)}
                         </div>
                     )
                 }
+
+                {activeAlert && (
+                    <NetworkingAlertModal
+                        alert={activeAlert}
+                        onClose={() => {
+                            setActiveAlert(null);
+                            // After alert is dismissed, we can navigate
+                            isRedirecting.current = true;
+                            navigate('/applications', { replace: true });
+                        }}
+                        onViewLeaderboard={() => {
+                            setActiveAlert(null);
+                            navigate('/leaderboard');
+                        }}
+                    />
+                )}
 
                 <ResetApplicationModal
                     isOpen={isResetModalOpen}

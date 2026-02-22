@@ -24,6 +24,7 @@ import { BragDocumentView } from './components/BragDocumentView';
 
 import { ContactModal } from './components/ContactModal';
 import { CreateCompanyModal } from './components/CreateCompanyModal';
+import { QuickContactButton } from './components/QuickContactButton';
 import { MyProfileModal } from './components/MyProfileModal';
 import { DebugModal } from './components/DebugModal';
 import { JobDetailsModal, UpdateJdModal } from './components/JobDetailsModal';
@@ -40,6 +41,7 @@ import { ScheduleManagementView } from './components/ScheduleManagementView';
 import { ReviewedJobsView } from './components/ReviewedJobsView';
 import { ManualJobCreate } from './components/ManualJobCreate';
 import { WebhookConfigView } from './components/WebhookConfigView';
+import { NetworkingView } from './components/NetworkingView';
 import { InterviewLensView } from './components/interview/InterviewLensView';
 
 
@@ -962,6 +964,7 @@ const AppContent = () => {
                             <Route path="/add-manual-job" element={<ManualJobCreate />} />
 
                             <Route path="/positioning" element={<PositioningHub activeNarrative={activeNarrative} activeNarrativeId={activeNarrativeId} onSaveNarrative={handleSaveNarrative} onUpdateNarrative={handleUpdateNarrative} prompts={PROMPTS} baseResumes={baseResumes} />} />
+                            <Route path="/networking" element={<NetworkingView />} />
                             <Route path="/engagement" element={<EngagementHub contacts={contacts} posts={linkedInPosts} engagements={engagements} postResponses={postResponses} applications={applications} allMessages={messages} userProfile={userProfile} onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }} onCreatePostResponse={async () => { }} onUpdatePostResponse={handleUpdatePostResponse} onCreateLinkedInEngagement={handleCreateLinkedInEngagement} onCreatePost={handleCreatePost} onImportContacts={async () => { }} onDeleteContact={handleDeleteContact} companies={companies} onViewCompany={(id) => navigate(`/company/${id}`)} onAddNewCompany={() => setIsCompanyModalOpen(true)} baseResumes={baseResumes} strategicNarratives={strategicNarratives} activeNarrative={activeNarrative} onScoreEngagement={() => { }} onSaveContact={handleSaveContact} />} />
                             {/* FIX: `onSaveNarrative` was passed instead of `handleSaveNarrative` */}
                             <Route
@@ -1170,6 +1173,12 @@ const AppContent = () => {
                     </div>
                 </div>
             )}
+
+            <QuickContactButton
+                onOpenContactModal={(contact) => { setSelectedContact(contact); setIsContactModalOpen(true); }}
+                companies={companies}
+                applications={applications}
+            />
         </div>
     );
 };

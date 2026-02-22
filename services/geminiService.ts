@@ -6,7 +6,7 @@ import {
     PostResponseAiAnalysis, ScoutedOpportunity, AiSprintPlan, BrandVoiceAnalysis, SuggestedContact,
     InterviewAnswerScore, SkillGapAnalysisResult, NarrativeSynthesisResult, NinetyDayPlan, LearningResource,
     AiSprintAction, AiFocusItem, ConsultativeClosePlan, StrategicHypothesisDraft, PostInterviewDebrief,
-    AgentMessage, AgentAction, InterviewStrategy
+    AgentMessage, AgentAction, InterviewStrategy, ContactExtractionResult, StrategicMessageResult
 } from "../types";
 import { FASTAPI_BASE_URL } from "../constants";
 
@@ -261,6 +261,12 @@ export async function generateKeywordsAndGuidance(context: PromptContext, prompt
     return cleanAndParseJson(text);
 }
 
+export async function rewriteSummary(context: PromptContext, promptName: string, debugCallbacks?: DebugCallbacks): Promise<string[]> {
+    const text = await executeAiPrompt({ promptName, variables: context, debugCallbacks });
+    const parsed = cleanAndParseJson(text);
+    return parsed.suggestions || [];
+}
+
 export async function generateResumeTailoringData(context: PromptContext, promptName: string, debugCallbacks?: DebugCallbacks): Promise<ResumeTailoringData> {
     const text = await executeAiPrompt({ promptName, variables: context, debugCallbacks });
     return cleanAndParseJson(text);
@@ -341,6 +347,11 @@ export async function generateStructuredSpeakerNotes(context: PromptContext, pro
     return cleanAndParseJson(text);
 }
 
+export async function generateImpactStory(context: PromptContext, promptName: string, debugCallbacks?: DebugCallbacks): Promise<{ impact_story_title: string; impact_story_body: string }> {
+    const text = await executeAiPrompt({ promptName, variables: context, debugCallbacks });
+    return cleanAndParseJson(text);
+}
+
 export async function generateInterviewPrep(context: PromptContext, promptName: string, debugCallbacks?: DebugCallbacks): Promise<InterviewPrep> {
     const text = await executeAiPrompt({ promptName, variables: context, debugCallbacks });
     return cleanAndParseJson(text);
@@ -406,6 +417,11 @@ export async function generateStrategicComment(context: PromptContext, promptNam
     return parsed.comments || [];
 }
 
+export async function analyzeCommentStrategically(context: PromptContext, promptName: string, debugCallbacks?: DebugCallbacks): Promise<PostResponseAiAnalysis> {
+    const text = await executeAiPrompt({ promptName, variables: context, debugCallbacks });
+    return cleanAndParseJson(text);
+}
+
 export async function refineAchievementWithKeywords(context: PromptContext, promptName: string, debugCallbacks?: DebugCallbacks): Promise<string> {
     const text = await executeAiPrompt({ promptName, variables: context, debugCallbacks });
     return text;
@@ -416,13 +432,21 @@ export async function findAndCombineAchievements(context: PromptContext, promptN
     return cleanAndParseJson(text);
 }
 
-export async function generateStrategicMessage(context: PromptContext, promptName: string, debugCallbacks?: DebugCallbacks): Promise<string[]> {
+export async function generateStrategicMessage(context: PromptContext, promptName: string, debugCallbacks?: DebugCallbacks): Promise<StrategicMessageResult> {
     const text = await executeAiPrompt({ promptName, variables: context, debugCallbacks });
     const parsed = cleanAndParseJson(text);
-    return parsed.messages || [];
+    return {
+        internal_reasoning: parsed.internal_reasoning || "",
+        messages: Array.isArray(parsed.messages) ? parsed.messages : []
+    };
 }
 
 export async function scoreContactFit(context: PromptContext, promptName: string, debugCallbacks?: DebugCallbacks): Promise<{ strategic_fit_score: number }> {
+    const text = await executeAiPrompt({ promptName, variables: context, debugCallbacks });
+    return cleanAndParseJson(text);
+}
+
+export async function generateNegotiationScript(context: PromptContext, promptName: string, debugCallbacks?: DebugCallbacks): Promise<{ talking_points: string[], email_draft: string }> {
     const text = await executeAiPrompt({ promptName, variables: context, debugCallbacks });
     return cleanAndParseJson(text);
 }
@@ -464,6 +488,16 @@ export async function analyzeRefiningQuestions(context: PromptContext, promptNam
 }
 
 export async function analyzeJobSpecificInterviewAnswer(context: PromptContext, promptName: string, debugCallbacks?: DebugCallbacks): Promise<{ feedback: string, score: number }> {
+    const text = await executeAiPrompt({ promptName, variables: context, debugCallbacks });
+    return cleanAndParseJson(text);
+}
+
+export async function chatToRefineAnswer(context: PromptContext, promptName: string, debugCallbacks?: DebugCallbacks): Promise<string> {
+    const text = await executeAiPrompt({ promptName, variables: context, debugCallbacks });
+    return text.trim();
+}
+
+export async function scoreInterviewAnswer(context: PromptContext, promptName: string, debugCallbacks?: DebugCallbacks): Promise<InterviewAnswerScore> {
     const text = await executeAiPrompt({ promptName, variables: context, debugCallbacks });
     return cleanAndParseJson(text);
 }
@@ -606,6 +640,36 @@ export async function runEngagementAgent(
 
     const text = await executeAiPrompt({ promptName, variables, debugCallbacks });
     return cleanAndParseJson(text);
+}
+
+export async function parseLinkedinContact(rawText: string, debugCallbacks?: DebugCallbacks): Promise<ContactExtractionResult> {
+    const promptName = 'CONTACT_EXTRACTION';
+    const variables = { raw_text: rawText };
+
+    try {
+        const text = await executeAiPrompt({ promptName, variables, debugCallbacks });
+        const parsed = cleanAndParseJson(text);
+
+        return {
+            first_name: parsed.first_name || '',
+            last_name: parsed.last_name || '',
+            job_title: parsed.job_title || '',
+            linkedin_url: parsed.linkedin_url || '',
+            linkedin_about: parsed.linkedin_about || '',
+            persona_suggestion: parsed.persona_suggestion,
+            notes: parsed.notes || '',
+            error: parsed.error
+        };
+    } catch (e) {
+        console.error("Failed to parse LinkedIn contact:", e);
+        return {
+            first_name: '',
+            last_name: '',
+            job_title: '',
+            linkedin_url: '',
+            error: e instanceof Error ? e.message : String(e)
+        };
+    }
 }
 
 export function setModel(model: string) {

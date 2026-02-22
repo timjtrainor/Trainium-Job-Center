@@ -176,7 +176,7 @@ export const DashboardView = (props: DashboardViewProps): React.ReactNode => {
                 PENDING_FOLLOW_UPS: JSON.stringify(pendingFollowUps.map(f => ({ contactName: `${f.contact?.first_name} ${f.contact?.last_name}`, dueDate: f.follow_up_due_date }))),
             };
 
-            const result = await geminiService.generateDashboardFeed(context, prompt.content, debugCallbacks);
+            const result = await geminiService.generateDashboardFeed(context, prompt.id, debugCallbacks);
             setFocusItems(result);
 
         } catch (err) {

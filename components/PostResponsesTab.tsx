@@ -43,7 +43,7 @@ export const PostResponsesTab = ({ responses, onOpenAddModal, onOpenRewriteModal
                 MASTERY: activeNarrative?.signature_capability,
                 NARRATIVE: activeNarrative?.impact_story_body,
             };
-            const analysis = await geminiService.analyzeCommentStrategically(context, prompt.content);
+            const analysis = await geminiService.analyzeCommentStrategically(context, prompt.id);
             onUpdateResponse(response.comment_id, { ai_analysis: analysis });
         } catch (error) {
             console.error('Failed to analyze comment', error);
@@ -51,7 +51,7 @@ export const PostResponsesTab = ({ responses, onOpenAddModal, onOpenRewriteModal
             setIsLoading(prev => ({ ...prev, [response.comment_id]: false }));
         }
     };
-    
+
     return (
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 sm:p-8 border border-slate-200 dark:border-slate-700">
             <div className="flex justify-between items-center mb-6">
@@ -74,7 +74,7 @@ export const PostResponsesTab = ({ responses, onOpenAddModal, onOpenRewriteModal
                         <div className="flex justify-between items-start gap-4">
                             <div className="flex-grow">
                                 <p className="text-xs text-slate-500 dark:text-slate-400 italic">"{(response.post_excerpt || '').substring(0, 100)}..."</p>
-                                <p className="mt-2 text-sm text-slate-800 dark:text-slate-200">{(response.conversation.find(c => c.author === 'user') || {text: ''}).text}</p>
+                                <p className="mt-2 text-sm text-slate-800 dark:text-slate-200">{(response.conversation.find(c => c.author === 'user') || { text: '' }).text}</p>
                             </div>
                             <div className="flex-shrink-0 w-48 text-right space-y-2">
                                 {response.ai_analysis ? (

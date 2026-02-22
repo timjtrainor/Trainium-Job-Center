@@ -206,7 +206,7 @@ export const ResumeEditorView = ({ resume, activeNarrative, onSave, onCancel, on
             const context = {
                 ACCOMPLISHMENT_LIST: JSON.stringify(experience.accomplishments.map(a => a.description))
             };
-            const result = await geminiService.findAndCombineAchievements(context, prompt.content);
+            const result = await geminiService.findAndCombineAchievements(context, prompt.id);
             setCombineSuggestions(result.combinations);
             setIsCombineModalOpen(true);
         } catch (error) {

@@ -972,58 +972,60 @@ You are an expert interview coach acting as a collaborative co-author. Your task
 `
   },
   {
-    id: 'GENERATE_STRATEGIC_MESSAGE',
+    id: 'networking/strategic-message-gen',
     name: 'Generate Strategic Networking Message',
     description: 'Generates concise, high-impact networking messages for various scenarios.',
     content: `
-You are an expert career strategist specializing in high-impact, ultra-concise networking messages. The tone must be human, concise, confident, respectful, and peer-to-peer. Avoid corporate jargon. The goal is to start a real conversation.
+    You are an expert career strategist specializing in high-impact, ultra-concise networking messages. The tone must be human, concise, confident, respectful, and peer-to-peer. Avoid corporate jargon. The goal is to start a real conversation.
 
-**CONTEXT:**
-- Goal: {{GOAL}}
-### User Profile Summary:
-- North Star: {{NORTH_STAR}}
-- Signature Mastery: {{MASTERY}}
-- Target Company: {{COMPANY_NAME}}
-- Contact's First Name: {{CONTACT_FIRST_NAME}}
-- Contact's Persona: {{CONTACT_PERSONA}}
-- Contact's LinkedIn "About" Section: {{CONTACT_LINKEDIN_ABOUT}}
-- Company Problem (from job description or research): {{COMPANY_PROBLEM}} (Optional)
-- My Specific Notes/Angle: {{USER_NOTES}} (Optional)
+    **CONTEXT:**
+    - Goal: {{GOAL}}
+    - My Notes/Steer: {{USER_NOTES}}
+    
+    ### Target Contact Profile:
+    - Name: {{CONTACT_FIRST_NAME}}
+    - Role/Title: {{CONTACT_ROLE}}
+    - Intel/About: {{CONTACT_INTEL}}
+    - Company: {{COMPANY_NAME}}
 
-**INSTRUCTIONS:**
-1. Generate 3 distinct message options.
-2. **ABSOLUTE MAX LENGTH: 300 characters.** Be brutally concise.
-3. Address the contact by their first name, e.g., "Hi {{CONTACT_FIRST_NAME}},".
-4. Analyze the contact's "About" section to find a genuine, personal connection point, a shared interest, or a specific phrase that resonates. Use this for personalization.
-5. If a "Company Problem" is provided, frame the message around being a potential solution-provider for that specific problem, referencing your own summary.
-6. If 'My Specific Notes/Angle' are provided, you MUST use them to guide the tone or specific angle of the messages.
-7. Return a single, valid JSON object with one key: "messages", containing an array of 3 strings.
+    ### Strategic Context:
+    - Job Problem Analysis: {{job_problem_analysis}}
+    - Alignment Strategy: {{alignment_strategy}}
 
-**EXAMPLE OUTPUT (Personalized Connection):**
-\`\`\`json
-{
-  "messages": [
-    "Hi {{CONTACT_FIRST_NAME}}, noticed in your profile you're passionate about developer tools. I've spent the last 5 years in that space and would be great to connect with a fellow enthusiast.",
-    "Hi {{CONTACT_FIRST_NAME}}, your post on platform engineering really resonated. I'm also focused on building scalable systems and would appreciate the connection.",
-    "Hi {{CONTACT_FIRST_NAME}}, I see we both worked at Acme Corp. Would be great to connect and compare notes on our time there."
-  ]
-}
-\`\`\`
+    **INSTRUCTIONS:**
+    1. Generate 3 distinct message options.
+    2. **ABSOLUTE MAX LENGTH: 300 characters.** Be brutally concise.
+    3. Address the contact by their first name, e.g., "Hi {{CONTACT_FIRST_NAME}},".
+    4. Analyze the "Intel/About" section to find a genuine, personal connection point, a shared interest, or a specific phrase that resonates. Use this for personalization.
+    5. Use the "Job Problem Analysis" and "Alignment Strategy" to frame the message around being a potential solution-provider for specific problems they are facing.
+    6. If 'My Notes/Steer' are provided, you MUST use them to guide the tone or specific angle of the messages.
+    7. Return a single, valid JSON object with one key: "messages", containing an array of 3 strings.
 
-**EXAMPLE OUTPUT (Problem-Focused):**
-\`\`\`json
-{
-  "messages": [
-    "Hi {{CONTACT_FIRST_NAME}}, I saw {{COMPANY_NAME}} is hiring a PM to tackle user onboarding. My work focuses on simplifying complex products to drive adoption, and I'd be interested to connect.",
-    "Hi {{CONTACT_FIRST_NAME}}, I'm a product leader who helps companies like yours solve {{COMPANY_PROBLEM}}. Given your role, I thought a connection might be mutually beneficial.",
-    "Hi {{CONTACT_FIRST_NAME}}, I've been following {{COMPANY_NAME}}'s work. I specialize in solving the exact types of challenges your new role is focused on. Would be great to connect."
-  ]
-}
-\`\`\`
-`
+    **EXAMPLE OUTPUT (Personalized Connection):**
+    \`\`\`json
+    {
+      "messages": [
+        "Hi {{CONTACT_FIRST_NAME}}, noticed in your profile you're passionate about developer tools. I've spent the last 5 years in that space and would be great to connect with a fellow enthusiast.",
+        "Hi {{CONTACT_FIRST_NAME}}, your post on platform engineering really resonated. I'm also focused on building scalable systems and would appreciate the connection.",
+        "Hi {{CONTACT_FIRST_NAME}}, I see we both worked at Acme Corp. Would be great to connect and compare notes on our time there."
+      ]
+    }
+    \`\`\`
+
+    **EXAMPLE OUTPUT (Problem-Focused):**
+    \`\`\`json
+    {
+      "messages": [
+        "Hi {{CONTACT_FIRST_NAME}}, I saw {{COMPANY_NAME}} is hiring a PM to tackle user onboarding. My work focuses on simplifying complex products to drive adoption, and I'd be interested to connect.",
+        "Hi {{CONTACT_FIRST_NAME}}, I'm a product leader who helps companies like yours solve the specific challenges mentioned in your job descriptions. Given your role, I thought a connection might be mutually beneficial.",
+        "Hi {{CONTACT_FIRST_NAME}}, I've been following {{COMPANY_NAME}}'s work. I specialize in solving the exact types of challenges your new role is focused on. Would be great to connect."
+      ]
+    }
+    \`\`\`
+    `
   },
   {
-    id: "GENERATE_STRATEGIC_COMMENT",
+    id: 'networking/strategic-comment-gen',
     name: "Generate Strategic LinkedIn Comment",
     description: "Drafts several insightful comments for a LinkedIn post, aligned with the user's brand.",
     content: `
@@ -1058,7 +1060,7 @@ You are a strategic communications assistant. Your task is to draft several insi
 `
   },
   {
-    id: "GENERATE_EXPERT_COMMENT",
+    id: 'networking/expert-comment-gen',
     name: "Generate Expertise-Driven Comment",
     description: "Crafts a concise, confident comment to position the user as an expert.",
     content: `
@@ -1907,6 +1909,28 @@ You are a world-class interview coach. Your task is to analyze an interview ques
   ]
 }
 \`\`\`
+`
+  },
+  {
+    id: 'networking/brand-voice-auditor',
+    name: 'Brand Voice Auditor',
+    description: 'Audits message drafts for strategic alignment and tone.',
+    content: `
+# Role: Executive Brand Auditor
+# Task: Perform a "Thirst Audit" and Strategic Alignment check on the message draft.
+
+# Context:
+- **My Positioning**: {{POSITIONING_STATEMENT}}
+- **My Mastery**: {{MASTERY}}
+- **Draft Message**: {{MESSAGE_DRAFT}}
+
+# Audit Criteria:
+1. **Thirst Check**: Is the tone pleading or "generic candidate"? 
+2. **Pathology Match**: Does it clearly target the organizational debt/vacuum?
+3. **Status Check**: Does it sound like a peer expert or a subordinate?
+
+# Output Requirement:
+- Return a JSON object with alignment_score (0-10), tone_feedback, and a suggestion for refinement.
 `
   }
 ];

@@ -73,23 +73,45 @@ export const StrategySetup: React.FC<StrategySetupProps> = ({
     const [isStoryGenerating, setIsStoryGenerating] = useState<Record<string, boolean>>({});
     const [showOverwriteWarning, setShowOverwriteWarning] = useState(false);
     const [availableExperiences, setAvailableExperiences] = useState<UploadedDocument[]>([]);
+    const [showAllTracks, setShowAllTracks] = useState(false);
+    const [allCompetencies, setAllCompetencies] = useState<Competency[]>([]);
 
-    // 1. Load competencies based on the application's track
+    // 1. Load competencies based on the application's track or all tracks
     useEffect(() => {
         const loadCompetencies = async () => {
             setIsLoading(true);
             try {
-                const track = application.job?.track || 'General Leadership';
-                const data = await apiService.getTrackCompetencies(track);
-                setTrackCompetencies(data);
+                if (showAllTracks) {
+                    const allTracksData = await apiService.getAllTrackCompetencies();
+                    // Merge all competencies and remove duplicates by title
+                    const merged: Competency[] = [];
+                    const seenNames = new Set<string>();
+
+                    allTracksData.forEach(track => {
+                        track.competencies.forEach(comp => {
+                            if (!seenNames.has(comp.title)) {
+                                seenNames.add(comp.title);
+                                merged.push(comp);
+                            }
+                        });
+                    });
+                    setAllCompetencies(merged.sort((a, b) => a.title.localeCompare(b.title)));
+                } else {
+                    const track = application.job?.track || 'Engineering';
+                    const data = await apiService.getTrackCompetencies(track);
+                    setTrackCompetencies(data);
+                    if (data) {
+                        setAllCompetencies(data.competencies);
+                    }
+                }
             } catch (err) {
-                console.error('Failed to load track competencies:', err);
+                console.error('Failed to load competencies:', err);
             } finally {
                 setIsLoading(false);
             }
         };
         loadCompetencies();
-    }, [application]);
+    }, [application, showAllTracks]);
 
     // 2. Load all available Proof Points from ChromaDB
     useEffect(() => {
@@ -517,13 +539,24 @@ export const StrategySetup: React.FC<StrategySetupProps> = ({
                 {/* Left Column - Repository */}
                 <div className="col-span-4">
                     <section className="bg-white rounded-2xl p-6 border-2 border-slate-100 shadow-sm">
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-6 flex items-center">
-                            <Icons.CircleStackIcon className="h-4 w-4 mr-2" />
-                            Competency Repository
-                        </h3>
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center">
+                                <Icons.CircleStackIcon className="h-4 w-4 mr-2" />
+                                Competency Repository
+                            </h3>
+                            <button
+                                onClick={() => setShowAllTracks(!showAllTracks)}
+                                className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md transition-all border ${showAllTracks
+                                        ? 'bg-blue-600 border-blue-600 text-white'
+                                        : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+                                    }`}
+                            >
+                                {showAllTracks ? 'All Tracks Active' : 'Show All Tracks'}
+                            </button>
+                        </div>
 
                         <div className="space-y-3">
-                            {trackCompetencies?.competencies.map((comp) => {
+                            {allCompetencies.map((comp) => {
                                 const isActive = setup.active_competencies.some(c => c.title === comp.title);
                                 return (
                                     <button

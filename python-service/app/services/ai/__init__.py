@@ -4,6 +4,7 @@ from .ai_service import ai_service, AIService
 from .persona_llm import PersonaLLM
 from .evaluation_pipeline import EvaluationPipeline
 from .web_search import WebSearchTool, get_web_search_tool
+from .tournament_service import TournamentService, get_tournament_service
 
 __all__ = [
     "GeminiService",
@@ -14,4 +15,6 @@ __all__ = [
     "EvaluationPipeline",
     "WebSearchTool",
     "get_web_search_tool",
+    "TournamentService",
+    "get_tournament_service",
 ]

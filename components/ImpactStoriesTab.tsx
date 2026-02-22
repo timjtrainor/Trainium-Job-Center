@@ -79,7 +79,7 @@ const StoryEditor = ({
             const result = await geminiService.generateImpactStory({
                 STORY_DRAFT: storyBodyToString(story.story_body),
                 STORY_METRICS: "" // Assuming metrics are in the body for this context
-            }, prompt.content);
+            }, prompt.id);
             onStoryChange({
                 ...story,
                 story_title: result.impact_story_title,
@@ -122,7 +122,7 @@ const StoryEditor = ({
                     className={textareaClass}
                 />
             </div>
-             <div>
+            <div>
                 <label htmlFor={`notes-${story.story_id}`} className={labelClass}>Speaker Notes</label>
                 <textarea
                     id={`notes-${story.story_id}`}

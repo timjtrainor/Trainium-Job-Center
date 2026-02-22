@@ -356,6 +356,8 @@ class ChromaService:
             ids = result.get("ids", []) or []
             metadatas = result.get("metadatas", []) or []
             documents = result.get("documents", []) or []
+            
+            logger.info(f"Retrieved {len(ids)} chunks from collection '{collection_name}' for listing")
 
             for idx, chunk_id in enumerate(ids):
                 metadata = metadatas[idx] if idx < len(metadatas) else {}
@@ -416,6 +418,7 @@ class ChromaService:
                     }
                 )
 
+            logger.info(f"Grouped collection '{collection_name}' into {len(documents_list)} unique documents")
             return documents_list
 
         except Exception as e:
@@ -428,16 +431,21 @@ class ChromaService:
             client = self._get_client()
             collection = client.get_collection(collection_name)
             
-            # Get all chunk IDs for this document
-            result = collection.get(include=["metadatas"])
-            chunk_ids_to_delete = []
+            # Efficiently get only the relevant chunk IDs using where filter
+            where_clause = self._build_where_clause({"doc_id": document_id})
+            result = collection.get(where=where_clause, include=["metadatas"])
+            chunk_ids_to_delete = result.get("ids", [])
             
-            for i, chunk_id in enumerate(result["ids"]):
-                metadata = result["metadatas"][i] if result["metadatas"] else {}
-                doc_id = metadata.get("doc_id", chunk_id.split("::")[0] if "::" in chunk_id else chunk_id)
-                
-                if doc_id == document_id:
-                    chunk_ids_to_delete.append(chunk_id)
+            # Fallback for legacy documents without doc_id in metadata
+            if not chunk_ids_to_delete:
+                logger.info(f"Document '{document_id}' not found with doc_id filter in '{collection_name}', scanning collection...")
+                result = collection.get(include=["metadatas"])
+                for i, chunk_id in enumerate(result.get("ids", [])):
+                    metadata = result["metadatas"][i] if result.get("metadatas") else {}
+                    doc_id = metadata.get("doc_id", chunk_id.split("::")[0] if "::" in chunk_id else chunk_id)
+                    
+                    if doc_id == document_id:
+                        chunk_ids_to_delete.append(chunk_id)
             
             if chunk_ids_to_delete:
                 collection.delete(ids=chunk_ids_to_delete)
